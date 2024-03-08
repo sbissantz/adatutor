@@ -175,4 +175,3 @@ names(altmejd723)[pid_pat] <- "pid"
 
 # Save the data set as R data
 usethis::use_data(altmejd723, overwrite = TRUE)
-
