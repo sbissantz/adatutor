@@ -1,0 +1,7 @@
+.onLoad <- function(libname, pkgname) { }
+
+.onAttach <- function(libname, pkg) {
+  intro <- "adatutoR - Introducing the Boosting Framework with AdaBoost"
+  version <- packageVersion(pkg)
+  packageStartupMessage(paste0(intro, "\n", "Version: ", version))
+}
