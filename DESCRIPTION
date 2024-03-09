@@ -2,7 +2,7 @@ Package: adatutoR
 Title: Introducing the Boosting Framework with AdaBoost
 Version: 0.0.0.9000
 Authors@R: 
-    c(person(given = "Steven", family = "Bißantz", , 
+    c(person(given = "Steven", family = "Bißantz", 
              email = "steven.bissantz@gmail.com", 
              role = c("aut", "cre"), 
              comment = c(ORCID = "0000-0002-1109-786X")),
