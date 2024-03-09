@@ -2,8 +2,12 @@ Package: adatutoR
 Title: Introducing the Boosting Framework with AdaBoost
 Version: 0.0.0.9000
 Authors@R: 
-    person("Steven", "Bißantz", , "steven.bissantz@gmail.com", role = c("aut", "cre"),
-           comment = c(ORCID = "0000-0002-1109-786X"))
+    c( person("Steven", "Bißantz", 
+    "steven.bissantz@gmail.com", role = c("aut", "cre"), 
+    comment = c(ORCID = "0000-0002-1109-786X"),
+    person(given = "Daniel W.", "Heck", 
+    "daniel.heck@uni-marburg.de", role=c("cre"),
+    comment = c(ORCID = "0000-0002-6302-9252"))
 Description: What the package does (one paragraph).
 License: GPL (>= 3)
 Encoding: UTF-8
