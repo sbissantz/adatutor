@@ -10,7 +10,7 @@ Authors@R:
              email="daniel.heck@uni-marburg.de", 
              role="ctb",
              comment = c(ORCID = "0000-0002-6302-9252")))
-Description: What the package does (one paragraph).
+Description: adatutoR supports our efforts to introduce boosting to psychologists with little machine learning background. It provides the necessary datasets and some convenience functions that we use in our hands-on tutorial.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
