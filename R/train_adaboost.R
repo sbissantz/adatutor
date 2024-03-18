@@ -39,7 +39,8 @@ train_adaboost <- function(X, y, eta, n_trees, tree_hyperpar) {
     # Normalize weights (probabilistic interpretation)
     D <- D/sum(D)
     # Save the weak learner and its weight
-    H[[tree]] <- list("learner" = h, "learner_weight" = a)
+    H[[tree]] <- list("learner" = h, "learner_weight" = a,
+                      "observation_weight" = D)
     # H[[t]] <- list("weight" = a, "weaklearner" = h, "sampleweight" = D)
     # Store sample weights for visualization
     # cat(t,"weighted accuracy:", wacc, "\n")
