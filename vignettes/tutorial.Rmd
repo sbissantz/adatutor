@@ -47,14 +47,21 @@ Start by randomly splitting the data in a training and testing set (70/30).
 # Reproducibility
 set.seed(112)
 
+# Split proportion
+sprop <- 0.7
+
+# Number of effects 
+n_effect <- nrow(df)
+
 # Number of training samples
-n_train <- round( nrow(df) * 0.7)
+n_train <- round(n_effect  * sprop)
 
 # Training index
-trainidx <- sample( seq_len(n_train), n_train )
+train_idx <- sample(seq_len(n_effect), n_train)
 
 # Training and testing set 
-train <- df[trainidx, ] ; test  <- df[-trainidx, ] 
+train <- df[train_idx, ]
+test  <- df[-train_idx, ] 
 
 # Feature matrices
 X_train <- train[,features] 
@@ -64,6 +71,55 @@ X_test <- test[,features]
 y_train <- train[,target]
 y_test <- test[,target]
 ```
+
+However, there are imbalances in the data set. 
+
+```{r}
+table(df$replicated)
+```
+
+Therefore we should do a stratified split. This means we need to partition the
+data into groups based on a stratum variable - here: replicated, and then draw
+a random sample from each stratum.
+
+```{r}
+# Reproducibility
+set.seed(112)
+
+# Partition the data based on the outcome variable
+df_split <- split(df, df$replicated)
+
+# Number of training samples (stratified)
+n_train <- lapply(df_split, function(df) round(nrow(df) * sprop))
+
+# Training index (stratified)
+strat_idx <- mapply(function(df, n) sample(rownames(df), n), df_split, n_train)
+
+# Training index 
+train_idx <- as.numeric(unlist(strat_idx))
+
+# Training and testing set 
+train <- df[train_idx, ]
+test  <- df[-train_idx, ] 
+
+# Feature matrices
+X_train <- train[,features] 
+X_test <- test[,features] 
+
+# Target vectors 
+y_train <- train[,target]
+y_test <- test[,target]
+```
+
+Now the training and testing set have approximately the same proportion of
+replication and failure as the original outcome variable.
+
+```{r}
+strat_split <- rsample::initial_split(df, prop = 0.7, strata = "replicated")
+train <- rsample::training(strat_split)
+test <- rsample::testing(strat_split)
+```
+
 
 ## Predictions
 
@@ -115,7 +171,23 @@ ensemble <- train_adaboost(X = X_train, # Feature matrix
                            tree_hyperpar = hyptree) 
 ```
 
+# Illustration of learning the weights across iterations (Daniel)
+
+```{r}
+a <- sapply(ensemble, "[[", "learner_weight")
+D <- t(sapply(ensemble, "[[", "observation_weight"))
+plot(a, type = "l", ylim = c(0, .04), ylab = "Weights", xlab = "Trees", col = "red")
+
+for(i in 1:ncol(D)) 
+  lines(1:nrow(D), D[,i] + runif(1, -.00014, +.00014), col = adjustcolor(1, alpha.f = 0.1))
+
+# DANIEL: why do the weights of the trees have these regular peaks for the sequential updates?
+```
+
 ### Prediction
+
+TODO: Switched from 0/1 with replicated to 1/2 as.numeric(). Now the function is 
+not running. Check, if this is the problem.
 
 ```{r}
 test_adaboost
