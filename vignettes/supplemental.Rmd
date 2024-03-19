@@ -24,6 +24,32 @@ library(adatutoR)
 data("altmext723")
 ```
 
+### Illustration of learning the weights across iterations (Daniel)
+
+```{r}
+ensemble <- train_adaboost(X = X_train, # Feature matrix 
+                           y = y_train, # Target vector 
+                           # Ensemble hyperparameters
+                           n_trees = 1e4, # Number of learner
+                           eta = 1e-4, # Learning rate
+                           # Tree hyperparameters (see above)
+                           tree_hyperpar = hyptree) 
+a <- sapply(ensemble, "[[", "learner_weight")
+D <- t(sapply(ensemble, "[[", "observation_weight"))
+plot(a, type = "l", ylim = c(0, .04), ylab = "Weights", xlab = "Trees", col = "red")
+
+for(i in 1:ncol(D)) 
+  lines(1:nrow(D), D[,i] + runif(1, -.00014, +.00014), col = adjustcolor(1, alpha.f = 0.1))
+
+# DANIEL: why do the weights of the trees have these regular peaks for the sequential updates?
+```
+ 
+Daniel: Das Updating der Gewichtung der Beobachtungen pro Tree könnte man auch
+illustrieren durch eine Art Heat Map (x = Trees, y = Observations, degree of
+gray = weighting). Direkt untendrunter könnte man mit einer ähnlichen
+graphischen Matrix die correct predictions als black/white Heatmap illustrieren
+oder so
+
 ### Complete case analysis
 
 ```{r}
