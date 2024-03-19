@@ -18,22 +18,72 @@ knitr::opts_chunk$set(
 library(adatutoR)
 ```
 
-# Data
+# Learning the weights across iterations (Daniel)
+
+## Data
 
 ```{r}
+# Load the data
 data("altmext723")
-```
-
-### Illustration of learning the weights across iterations (Daniel)
-
-```{r}
+# Variables of interest
+voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "log_p.o", "replicated")
+# Outcome (classification task) 
+target <- "replicated"
+# Predictors 
+features <- c("power.o", "effect_size.o", "n.o", "log_p.o")
+# Note: No missing values 
+df <- altmext723[,voi]
+# Reproducibility
+set.seed(112)
+# Partition the data based on the outcome variable
+df_split <- split(df, df$replicated)
+# Split proportion
+sprop <- 0.7
+# Number of training samples (stratified)
+n_train <- lapply(df_split, function(df) round(nrow(df) * sprop))
+# Training index (stratified)
+strat_idx <- mapply(function(df, n) sample(rownames(df), n), df_split, n_train)
+# Training index 
+train_idx <- as.numeric(unlist(strat_idx))
+# Training set 
+train <- df[train_idx, ]
+# Feature matrix
+X_train <- train[,features] 
+# Target vector
+y_train <- train[,target]
+# Hyperparameter settings (tree) 
+hyptree <- rpart::rpart.control(
+  # Maximum depth of any node tree
+  # Root node countes as depth = 0
+  # Note: Values greatet 30 will give nonsense results on 32-bit machines
+  # Important: We usually boost stumps (depth = 1), or shallow trees
+  maxdepth = 1, # Boost stumps
+  # Minimum n° obs in a node for a split to be attempted 
+  minsplit = 20, 
+  # Minimum n° of obs in any terminal <leaf> node 
+  minbucket = round(10 / 3),
+  # Complexity parameter: Include in
+  # Split must decrease the fit lack of fit by a factor of cp
+  cp = 1e-2,
+  # Number of cross-validations 
+  xval = 10,
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini"
+  # split = "information"
+  )
+# Fit the model to the data
 ensemble <- train_adaboost(X = X_train, # Feature matrix 
                            y = y_train, # Target vector 
                            # Ensemble hyperparameters
                            n_trees = 1e4, # Number of learner
                            eta = 1e-4, # Learning rate
                            # Tree hyperparameters (see above)
-                           tree_hyperpar = hyptree) 
+                           tree_hyperpar = hyptree)
+```
+
+Visualize the results.
+
+```{r}
 a <- sapply(ensemble, "[[", "learner_weight")
 D <- t(sapply(ensemble, "[[", "observation_weight"))
 plot(a, type = "l", ylim = c(0, .04), ylab = "Weights", xlab = "Trees", col = "red")
@@ -47,117 +97,44 @@ for(i in 1:ncol(D))
 Daniel: Das Updating der Gewichtung der Beobachtungen pro Tree könnte man auch
 illustrieren durch eine Art Heat Map (x = Trees, y = Observations, degree of
 gray = weighting). Direkt untendrunter könnte man mit einer ähnlichen
-graphischen Matrix die correct predictions als black/white Heatmap illustrieren
-oder so
+graphischen Matrix die correct predictions als black/white Heatmap illustrieren.
 
-### Complete case analysis
-
-```{r}
-d <- altmext723[,c("power.o", "effect_size.o", "replicated")]
-```
+# Decision Boundaries 
 
 Visualize decision boundaries: 
 - https://rpubs.com/ZheWangDataAnalytics/DecisionBoundary
 - https://quantifyinghealth.com/plot-logistic-regression-decision-boundary-in-r/
 - https://www.spsanderson.com/steveondata/posts/2023-09-11/index.html
 
-```{r}
-# input: 
-# model: classification model
-# data: training set
-# class: response variable
-
-boundary <- function(model, data, class = NULL, predict_type = "class",
-  resolution = 100, showgrid = TRUE, ...) {
-
-  if(!is.null(class)) cl <- data[,class] else cl <- 1
-  data <- data[,1:2]
-  k <- length(unique(cl))
-  # I think 1 is sufficient if we only have 2 classes
-  # k <- 1 
-
-  plot(data, col = as.integer(cl)+1L, pch = as.integer(cl)+1L, ...)
-
-  # make grid
-  r <- sapply(data, range, na.rm = TRUE)
-  xs <- seq(r[1,1], r[2,1], length.out = resolution)
-  ys <- seq(r[1,2], r[2,2], length.out = resolution)
-  g <- cbind(rep(xs, each=resolution), rep(ys, time = resolution))
-  colnames(g) <- colnames(r)
-  g <- as.data.frame(g)
-
-  ### guess how to get class labels from predict
-  ### (unfortunately not very consistent between models)
-  p <- predict(model, g, type = predict_type)
-  if(is.list(p)) p <- p$class
-  p <- as.factor(p)
-
-  if(showgrid) points(g, col = as.integer(p)+1L, pch = ".")
-
-  z <- matrix(as.integer(p), nrow = resolution, byrow = TRUE)
-  # For the black line 
-  contour(xs, ys, z, add = TRUE, drawlabels = FALSE, lwd = 2, levels = (1:(k-1))+.5)
-  invisible(z)
-}
-#
-#
-set.seed(1)
-
-# only use two predictors
-x <- iris[1:150, c("Sepal.Length", "Sepal.Width", "Species")]
-
-library(randomForest)
-
-model7 <- randomForest(Species ~ ., data=x)
-boundary(model7, x, class = "Species", main = "Random Forest")
-```
-
-# Original
+## Data
 
 ```{r}
-model7 <- randomForest(replicated ~ ., data=d)
-boundary(model7, d, class = "replicated", main = "Random Forest")
-```
-
-# Reproduction without function!
-
-My try
-
-```{r}
-resolution <- 100 
-y_obs <- d[,"replicated"]
-features <- d[,1:2]
-k <- length(unique(y_obs))
-plot(features, col = as.integer(y_obs)+6L, pch = as.integer(y_obs) + 15)
-# Make grid
-rng <- lapply(features, range, na.rm = TRUE)
-x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-x2_seq <- seq(rng$effect_size.o[1], rng$effect_size.o[2], length.out = resolution)
-grid <- expand.grid("power.o" = x1_seq, "effect_size.o" = x2_seq)
-### guess how to get class labels from predict
-mdl <- randomForest(replicated ~ ., data=d)
-y_pred <- predict(mdl, grid, type = "class")
-points(grid, col = as.integer(y_pred) + 6L, pch = ".")
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
-# For the black line 
-contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, col = "black", 
-        levels = (1:(k-1))+.5)
-legend("topleft", c("replicated", "not replicated") , pch = c(17,16), col = c(8, 7), cex=0.7)
-```
-
-GLM decision boundaries
-
-```{r}
+data("altmext723")
+# Variables of interests
+voi <- c("power.o", "effect_size.o", "replicated")
+# Predictors 
+features <- c("power.o", "effect_size.o")
 # Outcome
-y_obs <- d[,"replicated"]
-# Predictors
-features <- d[,1:2]
+target <- "replicated"
+# Subset of the data  
+d <- altmext723[, voi]
+# Feature matrix
+X <- d[,features]
+# Outcome vector
+y_obs <- d[,target]
+```
+
+## Bernoulli-logit GLM  
+
+Prepare the visualization.
+
+```{r}
 # Number of classes
 k <- length(unique(y_obs))
 # Range(s) as list
-rng <- lapply(features, range, na.rm = TRUE)
+rng <- lapply(X, range, na.rm = TRUE)
 # Grid resolution
-resolution <- 1000 
+resolution <- 1e3 
 # Colors
 col1 <- "cornflowerblue" ; col2 <- "ivory4"
 # Transparency
@@ -167,7 +144,8 @@ col2_transp <- adjustcolor(col2, alpha.f)
 # First feature sequence
 x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
 # Second feature sequence
-x2_seq <- seq(rng$effect_size.o[1], rng$effect_size.o[2], length.out = resolution)
+x2_seq <- seq(rng$effect_size.o[1], rng$effect_size.o[2],
+              length.out = resolution)
 # Make grid from sequences
 grid <- expand.grid("power.o" = x1_seq, "effect_size.o" = x2_seq)
 # Fit a logitstic regression model to the data 
@@ -180,35 +158,38 @@ y_prob <- predict(mdl, grid, type = "response")
 y_pred <- factor(as.integer(y_prob > 0.5))
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "no" means "not replicated", "yes" means "replicated"
+symbol_colors <- ifelse(y_obs == "no", col1, col2)
 # "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == 0, col1, col2)
 grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
-# Plot the features 
+# Plot the features
+```
+
+Visualize.
+
+```{r}
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
      xlab = "Power", ylab = "Effect Size", main = "Decision Boundary")
 mtext("Bernoulli Logit Generalized Linear Model")
 points(grid, col = grid_colors, pch = ".")
-points(features, col = symbol_colors, pch = as.integer(y_obs) + 15, )
-contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, col = "black",  
-        levels = (1:(k-1))+.5)
-legend("topleft", c("replicated", "not replicated") , pch = c(17,16), col = c(col2, col1), cex=0.7)
+points(X, col = symbol_colors, pch = as.integer(y_obs) + 15, )
+contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
+        col = "black", levels = (1:(k-1))+.5)
+legend("topleft", c("replicated", "not replicated") , pch = c(17,16), 
+       col = c(col2, col1), cex=0.7)
 ```
 
 ## Random Forest
 
+Prepare the visualization.
+
 ```{r}
-d2 <- d
-d2$replicated <- as.factor(d2$replicated)
-# Outcome
-y_obs <- d2[,"replicated"]
-# Predictors
-features <- d2[,1:2]
 # Number of classes
 k <- length(unique(y_obs))
 # Range(s) as list
-rng <- lapply(features, range, na.rm = TRUE)
+rng <- lapply(X, range, na.rm = TRUE)
 # Grid resolution
-resolution <- 1000 
+resolution <- 1e3 
 # Colors
 col1 <- "cornflowerblue" ; col2 <- "ivory4"
 # Transparency
@@ -223,20 +204,26 @@ x2_seq <- seq(rng$effect_size.o[1], rng$effect_size.o[2],
 # Make grid from sequences
 grid <- expand.grid("power.o" = x1_seq, "effect_size.o" = x2_seq)
 # Fit the model to the data
-mdl <- randomForest::randomForest(replicated ~ ., data=d2)
+mdl <- randomForest::randomForest(replicated ~ ., data=d)
 # Predict grid
 y_pred <- predict(mdl, grid, type = "class")
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == 0, col1, col2)
-grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
-# Plot the features 
+symbol_colors <- ifelse(y_obs == "no", col1, col2)
+# "0" means "not replicated", "1" means "replicated"
+grid_colors <- ifelse(y_pred == "no", col1_transp, col2_transp)
+```
+
+Visualize.
+
+```{r}
+
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
      xlab = "Power", ylab = "Effect Size", main = "Decision Boundary")
 mtext("Random Forest Algorithm")
 points(grid, col = grid_colors, pch = ".")
-points(features, col = symbol_colors, pch = as.integer(y_obs) + 15, )
+points(X, col = symbol_colors, pch = as.integer(y_obs) + 15, )
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
         col = "black", levels = (1:(k-1))+.5)
 legend("topleft", c("replicated", "not replicated") , pch = c(17,16), 
@@ -245,19 +232,17 @@ legend("topleft", c("replicated", "not replicated") , pch = c(17,16),
 
 ## ADAboost
 
+Prepare the visualization.
+
 ```{r}
-# Outcome
-y_obs <- d[,"replicated"]
-# Make 0/1 factor into something ADA can handlle (-1/1) 
+# Make 0/1 factor into something ADA can handle (-1/1) 
 y_obs_ml <- 2 * as.numeric(y_obs) - 3
-# Predictors
-features <- d[,1:2]
 # Number of classes
 k <- length(unique(y_obs))
 # Range(s) as list
-rng <- lapply(features, range, na.rm = TRUE)
+rng <- lapply(X, range, na.rm = TRUE)
 # Grid resolution
-resolution <- 1000 
+resolution <- 1e3 
 # Colors
 col1 <- "cornflowerblue" ; col2 <- "ivory4"
 # Transparency
@@ -277,7 +262,7 @@ tree_hyperpar <- rpart::rpart.control(
   # Root node countes as depth = 0
   # Note: Values greatet 30 will give nonsense results on 32-bit machines
   # Important: We usually boost stumps (depth = 1), or shallow trees
-  maxdepth = 1,
+  maxdepth = 3,
   # Minimum n° obs in a node for a split to be attempted 
   minsplit = 5, 
   # Minimum n° of obs in any terminal <leaf> node 
@@ -293,10 +278,10 @@ tree_hyperpar <- rpart::rpart.control(
   # split = "information"
   )
 # Fit ADAboost
-estimators <- train_adaboost(features, y_obs_ml, 
+estimators <- train_adaboost(X, y_obs_ml, 
                            # Number of trees
-                           n_trees = 1e4, 
-                           eta = 1e-4, 
+                           n_trees = 5e2, 
+                           eta = 1, 
                            tree_hyperpar)
 # Predict ADAboost
 y_pred_ml <- test_adaboost(grid, estimators)
@@ -305,9 +290,13 @@ y_pred <- as.factor((y_pred_ml$class + 1) / 2)
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == 0, col1, col2)
-grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
+symbol_colors <- ifelse(y_obs == "no", col1, col2)
+grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
+```
 
+Visualize.
+
+```{r}
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
      xlab = "Power", ylab = "Effect Size", main = "Decision Boundary")
 mtext("Adaptive Boosting Algorithm")
@@ -317,7 +306,7 @@ z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # For the black line 
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
         col = "black", levels = (1:(k-1))+.5)
-points(features, col = symbol_colors, pch = as.integer(y_obs) + 15)
+points(X, col = symbol_colors, pch = as.integer(y_obs) + 15)
 legend("topleft", c("replicated", "not replicated") , pch = c(17,16), 
        col = c(col2, col1), cex=0.7)
 ```
