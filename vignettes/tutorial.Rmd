@@ -1,5 +1,5 @@
 ---
-title: "tutorial"
+title: "Tutorial"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{tutorial}
@@ -18,9 +18,7 @@ knitr::opts_chunk$set(
 library(adatutoR)
 ```
 
-
-# Module 1: AdaBoost
-
+# Module 1: Splitting 
 
 ## Dataset
 
@@ -125,7 +123,7 @@ replication and failure as the original outcome variable. We could also use the
 # test <- rsample::testing(strat_split)
 ```
 
-## Predictions
+# Module 2: AdaBoost
 
 First we fit the model to the data (training) and then test its predictive
 capabilities on unseen data (testing). Since we will use the data to find
@@ -175,24 +173,6 @@ ensemble <- train_adaboost(X = X_train, # Feature matrix
                            tree_hyperpar = hyptree) 
 ```
 
-### Illustration of learning the weights across iterations (Daniel)
-
-```{r}
-a <- sapply(ensemble, "[[", "learner_weight")
-D <- t(sapply(ensemble, "[[", "observation_weight"))
-plot(a, type = "l", ylim = c(0, .04), ylab = "Weights", xlab = "Trees", col = "red")
-
-for(i in 1:ncol(D)) 
-  lines(1:nrow(D), D[,i] + runif(1, -.00014, +.00014), col = adjustcolor(1, alpha.f = 0.1))
-
-# DANIEL: why do the weights of the trees have these regular peaks for the sequential updates?
-```
- 
-Daniel: Das Updating der Gewichtung der Beobachtungen pro Tree könnte man auch
-illustrieren durch eine Art Heat Map (x = Trees, y = Observations, degree of
-gray = weighting). Direkt untendrunter könnte man mit einer ähnlichen
-graphischen Matrix die correct predictions als black/white Heatmap illustrieren
-oder so
 
 ### Prediction
 
@@ -216,7 +196,9 @@ AUC::auc(ROC)
 ```
 
 
-# Module 2: Cross Validation
+# Module 3: Leave-Project-Out Cross-Validation
+
+TODO: Check if code in Module 2 is running
 
 Above, we randomly split the data on the level of study effects, taking care
 that no trials in the training set is also in the testing set. However, a more
@@ -244,11 +226,11 @@ runtime <- system.time({
     train <- df[!(df$pid %in% project), ]
     # Fit the model to the data to get the ensemble
     ensemble <- train_adaboost(train[,features], train[,target], 
-                                 n_trees = 1e1,  eta = 1e-1, hyptree)
+                                 n_trees = 5,  eta = 1, hyptree)
     # Make predictions on validation set 
-    ypred <- test_adaboost(test[,features], ensemble)$class
+    y_pred <- test_adaboost(test[,features], ensemble)$class
     # Store the performance evaluation (level: effects)
-    auc[[project]] <- AUC::auc( AUC::roc(ypred, test$replicated) )
+    auc[[project]] <- AUC::auc( AUC::roc(y_pred, test$replicated) )
   }})
 # Waiting time
 runtime["elapsed"]
@@ -256,13 +238,37 @@ runtime["elapsed"]
 
 This will run for approximately 4 minutes.
 
+TODO: This seems to run, but why do I always get the same performance estimates?
+No matter if I use 1 tree or 1e4 trees...
+
+```{r}
+runtime <- system.time({
+  for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
+    # Define the testing set
+    test <- df_split[[project]] # TODO: Maybe inconsistent
+    # Define the training set
+    train <- df[!(df$pid %in% project), ]
+    # Fit the model to the data to get the ensemble
+    ensemble <- train_adaboost(train[,features], train[,target], 
+                                 n_trees = 500, eta = 1, hyptree)
+    # Make predictions on validation set 
+    y_pred <- test_adaboost(test[,features], ensemble)$class
+    # Store the performance evaluation (level: effects)
+    auc[[project]] <- AUC::auc( AUC::roc(y_pred, test$replicated) )
+  }})
+# Waiting time
+runtime["elapsed"]
+```
+
 ## Performance estimates
 
 ```{r}
 auc
 ```
 
-# Module 3: Hyperparameter Optimization
+# Module 4: Hyperparameter Optimization using LPO-CV
+
+TODO: Check if code in Module 3 is running
 
 ```{r}
 # TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5
@@ -305,9 +311,9 @@ for(i in seq_len(hgrid_rows)) {
                                  tree_hyperpar = rpart::rpart.control(
                                    maxdepth = hgrid$maxdepth[i]))
       # Make predictions on validation set 
-      ypred <- test_adaboost(test[,features], ensemble)$class
+      y_pred <- test_adaboost(test[,features], ensemble)$class
       # Store the performance evaluation (level: effects)
-      hgrid[[project]][i] <- AUC::auc( AUC::roc(ypred, test$replicated)) }
+      hgrid[[project]][i] <- AUC::auc( AUC::roc(y_pred, test$replicated)) }
     # Calculate the average performance
     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8]))
   }) 
@@ -348,5 +354,11 @@ ensemble <- train_adaboost(train[,features], train[,target],
                            tree_hyperpar = rpart::rpart.control(
                                  maxdepth = 3))
 # Make predictions on validation set 
-ypred <- test_adaboost(test[,features], ensemble)$class
+y_pred <- test_adaboost(test[,features], ensemble)$class
 ```
+
+# Module 5: Stacking (?) 
+
+Stacking the best performing algorithms could improve the predictions quite
+significantly here! For example, learners 2 and 3 perform quite well on the ee
+project, while learners 1 and 8 perform quite well on ml1. 
