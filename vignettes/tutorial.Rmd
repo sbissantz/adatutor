@@ -18,6 +18,10 @@ knitr::opts_chunk$set(
 library(adatutoR)
 ```
 
+
+# Module 1: AdaBoost
+
+
 ## Dataset
 
 Full data set from Adam Altmejd and colleagues plus the SSRP data.
@@ -54,7 +58,7 @@ sprop <- 0.7
 n_effect <- nrow(df)
 
 # Number of training samples
-n_train <- round(n_effect  * sprop)
+n_train <- round(n_effect * sprop)
 
 # Training index
 train_idx <- sample(seq_len(n_effect), n_train)
@@ -112,14 +116,14 @@ y_test <- test[,target]
 ```
 
 Now the training and testing set have approximately the same proportion of
-replication and failure as the original outcome variable.
+replication and failure as the original outcome variable. We could also use the
+`rsample` package for that.
 
-```{r}
-strat_split <- rsample::initial_split(df, prop = 0.7, strata = "replicated")
-train <- rsample::training(strat_split)
-test <- rsample::testing(strat_split)
+```{r, eval=FALSE}
+# strat_split <- rsample::initial_split(df, prop = 0.7, strata = "replicated")
+# train <- rsample::training(strat_split)
+# test <- rsample::testing(strat_split)
 ```
-
 
 ## Predictions
 
@@ -171,7 +175,7 @@ ensemble <- train_adaboost(X = X_train, # Feature matrix
                            tree_hyperpar = hyptree) 
 ```
 
-# Illustration of learning the weights across iterations (Daniel)
+### Illustration of learning the weights across iterations (Daniel)
 
 ```{r}
 a <- sapply(ensemble, "[[", "learner_weight")
@@ -183,11 +187,14 @@ for(i in 1:ncol(D))
 
 # DANIEL: why do the weights of the trees have these regular peaks for the sequential updates?
 ```
+ 
+Daniel: Das Updating der Gewichtung der Beobachtungen pro Tree könnte man auch
+illustrieren durch eine Art Heat Map (x = Trees, y = Observations, degree of
+gray = weighting). Direkt untendrunter könnte man mit einer ähnlichen
+graphischen Matrix die correct predictions als black/white Heatmap illustrieren
+oder so
 
 ### Prediction
-
-TODO: Switched from 0/1 with replicated to 1/2 as.numeric(). Now the function is 
-not running. Check, if this is the problem.
 
 ```{r}
 test_adaboost
@@ -196,28 +203,20 @@ test_adaboost
 Make predictions with the trained model and add them to the testing set.
 
 ```{r}
-test$ypred <- test_adaboost(X_test, ensemble)$class
+y_class <- test_adaboost(X_test, ensemble)$class
+test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
 ```
 
 ## Evaluation
 
-TODO: Check code!
-
 ```{r}
-# TODO: Need to be factor vectors <-  not numerics!
-ROC <- AUC::roc(
-  factor(test$ypred, labels = c("0", "1")),
-  factor(test$replicated))
+ROC <- AUC::roc(test$y_pred, test$replicated)
 # Area under the curve
 AUC::auc(ROC)
-
-
-# ccc <- ifelse(test$ypred == -1, 0, 1)
-# AUC::roc(factor(ccc), factor(test$replicated))
-# AUC::auc(ROC)
 ```
 
-# Cross Validation
+
+# Module 2: Cross Validation
 
 Above, we randomly split the data on the level of study effects, taking care
 that no trials in the training set is also in the testing set. However, a more
@@ -263,7 +262,7 @@ This will run for approximately 4 minutes.
 auc
 ```
 
-# Hyperparameter Optimization (TODO)
+# Module 3: Hyperparameter Optimization
 
 ```{r}
 # TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5
@@ -330,7 +329,7 @@ Stacking the best performing algorithms could improve the predictions quite
 significantly here! For example, learners 2 and 3 perform quite well on the ee
 project, while learners 1 and 8 perform quite well on ml1.
 
-# Optimized Ensemble 
+## Optimized Ensemble 
 
 If we do not stack the results, we should at least fit the model with the
 hyperparameters that had the best average performance (here AUC) across all
@@ -351,4 +350,3 @@ ensemble <- train_adaboost(train[,features], train[,target],
 # Make predictions on validation set 
 ypred <- test_adaboost(test[,features], ensemble)$class
 ```
-
