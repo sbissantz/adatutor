@@ -14,20 +14,58 @@ knitr::opts_chunk$set(
 )
 ```
 
+# Introduction
+
+- Why Boosting?
+
+- Why AdaBoost?
+
+- What is Boosting 
+
+- What means adaptive? (see, e.g. Kunapuli, 4.2.1)
+
+- Comparison to prediction markets: lay person (boosting) vs experts (random forest)
+
+
+# Approach (hands dirty)
+
+- Describe the approach taken
+  - Why implementing it yourself? 
+    - Understanding
+    - The role of hyperparameters!
+    - Hyperparameters and tuning! 
+
+- Note Florian Pargent et al.'s paper (supplement not complement)
+  - For basic terminology (e.g., bias-variance trade-off, classification, AUC)
+  - For the right mindset (e.g., predictions in psychology)
+  - and other things
+
+# Software (maybe together with Approach)
+
+- Describe the software used
+
 ```{r setup}
 library(adatutoR)
 ```
 
-# Module 1: Splitting 
+- Describe the data set, i.e. data sets used
 
-## Dataset
-
-Full data set from Adam Altmejd and colleagues plus the SSRP data.
 
 ```{r}
 # Load the data
 data("altmext723")
+```
 
+- TODO: Document the data set in R so that it is accessible with `?altmext723`
+
+
+
+# Module 1: Splitting 
+
+
+Full data set from Adam Altmejd and colleagues plus the SSRP data.
+
+```{r}
 # Variables of interest
 voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "log_p.o", "replicated")
 
@@ -44,6 +82,8 @@ df <- altmext723[,voi]
 ## Training and testing split 
 
 Start by randomly splitting the data in a training and testing set (70/30).
+
+### Simple random sampling 
 
 ```{r}
 # Reproducibility
@@ -74,7 +114,15 @@ y_train <- train[,target]
 y_test <- test[,target]
 ```
 
+### Stratified sampling & imbalances
+
 However, there are imbalances in the data set. 
+
+- What is and why use stratified sampling - with the outcome as stratum? 
+"Recall that stratified means the folds are created in such a way that the class
+distribution is preserved across the folds. This also helps with imbalanced data
+sets, as stratification ensures that data from all classes is represented." (p. 103)
+
 
 ```{r}
 table(df$replicated)
@@ -128,6 +176,210 @@ replication and failure as the original outcome variable. We could also use the
 First we fit the model to the data (training) and then test its predictive
 capabilities on unseen data (testing). Since we will use the data to find
 the best hyperparameters this is better thought of as validation set.
+
+- Discuss a couple of iterations of boosting (Kunapali, p.90) 
+
+- (Extra: Decision stumps)
+
+## An iterative process...
+
+Setup.
+
+```{r}
+n_trees <- 100
+# Extract the number of rows
+n_samples <- nrow(X_train)
+# Initialize the weights
+D <- rep(1, n_samples)/n_samples
+# Pre-allocate the empty ensemble
+H <- vector("list", n_trees)
+df <- data.frame(X_train, y_train)
+```
+
+### Digression: Classification stumps and shallow trees 
+
+Crash course on classification trees to understand stumps and shallow trees
+using `rpart`.
+
+- What are decision trees?
+- What are decision stumps?
+- Splitting criterion (CART, Breiman)?
+
+A selection of most important tree hyperparameters for our AdaBoost
+implementation.
+
+```{r}
+hyptree <- rpart::rpart.control(
+  # Maximum depth of any node tree 
+  maxdepth = 1, # Boost stumps
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini") # or ID3: split = "information"
+```
+
+Fit a decision stump to the training data and visualize the result.
+
+```{r}
+# Create a decision stump
+h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
+                  control = hyptree)
+# Visualize
+rattle::fancyRpartPlot(h, caption = NULL)
+```
+
+- Why this particular split?
+  - Gini impurity
+  - Sensitivity to observation weights (Assumption: equal) 
+
+#### Gini impurity
+
+- Interesting, especially for continuous features 
+- Calculation example(?)
+
+
+The split point is chosen by sorting the individual values of a given feature
+and then calculating the Gini impurity for each mid-point between adjacent values.
+
+For example, lets say we have
+
+```{r}
+(0.2880204 + 0.3148003)/2
+(0.3148003 + 0.3788417)/2
+(0.3788417 + 0.3915412)/2
+
+power_sorted <- sort(df$power.o)
+# Reduce( function(x, y) (x + y) / 2, power_sorted, accumulate = TRUE)[-1] 
+# Alternative
+adj_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
+```
+
+
+#### Sensitivity to observation weights
+
+Normalized initialization weights. Should not change anything to before.
+
+```{r}
+# Equal weight to each observation
+D <- rep(1, n_samples)/n_samples
+# Create a decision stump
+h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
+                  weight = D, control = hyptree)
+# Visualize
+rattle::fancyRpartPlot(h, caption = NULL)
+```
+
+Normalized random observation weights for demonstration. Changes result.
+
+```{r}
+# Reproducibility
+set.seed(113)
+# Random draws from Uniform(0,1)
+D_unorm <- runif(107) 
+# Normalize (sum: 1)
+D <- D_unorm/sum(D_unorm)
+# Create a decision stump
+h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
+                  weight = D, control = hyptree)
+# Visualize
+rattle::fancyRpartPlot(h, caption = NULL)
+```
+
+##### Additional exercises
+
+`rpart` offers a number of hyperparameters that affect the outcome of the
+results. We leave it to the reader as an additional exercise to explore how each
+of them influences the result. For our purposes, we will focus only on the
+maximum depth and the splitting criterion.
+
+```{r}
+hyptree <- rpart::rpart.control(
+  # Maximum depth of any node tree (root node: depth = 0)
+  # Important: We usually boost stumps (depth = 1) or shallow trees
+  maxdepth = 1, # Boost stumps
+  # Minimum n° obs in a node for a split to be attempted 
+  minsplit = 20, 
+  # Minimum n° of obs in any terminal <leaf> node 
+  minbucket = round(10 / 3),
+  # Complexity parameter: Include in
+  # Split must decrease the fit lack of fit by a factor of cp
+  cp = 1e-2,
+  # Number of cross-validations 
+  xval = 10,
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini" # or ID3: split = "information"
+  )
+```
+
+##### Additional exercise 1
+
+We created a decision stump using the gini impurity as splitting criterion.
+Adapt the code above to fit a shallow tree of depth two and three.
+
+##### Additional exercise 2
+
+Despite the hyperparameters we already mentioned there are more. See the
+`?rpart::rpart.control` documentation and explore how changing different
+arguments influence the results.
+
+
+### Adaboost continued
+
+Normalized weights.
+
+```{r}
+# Initialize the weights (normalized)
+D <- rep(1, n_samples)/n_samples
+```
+
+Adaptive boosting.
+
+```{r}
+# for (tree in 1:n_trees) {
+  # Train a single weak learner (h_t) with normalized(!) sample weights (D)
+  h <- rpart::rpart(formula = y ~ ., data = df , method = "class",
+                    weights = D, control = tree_hyperpar)
+  # Make predictions with the weak learner (h_t)
+  y_pred <- predict(object = h, newdata = X, type = "class")
+  # y_pred <- 2*as.numeric(y_class) - 3
+  wacc <- sum(D * (y == y_pred)) / sum(D)
+  # Compute the training error (e_t) of the weak learner (h_t)
+  # This is simply one minus the weighted accuracy, given weights D
+  e <- 1 - wacc
+  # Equivalent but less readable: e <- sum(D * (y != y_pred)) / sum(D)
+  # Compute the the weight (a_t) of the weak learner (h_t)
+  # Reduce the learner weight by a factor eta (learning rate)
+  a <- 0.5 * log( (1 - e)  / e) * eta
+  # Pre-Prunning or Early Stopping:
+  # Do not forget to add the parameter (prunning threshold)
+  # if (a < prunning_threshold) {
+  #  message("Prunning threshold reached")
+  #  break
+  # }
+  # Updates the weights
+  # Increase for misclassified examples: (y == y_pred)
+  # decrease for correctly classified examples: (y!=y_pred)
+  m <- (y == y_pred) * 1 + (y != y_pred) * -1
+  # Update the sample weights and limit the contribution of h_t by eta
+  D <- D * exp(-a * m)
+  # Normalize weights (probabilistic interpretation)
+  D <- D/sum(D)
+  # Save the weak learner and its weight
+  H[[tree]] <- list("learner" = h, "learner_weight" = a,
+                    "observation_weight" = D)
+  # Store sample weights for visualization
+}
+  # Return the ensemble
+# H
+}
+```
+
+```{r}
+# Plot
+# rattle::fancyRpartPlot(h, caption = NULL)
+# Sys.sleep(2)
+```
+
+
+## Hands dirty: Implementation
 
 ### Training 
 
