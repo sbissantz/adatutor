@@ -223,8 +223,9 @@ Fit a decision stump to the training data and visualize the result.
 h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
                   control = hyptree)
 # Visualize
-rattle::fancyRpartPlot(h, caption = NULL)
+rpart.plot::rpart.plot(h, main = "Decision Stump", extra = 102, digits = 5)
 ```
+
 
 - Why this particular split?
   - Gini impurity
@@ -235,21 +236,64 @@ rattle::fancyRpartPlot(h, caption = NULL)
 - Interesting, especially for continuous features 
 - Calculation example(?)
 
-
 The split point is chosen by sorting the individual values of a given feature
 and then calculating the Gini impurity for each mid-point between adjacent values.
 
 For example, lets say we have
 
 ```{r}
-(0.2880204 + 0.3148003)/2
-(0.3148003 + 0.3788417)/2
-(0.3788417 + 0.3915412)/2
-
 power_sorted <- sort(df$power.o)
-# Reduce( function(x, y) (x + y) / 2, power_sorted, accumulate = TRUE)[-1] 
-# Alternative
-adj_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
+adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
+# Example above:
+constant <- adjacent_means[69] # 0.9286641
+N_total <- length(y_train) # N_total: 107
+# Left leaf (power.o < 0.9286641: yes)
+criterion_left <- df$power.o < constant
+N_left <- length(df$y_train[criterion_left]) # 69 total
+left_success <- sum(as.numeric(df$y_train[criterion_left]) - 1) # 19 successes
+left_failure <- N_left - left_success # 50 failures
+# Right leaf (power.o < 0.9286641: no)
+criterion_right <- df$power.o >= constant
+N_right <- length(df$y_train[criterion_right]) # 38 total
+right_success <- sum(as.numeric(df$y_train[criterion_right]) - 1) # 29 sucesses
+right_failure <- N_right - right_success # failures
+# Gini index
+gini_d1 <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
+gini_d2 <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
+# Gini impurity
+gini_impurity <- (N_left / N_total) * gini_d1 + (N_right / N_total) * gini_d2
+round(gini_impurity, digits = 5)
+```
+
+# Control calculations 
+
+```{r}
+power_sorted <- sort(df$power.o)
+adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
+gini_impurity <- vector(length = length(adjacent_means))
+  for(i in 1:length(adjacent_means) ) {
+  constant <- adjacent_means[i] 
+  N_total <- length(y_train) 
+  # Left leaf 
+  criterion_left <- df$power.o < constant
+  N_left <- length(df$y_train[criterion_left])
+  left_success <- sum(as.numeric(df$y_train[criterion_left]) - 1)
+  left_failure <- N_left - left_success 
+  # Right leaf
+  criterion_right <- df$power.o >= constant
+  N_right <- length(df$y_train[criterion_right]) 
+  right_success <- sum(as.numeric(df$y_train[criterion_right]) - 1) 
+  right_failure <- N_right - right_success 
+  # Gini index
+  gini_d1 <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
+  gini_d2 <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
+  # Impurity
+  gini_impurity[i] <- (N_left / N_total) * gini_d1 + (N_right / N_total) * gini_d2
+  }
+# Position of smallest impurity 
+which.min(gini_impurity)
+# Outcome 
+adjacent_means[which.min(gini_impurity)]
 ```
 
 
@@ -264,7 +308,7 @@ D <- rep(1, n_samples)/n_samples
 h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
                   weight = D, control = hyptree)
 # Visualize
-rattle::fancyRpartPlot(h, caption = NULL)
+rpart.plot::rpart.plot(h, main = "Decision Stump")
 ```
 
 Normalized random observation weights for demonstration. Changes result.
@@ -280,7 +324,7 @@ D <- D_unorm/sum(D_unorm)
 h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
                   weight = D, control = hyptree)
 # Visualize
-rattle::fancyRpartPlot(h, caption = NULL)
+rpart.plot::rpart.plot(h, main = "Decision Stump")
 ```
 
 ##### Additional exercises
