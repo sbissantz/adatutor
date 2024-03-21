@@ -159,7 +159,7 @@ y_pred <- factor(as.integer(y_prob > 0.5))
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # "no" means "not replicated", "yes" means "replicated"
-symbol_colors <- ifelse(y_obs == "no", col1, col2)
+symbol_colors <- ifelse(y_obs == "failuire", col1, col2)
 # "0" means "not replicated", "1" means "replicated"
 grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
 # Plot the features
@@ -210,9 +210,9 @@ y_pred <- predict(mdl, grid, type = "class")
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == "no", col1, col2)
+symbol_colors <- ifelse(y_obs == "failure", col1, col2)
 # "0" means "not replicated", "1" means "replicated"
-grid_colors <- ifelse(y_pred == "no", col1_transp, col2_transp)
+grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
 ```
 
 Visualize.
@@ -290,7 +290,7 @@ y_pred <- as.factor((y_pred_ml$class + 1) / 2)
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == "no", col1, col2)
+symbol_colors <- ifelse(y_obs == "failure", col1, col2)
 grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
 ```
 
