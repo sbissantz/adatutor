@@ -18,7 +18,7 @@ altmext723 <- rbind.data.frame( altmejd723[,colnames(altmejd723) %in% voi],
 
 # Make the outcome a factor and put it on the 1/2 scale (instead of 0/1)
 altmext723$replicated <- factor(altmext723$replicated + 1, # rpart consistency
-                                labels = c("no", "yes"))
+                                labels = c("failure", "success"))
 
 # Sort the data set by eid
 altmext723 <- altmext723[order(altmext723$eid),]
