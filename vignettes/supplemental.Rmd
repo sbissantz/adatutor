@@ -218,16 +218,15 @@ grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
 Visualize.
 
 ```{r}
-
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
-     xlab = "Power", ylab = "Effect Size", main = "Decision Boundary")
+   xlab = "Power", ylab = "Effect Size", main = "Decision Boundary")
 mtext("Random Forest Algorithm")
 points(grid, col = grid_colors, pch = ".")
 points(X, col = symbol_colors, pch = as.integer(y_obs) + 15, )
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
-        col = "black", levels = (1:(k-1))+.5)
+      col = "black", levels = (1:(k-1))+.5)
 legend("topleft", c("replicated", "not replicated") , pch = c(17,16), 
-       col = c(col2, col1), cex=0.7)
+     col = c(col2, col1), cex=0.7)
 ```
 
 ## ADAboost
@@ -307,6 +306,6 @@ z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
         col = "black", levels = (1:(k-1))+.5)
 points(X, col = symbol_colors, pch = as.integer(y_obs) + 15)
-legend("topleft", c("replicated", "not replicated") , pch = c(17,16), 
+legend("topleft", c("success", "failure") , pch = c(17,16), 
        col = c(col2, col1), cex=0.7)
 ```
