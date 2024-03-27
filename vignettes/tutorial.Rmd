@@ -198,12 +198,173 @@ df <- data.frame(X_train, y_train)
 
 ### Digression: Classification stumps and shallow trees 
 
-Crash course on classification trees to understand stumps and shallow trees
-using `rpart`.
+- Why learn about classification trees with AdaBoost?
 
-- What are decision trees?
-- What are decision stumps?
+The original AdaBoost algorithm boosts classification stumps or shallow
+classification trees (ref.). Therefore, it seems obligatory to delve into this
+workhorse machine-learning model. We will use the `rpart` package (ref.) to
+build understanding in a hands-on manner and `rpart.plot` to visualize the
+result.
+
+- What are classification trees?
+
+Classification trees are tools to solve classification problems: 
+
+We have measured the power of the original study, its effect size, we have
+information about the number of observations available, and so on (see
+`?altmext723`). 
+
+Given these measurements, our goal is to predict whether a replication study is
+successful (class 1) or not (class 2) (see e.g. Breimann et al., 1984, p.2 for
+this view).
+
+Classification trees tackle this problem by repeatedly asking (yes/no) questions
+about the data and putting them in non-overlapping groups based on the answers:
+
+Is the power of the original study smaller than 0.93, yes, then move left; no,
+move right. Is the number of observations in the original study greater than
+116? Yes...
+
+```{r}
+subdf <- df[, c("power.o", "n.o", "y_train")]
+# Hyperparameter setup 
+hyptree <- rpart::rpart.control(
+  # Maximum depth of any node tree 
+  maxdepth = 3, 
+  # Minimum number of observations in terminal node
+  minbucket = 4,
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini") # or ID3: split = "information"
+  # Create a decision tree 
+h <- rpart::rpart(formula = y_train ~ ., data = subdf , method = "class", 
+                  control = hyptree)
+# Visualize
+rpart.plot::rpart.plot(h, main = "Classification Tree", extra = 102, 
+                       digits = 5, box.palette="BuGy")
+```
+With minbucket = 4 i can reproduce the following values. 
+
+Check: Does this make sense? Maybe ignore the decision tree and just use
+decision stump. Or describe that the last split is nonsensical.
+
+```{r}
+table(subdf$y_train[subdf$power.o < 0.92866 & subdf$n.o >= 24])
+
+table(subdf$y_train[subdf$power.o < 0.92866 & subdf$n.o < 24])
+
+table(subdf$y_train[subdf$power.o >= 0.92866 & subdf$power.o >= 1])
+
+table(subdf$y_train[subdf$power.o >= 0.92866 & subdf$power.o < 1])
+```
+
+```{r}
+# Number of classes
+k <- length(unique(subdf$y_train))
+# Range(s) as list
+rng <- lapply(subdf[-length(subdf)], range, na.rm = TRUE)
+# Grid resolution
+resolution <- 1e3 
+# Colors
+col1 <- "cornflowerblue" ; col2 <- "ivory4"
+# Transparency
+alpha.f <- 0.03
+col1_transp <- adjustcolor(col1, alpha.f)
+col2_transp <- adjustcolor(col2, alpha.f) 
+# First feature sequence
+x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
+# Second feature sequence
+x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
+# Make grid from sequences
+grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
+# Predict grid
+y_pred <- predict(h, grid, type = "class")
+# Contour matrix
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "0" means "not replicated", "1" means "replicated"
+symbol_colors <- ifelse(y_train == "failure", col1, col2)
+# "0" means "not replicated", "1" means "replicated"
+grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
+plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
+   xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
+mtext("Classification Tree")
+points(grid, col = grid_colors, pch = ".")
+points(subdf[-length(subdf)], col = symbol_colors, pch = as.integer(y_train) + 15, )
+contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
+      col = "black", levels = (1:(k-1))+.5)
+legend("topleft", c("success", "failure") , pch = c(17,16), 
+     col = c(col2, col1), cex=0.7)
+
+```
+
+
+
+
+
+
+
+```{r}
+suppressWarnings({
+  op <- par()
+  par(mfrow = c(1,2))
+  # Hyperparameter setup 
+  hyptree <- rpart::rpart.control(
+    # Maximum depth of any node tree 
+    maxdepth = 3, 
+    # Original CART with gini impurity as splitting criterion  
+    split = "gini") # or ID3: split = "information"
+    # Create a decision tree 
+    h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
+                      control = hyptree)
+  # Visualize
+  rpart.plot::rpart.plot(h, main = "Classification Tree", extra = 102, 
+                         digits = 2, box.palette="BuGy")
+  # Number of classes
+  k <- length(unique(y_train))
+  # Range(s) as list
+  rng <- lapply(X_train, range, na.rm = TRUE)
+  # Grid resolution
+  resolution <- 1e2 
+  # Colors
+  col1 <- "cornflowerblue" ; col2 <- "ivory4"
+  # Transparency
+  alpha.f <- 0.03
+  col1_transp <- adjustcolor(col1, alpha.f)
+  col2_transp <- adjustcolor(col2, alpha.f) 
+  # First feature sequence
+  x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
+  # Second feature sequence
+  x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
+  # Make grid from sequences
+  grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
+  # "0" means "not replicated", "1" means "replicated"
+  symbol_colors <- ifelse(y_train == "failure", col1, col2)
+  # "0" means "not replicated", "1" means "replicated"
+  grid_colors <- ifelse(y_train == "failure", col1_transp, col2_transp)
+  plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
+       xlab = "power.o", ylab = "n.o", 
+       main = "Decision Boundaries")
+  points(X_train$power.o, X_train$n.o, col = symbol_colors, 
+         pch = as.integer(y_train) + 15, )
+  abline(v = 0.92866, lty = 2, lwd = 1)
+  abline(v = 1, lty =2, lwd = 1)
+  lines(x = c(0,0.92866), y = c(24,24), lty = 2, lwd = 1)
+  legend("topleft", c("success", "failure") , pch = c(17,16), 
+       col = c(col2, col1), cex=0.7)
+  par(op)
+})
+```
+
+
+
+
+- Decision stumps
+
+In the simplest case we only allow the algorithm to ask a single question.
+The resulting tree 
+
+
 - Splitting criterion (CART, Breiman)?
+
 
 A selection of most important tree hyperparameters for our AdaBoost
 implementation.
@@ -226,6 +387,8 @@ h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class",
 rpart.plot::rpart.plot(h, main = "Decision Stump", extra = 102, digits = 5)
 ```
 
+- What do we see?
+  - Why `digits =5`?
 
 - Why this particular split?
   - Gini impurity
@@ -233,37 +396,126 @@ rpart.plot::rpart.plot(h, main = "Decision Stump", extra = 102, digits = 5)
 
 #### Gini impurity
 
-- Interesting, especially for continuous features 
-- Calculation example(?)
+Explanation: Gini impurity considers how often we would misclassify a
+replication study (e.g. say it would "successfully replicate" when it would not)
+if we were to randomly guess its class label (success versus failure) based on
+the class distribution in that group.
 
-The split point is chosen by sorting the individual values of a given feature
-and then calculating the Gini impurity for each mid-point between adjacent values.
+So the Gini impurity measures how often of misclassifying a replication
+study's outcome (success or failure) if we were to randomly assign a label
+(success or failure) based on the distribution of successes and failures within
+our group of replication studies split according to a specific power threshold
+(such as power.o >= 0.83).
 
-For example, lets say we have
+[...] and by choosing the feature or split with the lowest Gini impurity helps
+us minimizing this misclassification risk.
+
 
 ```{r}
 power_sorted <- sort(df$power.o)
 adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
+```
+
+The split point is chosen by sorting the individual values of a given feature
+and then calculating the Gini impurity for each mid-point between adjacent values.
+
+
+```{r}
 # Example above:
 constant <- adjacent_means[69] # 0.9286641
 N_total <- length(y_train) # N_total: 107
+
 # Left leaf (power.o < 0.9286641: yes)
 criterion_left <- df$power.o < constant
 N_left <- length(df$y_train[criterion_left]) # 69 total
 left_success <- sum(as.numeric(df$y_train[criterion_left]) - 1) # 19 successes
 left_failure <- N_left - left_success # 50 failures
+
 # Right leaf (power.o < 0.9286641: no)
 criterion_right <- df$power.o >= constant
 N_right <- length(df$y_train[criterion_right]) # 38 total
-right_success <- sum(as.numeric(df$y_train[criterion_right]) - 1) # 29 sucesses
+right_success <- sum(as.numeric(df$y_train[criterion_right]) - 1) # 29 successes
 right_failure <- N_right - right_success # failures
-# Gini index
-gini_d1 <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
-gini_d2 <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
-# Gini impurity
-gini_impurity <- (N_left / N_total) * gini_d1 + (N_right / N_total) * gini_d2
+```
+
+
+```{r}
+# Individual Gini impurities
+gini_left <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
+gini_right <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
+```
+
+Gini left: The Gini impurity suggests that if we were to randomly pick a
+replication from our sample where the original had a power of less than 0.93 and
+say that it would fail to replicate, there is approximately a 39.91% chance that
+we would be wrong.
+
+Gini right: The Gini impurity suggests that if we were to randomly pick a
+replication from our sample where the original had a power of greater than 0.93 and
+say that it would successfully replicate, there is approximately a 36.15% chance
+that we would be wrong.
+
+We finally weight the results to get the overall weighted Gini impurity
+condidering the different class distributions.
+
+```{r}
+
+# Overall weighted Gini impurity 
+gini_impurity <- (N_left / N_total) * gini_left + (N_right / N_total) * gini_right
 round(gini_impurity, digits = 5)
 ```
+
+
+G = 0 indicates a perfectly pure node (all elements belong to the same class).
+G = 0.5 indicates maximum impurity (elements are evenly distributed among all classes).
+
+Estimating the Gini impurity
+
+Gini impurity = 1 - (probability of the most frequent class)^2 - (probability of
+the second-most frequent class)^2 - ... (and so on for all classes)
+
+When you're building a decision tree, you calculate the Gini impurity for each
+possible split (question) you could make on the data. The question that leads to
+the lowest Gini impurity (the purest resulting groups) is the one you choose.
+
+Gini Impurity in Action
+
+Group 1 (e.g., power > 0.8): What's the Gini impurity of this group in terms of
+replication success vs. failure labels? Are the studies in this group mostly
+successful replications, mostly failures, or a mix?
+
+Group 2 (e.g., power ≤ 0.8): Calculate the Gini impurity for this group as well.
+        
+Choosing the best Split: The algorithm selects the power threshold split that
+results in the lowest overall Gini impurity in the new groups. This split
+maximizes class purity, meaning it clearly separates studies more likely to
+succeed in replication from those more likely to fail.
+
+
+
+
+
+
+For example, lets say we have
+
+
+
+1. step gini_d1 and gini_d2: You're correctly calculating the standard Gini
+impurity for the left and right groups separately using the formula: 1 -
+(probability of class 1)^2 - (probability of class 2)^2 - ...
+
+2. step (N_left / N_total) and (N_right / N_total):  These represent the weights
+assigned to each group's Gini impurity, based on the proportion of examples in
+each group relative to the total.
+
+3. step: gini_impurity:  The final line combines the weighted Gini impurities of both
+groups to calculate the overall weighted Gini impurity for the potential split.
+
+TODO: Calculations seem to be different from, e.g.: https://machinelearningmastery.com/classification-and-regression-trees-for-machine-learning/
+
+Additional exercise: We leave it as an additional exercise to the reader to
+verify that the result has the lowest Gini impurity among all splits (a) within
+the particular features and (b) overall.
 
 # Control calculations 
 
