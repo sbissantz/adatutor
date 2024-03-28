@@ -204,26 +204,136 @@ The original AdaBoost algorithm boosts classification stumps or shallow
 classification trees (ref.). Therefore, it seems obligatory to delve into this
 workhorse machine-learning model. We will use the `rpart` package (ref.) to
 build understanding in a hands-on manner and `rpart.plot` to visualize the
-result.
+results.
 
 - What are classification trees?
 
-Classification trees are tools to solve classification problems: 
+The dataset contains measurements on the power of the original study, its effect
+size, there is information about its number of observations available, and so on
+(see `?altmext723`). Given these measurement, the goal is to predict whether a
+replication attempt is successful (class 1) or fails (class 2) (see e.g.,
+Breimann et al., 1984, p.2 for this view). 
 
-We have measured the power of the original study, its effect size, we have
-information about the number of observations available, and so on (see
-`?altmext723`). 
+Binary classification trees tackle this problem by repeatedly asking (yes/no)
+questions about some feature of the data which allow them to organize the data
+in non-overlapping groups: Is the power of the study greater than or equal to
+0.9? Yes, put the study in the left group often called "branch"; if not it goes
+right. According to this (splitting) rule, there are two resulting group; one
+including studies with `power.o >= 0.9` and another where `power.o < 0.9`. A
+second question targeting all high powered studies (`power.o > 0.9`) in the left
+branch could lead to a more fine-grained partition on a lower level (depth 2):
+Is the number of observation in the original study also greater than 100 (`n.o > 100`)? 
+If so, put the study in the low-left branch. If not, the study goes in the
+low-right branch; and so on.
+Binary classification stumps shortcut this repetitive process by limiting
+themselves to a single (yes/no) question, such as "`power.o >= 0.9`"? (See
+Figure 1, left side). As a consequence (of the single splitting criterion)
+decision stumps partition the set of studies into two final groups (often called
+leave or terminal nodes), and are said to be of depth one. 
 
-Given these measurements, our goal is to predict whether a replication study is
-successful (class 1) or not (class 2) (see e.g. Breimann et al., 1984, p.2 for
-this view).
+Figure 1 (middle) does visualize what organizing units in non-overlapping groups
+or paritioning means. Every study  
 
-Classification trees tackle this problem by repeatedly asking (yes/no) questions
-about the data and putting them in non-overlapping groups based on the answers:
+```{r}
+subdf <- df[, c("power.o", "n.o", "y_train")]
+# Hyperparameter setup 
+hyptree <- rpart::rpart.control(
+  # Maximum depth of any node tree 
+  maxdepth = 1, 
+  # Minimum number of observations in terminal node
+  minbucket = 4,
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini") # or ID3: split = "information"
 
-Is the power of the original study smaller than 0.93, yes, then move left; no,
-move right. Is the number of observations in the original study greater than
-116? Yes...
+
+  # Create a decision tree 
+h <- rpart::rpart(formula = y_train ~ ., data = subdf , method = "class", 
+                  control = hyptree)
+
+# Visualize
+rpart.plot::rpart.plot(h, main = "Classification Stump", extra = 102, 
+                       digits = 5, box.palette="BuGy")
+
+# Number of classes
+k <- length(unique(subdf$y_train))
+# Range(s) as list
+rng <- lapply(subdf[-length(subdf)], range, na.rm = TRUE)
+# Grid resolution
+resolution <- 1e3 
+# Colors
+col1 <- "cornflowerblue" ; col2 <- "ivory4"
+# Transparency
+alpha.f <- 0.03
+col1_transp <- adjustcolor(col1, alpha.f)
+col2_transp <- adjustcolor(col2, alpha.f) 
+# First feature sequence
+x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
+# Second feature sequence
+x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
+# Make grid from sequences
+grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
+# Predict grid
+y_pred <- predict(h, grid, type = "class")
+# Contour matrix
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "0" means "not replicated", "1" means "replicated"
+symbol_colors <- ifelse(y_train == "failure", col1, col2)
+# "0" means "not replicated", "1" means "replicated"
+grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
+plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
+   xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
+mtext("Classification Stump")
+points(grid, col = grid_colors, pch = ".")
+points(subdf[-length(subdf)], col = symbol_colors, pch = as.integer(y_train) + 15, )
+contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
+      col = "black", levels = (1:(k-1))+.5)
+legend("topleft", c("success", "failure") , pch = c(17,16), 
+     col = c(col2, col1), cex=0.7)
+
+# Maybe as comparison the decision boundaries from a GLM?
+mdl <- glm(y_train ~., data = subdf, family=binomial(link='logit'))
+# Change class attribute
+class(mdl) <- c("lr", class(mdl))
+# Predicted probability of replication success
+y_prob <- predict(mdl, grid, type = "response")
+# If p > 0.5 "replicated", else "not replicated"
+y_pred <- factor(as.integer(y_prob > 0.5))
+# Contour matrix
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "no" means "not replicated", "yes" means "replicated"
+symbol_colors <- ifelse(y_train == "failure", col1, col2)
+# "0" means "not replicated", "1" means "replicated"
+grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
+# Plot the features
+plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
+     xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
+mtext("Bernoulli Logit Generalized Linear Model")
+points(grid, col = grid_colors, pch = ".")
+points(subdf[-length(subdf)], col = symbol_colors, pch = as.integer(y_train) + 15, )
+contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
+        col = "black", levels = (1:(k-1))+.5)
+legend("topleft", c("success", "failure") , pch = c(17,16), 
+       col = c(col2, col1), cex=0.7)
+```
+
+This grouping process goes on until the data cannot be split
+any further or some termination criterion is reached. For example, let the
+termination criterion be a minimum number of 100 replication studies in the
+final group reached after the second split. Then the resulting nodes will have
+a minimum number
+
+
+Discuss code and terminal criteria (short)
+
+
+
+
+
+
+
+
+
+
 
 ```{r}
 subdf <- df[, c("power.o", "n.o", "y_train")]
@@ -241,19 +351,14 @@ h <- rpart::rpart(formula = y_train ~ ., data = subdf , method = "class",
 # Visualize
 rpart.plot::rpart.plot(h, main = "Classification Tree", extra = 102, 
                        digits = 5, box.palette="BuGy")
-```
-With minbucket = 4 i can reproduce the following values. 
 
-Check: Does this make sense? Maybe ignore the decision tree and just use
-decision stump. Or describe that the last split is nonsensical.
+# With minbucket = 4 i can reproduce the following values. 
+# Check: Does this make sense? Maybe ignore the decision tree and just use
+# decision stump. Or describe that the last split is nonsensical.
 
-```{r}
 table(subdf$y_train[subdf$power.o < 0.92866 & subdf$n.o >= 24])
-
 table(subdf$y_train[subdf$power.o < 0.92866 & subdf$n.o < 24])
-
 table(subdf$y_train[subdf$power.o >= 0.92866 & subdf$power.o >= 1])
-
 table(subdf$y_train[subdf$power.o >= 0.92866 & subdf$power.o < 1])
 ```
 
@@ -296,75 +401,17 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
 
 ```
 
+Decision stumps simplify this repetitive partitioning process by asking only a
+single question about some feature of the data. For example, is the power of the
+original study greater than . Classification stump is a classification tree of
+depth 1.
 
 
+One question that is left unanswered now, is how do we get to a particular
+question that allows us to parition the data in the way we've seen?
 
-
-
-
-```{r}
-suppressWarnings({
-  op <- par()
-  par(mfrow = c(1,2))
-  # Hyperparameter setup 
-  hyptree <- rpart::rpart.control(
-    # Maximum depth of any node tree 
-    maxdepth = 3, 
-    # Original CART with gini impurity as splitting criterion  
-    split = "gini") # or ID3: split = "information"
-    # Create a decision tree 
-    h <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
-                      control = hyptree)
-  # Visualize
-  rpart.plot::rpart.plot(h, main = "Classification Tree", extra = 102, 
-                         digits = 2, box.palette="BuGy")
-  # Number of classes
-  k <- length(unique(y_train))
-  # Range(s) as list
-  rng <- lapply(X_train, range, na.rm = TRUE)
-  # Grid resolution
-  resolution <- 1e2 
-  # Colors
-  col1 <- "cornflowerblue" ; col2 <- "ivory4"
-  # Transparency
-  alpha.f <- 0.03
-  col1_transp <- adjustcolor(col1, alpha.f)
-  col2_transp <- adjustcolor(col2, alpha.f) 
-  # First feature sequence
-  x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-  # Second feature sequence
-  x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
-  # Make grid from sequences
-  grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
-  # "0" means "not replicated", "1" means "replicated"
-  symbol_colors <- ifelse(y_train == "failure", col1, col2)
-  # "0" means "not replicated", "1" means "replicated"
-  grid_colors <- ifelse(y_train == "failure", col1_transp, col2_transp)
-  plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
-       xlab = "power.o", ylab = "n.o", 
-       main = "Decision Boundaries")
-  points(X_train$power.o, X_train$n.o, col = symbol_colors, 
-         pch = as.integer(y_train) + 15, )
-  abline(v = 0.92866, lty = 2, lwd = 1)
-  abline(v = 1, lty =2, lwd = 1)
-  lines(x = c(0,0.92866), y = c(24,24), lty = 2, lwd = 1)
-  legend("topleft", c("success", "failure") , pch = c(17,16), 
-       col = c(col2, col1), cex=0.7)
-  par(op)
-})
-```
-
-
-
-
-- Decision stumps
-
-In the simplest case we only allow the algorithm to ask a single question.
-The resulting tree 
-
-
-- Splitting criterion (CART, Breiman)?
-
+- Splitting criterion 
+- Focus on CART with Gini impurity
 
 A selection of most important tree hyperparameters for our AdaBoost
 implementation.
