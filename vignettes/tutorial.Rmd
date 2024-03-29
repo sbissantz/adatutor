@@ -218,14 +218,14 @@ e.g., Breimann et al., 1984, p.2 for this view).
 
 ### A short primer on classification tree
 
-Binary classification trees address a classification problem by asking repeated
-(yes/no) questions about a feature of the data, allowing them to organize the
-data into non-overlapping groups - more precisely "partitions": Is the study's
-power greater than or equal to 0.9? If it is, the study goes into the left group
-- often called "branch"; if it is not, it goes into the right branch. According
+Binary classification trees address this classification problem by asking
+repeated (yes/no) questions about some feature of the data, allowing them to
+organize the data into non-overlapping groups - more precisely "partitions": Is
+the study's power greater than or equal to 0.9? If it is, the study goes into
+the left group or branch; if it is not, it goes into the right branch. According
 to this (splitting) rule, there are two resulting branches; one containing
 studies with `power.o >= 0.9` and another with `power.o < 0.9`. (See Figure 1,
-left) 
+left)
 
 A second question targeting all high-powered studies in the left branch
 (`power.o >= 0.9`) could lead to a finer partitioning at a lower level (depth
@@ -236,33 +236,6 @@ grouping process until the data cannot be further divided or a termination
 criterion is reached. For example, termination criteria can be a minimum number
 of 100 studies in the final group, or a minimum number of 100 studies to
 consider a split (see e.g. `?rpart.control` for available options in `rpart`).
-
-Binary classification stumps shorten the repetitive process by limiting
-themselves to a single (yes/no) question, such as "`power.o >= 0.9`? (see Figure
-1, left). In other words, they apply the termination criterion of a maximum
-depth equal to one and partition the data into two final groups. (See Figure 1,
-left side & center).
-
-```{r}
-# Hyperparameter setup 
-hyptree <- rpart::rpart.control(
-  # Maximum depth
-  maxdepth = 1
-)
-cstump <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
-                  control = hyptree)
-# Visualize
-rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102)
-```
-
-- Tree hyperparameter
-- Predictions
-- How do we came up with the value in the question
-  - Gini impurity
-  - Weights
-
-Predictions are then made based on the number of
-observations in each group
 
 ```{r}
 subdf <- df[, c("power.o", "n.o", "y_train")]
@@ -275,8 +248,7 @@ hyptree <- rpart::rpart.control(
   # Original CART with gini impurity as splitting criterion  
   split = "gini") # or ID3: split = "information"
 
-
-  # Create a decision tree 
+# Create a decision tree 
 h <- rpart::rpart(formula = y_train ~ ., data = subdf , method = "class", 
                   control = hyptree)
 
@@ -346,6 +318,67 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
        col = c(col2, col1), cex=0.7)
 ```
 
+Binary classification stumps shorten the repetitive process by limiting
+themselves to a single (yes/no) question, such as "`power.o >= 0.9`? (see Figure
+1, left). In other words, they apply the termination criterion of a maximum
+depth equal to one to partition the data into two final groups. (See Figure 1,
+left side & center). 
+
+The final decision about whether studies with a given feature, such as a high
+power, are considered successful or not is made by the stump based on a majority
+vote. There are more failed replication attempts for studies in the left branch
+so the overall prediction for studies with this feature "failure". In the right
+branch there are more successes, so studies that fall within the right branch 
+are considered successful b.
+
+studies in the left branch is successful, so the tree
+considers studies with these feature
+
+```{r}
+split_criterion <- df$power.o < 0.92866
+# Studies with df$power.o < 0.92866 
+table(df$y_train[split_criterion])
+# Studies with df$power.o >= 0.92866 
+table(df$y_train[!split_criterion])
+```
+To reproduce the graphic we use the following code which fits a classification
+stump with `rpart` (ref.) and visualizes the result with `rpart.plot` (ref.).
+
+```{r}
+# Hyperparameter setup 
+hyptree <- rpart::rpart.control(
+  # Maximum depth
+  maxdepth = 1,
+  # Gini impurity (default)
+  split = "gini") 
+# Fit a classification stump to the data
+cstump <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
+                  control = hyptree)
+# Visualize
+rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102,
+                       digits = 5)
+```
+
+We call the parameter(s) we pass to `rpart.control()` (tree) hyperparameters.
+
+In general, hyperparameter are external parameter that we as the user set
+before(!) fitting the model to the data to set the complexity of our model
+(e.g., `maxdepth=1` or `minbucket =5`)  or influence its learning process (e.g.,
+`split = gini`). Before, talking about the Gini impurity, we reocmmend doing
+some Additional Exercise 1 to familiarize with and extend the learned concepts.
+
+Additional exercise 1: Access the `rpart.control()` documentation with
+`?rpart.control` and get an overview over all hyperparameters of the `rpart`
+package. Increase the maximum depth of the stump to two and three to create
+shallow classification trees. Then, set the minimum number of observations in 
+the terminal node to 1. How will these setting influence the shape of 
+the tree. Think about the solution first, before running the code.
+
+
+
+- Gini impurity
+  - How do we come up with the value in the question? (Idea)
+  - Weights
 
 
 
