@@ -208,31 +208,61 @@ results.
 
 - What are classification trees?
 
-The dataset contains measurements on the power of the original study, its effect
-size, there is information about its number of observations available, and so on
-(see `?altmext723`). Given these measurement, the goal is to predict whether a
-replication attempt is successful (class 1) or fails (class 2) (see e.g.,
-Breimann et al., 1984, p.2 for this view). 
+##### Classification problem
 
-Binary classification trees tackle this problem by repeatedly asking (yes/no)
-questions about some feature of the data which allow them to organize the data
-in non-overlapping groups: Is the power of the study greater than or equal to
-0.9? Yes, put the study in the left group often called "branch"; if not it goes
-right. According to this (splitting) rule, there are two resulting group; one
-including studies with `power.o >= 0.9` and another where `power.o < 0.9`. A
-second question targeting all high powered studies (`power.o > 0.9`) in the left
-branch could lead to a more fine-grained partition on a lower level (depth 2):
-Is the number of observation in the original study also greater than 100 (`n.o > 100`)? 
-If so, put the study in the low-left branch. If not, the study goes in the
-low-right branch; and so on.
-Binary classification stumps shortcut this repetitive process by limiting
-themselves to a single (yes/no) question, such as "`power.o >= 0.9`"? (See
-Figure 1, left side). As a consequence (of the single splitting criterion)
-decision stumps partition the set of studies into two final groups (often called
-leave or terminal nodes), and are said to be of depth one. 
+The data set contains measurements on the power of the original study, its
+effect size, there is information about its number of observations available,
+and so on (see `?altmext723`). Given these measurement, the goal is to predict
+whether a replication attempt is successful (class 1) or fails (class 2) (see
+e.g., Breimann et al., 1984, p.2 for this view).
 
-Figure 1 (middle) does visualize what organizing units in non-overlapping groups
-or paritioning means. Every study  
+### A short primer on classification tree
+
+Binary classification trees address a classification problem by asking repeated
+(yes/no) questions about a feature of the data, allowing them to organize the
+data into non-overlapping groups - more precisely "partitions": Is the study's
+power greater than or equal to 0.9? If it is, the study goes into the left group
+- often called "branch"; if it is not, it goes into the right branch. According
+to this (splitting) rule, there are two resulting branches; one containing
+studies with `power.o >= 0.9` and another with `power.o < 0.9`. (See Figure 1,
+left) 
+
+A second question targeting all high-powered studies in the left branch
+(`power.o >= 0.9`) could lead to a finer partitioning at a lower level (depth
+2): Is the number of observations in the original study also greater than 100
+(`n.o > 100`)? If so, move the study to the lower left branch. If not, move the
+study to the lower right branch; and so on. Classification trees continue the
+grouping process until the data cannot be further divided or a termination
+criterion is reached. For example, termination criteria can be a minimum number
+of 100 studies in the final group, or a minimum number of 100 studies to
+consider a split (see e.g. `?rpart.control` for available options in `rpart`).
+
+Binary classification stumps shorten the repetitive process by limiting
+themselves to a single (yes/no) question, such as "`power.o >= 0.9`? (see Figure
+1, left). In other words, they apply the termination criterion of a maximum
+depth equal to one and partition the data into two final groups. (See Figure 1,
+left side & center).
+
+```{r}
+# Hyperparameter setup 
+hyptree <- rpart::rpart.control(
+  # Maximum depth
+  maxdepth = 1
+)
+cstump <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
+                  control = hyptree)
+# Visualize
+rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102)
+```
+
+- Tree hyperparameter
+- Predictions
+- How do we came up with the value in the question
+  - Gini impurity
+  - Weights
+
+Predictions are then made based on the number of
+observations in each group
 
 ```{r}
 subdf <- df[, c("power.o", "n.o", "y_train")]
@@ -315,17 +345,6 @@ contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2,
 legend("topleft", c("success", "failure") , pch = c(17,16), 
        col = c(col2, col1), cex=0.7)
 ```
-
-This grouping process goes on until the data cannot be split
-any further or some termination criterion is reached. For example, let the
-termination criterion be a minimum number of 100 replication studies in the
-final group reached after the second split. Then the resulting nodes will have
-a minimum number
-
-
-Discuss code and terminal criteria (short)
-
-
 
 
 
