@@ -171,72 +171,48 @@ replication and failure as the original outcome variable. We could also use the
 # test <- rsample::testing(strat_split)
 ```
 
-# Module 2: AdaBoost
+# Module 2: Classification stumps (and shallow trees)
 
-First we fit the model to the data (training) and then test its predictive
-capabilities on unseen data (testing). Since we will use the data to find
-the best hyperparameters this is better thought of as validation set.
+In Module 3 we will see that and how the original AdaBoost algorithm turns
+classification trees in a strong machine learning model.
 
-- Discuss a couple of iterations of boosting (Kunapali, p.90) 
+classification stumps or shallow classification trees (see Freud & Shapire,
+xxxx). Therefore, it seems obligatory to delve into .... before...
 
-- (Extra: Decision stumps)
-
-## An iterative process...
-
-Setup.
-
-```{r}
-n_trees <- 100
-# Extract the number of rows
-n_samples <- nrow(X_train)
-# Initialize the weights
-D <- rep(1, n_samples)/n_samples
-# Pre-allocate the empty ensemble
-H <- vector("list", n_trees)
-df <- data.frame(X_train, y_train)
-```
-
-### Digression: Classification stumps and shallow trees 
-
-- Why learn about classification trees with AdaBoost?
-
-The original AdaBoost algorithm boosts classification stumps or shallow
-classification trees (ref.). Therefore, it seems obligatory to delve into this
-workhorse machine-learning model. We will use the `rpart` package (ref.) to
-build understanding in a hands-on manner and `rpart.plot` to visualize the
-results.
+We will use the `rpart` package (ref.) to build
+understanding in a hands-on manner and `rpart.plot` to visualize the results.
 
 ##### Classification problem
 
 The data set contains measurements on the power of the original study, its
-effect size, there is information about its number of observations available,
-and so on (see `?altmext723`, for the complete list). Given these measurement in
-the training data, we want to learn/extract a pattern between features and
-outcomes that allows to accurately predict whether a replication attempt is
-successful (class 1) or fails (class 2) (see e.g., Breimann et al., 1984, p.2
-for this view). The final evaluation is then done in Part xxx. For now focus is
-on the strategy of classification trees to address this problem.
+effect size, there is information about the number of observations available,
+and so on (see `?altmext723`, for the complete list). From the measurements in
+the training data, we want to learn a general pattern between features (e.g.,
+power) and the outcome (e.g., replication success) that allows to accurately
+predict whether unseen replication attempts will be successful (class 1) or fail
+(class 2) (see e.g., Breimann et al., 1984, p.2 for this view). The final
+evaluation on the so-called hold-out or testing set is done in later in this
+tutorial (see Part xxx and). For now, focus is on the strategy of classification
+trees to address this problem.
 
 ### A short primer on classification tree
 
-Binary *classification trees* address this classification problem by asking
+Binary *classification trees* try to learn patterns from the data by asking
 repeated (yes/no) questions about some feature of the data, allowing them to
-organize the data into non-overlapping groups - more precisely "*partitions*":
-Is the study's power greater than or equal to 0.9? If it is, the study goes into
-the left group or *branch*; if it is not, it goes into the right branch.
-According to this (splitting) rule, there are two resulting branches; one
-containing studies with `power.o >= 0.9` and another with `power.o < 0.9`. (See
-Figure 1, left)
-
-A second question targeting all high-powered studies in the left branch
-(`power.o >= 0.9`) could lead to a finer partitioning at a lower level (depth
-2): Is the number of observations in the original study also greater than 100
-(`n.o > 100`)? If so, move the study to the lower left branch. If not, move the
-study to the lower right branch; and so on. Classification trees continue the
-grouping process until the data cannot be further divided or a termination
-criterion is reached. For example, termination criteria can be a minimum number
-of 100 studies in the final group, or a minimum number of 100 studies to
-consider a split (see e.g. `?rpart.control` for available options in `rpart`).
+organize the data into non-overlapping groups, better "*partitions*" : Is the
+study's power greater than or equal to 0.9? If it is, assign the study into the
+left group or *branch*; if it is not, it goes into the right branch. According
+to this (splitting) rule, there are two resulting branches; one containing
+studies with `power.o >= 0.9` and another with `power.o < 0.9`. (See Figure 1,
+left) A second question targeting all high-powered studies in the left branch
+(`power.o >= 0.9`) might further partition the data at a lower level (depth 2):
+Is the number of observations in the original study also greater than 100 (`n.o
+> 100`)? If so, move the study to the lower left branch. If not, move the study
+to the lower right branch; and so on. Classification trees continue the grouping
+process until the data cannot be further divided or a termination criterion is
+reached. For example, termination criteria can be a minimum number of 100
+studies in the final group, or a minimum number of 100 studies to consider a
+split (see e.g. `?rpart.control` for available options in `rpart`).
 
 ```{r}
 subdf <- df[, c("power.o", "n.o", "y_train")]
@@ -321,11 +297,11 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
 
 Binary *classification stumps* shorten the repetitive process by limiting
 themselves to a single (yes/no) question, such as "`power.o >= 0.9`? (see Figure
-1, left). Consequently, they terminate at a maximum depth of one to partitioning
-the data into two final groups. (See Figure 1, left side & center). Calling the 
-starting point of the tree its root or the *root node* and the terminal point
-its leaves or *leave nodes*, a stump can be further classified as a tree with
-one root and two leave nodes (see, ref.).
+1, left). Consequently, they terminate at a maximum depth of one, ultimately
+partitioning the data into two final groups. (See Figure 1, left side & center).
+Calling the starting point of the tree its root or the *root node* and the
+terminal point its leaves or *leave nodes*, a stump can be further classified as
+a tree with one root and two leave nodes (see, ref.).
 
 The final decision about whether studies with a given feature, such as a high
 power, are considered successful or not is made by the stump based on a majority
@@ -381,35 +357,66 @@ results senseful give your general knowledge about meta-science)
 
 ### Gini impurity
 
-One question that remains unanswered so far is why `power.o > 0.93`? The sort
-answer is, splitting the data according to this feature leads to the lowest
-misclassification risk - as judged by Gini impurity.
+Summarizing above's insights, binary *classification stumps* learn a pattern
+from the data by asking a single (yes/no) questions about some feature of the
+data, allowing them to organize the data into two partitions. This
+characterization, however, lacks a clear answer on how a data feature in
+particular is chosen: Why `power.o > 0.93`?
+
+There are multiple strategies to an optimal splitting criterion (see, e.g.). The
+strategy in Breimans classic CART algorithm which is part of the AdaBoost
+algorithm by Freud and Shapire is to split the data in such a way that they
+minimize the misclassification risk -- as judged by *Gini impurity*. Cite!
+
+"Gini index of diversity as a measure of node impurity; i.e (p.38)"
+
+"The best splits would then be those that most reduced the estimated misclassification rate (p.94)"
+
+The Gini impurity considers how often we would misclassify a randomly chosen
+example from our data set if we were to guess its class label based on the class
+distribution in that group. (ref.).
+
+Check: Applied to our example, this means that the Gini impurity measures how
+often of misclassifying a replication study's outcome (success or failure) if we
+were to randomly assign a label (success or failure) based on the distribution
+of successes and failures within our group of replication studies -- split
+according to a specific power threshold (such as power.o >= 0.93).
 
 Say: Gini impurity determines how our model learns (see above).
 
-Make more abstract in one sentence and then apply to example:
-The Gini impurity considers how often we would misclassify a replication study
-(e.g. say it would "successfully replicate" when it would not) if we were to
-randomly guess its class label (success versus failure) based on the class
-distribution in that group.
-Example: So the Gini impurity measures how often of misclassifying a replication
-study's outcome (success or failure) if we were to randomly assign a label
-(success or failure) based on the distribution of successes and failures within
-our group of replication studies split according to a specific power threshold
-(such as power.o >= 0.83).
+So finding the feature or split with the lowest Gini impurity helps us
+minimizing this misclassification risk.
 
-[...] and by choosing the feature or split with the lowest Gini impurity helps
-us minimizing this misclassification risk.
+#### Why `power.o > 0.93`?
 
+When you're building a decision tree, you calculate the Gini impurity for each
+possible split (question) you could make on the data. The question that leads to
+the lowest Gini impurity (the purest resulting groups) is the one you choose.
+
+There are only continuous features in the data set. The power of the original
+study is one of them. For continuous features, the split point is chosen by
+sorting the individual values and then calculating the Gini impurity for each
+mid-point between adjacent values.
 
 ```{r}
 power_sorted <- sort(df$power.o)
 adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
 ```
+We want to reproduce the results in the graphic. Therefore we will calculate
+the Gini impurity for a split with the criterion `power.o < 0.9288`.
 
-The split point is chosen by sorting the individual values of a given feature
-and then calculating the Gini impurity for each mid-point between adjacent values.
 
+$$I_G(D) = 1 - \sum_{j=1}^K p^2_i$$
+
+Since we have data with examples from 2 classes the formula simplifies as
+
+$$I_G(D) = 1 - \sum_{j=1}^2 p^2_i =  1 - (p_1^2 + p_2^2)$$
+
+where we calculate as $p_i = \frac{f_i}{n_i}$.
+
+Weighted Gini impurity given feature X for i = 1,2 partitions.
+
+$$I_{G\mid X}(D) = \sum_{i=1}^2 \frac{n_i}{n} I_G(D_i) = \frac{n_1}{n} I_G(D_1) + \frac{n_2}{n} I_G(D_2)$$
 
 ```{r}
 # Example above:
@@ -447,10 +454,9 @@ say that it would successfully replicate, there is approximately a 36.15% chance
 that we would be wrong.
 
 We finally weight the results to get the overall weighted Gini impurity
-condidering the different class distributions.
+considering the different class distributions.
 
 ```{r}
-
 # Overall weighted Gini impurity 
 gini_impurity <- (N_left / N_total) * gini_left + (N_right / N_total) * gini_right
 round(gini_impurity, digits = 5)
@@ -465,9 +471,6 @@ Estimating the Gini impurity
 Gini impurity = 1 - (probability of the most frequent class)^2 - (probability of
 the second-most frequent class)^2 - ... (and so on for all classes)
 
-When you're building a decision tree, you calculate the Gini impurity for each
-possible split (question) you could make on the data. The question that leads to
-the lowest Gini impurity (the purest resulting groups) is the one you choose.
 
 Gini Impurity in Action
 
@@ -507,6 +510,31 @@ TODO: Calculations seem to be different from, e.g.: https://machinelearningmaste
 Additional exercise: We leave it as an additional exercise to the reader to
 verify that the result has the lowest Gini impurity among all splits (a) within
 the particular features and (b) overall.
+
+
+Important: For a two class classification problem.
+
+```{r}
+# Calculate Gini Impurity
+x <- seq(0.01, 1, by = 0.01)  # Values for fraction of class k
+y <- 1 - (x^2) - (1-x)^2      # Gini Impurity calculation
+
+# Create the plot
+plot(x, y, type = "l",  # Specify line plot
+     xlab = "Fraction of Class k (pk)", 
+     ylab = "Impurity",
+     main = "Gini Impurity")
+
+mtext("2 class classification problem")
+# Customize axes
+axis(side = 1, at = seq(0, 1, by = 0.1)) 
+
+# Optional: Add gridlines
+abline(v = seq(0, 1, by = 0.1), h = seq(0, 1, by = 0.1), col = "lightgray") 
+ 
+```
+
+
 
 # Control calculations 
 
@@ -621,6 +649,7 @@ rpart.plot::rpart.plot(h, main = "Decision Stump", extra = 102, digits = 5)
   - Gini impurity
   - Sensitivity to observation weights (Assumption: equal) 
 
+Control calculations
 
 ```{r}
 power_sorted <- sort(df$power.o)
@@ -718,6 +747,34 @@ Adapt the code above to fit a shallow tree of depth two and three.
 Despite the hyperparameters we already mentioned there are more. See the
 `?rpart::rpart.control` documentation and explore how changing different
 arguments influence the results.
+
+
+
+
+# Module 3: AdaBoost
+
+First we fit the model to the data (training) and then test its predictive
+capabilities on unseen data (testing). Since we will use the data to find
+the best hyperparameters this is better thought of as validation set.
+
+- Discuss a couple of iterations of boosting (Kunapali, p.90) 
+
+- (Extra: Decision stumps)
+
+## An iterative process...
+
+Setup.
+
+```{r}
+n_trees <- 100
+# Extract the number of rows
+n_samples <- nrow(X_train)
+# Initialize the weights
+D <- rep(1, n_samples)/n_samples
+# Pre-allocate the empty ensemble
+H <- vector("list", n_trees)
+df <- data.frame(X_train, y_train)
+```
 
 
 ### Adaboost continued
