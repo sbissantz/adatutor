@@ -171,51 +171,69 @@ replication and failure as the original outcome variable. We could also use the
 # test <- rsample::testing(strat_split)
 ```
 
-# Module 2: Classification stumps (and shallow trees)
+# Module 2: A primer on classification stumps 
 
-In Module 3 we will see that and how the original AdaBoost algorithm turns
-classification trees in a strong machine learning model.
+In Module 3, we will show how the AdaBoost algorithm transforms classification
+stumps or shallow classification trees into a strong ensemble machine learning
+model. Thus, a prior study of classification trees in Module 2 seems mandatory.
+However, Module 2 is not a thorough introduction to decision trees (see, e.g.,
+Breiman et al. for a complete introduction). The focus will be on the details
+necessary to understand AdaBoost. We will use the `rpart` package (Ref.) for
+hands-on understanding and `rpart.plot` (Ref.) for visualizing the results.
 
-classification stumps or shallow classification trees (see Freud & Shapire,
-xxxx). Therefore, it seems obligatory to delve into .... before...
+##### Classification problems
 
-We will use the `rpart` package (ref.) to build
-understanding in a hands-on manner and `rpart.plot` to visualize the results.
+The `altmext723` data set contains measurements on the power of the original
+study, its effect size, there is information about the number of observations
+available, and so on. Typing `?altmext723`, we can access the full variable list
+as well as additional information.
 
-##### Classification problem
+With these measurements, a general goal of predictive modeling is to extract a
+pattern between features (e.g., power of the original study) and the outcome
+(e.g., replication success) that allows to accurately predict whether future
+replication attempts will be successful (class 1) or fail (class 2). Given the
+number of classes of the target variable, `replicated` the present scenario can
+be called a two-class *classification problem*.
 
-The data set contains measurements on the power of the original study, its
-effect size, there is information about the number of observations available,
-and so on (see `?altmext723`, for the complete list). From the measurements in
-the training data, we want to learn a general pattern between features (e.g.,
-power) and the outcome (e.g., replication success) that allows to accurately
-predict whether unseen replication attempts will be successful (class 1) or fail
-(class 2) (see e.g., Breimann et al., 1984, p.2 for this view). The final
-evaluation on the so-called hold-out or testing set is done in later in this
-tutorial (see Part xxx and). For now, focus is on the strategy of classification
-trees to address this problem.
+In this tutorial, however, we will not wait for future data to evaluate
+performance. This is why, in Module 1, we already set aside a subset of the
+data, the test set, to evaluate the predictive capabilities of the later-built
+machine learner. The final evaluation is part of Module xxx later in this
+tutorial (see Module xxx and). In the next section, we will first focus on how
+classification trees address the classification problem outlined above.
 
-### A short primer on classification tree
+Note: Actually, this will be a validation set, since we tune the hyperparameter
+with these stuff. Write this problem somewhere, that the data set is to
+small to always set aside some portion of the data. A solution will be discusses
+with cross-validation, although this also provides just an estimate that differs
+from the true generalization performance.
 
-Binary *classification trees* try to learn patterns from the data by asking
-repeated (yes/no) questions about some feature of the data, allowing them to
-organize the data into non-overlapping groups, better "*partitions*" : Is the
-study's power greater than or equal to 0.9? If it is, assign the study into the
-left group or *branch*; if it is not, it goes into the right branch. According
-to this (splitting) rule, there are two resulting branches; one containing
-studies with `power.o >= 0.9` and another with `power.o < 0.9`. (See Figure 1,
-left) A second question targeting all high-powered studies in the left branch
-(`power.o >= 0.9`) might further partition the data at a lower level (depth 2):
-Is the number of observations in the original study also greater than 100 (`n.o
-> 100`)? If so, move the study to the lower left branch. If not, move the study
-to the lower right branch; and so on. Classification trees continue the grouping
-process until the data cannot be further divided or a termination criterion is
-reached. For example, termination criteria can be a minimum number of 100
-studies in the final group, or a minimum number of 100 studies to consider a
-split (see e.g. `?rpart.control` for available options in `rpart`).
+### Classification trees
+
+Binary *classification trees* learn by repeatedly asking (yes/no) questions
+about features of the data that allow them to organize the data points into
+non-overlapping groups better *partitions*. An example for a first question
+could be: Is the power of the study less than 0.93? If it is, the study is
+placed in the left group; if it is not, it is placed in the right group.
+Following the given data *splitting rule* ultimately results in two
+non-overlapping groups, one containing studies with `power.o > 0.9` and another
+with `power.o <= 0.9` (see Figure 1, left).
+
+With a second question, targeting all the high power studies (`power.o >= 0.9`),
+for instance, the tree could further partition the data (now at depth two): Is
+the number of observations also greater than 100 (`n.o >= 100`)?" In this way
+the trees go on continue to grow; that is, the grouping process continues, until
+the data cannot be divided any further or a termination criterion is reached.
+Termination criteria can be, e.g., a minimum number of 100 studies in the final
+group, or a minimum number of 100 studies to consider a split (see
+`?rpart.control` for available options in `rpart`).
 
 ```{r}
-subdf <- df[, c("power.o", "n.o", "y_train")]
+# Extract only two features
+# Note: Reduces run-time - decision boundary visualization
+subfeat <- c("power.o", "n.o")
+subdf <-  train[,union(subfeat, target)]
+
 # Hyperparameter setup 
 hyptree <- rpart::rpart.control(
   # Maximum depth of any node tree 
@@ -226,17 +244,17 @@ hyptree <- rpart::rpart.control(
   split = "gini") # or ID3: split = "information"
 
 # Create a decision tree 
-h <- rpart::rpart(formula = y_train ~ ., data = subdf , method = "class", 
+h <- rpart::rpart(formula = replicated ~ ., data = subdf,  method = "class", 
                   control = hyptree)
-
 # Visualize
 rpart.plot::rpart.plot(h, main = "Classification Stump", extra = 102, 
                        digits = 5, box.palette="BuGy")
 
 # Number of classes
-k <- length(unique(subdf$y_train))
+k <- length(unique(subdf$replicated))
+
 # Range(s) as list
-rng <- lapply(subdf[-length(subdf)], range, na.rm = TRUE)
+rng <- lapply(subdf[,subfeat], range, na.rm = TRUE)
 # Grid resolution
 resolution <- 1e3 
 # Colors
@@ -263,14 +281,18 @@ plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),
    xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
 mtext("Classification Stump")
 points(grid, col = grid_colors, pch = ".")
-points(subdf[-length(subdf)], col = symbol_colors, pch = as.integer(y_train) + 15, )
+points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15)
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
       col = "black", levels = (1:(k-1))+.5)
 legend("topleft", c("success", "failure") , pch = c(17,16), 
      col = c(col2, col1), cex=0.7)
+```
 
+To compare the results, to a GLM see the Appendix!
+
+```{r}
 # Maybe as comparison the decision boundaries from a GLM?
-mdl <- glm(y_train ~., data = subdf, family=binomial(link='logit'))
+mdl <- glm(replicated ~., data = subdf, family=binomial(link='logit'))
 # Change class attribute
 class(mdl) <- c("lr", class(mdl))
 # Predicted probability of replication success
@@ -288,99 +310,155 @@ plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),
      xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
 mtext("Bernoulli Logit Generalized Linear Model")
 points(grid, col = grid_colors, pch = ".")
-points(subdf[-length(subdf)], col = symbol_colors, pch = as.integer(y_train) + 15, )
+points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15, )
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
         col = "black", levels = (1:(k-1))+.5)
 legend("topleft", c("success", "failure") , pch = c(17,16), 
        col = c(col2, col1), cex=0.7)
 ```
 
-Binary *classification stumps* shorten the repetitive process by limiting
-themselves to a single (yes/no) question, such as "`power.o >= 0.9`? (see Figure
-1, left). Consequently, they terminate at a maximum depth of one, ultimately
-partitioning the data into two final groups. (See Figure 1, left side & center).
-Calling the starting point of the tree its root or the *root node* and the
-terminal point its leaves or *leave nodes*, a stump can be further classified as
-a tree with one root and two leave nodes (see, ref.).
+#### Classification stumps
 
-The final decision about whether studies with a given feature, such as a high
-power, are considered successful or not is made by the stump based on a majority
-vote. There are more failed replication attempts for studies in the left branch
-so the overall prediction for studies with this feature "failure" In the right
-branch there are more successes, so studies that fall within the right branch
-are considered successful.
+Binary *classification stumps* shorten the repetitive process of classification
+trees by limiting themselves to a single (yes/no) question (see Figure 1, left).
+Consequently, they partition the data into two final groups, terminating at a
+maximum depth of one (see Figure 1, left side & center, and Code xxx). Calling
+the starting point in the graph of the tree its root or *root node* and the
+resulting group at the terminal point its *leave node*, a classification stump
+can be categorized as a tree with one root and two leave nodes (see, e.g. ref.).
 
-```{r}
-split_criterion <- df$power.o < 0.92866
+The final decision on whether studies with a certain feature, such as high
+power, are considered successful or not is made by the classification stump in a
+majority vote based on the frequency of labeled studies in the leave node. For
+example, in the classification stump in Figure 1, there are more failed
+replication attempts for studies in the left branch, so the overall
+classification for studies with the feature `power.o < 0.93` is "failure". In
+the right branch, there are more successes, so studies with `power.o >= 0.93`
+are considered successful. To verify this mechanically, we can use the code in
+Code Chunk 1.
+
+TODO
+
+```{r Code 1}
+split_criterion <- train$power.o < 0.92866
 # Studies with df$power.o < 0.92866 
-table(df$y_train[split_criterion])
+table(train$replicated[split_criterion])
 # Studies with df$power.o >= 0.92866 
-table(df$y_train[!split_criterion])
+table(train$replicated[!split_criterion])
 ```
-To reproduce the graphic we use the following code which fits a classification
-stump with `rpart` (ref.) and visualizes the result with `rpart.plot` (ref.).
 
-```{r}
-# Hyperparameter setup 
+### Fit and visuaize a classification stump
+
+There are several ways to fit and visualize classification trees. In the 
+tutorial, we will use the `rpart` package for fitting and the `rpart.plot`
+package for visualizing the trees. Specifically, we will use the functions
+`rpart()`, `rpart.control()` and `rpart.plot()`. Each function is outlined in
+turn. For more information, see the R documentation, e.g. 
+`help("rpart", package = "rpart")` or `?rpart::rpart`.
+
+```{r Code 2}
+# Hyperparameter setup for a classification stump
 hyptree <- rpart::rpart.control(
   # Maximum depth
   maxdepth = 1,
   # Gini impurity (default)
   split = "gini") 
-# Fit a classification stump to the data
-cstump <- rpart::rpart(formula = y_train ~ ., data = df , method = "class", 
-                  control = hyptree)
-# Visualize
+
+# Fit a classification stump
+cstump <- rpart::rpart(formula = replicated ~ ., 
+                       data = train[,union(features, target)],
+                       method = "class", control = hyptree)
+```
+
+In Code Chunk 2, we first focus on `rpart()`. "rpart" is short for "recursive
+partitioning". "Recursive partitioning refers to the process of repeatedly
+putting the data into non-overlapping groups, which we mentioned above. The
+function takes several arguments (see `?rpart::rpart`), but we will focus mainly
+on `formula`, `data` and `control`. The `method` argument with the value `class`
+just makes explicit that we deal with a classification problem.
+
+TODO
+
+First, we pass a formula to `rpart()` that has the general form: `target ~
+features`. One could read this as "the outcome or target (replicated) is a
+function of the features or predictors. All variables, the features and the
+target, must be part of the data frame that we pass as value to `rpart` with the
+`data` argument. The dot `.` in the formula, tells `rpart()` to consider all
+variables in the data set, despite the one on the left hand side, `replicated`.
+
+The `rpart.control()` function allows to specify the tree hyperparamters. In
+general, *hyperparameter* are external parameter that we as the user set
+*before* fitting the model and which influence the model's complexity or it's
+learning process. Psychologists usually learn about hyperparameters in the
+context of (non-Bayesian, exploratory) factor analysis, for example, where they
+have to decide on a number of factors to retain before being able to evaluate a
+particular solution. We characterized stumps as primitive classification trees
+with maximum depth equal to one. Consequently, we should limit the complexity of
+the model using `maxdepth = 1` to avoid the tree growing beyond a stump. Put
+another way, this constraint limits the number of data partitions: There is one
+group with studies `power.o < 0.93` and one with studies `power.o >= 0.93`. 
+
+```{r}
+# Visualize a classification stump
 rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102,
                        digits = 5)
 ```
 
-We call the parameter(s) we pass to `rpart.control()` (tree) hyperparameters. In
-general, *hyperparameter* are external parameter that we as the user set *before*
-fitting the model to the data to set its complexity (e.g., `maxdepth=1` or
-`minbucket =5`) or influence the learning process (e.g., `split = gini`).
-Psychologists usually learn about hyperparameters in the context of
-(non-Bayesian, exploratory) factor analysis, for example, where they have to
-decide on a number of factors to retain before being able to evaluate a
-particular solution of the model - the number of factor problem (Lorenzo-Seva).
-If working with hyperparameters seems unfamiliar, we recommend doing the
-Additional Exercise 1 to solidfy and extend understanding of the previous
-concepts.
+We demonstrate how to visualize a fitted classification stump using the The
+`rpart.plot()` function from `rpart.plot` in Code Chunk 2. The code can also be
+used to reproduce Figure 2. The `rpart.plot()` function takes an `rpart` model
+object, such as the fitted classification stump `cstump`, and creates a
+flow-char like(?) plot (more precise) of it. There are several arguments to
+customize the appearance of the plot (for a full list, see
+`?rpart.plot::rpart.plot`). If a more fine-grained customization of the
+appearance is required, we recommend switching to the `rpart.plot`'s `prp()`
+function.
 
-**Additional exercise 1**: Access the `rpart.control()` documentation with
-`?rpart.control` and get an overview over all hyperparameters of the `rpart`
-package. Increase the maximum depth of the stump to two and three to create
-shallow classification trees. Then, set the minimum number of observations in 
-the terminal node to 1. How will these setting influence the shape of 
-the tree. Think about the solution first, before running the code. (Are the
-results senseful give your general knowledge about meta-science)
+If working with (tree) hyperparameters still seems unfamiliar or if the goal is
+to solidify and extend understanding of the discussed concepts, we recommend
+doing Additional Exercise 1, visualizing the results using Code Chunk 2.
+
+#### Additional exercise 1
+
+TODO
+
+Access the `rpart.control()` documentation with `?rpart.control` and get an
+overview over all hyperparameters of the `rpart` package. Increase the maximum
+depth of the stump to two and three to create shallow classification trees.
+Then, set the minimum number of observations in the terminal node to 1. How will
+these setting influence the shape of the tree. Think about the solution first,
+before running the code. (Are the results sensical give your general knowledge
+about meta-science
 
 ### Gini impurity
 
-Summarizing above's insights, binary *classification stumps* learn a pattern
-from the data by asking a single (yes/no) questions about some feature of the
-data, allowing them to organize the data into two partitions. This
-characterization, however, lacks a clear answer on how a data feature in
-particular is chosen: Why `power.o > 0.93`?
+Binary *classification stumps* learn by asking a single (yes/no) questions about
+some feature of the data, that allows them to organize the data into two
+partitions. This characterization, however, lacks a clear answer on how a data
+feature and the split in particular is chosen: Why `power.o > 0.98266`?
 
-There are multiple strategies to an optimal splitting criterion (see, e.g.). The
-strategy in Breimans classic CART algorithm which is part of the AdaBoost
-algorithm by Freud and Shapire is to split the data in such a way that they
-minimize the misclassification risk -- as judged by *Gini impurity*. Cite!
+There are multiple strategies to an optimal splitting rule (see, e.g.). The
+strategy in Breimans classic CART algorithm which is part of AdaBoost by Freud
+and Shapire which we'll discuss later is to split the data in such a way that
+they minimize the risk of misclassification ().
+
+"The best splits would then be those that most reduced the estimated
+misclassification rate (p.94)"
+
+As judged by *Gini impurity*. Cite!
+Skipping a ton of techical details, one option to do that is the Gini impurity.
 
 "Gini index of diversity as a measure of node impurity; i.e (p.38)"
-
-"The best splits would then be those that most reduced the estimated misclassification rate (p.94)"
 
 The Gini impurity considers how often we would misclassify a randomly chosen
 example from our data set if we were to guess its class label based on the class
 distribution in that group. (ref.).
 
 Check: Applied to our example, this means that the Gini impurity measures how
-often of misclassifying a replication study's outcome (success or failure) if we
-were to randomly assign a label (success or failure) based on the distribution
-of successes and failures within our group of replication studies -- split
-according to a specific power threshold (such as power.o >= 0.93).
+often we are expexted to misclassify a replication study's outcome (success or
+failure) if we were to randomly assign a label (success or failure) based on the
+distribution of successes and failures within our group of replication studies
+-- split according to a specific power threshold (e.g. power.o >= 0.93).
 
 Say: Gini impurity determines how our model learns (see above).
 
