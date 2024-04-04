@@ -353,7 +353,7 @@ There are several ways to fit and visualize classification trees. In the
 tutorial, we will use the `rpart` package for fitting and the `rpart.plot`
 package for visualizing the trees. Specifically, we will use the functions
 `rpart()`, `rpart.control()` and `rpart.plot()`. Each function is outlined in
-turn. For more information, see the R documentation, e.g. 
+turn. For more information, however, see the R documentation, e.g.
 `help("rpart", package = "rpart")` or `?rpart::rpart`.
 
 ```{r Code 2}
@@ -371,32 +371,30 @@ cstump <- rpart::rpart(formula = replicated ~ .,
 ```
 
 In Code Chunk 2, we first focus on `rpart()`. "rpart" is short for "recursive
-partitioning". "Recursive partitioning refers to the process of repeatedly
+partitioning". "Recursive partitioning" refers to the process of repeatedly
 putting the data into non-overlapping groups, which we mentioned above. The
-function takes several arguments (see `?rpart::rpart`), but we will focus mainly
-on `formula`, `data` and `control`. The `method` argument with the value `class`
-just makes explicit that we deal with a classification problem.
-
-TODO
-
-First, we pass a formula to `rpart()` that has the general form: `target ~
-features`. One could read this as "the outcome or target (replicated) is a
-function of the features or predictors. All variables, the features and the
-target, must be part of the data frame that we pass as value to `rpart` with the
-`data` argument. The dot `.` in the formula, tells `rpart()` to consider all
-variables in the data set, despite the one on the left hand side, `replicated`.
+function takes several arguments (see `?rpart::rpart`), but we focus mainly on
+`formula`, `data` and `control`. The `method` argument with the value `class`
+is skipped, because we use it just to make explicit that we deal with a
+classification problem. We start with passing a formula to `rpart()` that has
+the general form: `target ~ features`. One could read this as "the outcome or
+target (replicated) is a function of the features or predictors. All variables,
+the features and the target, must be part of the data frame that we pass as
+value to `rpart` with the `data` argument. The dot `.` in the formula, tells
+`rpart()` to consider all variables in the data set, despite the one on the left
+hand side, here `replicated`.
 
 The `rpart.control()` function allows to specify the tree hyperparamters. In
 general, *hyperparameter* are external parameter that we as the user set
-*before* fitting the model and which influence the model's complexity or it's
+*before* fitting the model and which influence the model's complexity or
 learning process. Psychologists usually learn about hyperparameters in the
 context of (non-Bayesian, exploratory) factor analysis, for example, where they
 have to decide on a number of factors to retain before being able to evaluate a
-particular solution. We characterized stumps as primitive classification trees
-with maximum depth equal to one. Consequently, we should limit the complexity of
+particular solution. We characterized stumps as  primitive classification trees
+with maximum depth equal to one. Consequently, we must limit the complexity of
 the model using `maxdepth = 1` to avoid the tree growing beyond a stump. Put
-another way, this constraint limits the number of data partitions: There is one
-group with studies `power.o < 0.93` and one with studies `power.o >= 0.93`. 
+another way, the constraint limits the number of data partitions, There is one
+group with studies `power.o < 0.93` and one with studies `power.o >= 0.93`.
 
 ```{r}
 # Visualize a classification stump
@@ -404,15 +402,16 @@ rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102,
                        digits = 5)
 ```
 
-We demonstrate how to visualize a fitted classification stump using the The
-`rpart.plot()` function from `rpart.plot` in Code Chunk 2. The code can also be
-used to reproduce Figure 2. The `rpart.plot()` function takes an `rpart` model
+We show how to visualize a fitted classification stump in Code Chunk 2 using the
+`rpart.plot()` function from the `rpart.plot` package. The code can also be used
+to reproduce Figure 2. The `rpart.plot()` function takes an `rpart` model
 object, such as the fitted classification stump `cstump`, and creates a
-flow-char like(?) plot (more precise) of it. There are several arguments to
-customize the appearance of the plot (for a full list, see
-`?rpart.plot::rpart.plot`). If a more fine-grained customization of the
-appearance is required, we recommend switching to the `rpart.plot`'s `prp()`
-function.
+flow-chart like(?) plot (more precise) of it. There are several arguments to
+customize the appearance of the plot (see `?rpart.plot::rpart.plot` for
+available options). However, if a custom plot is required that goes beyond the
+capabilities of `rpart.plot()`, we recommend switching to `rpart.plot`'s `prp()`
+function. This function allows for fine-tuning the appearance of any decision
+tree plot.
 
 If working with (tree) hyperparameters still seems unfamiliar or if the goal is
 to solidify and extend understanding of the discussed concepts, we recommend
