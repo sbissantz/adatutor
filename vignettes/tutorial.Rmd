@@ -225,14 +225,15 @@ non-overlapping groups, one containing studies with `power.o > 0.92866` and
 another with `power.o <= 0.92866` (see Figure 1, left).
 
 With a second question the classification tree could further partition the data
-at a lower level. At depth two, an example question, targeting the high power
-studies (`power.o >= 0.92866`) could be: Is the number of observations in this
-partition also greater than 100?". In this way the trees continue to grow. That
-is, the three continues the grouping process until the data cannot be divided
-any further or a termination criterion is reached. Termination criteria are, for
-example, a minimum number of 100 studies in the final group, or a minimum number
-of 100 studies to consider a split (see `?rpart.control` for all available
-options in `rpart`).
+at a lower level. At depth two, an example targeting the high power studies
+(`power.o >= 0.92866`) could be: Is the number of observations in this partition
+also greater than 100?". If it, the study is placed in the lower left and if not
+in the lower right group. In this way the trees continue to grow. That is, the
+three continues the grouping process until the data cannot be divided any
+further or a termination criterion is reached. Termination criteria are a
+minimum number of 100 studies in the final group, or a minimum number of 100
+studies to consider a split (see `?rpart.control` for all available options in
+`rpart`).
 
 ```{r}
 # Extract only two features
@@ -294,71 +295,47 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
      col = c(col2, col1), cex=0.7)
 ```
 
-To compare the results, to a GLM see the Appendix! the results of a
-Bernoulli-logit generalized linear model, see the Appendix.
-
-
-```{r}
-# Maybe as comparison the decision boundaries from a GLM?
-mdl <- glm(replicated ~., data = subdf, family=binomial(link='logit'))
-# Change class attribute
-class(mdl) <- c("lr", class(mdl))
-# Predicted probability of replication success
-y_prob <- predict(mdl, grid, type = "response")
-# If p > 0.5 "replicated", else "not replicated"
-y_pred <- factor(as.integer(y_prob > 0.5))
-# Contour matrix
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
-# "no" means "not replicated", "yes" means "replicated"
-symbol_colors <- ifelse(y_train == "failure", col1, col2)
-# "0" means "not replicated", "1" means "replicated"
-grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
-# Plot the features
-plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
-     xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
-mtext("Bernoulli Logit Generalized Linear Model")
-points(grid, col = grid_colors, pch = ".")
-points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15, )
-contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
-        col = "black", levels = (1:(k-1))+.5)
-legend("topleft", c("success", "failure") , pch = c(17,16), 
-       col = c(col2, col1), cex=0.7)
-```
-
 #### Classification stumps
 
-Binary *classification stumps* shorten the repetitive grouping process of
-classification trees by limiting themselves to a single (yes/no) question (see
-Figure 1, left). Consequently, they partition the data into two final groups,
+Binary *classification stumps* shorten the repetetive process of classification
+trees by limiting themselves to a single (yes/no) question, such as `power.o <
+0.98266`?. Consequently, they partition the data into two final groups,
 terminating at a maximum depth of one (see Figure 1, left side & center, and
-Code xxx). Calling the starting point in the graph of the tree its root or *root
-node* and the resulting group at the terminal point its *leave node*, a
-classification stump can be categorized as a tree with one root and two leave
-nodes (see, e.g. ref.).
+Code). To compare the results of the partitioning process to those of a
+Bernoulli-logit generalized linear model see the Appendix. Calling the starting
+point at the top in Figure 1 (left) the root of the tree or its *root node* and
+the resulting group at the terminal point its *leave nodes*, a classification
+stump can also be categorized as a tree with one root and two leave nodes (see,
+e.g. ref.).
 
 The final decision on whether studies with a certain feature, such as high
-power, are considered successful or not is made by the classification stump in a
-majority vote based on the frequency of labeled studies in the leave node. For
-example, in the classification stump in Figure 1, there are more failed
-replication attempts for studies in the left branch, so the overall
-classification for studies with the feature `power.o < 0.93` is "failure". In
-the right branch, there are more successes, so studies with `power.o >= 0.93`
-are considered successful. To verify this mechanically, we can use the code in
-Code Chunk 1.
+power, are considered successful or not is usually made by majority vote based
+on the frequency of labeled studies in the leave node of the tree. For example,
+in the classification stump in Figure 1, there are more failed replication
+attempts for studies in the left branch, so the overall classification for
+studies with the feature `power.o < 0.93` is "failure". In the right branch,
+there are more successes, so studies with `power.o >= 0.93` are considered
+successful. To verify this mechanically, use the code in Code Chunk 1.
 
-TODO
-
-```{r Code 1}
-split_criterion <- train$power.o < 0.92866
+```{r Code Chunk 1}
+# Define the condition for the split
+splitcond <- train$power.o < 0.92866
 # Studies with df$power.o < 0.92866 
-table(train$replicated[split_criterion])
+table(train$replicated[splitcond])
 # Studies with df$power.o >= 0.92866 
-table(train$replicated[!split_criterion])
+table(train$replicated[!splitcriterion])
 ```
+In the first line, we define the split boundary using the base R relational
+operator `<`. This results in a logical vector whose `TRUE`, `FALSE` values
+indicate the entries in the variable `power.o` that are greater than 0.92866. We
+then create two contingency tables for the factor variable `replicated`,
+selecting only those cases that either meet the condition or do not (`!`). The
+output shows the number of successes and failures under each condition, which
+can be added together to reproduce the numbers in Figure 1.
 
 ### Fit and visuaize a classification stump
 
-There are several ways to fit and visualize classification trees. In the 
+There are several ways to fit and visualize classification trees. In the
 tutorial, we will use the `rpart` package for fitting and the `rpart.plot`
 package for visualizing the trees. Specifically, we will use the functions
 `rpart()`, `rpart.control()` and `rpart.plot()`. Each function is outlined in
@@ -1156,3 +1133,32 @@ y_pred <- test_adaboost(test[,features], ensemble)$class
 Stacking the best performing algorithms could improve the predictions quite
 significantly here! For example, learners 2 and 3 perform quite well on the ee
 project, while learners 1 and 8 perform quite well on ml1. 
+
+# Appendix
+
+```{r}
+# Maybe as comparison the decision boundaries from a GLM?
+mdl <- glm(replicated ~., data = subdf, family=binomial(link='logit'))
+# Change class attribute
+class(mdl) <- c("lr", class(mdl))
+# Predicted probability of replication success
+y_prob <- predict(mdl, grid, type = "response")
+# If p > 0.5 "replicated", else "not replicated"
+y_pred <- factor(as.integer(y_prob > 0.5))
+# Contour matrix
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "no" means "not replicated", "yes" means "replicated"
+symbol_colors <- ifelse(y_train == "failure", col1, col2)
+# "0" means "not replicated", "1" means "replicated"
+grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) 
+# Plot the features
+plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
+     xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
+mtext("Bernoulli Logit Generalized Linear Model")
+points(grid, col = grid_colors, pch = ".")
+points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15, )
+contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
+        col = "black", levels = (1:(k-1))+.5)
+legend("topleft", c("success", "failure") , pch = c(17,16), 
+       col = c(col2, col1), cex=0.7)
+```
