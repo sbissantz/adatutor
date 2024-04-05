@@ -177,30 +177,35 @@ In Module 3, we will show how the AdaBoost algorithm transforms classification
 stumps or shallow classification trees into a strong ensemble machine learning
 model. Thus, a prior study of classification trees in Module 2 seems mandatory.
 However, Module 2 is not a thorough introduction to decision trees (see, e.g.,
-Breiman et al. for a complete introduction). The focus will be on the details
-necessary to understand AdaBoost. We will use the `rpart` package (Ref.) for
-hands-on understanding and `rpart.plot` (Ref.) for visualizing the results.
+Breiman et al. for a complete one). The focus will be on the details necessary
+to understand AdaBoost. We will use the `rpart` package (Ref.) for hands-on
+understanding and `rpart.plot` (Ref.) for visualizing the results.
 
 ##### Classification problems
 
 The `altmext723` data set contains measurements on the power of the original
-study, its effect size, there is information about the number of observations
-available, and so on. Typing `?altmext723`, we can access the full variable list
-as well as additional information.
+study, its effect size, the number of observations are available, and so on.
+Typing `?altmext723`, we can access the full variable list as well as additional
+information.
 
-With these measurements, a general goal of predictive modeling is to extract a
-pattern between features (e.g., power of the original study) and the outcome
-(e.g., replication success) that allows to accurately predict whether future
-replication attempts will be successful (class 1) or fail (class 2). Given the
-number of classes of the target variable, `replicated` the present scenario can
-be called a two-class *classification problem*.
+Given a set of measurements, a general goal of predictive modeling is to extract
+a pattern from the data that allows to make accurate predictions of future
+outcomes. In the `altmext723` data set, more specifically, we want to learn a
+pattern between predictors or data *features*, such as the power of the original
+study, and the *outcome*, `replicated`; that allows to accurately predict
+whether future replication attempts will succeed (class 1) or fail (class 2).
+The presence of a labeled outcome variable that guides the model's learning
+process indicates that we are in the realm of *supervised learning*. Given the
+number of classes, the scenario can be more accurately categorized as two-class
+*classification problem*.
 
-In this tutorial, however, we will not wait for future data to evaluate
-performance. This is why, in Module 1, we already set aside a subset of the
-data, the test set, to evaluate the predictive capabilities of the later-built
-machine learner. The final evaluation is part of Module xxx later in this
-tutorial (see Module xxx and). In the next section, we will first focus on how
-classification trees address the classification problem outlined above.
+In this tutorial we will not wait for future data to evaluate performance. This
+is why, in Module 1, we already set aside a subset of the data, the test set, to
+evaluate the predictive capabilities of the later-implemented model. In Module
+4, we will also show another way to judge the performance of our AdaBoost
+implementation in the given classification problem. Before, however, we will put
+focus on understanding how classification trees address the aforementioned
+classification problem.
 
 Note: Actually, this will be a validation set, since we tune the hyperparameter
 with these stuff. Write this problem somewhere, that the data set is to
@@ -210,23 +215,24 @@ from the true generalization performance.
 
 ### Classification trees
 
-Binary *classification trees* learn by repeatedly asking (yes/no) questions
-about features of the data that allow them to organize the data points into
-non-overlapping groups better *partitions*. An example for a first question
-could be: Is the power of the study less than 0.93? If it is, the study is
-placed in the left group; if it is not, it is placed in the right group.
+Binary *classification trees* learn patterns by repeatedly asking (yes/no)
+questions about features of the data allowing for organizing the data points
+into non-overlapping groups (aka., *partitions*). An example question to split
+the data could be: Is the power of the study less than 0.93? If it is, the study
+is placed in the left group; if it is not, it is placed in the right group.
 Following the given data *splitting rule* ultimately results in two
-non-overlapping groups, one containing studies with `power.o > 0.9` and another
-with `power.o <= 0.9` (see Figure 1, left).
+non-overlapping groups, one containing studies with `power.o > 0.92866` and
+another with `power.o <= 0.92866` (see Figure 1, left).
 
-With a second question, targeting all the high power studies (`power.o >= 0.9`),
-for instance, the tree could further partition the data (now at depth two): Is
-the number of observations also greater than 100 (`n.o >= 100`)?" In this way
-the trees go on continue to grow; that is, the grouping process continues, until
-the data cannot be divided any further or a termination criterion is reached.
-Termination criteria can be, e.g., a minimum number of 100 studies in the final
-group, or a minimum number of 100 studies to consider a split (see
-`?rpart.control` for available options in `rpart`).
+With a second question the classification tree could further partition the data
+at a lower level. At depth two, an example question, targeting the high power
+studies (`power.o >= 0.92866`) could be: Is the number of observations in this
+partition also greater than 100?". In this way the trees continue to grow. That
+is, the three continues the grouping process until the data cannot be divided
+any further or a termination criterion is reached. Termination criteria are, for
+example, a minimum number of 100 studies in the final group, or a minimum number
+of 100 studies to consider a split (see `?rpart.control` for all available
+options in `rpart`).
 
 ```{r}
 # Extract only two features
@@ -288,7 +294,9 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
      col = c(col2, col1), cex=0.7)
 ```
 
-To compare the results, to a GLM see the Appendix!
+To compare the results, to a GLM see the Appendix! the results of a
+Bernoulli-logit generalized linear model, see the Appendix.
+
 
 ```{r}
 # Maybe as comparison the decision boundaries from a GLM?
@@ -319,13 +327,14 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
 
 #### Classification stumps
 
-Binary *classification stumps* shorten the repetitive process of classification
-trees by limiting themselves to a single (yes/no) question (see Figure 1, left).
-Consequently, they partition the data into two final groups, terminating at a
-maximum depth of one (see Figure 1, left side & center, and Code xxx). Calling
-the starting point in the graph of the tree its root or *root node* and the
-resulting group at the terminal point its *leave node*, a classification stump
-can be categorized as a tree with one root and two leave nodes (see, e.g. ref.).
+Binary *classification stumps* shorten the repetitive grouping process of
+classification trees by limiting themselves to a single (yes/no) question (see
+Figure 1, left). Consequently, they partition the data into two final groups,
+terminating at a maximum depth of one (see Figure 1, left side & center, and
+Code xxx). Calling the starting point in the graph of the tree its root or *root
+node* and the resulting group at the terminal point its *leave node*, a
+classification stump can be categorized as a tree with one root and two leave
+nodes (see, e.g. ref.).
 
 The final decision on whether studies with a certain feature, such as high
 power, are considered successful or not is made by the classification stump in a
