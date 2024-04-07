@@ -1,0 +1,108 @@
+---
+title: "Module 5: Hyperparameter Optimization Using LOSO-CV"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{module5}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(adatutoR)
+```
+
+TODO: Check if code in Module 3 is running
+
+```{r}
+# TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5
+hgrid <- expand.grid(
+  # Tree-specific 
+  maxdepth = 1:3, # Interaction depth
+  # Ensemble specific
+  n_tree = c(1e1, 1e2), # Number of trees
+  eta = c(1, 0.1), # Learning rate
+  # Container for fold performance
+  ee = NA, ml1 = NA, ml3 = NA, rpp = NA,  ssrp = NA, 
+  auc.mean = NA, runtime = NA) # Average performance
+# Number of combinations 
+hgrid_rows <- nrow(hgrid)
+```
+
+Hyperparameter optimization using Leave-Project-Out Cross-validation.
+
+```{r}
+# Partition the data by "Project ID"
+df_split <- split(df[,voi], df$pid) 
+# Setup a progress bar
+pb <- txtProgressBar(0, hgrid_rows, initial = 0, style = 3) 
+# For each entry in the hypergrid, do...
+for(i in seq_len(hgrid_rows)) {
+  # Progress bar
+  setTxtProgressBar(pb, i) 
+  # Track the iteration time (time-accuracy trade-off)
+  runtime <- system.time({
+    # Leave-One-Project-Out Cross-Validation
+    for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
+      # Define the testing set
+      test <- df_split[[project]] # TODO: Inconsistent (partial matching vs explicit)
+      # Define the training set
+      train <- df[!(df$pid %in% project), ]
+      # Fit the model to the data to get the ensemble
+      ensemble <- train_adaboost(train[,features], train[,target],
+                                 n_trees = hgrid$n_tree[i],  
+                                 eta = hgrid$eta[i], 
+                                 tree_hyperpar = rpart::rpart.control(
+                                   maxdepth = hgrid$maxdepth[i]))
+      # Make predictions on validation set 
+      y_pred <- test_adaboost(test[,features], ensemble)$class
+      # Store the performance evaluation (level: effects)
+      hgrid[[project]][i] <- AUC::auc( AUC::roc(y_pred, test$replicated)) }
+    # Calculate the average performance
+    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8]))
+  }) 
+  # TODO: Inconsistent (partial matching vs explicit)
+  hgrid$runtime[i] <- runtime[["elapsed"]]
+}
+# Close connection 
+close(pb)
+```
+
+Performance evaluation sorted by highest AUC.
+
+```{r}
+# Note: EE is highly anomalous!
+hgrid[order(-hgrid$auc.mean), ] 
+```
+
+Stacking the best performing algorithms could improve the predictions quite
+significantly here! For example, learners 2 and 3 perform quite well on the ee
+project, while learners 1 and 8 perform quite well on ml1.
+
+## Optimized Ensemble 
+
+If we do not stack the results, we should at least fit the model with the
+hyperparameters that had the best average performance (here AUC) across all
+replication projects. However, we don't get a true sense of the model's
+out-of-sample capabilities because we don't have another project it hasn't seen
+yet.
+
+```{r}
+# Define the testing set
+test <- df_split[[project]] # TODO: Maybe inconsistent
+# Define the training set
+train <- df[!(df$pid %in% project), ]
+# Fit the model to the data to get the ensemble
+ensemble <- train_adaboost(train[,features], train[,target], 
+                           n_trees = 1e4,  eta = 1e-3, 
+                           tree_hyperpar = rpart::rpart.control(
+                                 maxdepth = 3))
+# Make predictions on validation set 
+y_pred <- test_adaboost(test[,features], ensemble)$class
+```
