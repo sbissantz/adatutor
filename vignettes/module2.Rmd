@@ -52,32 +52,25 @@ Typing `?altmext723`, provides access the full variable list as well as
 additional information on each variable.
 
 Given a set of measurements, a general goal of predictive modeling is to extract
-a pattern from the data that allows to make accurate predictions of future
-outcomes. More specifically, in the `altmext723` data set we aim to learn a
-*general* pattern between predictors *features*, such as `power.o`, the power of
-the original study, and `replicated`, the *outcome* variable. The word "general"
-is important here, because makes explicit the goal is to move beyond the data at
-hand. We aim to create a model that accurately predicts if future or unseen
-replication attemps will succeed (class 1) or fail (class 2). 
-
-Put another way,
-our goal is to create a predictive model instead of a "retrodictive" one. Thus,
-we cannot soley evaluate the fit or in-sample performance of our model. We
-also need to consider its out-of-sample performance. This is why, in Module 1,
-we already set aside a subset of the data, the test set, to evaluate the
-predictive capabilities of the model.
-
- the model is part of Module 4
-4, we will also show another way to judge the performance of our AdaBoost
-implementation in the given classification problem. Before, however, we will
-shift focus on understanding how trees address the aforementioned classification
-problem.
-
-
-The presence of a labeled outcome variable that guides the model's learning process indicates that we are in the realm of *supervised learning*. Given the number of classes, the scenario can be more accurately categorized as two-class *classification problem*.
-
-In the tutorial we will not wait for future data to evaluate performance. 
-
+a pattern from the data that allows accurate predictions of future outcomes.
+More specifically, in the `altmext723` data set, we want to learn a *general*
+pattern between predictors or *features* such as `power.o`, the power of the
+original study, and `replicated`, the *outcome* variable that allows us to
+accurately predict whether future or unseen replication attempts will succeed
+(class 1) or fail (class 2). Given the number of classes, the scenario can be
+more accurately categorized as a two-class *classification problem*. The
+presence of a labeled outcome that can guide the model's learning process
+indicates that we are in the realm of *supervised learning*. Note that the
+phrase "general pattern" is important here because it makes it clear that the
+goal is to go beyond the data at hand. Put another way, in this tutorial, and in
+predictive modeling in general, the goal is to create a *predictive model*
+rather than a *retrodictive* one. This means we cannot just evaluate the fit or
+in-sample performance of our model. We also need to consider its out-of-sample
+or predictive performance. Therefore, in Module 1, we set aside a subset of the
+data, the test set, to evaluate the model's predictive ability. We will
+explicitly test the out-of-sample perfprmance of AdaBoost in Module 3 and
+present another strategy in Module 4. But first, focus must be on understanding
+how trees address the classification problem mentioned above.
 
 Note to self: Actually, this will be a validation set, since we tune the
 hyperparameter with these stuff. Write this problem somewhere, that the data set
@@ -90,9 +83,9 @@ that differs from the true generalization performance.
 Binary *classification trees* learn patterns by repeatedly asking (yes/no)
 questions about features of the data allowing for organizing the data points
 into non-overlapping groups (aka., *partitions*). An example question to split
-the data could be: Is the power of the study less than 0.93? If it is, the study
-is placed in the left group; if it is not, it is placed in the right group.
-Following the given data *splitting rule* ultimately results in two
+the data could be: Is the power of the study less than 0.98266? If it is, the
+study is placed in the left group; if it is not, it is placed in the right
+group. Following the given data *splitting rule* ultimately results in two
 non-overlapping groups; one containing studies with `power.o > 0.92866` and
 another with `power.o <= 0.92866` (see Figure 1, left).
 
@@ -103,9 +96,22 @@ partition also greater than 100?". If it, the study is placed in the lower left
 and if not in the lower right group. In this way the trees continue to grow.
 That is, the three continues the grouping process until the data cannot be
 divided any further or a termination criterion is reached. Termination criteria
-are a minimum number of studies in the final group, or a minimum number of
-studies to consider a split (see `?rpart.control` for all available options in
-`rpart`).
+are, for example, a minimum number of studies in the final group, or a minimum
+number of studies to consider a split (see `?rpart.control` for all available
+options in `rpart`).
+
+#### Classification stumps
+
+Binary *classification stumps* shorten the repetetive process of classification
+trees by limiting themselves to a single (yes/no) question, such as `power.o <
+0.98266`?. Consequently, they partition the data into two final groups,
+terminating at a maximum depth of one (see Figure 1, left side & center, and
+Code). To compare the results of the partitioning process to those of a
+Bernoulli-logit generalized linear model see the Appendix. Calling the starting
+point at the top in Figure 1 (left) the root of the tree or its *root node* and
+the resulting group at the terminal point its *leave nodes*, a classification
+stump can also be categorized as a tree with one root and two leave nodes (see,
+e.g. ref.).
 
 ```{r, echo = FALSE}
 # Extract only two features
@@ -163,18 +169,6 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
      col = c(col2, col1), cex=0.7)
 ```
 
-#### Classification stumps
-
-Binary *classification stumps* shorten the repetetive process of classification
-trees by limiting themselves to a single (yes/no) question, such as `power.o <
-0.98266`?. Consequently, they partition the data into two final groups,
-terminating at a maximum depth of one (see Figure 1, left side & center, and
-Code). To compare the results of the partitioning process to those of a
-Bernoulli-logit generalized linear model see the Appendix. Calling the starting
-point at the top in Figure 1 (left) the root of the tree or its *root node* and
-the resulting group at the terminal point its *leave nodes*, a classification
-stump can also be categorized as a tree with one root and two leave nodes (see,
-e.g. ref.).
 
 The final decision on whether studies with a certain feature, such as high
 power, are considered successful or not is usually made by majority vote based
@@ -193,13 +187,13 @@ table(train$replicated[splitcond])
 # Studies with df$power.o >= 0.92866 
 table(train$replicated[!splitcond])
 ```
-In the first line, we define the split boundary using the base R relational
-operator `<`. This results in a logical vector whose `TRUE`, `FALSE` values
-indicate the entries in the variable `power.o` that are greater than 0.92866. We
-then create two contingency tables for the factor variable `replicated`,
-selecting only those cases that either meet the condition or do not (`!`). The
-output shows the number of successes and failures under each condition, which
-can be added together to reproduce the numbers in Figure 1.
+In the first line of the code, we define the split boundary using the base R
+relational operator `<`. This results in a logical vector whose `TRUE`, `FALSE`
+values indicate the entries in the variable `power.o` that are greater than
+0.92866. We then create two contingency tables for the factor variable
+`replicated`, selecting only those cases that either meet the condition or do
+not (`!`). The output shows the number of successes and failures under each
+condition, which can be added together to reproduce the numbers in Figure 1.
 
 ### Fit and visuaize a classification stump
 
@@ -245,9 +239,9 @@ particular solution. We characterized stumps as  primitive classification trees
 with maximum depth equal to one. Consequently, we must limit the complexity of
 the model using `maxdepth = 1` to avoid the tree growing beyond a stump. Put
 another way, the constraint limits the number of data partitions, There is one
-group with studies `power.o < 0.93` and one with studies `power.o >= 0.93`.
+group with studies `power.o < 0.92866` and one with studies `power.o >= 0.92866`.
 
-```{r}
+```{r, eval=FALSE}
 # Visualize a classification stump
 rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102,
                        digits = 5)
