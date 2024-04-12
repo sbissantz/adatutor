@@ -294,30 +294,32 @@ then be those that most reduced the estimated misclassification rate, p.94)"
 
 The general idea: Node impurity
 
-Metaphorically speaking, the goal is to provide a clear picture for an
-uncontroversial decision process. Technically, this is done by increasing the
-homogeneity of the labels at a particular node. The more homogeneous the node,
-that is, the less diverse the mix of examples labeled as "success" or "failure"
-the purer the node and the less controversial the final decision for "success"
-or "failure" in the majority vote. Put another way, by increasing the
-homogeneity we reduce the node *impurity*. In this logic an optimum is reached
-if the examples in the node belong to the same class (e.g., success). Thus, a
-uniform class distribution implies the minimum or zero impurity, (maximal
-purity). To stick with the metaphor, this is a clear picture for the decision
-process. In contrast, maximal impurity, the blurred picture, is obtained by a
-fifty-fifty split. In a two class classification problem the maximum impurity
-can (thus) be one half. As a consequence, if classification is easier when the
-impurity is low, by minimizing the impurity we reduce the risk
-misclassification. The *Gini index* "Gini index of diversity as a measure of
-node impurity; i.e (p.38)". The final measure of optimizing node impurity as by
-the Gini index is refered to as  *Gini impurity*. The Gini impurity considers
-how often we would misclassify a randomly chosen example from our data set if we
-were to guess its class label based on the class distribution in that group.
-Check: Applied to our example, this means that the Gini impurity measures how
-often we are expected to misclassify a replication study's outcome (success or
-failure) if we were to randomly assign a label (success or failure) based on the
-distribution of successes and failures within our group of replication studies
--- split according to a specific power threshold. In our example the threshold is power.o >= 0.93.
+Metaphorically, the goal is to provide a clear picture for an uncontroversial
+decision. Technically, this is done by reducing the diversity of examples with a
+particular label at a given node. The less diverse the study composition, the
+more studies with a particular label and the purer the node. In this logic, an
+optimum is reached when there are only studies at a node that can be categorized
+as either "success" or "failure". Then the node purity is 100% or there is no
+*impurity*. This is the clear picture. In contrast, the more the class
+distribution converges to a fifty-fifty split (Figure xxx), the fuzzier the
+picture becomes. The positive influence of the diversity reduction strategy on
+the classification process becomes apparent when we remember that the overall
+decision of the tree is made by majority vote in favor of the most frequent
+class: The more the class distribution converges to a uniform distribution, the
+clearer the preponderance in favor of a class, and the less controversy there is
+in the final majority vote for "success" or "failure". In this way, reducing
+impurity reduces the risk of misclassification.
+
+Breiman an colleagues use the *Gini* diversity *index* as measure of node
+impurity (p.38). This is refered to as *Gini impurity*. The Gini impurity
+considers how often we would misclassify a randomly chosen example from our data
+set if we were to guess its class label based on the class distribution in that
+group. In our example, the Gini impurity measures how often we are expected to
+misclassify a replication study's outcome (success or failure) if we were to
+randomly assign a label (success or failure) based on the distribution of
+successes and failures within our group of replication studies -- split
+according to a specific power threshold. In our example the threshold is power.o
+>= 0.93.
 
 #### Why `power.o > 0.93`?
 
