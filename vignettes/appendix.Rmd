@@ -32,7 +32,7 @@ target <- "replicated"
 # Predictors 
 features <- c("power.o", "effect_size.o", "n.o", "log_p.o")
 # Note: No missing values 
-df <- altmext723[,voi]
+df <- altmext[,voi]
 ```
 
 
