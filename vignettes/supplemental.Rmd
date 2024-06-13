@@ -24,7 +24,7 @@ library(adatutoR)
 
 ```{r}
 # Load the data
-data("altmext723")
+data("altmext")
 # Variables of interest
 voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "log_p.o", "replicated")
 # Outcome (classification task) 
@@ -32,7 +32,7 @@ target <- "replicated"
 # Predictors 
 features <- c("power.o", "effect_size.o", "n.o", "log_p.o")
 # Note: No missing values 
-df <- altmext723[,voi]
+df <- altmext[,voi]
 # Reproducibility
 set.seed(112)
 # Partition the data based on the outcome variable
@@ -109,7 +109,7 @@ Visualize decision boundaries:
 ## Data
 
 ```{r}
-data("altmext723")
+data("altmext")
 # Variables of interests
 voi <- c("power.o", "effect_size.o", "replicated")
 # Predictors 
@@ -117,7 +117,7 @@ features <- c("power.o", "effect_size.o")
 # Outcome
 target <- "replicated"
 # Subset of the data  
-d <- altmext723[, voi]
+d <- altmext[, voi]
 # Feature matrix
 X <- d[,features]
 # Outcome vector
