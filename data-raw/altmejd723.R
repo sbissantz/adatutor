@@ -9,7 +9,7 @@
 csv_file <- system.file(
   "extdata",
   "altmejd723.csv",
-  package = "exmachina"
+  package = "adatutoR"
 )
 
 # Get the headers
@@ -161,9 +161,6 @@ valid_cases <- extdata$drop == FALSE & !is.na(extdata$replicated)
 
 # Keep only valid cases and relevant variables
 altmejd723 <- extdata[valid_cases, relevant_vars]
-
-# Add log p-value as variable
-altmejd723$log_p.o <- log(altmejd723$p_value.o)
 
 # Switch from "id" to "eid" - "effect id"
 eid_pat <- grep("id", colnames(altmejd723) )
