@@ -9,7 +9,7 @@
 csv_file <- system.file(
   "extdata",
   "ssrp723.csv",
-  package = "exmachina"
+  package = "adatutoR"
 )
 
 # Get the headers
@@ -171,9 +171,6 @@ names(ssrp723)[eid_pat] <- "eid"
 
 # Add pid - "project ID"
 ssrp723$pid <- rep("ssrp", nrow(extdata))
-
-# Add log p-value as variable
-ssrp723$log_p.o <- log(ssrp723$p_value.o)
 
 # Make a new binary variable
 ssrp723$replicated <- ifelse(ssrp723$replicated == "replicated", 1, 0)
