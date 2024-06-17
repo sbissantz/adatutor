@@ -10,7 +10,7 @@ data("ssrp723")
 
 # Variables of interest
 voi <- c("eid", "pid", "power.o", "effect_size.o", "n.o", "p_value.o",
-         "log_p.o", "replicated")
+         "p_value.o", "replicated")
 
 # Bind the data set with the pre-selected variables
 altmext723 <- rbind.data.frame( altmejd723[,colnames(altmejd723) %in% voi],
