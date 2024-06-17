@@ -37,14 +37,14 @@ Full data set from Adam Altmejd and colleagues plus the SSRP data.
 
 ```{r}
 # Variables of interest
-voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "log_p.o", 
+voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "p_value.o", 
          "replicated")
 
 # Name of outcome variable (classification task)
 outcome <- "replicated"
 
 # Names of predictors 
-predictors <- c("power.o", "effect_size.o", "n.o", "log_p.o")
+predictors <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 
 # Names of outcomes and predictors
 outpred <- union(outcome, predictors)
@@ -54,7 +54,6 @@ df <- altmext[,voi]
 ```
 
 # Module 1: Splitting 
-
 
 ## Training and testing split 
 
@@ -262,8 +261,7 @@ hyptree <- rpart::rpart.control(
 h <- rpart::rpart(formula = replicated ~ ., data = subdf,  method = "class", 
                   control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(h, main = "Classification Stump", extra = 102, 
-                       digits = 5, box.palette="BuGy")
+rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy")
 ```
 
 #### Classification stumps
@@ -349,8 +347,7 @@ Code Chunk 2.3
 
 ```{r, eval=FALSE}
 # Visualize a classification stump
-rpart.plot::rpart.plot(cstump, main = "Classification Stump", extra = 102,
-                       digits = 5)
+rpart.plot::rpart.plot(cstump, extra = 102, digits = 5, box.palette="BuGy")
 ```
 
 ### Gini impurity
@@ -452,7 +449,7 @@ h <- rpart::rpart(formula = replicated ~ .,
                   data = train[, outpred], 
                   method = "class", weight = D, control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(h, main = "Decision Stump", digits = 5)
+rpart.plot::rpart.plot(h, digits = 5)
 ```
 
 Normalized random observation weights for demonstration. Changes result.
@@ -463,13 +460,13 @@ set.seed(112)
 # Random draws from Uniform(0,1)
 D_unorm <- runif(107)
 # Normalize (sum: 1)
-D <- D_unorm/sum(D_unorm)
+D <- D_unorm/sum(D_unorm) 
 # Create a decision stump
 cstump_ast <- rpart::rpart(formula = replicated ~ ., 
                   data = train[,outpred], 
                   method = "class", weight = D, control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(cstump_ast, main = "Classification Stump")
+rpart.plot::rpart.plot(cstump_ast, extra = 100, digits = 5)
 ```
 
 # Module 3: Adaptive Boosting 
