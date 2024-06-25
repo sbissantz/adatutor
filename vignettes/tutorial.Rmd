@@ -449,7 +449,7 @@ h <- rpart::rpart(formula = replicated ~ .,
                   data = train[, outpred], 
                   method = "class", weight = D, control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(h, digits = 5)
+rpart.plot::rpart.plot(h, digits = 5, box.palette="BuGy")
 ```
 
 Normalized random observation weights for demonstration. Changes result.
@@ -466,10 +466,239 @@ cstump_ast <- rpart::rpart(formula = replicated ~ .,
                   data = train[,outpred], 
                   method = "class", weight = D, control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(cstump_ast, extra = 100, digits = 5)
+rpart.plot::rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
 ```
 
 # Module 3: Adaptive Boosting 
+
+Setup.
+
+```{r}
+n_trees <- 100
+# Extract the number of rows
+n_samples <- nrow(train[,outpred])
+# Pre-allocate the empty ensemble
+H <- vector("list", n_trees)
+```
+
+## Adaptive boosting (1 iteration)
+
+TODO: Make work with our data 
+
+Normalized equal weights.
+
+```{r}
+# Initialize the weights (normalized)
+D <- rep(1, n_samples)/n_samples
+```
+
+Tree hyperparameter setup.
+
+```{r}
+hyptree <- rpart::rpart.control(
+  # Maximum depth of any node tree
+  # Root node countes as depth = 0
+  # Note: Values greatet 30 will give nonsense results on 32-bit machines
+  # Important: We usually boost stumps (depth = 1), or shallow trees
+  maxdepth = 1, # Boost stumps
+  # Minimum n° obs in a node for a split to be attempted 
+  minsplit = 20, 
+  # Minimum n° of obs in any terminal <leaf> node 
+  minbucket = round(10 / 3),
+  # Complexity parameter: Include in
+  # Split must decrease the fit lack of fit by a factor of cp
+  cp = 1e-2,
+  # Number of cross-validations 
+  xval = 10,
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini"
+  # split = "information"
+  )
+```
+
+Train a single weak learner ($h_t$) with normalized(!) sample weights ($\mathbf D$).
+
+```{r}
+h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
+method = "class", weights = D, control = hyptree)
+```
+
+Make predictions with the weak learner (h_t).
+
+```{r}
+y_pred <- predict(object = h, newdata = test[, outpred], type = "class")
+```
+
+TODO: Do we need to transform values to -1 and 1?
+
+```{r}
+# y_pred <- 2*as.numeric(y_class) - 3
+```
+
+Weighted accuracy for the training error.
+
+```{r}
+wacc <- sum(D * (y == y_pred)) / sum(D)
+```
+
+Compute the training error (e_t) of the weak learner (h_t)
+
+```{r}
+# This is simply one minus the weighted accuracy, given weights D
+e <- 1 - wacc
+```
+
+Note: Equivalent but less readable 
+
+```{r}
+e <- sum(D * (y != y_pred)) / sum(D)
+```
+
+Compute the the weight (a_t) of the weak learner (h_t).
+Reduce the learner weight by a factor eta (learning rate)
+
+TODO: eta
+
+```{r}
+a <- 0.5 * log( (1 - e)  / e) * eta
+```
+
+Updates the weights
+- Increase for misclassified examples: (y == y_pred)
+- Decrease for correctly classified examples: (y!=y_pred)
+
+```{r}
+m <- (y == y_pred) * 1 + (y != y_pred) * -1
+```
+
+Update the sample weights
+
+```{r}
+D <- D * exp(-a * m)
+```
+
+Renormalize the weights (probabilistic interpretation).
+
+```{r}
+D <- D/sum(D)
+```
+
+Output.
+
+```{r}
+# Learner
+h
+# Learner weight
+a
+# Observation weight
+D
+```
+
+Repeat.
+
+## Adaptive boosting
+
+TODO: Work example.
+
+For all $t$ trees or more precisely stumps.
+
+```{r}
+# for (tree in 1:n_trees) {
+  # Train a single weak learner (h_t) with normalized(!) sample weights (D)
+  h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
+  method = "class", weights = D, control = hyptree)
+  # Make predictions with the weak learner (h_t)
+  y_pred <- predict(object = h, newdata = test[, outpred], type = "class")
+  # y_pred <- 2*as.numeric(y_class) - 3
+  wacc <- sum(D * (y == y_pred)) / sum(D)
+  # Compute the training error (e_t) of the weak learner (h_t)
+  # This is simply one minus the weighted accuracy, given weights D
+  e <- 1 - wacc
+  # Equivalent but less readable: e <- sum(D * (y != y_pred)) / sum(D)
+  # Compute the the weight (a_t) of the weak learner (h_t)
+  # Reduce the learner weight by a factor eta (learning rate)
+  a <- 0.5 * log( (1 - e)  / e) * eta
+  # Pre-Prunning or Early Stopping:
+  # Do not forget to add the parameter (prunning threshold)
+  # if (a < prunning_threshold) {
+  #  message("Prunning threshold reached")
+  #  break
+  # }
+  # Updates the weights
+  # Increase for misclassified examples: (y == y_pred)
+  # decrease for correctly classified examples: (y!=y_pred)
+  m <- (y == y_pred) * 1 + (y != y_pred) * -1
+  # Update the sample weights and limit the contribution of h_t by eta
+  D <- D * exp(-a * m)
+  # Normalize weights (probabilistic interpretation)
+  D <- D/sum(D)
+  # Save the weak learner and its weight
+  H[[tree]] <- list("learner" = h, "learner_weight" = a,
+                    "observation_weight" = D)
+  # Store sample weights for visualization
+}
+  # Return the ensemble
+# H
+}
+```
+
+
+
+
+```{r}
+# Plot
+# rattle::fancyRpartPlot(h, caption = NULL)
+# Sys.sleep(2)
+```
+
+
+## Hands dirty: Implementation
+
+### Training 
+
+Look under the hood of the function 
+
+```{r}
+train_adaboost
+```
+
+
+Training on the training set with specified hyperparameters
+
+```{r}
+ensemble <- train_adaboost(X = X_train, # Feature matrix 
+                           y = y_train, # Target vector 
+                           # Ensemble hyperparameters
+                           n_trees = 1e4, # Number of learner
+                           eta = 1e-4, # Learning rate
+                           # Tree hyperparameters (see above)
+                           tree_hyperpar = hyptree) 
+```
+
+
+### Prediction
+
+```{r}
+test_adaboost
+```
+
+Make predictions with the trained model and add them to the testing set.
+
+```{r}
+y_class <- test_adaboost(X_test, ensemble)$class
+test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
+```
+
+## Evaluation
+
+```{r}
+ROC <- AUC::roc(test$y_pred, test$replicated)
+# Area under the curve
+AUC::auc(ROC)
+```
+
+
+
 
 # Module 4: Leave-Subject-Out Cross-Validation
 
