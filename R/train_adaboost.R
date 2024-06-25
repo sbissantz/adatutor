@@ -34,7 +34,7 @@ train_adaboost <- function(X, y, eta, n_trees, tree_hyperpar) {
     # Increase for misclassified examples: (y == y_pred)
     # decrease for correctly classified examples: (y!=y_pred)
     m <- (y == y_pred) * 1 + (y != y_pred) * -1
-    # Update the sample weights and limit the contribution of h_t by eta
+    # Update the sample weights
     D <- D * exp(-a * m)
     # Normalize weights (probabilistic interpretation)
     D <- D/sum(D)
