@@ -266,15 +266,6 @@ rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy")
 
 #### Classification stumps
 
-```{r}
-# Feature matrices
-X_train <- train[, predictors] 
-X_test <- test[, predictors] 
-# Outcome vectors 
-y_train <- train[, outcome]
-y_test <- test[, outcome]
-```
-
 Figure 2.2
 
 ```{r}
@@ -483,75 +474,53 @@ H <- vector("list", n_trees)
 
 ## Adaptive boosting (1 iteration)
 
-TODO: Make work with our data 
+```{r}
+# Feature matrices
+X_train <- train[, predictors] 
+X_test <- test[, predictors] 
+# Outcome vectors 
+y_train <- train[, outcome]
+y_test <- test[, outcome]
+```
 
 Normalized equal weights.
 
 ```{r}
 # Initialize the weights (normalized)
-D <- rep(1, n_samples)/n_samples
+D_t0 <- rep(1, n_samples)/n_samples
 ```
 
-Tree hyperparameter setup.
-
-```{r}
-hyptree <- rpart::rpart.control(
-  # Maximum depth of any node tree
-  # Root node countes as depth = 0
-  # Note: Values greatet 30 will give nonsense results on 32-bit machines
-  # Important: We usually boost stumps (depth = 1), or shallow trees
-  maxdepth = 1, # Boost stumps
-  # Minimum n° obs in a node for a split to be attempted 
-  minsplit = 20, 
-  # Minimum n° of obs in any terminal <leaf> node 
-  minbucket = round(10 / 3),
-  # Complexity parameter: Include in
-  # Split must decrease the fit lack of fit by a factor of cp
-  cp = 1e-2,
-  # Number of cross-validations 
-  xval = 10,
-  # Original CART with gini impurity as splitting criterion  
-  split = "gini"
-  # split = "information"
-  )
-```
-
-Train a single weak learner ($h_t$) with normalized(!) sample weights ($\mathbf D$).
+Train a single weak learner ($h_t$) with normalized(!) sample weights ($\mathbf
+D$) and the given tree hyperparameter setup..
 
 ```{r}
 h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
-method = "class", weights = D, control = hyptree)
+method = "class", weights = D_t0, control = hyptree)
 ```
 
 Make predictions with the weak learner (h_t).
 
 ```{r}
-y_pred <- predict(object = h, newdata = test[, outpred], type = "class")
-```
-
-TODO: Do we need to transform values to -1 and 1?
-
-```{r}
-# y_pred <- 2*as.numeric(y_class) - 3
+y_class <- predict(object = h, newdata = train[, outpred], type = "class")
 ```
 
 Weighted accuracy for the training error.
 
 ```{r}
-wacc <- sum(D * (y == y_pred)) / sum(D)
+wacc <- sum(D * (y_train == y_class)) / sum(D_t0)
 ```
 
-Compute the training error (e_t) of the weak learner (h_t)
+Compute the training error (e_t) of the weak learner (h_t). This is simply one
+minus the weighted accuracy, given weights D
 
 ```{r}
-# This is simply one minus the weighted accuracy, given weights D
 e <- 1 - wacc
 ```
 
 Note: Equivalent but less readable 
 
 ```{r}
-e <- sum(D * (y != y_pred)) / sum(D)
+sum(D_t0 * (y_train != y_class)) / sum(D_t0)
 ```
 
 Compute the the weight (a_t) of the weak learner (h_t).
@@ -560,6 +529,7 @@ Reduce the learner weight by a factor eta (learning rate)
 TODO: eta
 
 ```{r}
+eta <- 0.1
 a <- 0.5 * log( (1 - e)  / e) * eta
 ```
 
@@ -567,20 +537,31 @@ Updates the weights
 - Increase for misclassified examples: (y == y_pred)
 - Decrease for correctly classified examples: (y!=y_pred)
 
+TODO: Why did I do it this way?
+
 ```{r}
-m <- (y == y_pred) * 1 + (y != y_pred) * -1
+m <- (y_train == y_class) * 1 + (y_train != y_class) * -1
 ```
 
 Update the sample weights
 
 ```{r}
-D <- D * exp(-a * m)
+D_t1un <- D_t0 * exp(-a * m)
 ```
 
-Renormalize the weights (probabilistic interpretation).
+Normalize the weights (probabilistic interpretation).
 
 ```{r}
-D <- D/sum(D)
+D_t1 <- D_t1un/sum(D_t1un)
+```
+
+Why are the correctly classified less reduced than the falsely classified are
+increased?
+
+```{r}
+plot(c(1, n_samples/2), c(0.005,0.015) , type = "n")
+points(D_t0[1:50], pch = 20, col = "ivory4")
+points(D_t1[1:50], pch = 20, col = "steelblue")
 ```
 
 Output.
@@ -591,10 +572,22 @@ h
 # Learner weight
 a
 # Observation weight
-D
+D_t1
 ```
 
 Repeat.
+
+
+TODO: Do we need to transform values to -1 and 1?
+
+```{r}
+y_pred <- 2 * as.numeric(y_class) - 3
+```
+
+
+
+
+
 
 ## Adaptive boosting
 
