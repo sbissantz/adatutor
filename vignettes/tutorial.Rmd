@@ -475,23 +475,20 @@ H <- vector("list", n_trees)
 ## Adaptive boosting (1 iteration)
 
 ```{r}
-# Feature matrices
-X_train <- train[, predictors] 
-X_test <- test[, predictors] 
 # Outcome vectors 
 y_train <- train[, outcome]
 y_test <- test[, outcome]
 ```
 
-Normalized equal weights.
+Initialization weights are normalized equal weights.
 
 ```{r}
 # Initialize the weights (normalized)
 D_t0 <- rep(1, n_samples)/n_samples
 ```
 
-Train a single weak learner ($h_t$) with normalized(!) sample weights ($\mathbf
-D$) and the given tree hyperparameter setup..
+Train a single weak learner ($h_t$) with the initialization weights and the
+given tree hyperparameter setup.
 
 ```{r}
 h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
@@ -504,10 +501,16 @@ Make predictions with the weak learner (h_t).
 y_class <- predict(object = h, newdata = train[, outpred], type = "class")
 ```
 
+Normalization constant.
+
+```{r}
+Z_t0 <- sum(D_t0)
+```
+
 Weighted accuracy for the training error.
 
 ```{r}
-wacc <- sum(D * (y_train == y_class)) / sum(D_t0)
+wacc <- sum(D * (y_train == y_class)) / Z_t0
 ```
 
 Compute the training error (e_t) of the weak learner (h_t). This is simply one
@@ -524,45 +527,89 @@ sum(D_t0 * (y_train != y_class)) / sum(D_t0)
 ```
 
 Compute the the weight (a_t) of the weak learner (h_t).
-Reduce the learner weight by a factor eta (learning rate)
-
-TODO: eta
+Reduce the learner weight by a factor eta (learning rate).
+Note: First AdaBoost hyperparameter.
 
 ```{r}
-eta <- 0.1
-a <- 0.5 * log( (1 - e)  / e) * eta
+eta <- 1
 ```
 
-Updates the weights
-- Increase for misclassified examples: (y == y_pred)
-- Decrease for correctly classified examples: (y!=y_pred)
-
-TODO: Why did I do it this way?
+Importance of classification tree. 
 
 ```{r}
-m <- (y_train == y_class) * 1 + (y_train != y_class) * -1
+a_t0 <- 1/2 * log( (1 - e)  / e) * eta
+```
+
+Indicator function that gives a one for correct classifications (prediction is
+equal to observed value in the training set) and a minus one for a
+misclassification (prediction is unequal to observed value in the training set).
+
+```{r}
+chi <- (y_train == y_class) * 1 + (y_train != y_class) * -1
 ```
 
 Update the sample weights
 
+- Increase for misclassified examples (y == y_pred)
+- Decrease for correctly classified examples: (y != y_pred)
+
 ```{r}
-D_t1un <- D_t0 * exp(-a * m)
+D_t1unorm <- D_t0 * exp(-a_t0 * chi)
 ```
 
-Normalize the weights (probabilistic interpretation).
+Define the normalization constant.
 
 ```{r}
-D_t1 <- D_t1un/sum(D_t1un)
+Z <- sum(D_t1unorm)
+```
+
+Normalize the weights (maintain the probabilistic interpretation).
+
+```{r}
+D_t1 <- D_t1unorm/Z
+```
+
+Visualize the result of the weight updating process.
+
+```{r}
+n_25 <- 25
+scaling <- 175
+plot(c(1, n_25), c(0, D_t0[1] + 0.017) , type = "n", xaxt = "n",
+     xlab = "Data point", ylab = "Difference in weights")
+axis(1, at = 1:n_25)
+for(i in 1:n_25) {
+  lines(c(i,i),c(D_t0[i], D_t1[i]), lty = 2)
+}
+points(D_t0[1:n_25], pch = 20, col = "ivory4", cex = D_t0[1] * scaling)
+points(D_t1[1:n_25], pch = 20, col = "steelblue", cex = D_t1[1:n_25] * scaling) 
+legend("topright", legend = c(expression(D[t[0]]), expression(D[t[1]])), 
+       col = c("ivory4", "steelblue"),
+       pch = c(20, 20))
 ```
 
 Why are the correctly classified less reduced than the falsely classified are
-increased?
+increased? 
 
 ```{r}
-plot(c(1, n_samples/2), c(0.005,0.015) , type = "n")
-points(D_t0[1:50], pch = 20, col = "ivory4")
-points(D_t1[1:50], pch = 20, col = "steelblue")
+curve(exp(0.5*-x), from = -1, to = 1, ylim = c(0,3), lwd = 2, 
+      xlab = "Classification", ylab = expression(exp(a[t]*m)), xaxt = "n") 
+curve(exp(1*-x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lwd = 2, 
+      add = TRUE) 
+curve(exp(0.1*-x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", 
+      lwd = 2, add = TRUE) 
+abline(h = 1, lty=2)
+legend("topright", legend = c(expression(a[t]*" = 0.1"), 
+                              expression(a[t]*" = 0.5"), 
+                              expression(a[t]*" = 1")),
+       col = c("steelblue", "black", "ivory4"),
+       lty = c(1, 1, 1), lwd = 2)
+axis(1,at = c(-1,1))
+grid()
 ```
+$a = f(e, \eta)$ The more weight $a$ we assign to an individual learner the
+stronger the effect on the observation weights (increase/decrease).
+Misclassifications are always more penalized (increase in observation weight)
+than correct classifications (decrease in observation weights).
 
 Output.
 
@@ -570,91 +617,50 @@ Output.
 # Learner
 h
 # Learner weight
-a
+a_t0
 # Observation weight
 D_t1
 ```
 
 Repeat.
 
-
-TODO: Do we need to transform values to -1 and 1?
-
-```{r}
-y_pred <- 2 * as.numeric(y_class) - 3
-```
-
-
-
-
-
-
 ## Adaptive boosting
 
+Do the loop and explain the second hyperparameter (n_tree)
+
 TODO: Work example.
+
+```{r}
+n_tree <- 1e2
+```
 
 For all $t$ trees or more precisely stumps.
 
 ```{r}
-# for (tree in 1:n_trees) {
-  # Train a single weak learner (h_t) with normalized(!) sample weights (D)
+for (tree in 1:n_trees) {
   h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
   method = "class", weights = D, control = hyptree)
-  # Make predictions with the weak learner (h_t)
   y_pred <- predict(object = h, newdata = test[, outpred], type = "class")
-  # y_pred <- 2*as.numeric(y_class) - 3
-  wacc <- sum(D * (y == y_pred)) / sum(D)
-  # Compute the training error (e_t) of the weak learner (h_t)
-  # This is simply one minus the weighted accuracy, given weights D
+  wacc <- sum(D * (y == y_pred))/sum(D)
   e <- 1 - wacc
-  # Equivalent but less readable: e <- sum(D * (y != y_pred)) / sum(D)
-  # Compute the the weight (a_t) of the weak learner (h_t)
-  # Reduce the learner weight by a factor eta (learning rate)
   a <- 0.5 * log( (1 - e)  / e) * eta
-  # Pre-Prunning or Early Stopping:
-  # Do not forget to add the parameter (prunning threshold)
-  # if (a < prunning_threshold) {
-  #  message("Prunning threshold reached")
-  #  break
-  # }
-  # Updates the weights
-  # Increase for misclassified examples: (y == y_pred)
-  # decrease for correctly classified examples: (y!=y_pred)
-  m <- (y == y_pred) * 1 + (y != y_pred) * -1
-  # Update the sample weights and limit the contribution of h_t by eta
-  D <- D * exp(-a * m)
-  # Normalize weights (probabilistic interpretation)
+  chi <- (y == y_pred) * 1 + (y != y_pred) * -1
+  D <- D * exp(-a * chi)
   D <- D/sum(D)
-  # Save the weak learner and its weight
+  # Ensemble 
   H[[tree]] <- list("learner" = h, "learner_weight" = a,
                     "observation_weight" = D)
-  # Store sample weights for visualization
+  # sign in testing
 }
-  # Return the ensemble
-# H
-}
+
+# sign in testing
 ```
-
-
-
 
 ```{r}
-# Plot
-# rattle::fancyRpartPlot(h, caption = NULL)
-# Sys.sleep(2)
+# Feature matrices
+X_train <- train[, predictors] 
+X_test <- test[, predictors] 
 ```
-
-
-## Hands dirty: Implementation
-
-### Training 
-
-Look under the hood of the function 
-
-```{r}
-train_adaboost
-```
-
 
 Training on the training set with specified hyperparameters
 
