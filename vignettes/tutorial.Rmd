@@ -477,14 +477,15 @@ H <- vector("list", n_trees)
 ```{r}
 # Outcome vectors 
 y_train <- train[, outcome]
-y_test <- test[, outcome]
+(y_test <- test[, outcome])
 ```
 
 Initialization weights are normalized equal weights.
 
 ```{r}
-# Initialize the weights (normalized)
-D_t0 <- rep(1, n_samples)/n_samples
+m <- n_samples
+one <- rep(1, n_samples)
+D_t0 <- one/m
 ```
 
 Train a single weak learner ($h_t$) with the initialization weights and the
@@ -520,24 +521,38 @@ minus the weighted accuracy, given weights D
 e <- 1 - wacc
 ```
 
-Note: Equivalent but less readable 
-
-```{r}
-sum(D_t0 * (y_train != y_class)) / sum(D_t0)
-```
-
 Compute the the weight (a_t) of the weak learner (h_t).
 Reduce the learner weight by a factor eta (learning rate).
+
 Note: First AdaBoost hyperparameter.
 
 ```{r}
 eta <- 1
 ```
 
-Importance of classification tree. 
+Importance -- or weight -- of a classification tree. 
 
 ```{r}
 a_t0 <- 1/2 * log( (1 - e)  / e) * eta
+```
+
+The better the model performs (that is, the lower its error) the more weight it
+gets in the overall ensemble - independent of the learning rate $\eta$.
+
+```{r}
+curve((1/2*log(x/(1-x)) * 1), from = 0.5, to = 1, lwd = 2, 
+      ylab = expression("Importance "*(a[t])), 
+      xlab = expression("Performance "*(1-epsilon[t])), col = "ivory4")
+curve((1/2*log(x/(1-x)) * 0.5), from = 0.5, to = 1, lwd = 2, col = "black", 
+      add = TRUE)
+curve((1/2*log(x/(1-x)) * 0.1), from = 0.5, to = 1, lwd = 2, col = "steelblue", 
+      add = TRUE)
+grid()
+legend("topleft", legend = c(expression(eta*" = 0.1"), 
+                              expression(eta*" = 0.5"), 
+                              expression(eta*" = 1")),
+       col = c("steelblue", "black", "ivory4"),
+       lty = c(1, 1, 1), lwd = 2)
 ```
 
 Indicator function that gives a one for correct classifications (prediction is
@@ -569,30 +584,13 @@ Normalize the weights (maintain the probabilistic interpretation).
 D_t1 <- D_t1unorm/Z
 ```
 
-Visualize the result of the weight updating process.
-
-```{r}
-n_25 <- 25
-scaling <- 175
-plot(c(1, n_25), c(0, D_t0[1] + 0.017) , type = "n", xaxt = "n",
-     xlab = "Data point", ylab = "Difference in weights")
-axis(1, at = 1:n_25)
-for(i in 1:n_25) {
-  lines(c(i,i),c(D_t0[i], D_t1[i]), lty = 2)
-}
-points(D_t0[1:n_25], pch = 20, col = "ivory4", cex = D_t0[1] * scaling)
-points(D_t1[1:n_25], pch = 20, col = "steelblue", cex = D_t1[1:n_25] * scaling) 
-legend("topright", legend = c(expression(D[t[0]]), expression(D[t[1]])), 
-       col = c("ivory4", "steelblue"),
-       pch = c(20, 20))
-```
-
-Why are the correctly classified less reduced than the falsely classified are
-increased? 
+Weight updating process. Answers, why correctly classified training data points
+are less reduced than the falsely classified are increased.
 
 ```{r}
 curve(exp(0.5*-x), from = -1, to = 1, ylim = c(0,3), lwd = 2, 
-      xlab = "Classification", ylab = expression(exp(a[t]*m)), xaxt = "n") 
+      xlab = "Classification", 
+      ylab = expression("Weight update factor "*(exp(D[t]))),  xaxt = "n") 
 curve(exp(1*-x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lwd = 2, 
       add = TRUE) 
 curve(exp(0.1*-x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", 
@@ -610,6 +608,25 @@ $a = f(e, \eta)$ The more weight $a$ we assign to an individual learner the
 stronger the effect on the observation weights (increase/decrease).
 Misclassifications are always more penalized (increase in observation weight)
 than correct classifications (decrease in observation weights).
+
+Visualize the result of the weight updating process.
+
+```{r}
+n_25 <- 25
+scaling <- 175
+plot(c(1, n_25), c(0, D_t0[1] + 0.015) , type = "n", xaxt = "n",
+     xlab = "Data point", ylab = "Weight")
+axis(1, at = 1:n_25)
+for(i in 1:n_25) {
+  lines(c(i,i),c(D_t0[i], D_t1[i]), lty = 2)
+}
+points(D_t0[1:n_25], pch = 20, col = "ivory4", cex = D_t0[1] * scaling)
+points(D_t1[1:n_25], pch = 20, col = "steelblue", cex = D_t1[1:n_25] * scaling) 
+legend("topright", legend = c(expression(D[t[0]]), expression(D[t[1]])), 
+       col = c("ivory4", "steelblue"),
+       pch = c(20, 20))
+```
+
 
 Output.
 
