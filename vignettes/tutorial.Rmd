@@ -465,11 +465,11 @@ rpart.plot::rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
 Setup.
 
 ```{r}
-n_trees <- 100
+T <- 100
 # Extract the number of rows
-n_samples <- nrow(train[,outpred])
+m <- nrow(train[,outpred])
 # Pre-allocate the empty ensemble
-H <- vector("list", n_trees)
+H <- vector("list", T)
 ```
 
 ## Adaptive boosting (1 iteration)
@@ -483,9 +483,7 @@ y_train <- train[, outcome]
 Initialization weights are normalized equal weights.
 
 ```{r}
-m <- n_samples
-one <- rep(1, n_samples)
-D_t0 <- one/m
+D_t0 <- rep(1, m)/m
 ```
 
 Train a single weak learner ($h_t$) with the initialization weights and the
@@ -540,19 +538,16 @@ The better the model performs (that is, the lower its error) the more weight it
 gets in the overall ensemble - independent of the learning rate $\eta$.
 
 ```{r}
-curve((1/2*log(x/(1-x)) * 1), from = 0.5, to = 1, lwd = 2, 
+fat <- function(x, eta) 1/2 * log(x/(1-x)) * eta
+curve(fat(x, 1), from = 0.5, to = 1, lwd = 2, 
       ylab = expression("Importance "*(a[t])), 
-      xlab = expression("Performance "*(1-epsilon[t])), col = "ivory4")
-curve((1/2*log(x/(1-x)) * 0.5), from = 0.5, to = 1, lwd = 2, col = "black", 
-      add = TRUE)
-curve((1/2*log(x/(1-x)) * 0.1), from = 0.5, to = 1, lwd = 2, col = "steelblue", 
-      add = TRUE)
+      xlab = expression("Performance "*(1-epsilon[t])))
 grid()
-legend("topleft", legend = c(expression(eta*" = 0.1"), 
-                              expression(eta*" = 0.5"), 
-                              expression(eta*" = 1")),
-       col = c("steelblue", "black", "ivory4"),
-       lty = c(1, 1, 1), lwd = 2)
+curve(fat(x,0.5), from = 0.5, to = 1, lwd = 2, col = "ivory4", add = TRUE)
+curve(fat(x,0.1), from = 0.5, to = 1, lwd = 2, col = "steelblue", add = TRUE)
+legend("topleft", legend = c(expression(eta*" = 1"), expression(eta*" = 0.5"),  
+                             expression(eta*" = 0.1")),
+       col = c("black", "ivory4", "steelblue"), lty = c(1, 1, 1), lwd = 2)
 ```
 
 Indicator function that gives a one for correct classifications (prediction is
@@ -588,21 +583,25 @@ Weight updating process. Answers, why correctly classified training data points
 are less reduced than the falsely classified are increased.
 
 ```{r}
-curve(exp(0.5*-x), from = -1, to = 1, ylim = c(0,3), lwd = 2, 
-      xlab = "Classification", 
-      ylab = expression("Weight update factor "*(exp(D[t]))),  xaxt = "n") 
-curve(exp(1*-x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lwd = 2, 
+feat <- function(at, x) exp(-at*x)
+curve(feat(0.9, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
+      xlab = "Classification", ylab = "Weight update factor",  xaxt = "n") 
+grid()
+points(c(1,-1), c(feat(0.9, 1), feat(0.9, -1)), pch = 20, cex = 2)
+curve(feat(0.5,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3,
       add = TRUE) 
-curve(exp(0.1*-x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", 
-      lwd = 2, add = TRUE) 
-abline(h = 1, lty=2)
-legend("topright", legend = c(expression(a[t]*" = 0.1"), 
+points(c(1,-1), c(feat(0.5, 1), feat(0.5, -1)), pch = 20, cex = 2, col = "ivory4")
+curve(feat(0.2,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3,
+      add = TRUE) 
+points(c(1,-1), c(feat(0.2, 1), feat(0.2, -1)), pch = 20, cex = 2, 
+       col = "steelblue")
+abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
+legend("topright", legend = c(expression(a[t]*" = 0.9"), 
                               expression(a[t]*" = 0.5"), 
-                              expression(a[t]*" = 1")),
-       col = c("steelblue", "black", "ivory4"),
+                              expression(a[t]*" = 0.2")),
+       col = c("black", "ivory4", "steelblue"),
        lty = c(1, 1, 1), lwd = 2)
 axis(1,at = c(-1,1))
-grid()
 ```
 $a = f(e, \eta)$ The more weight $a$ we assign to an individual learner the
 stronger the effect on the observation weights (increase/decrease).
@@ -616,9 +615,9 @@ n_25 <- 25
 scaling <- 175
 plot(c(1, n_25), c(0, D_t0[1] + 0.015) , type = "n", xaxt = "n",
      xlab = "Data point", ylab = "Weight")
-axis(1, at = 1:n_25)
+axis(1, at = 1:n_25, labels = paste(1:25), cex = 0.5)
 for(i in 1:n_25) {
-  lines(c(i,i),c(D_t0[i], D_t1[i]), lty = 2)
+  lines(c(i,i),c(D_t0[i], D_t1[i]), lty = 3)
 }
 points(D_t0[1:n_25], pch = 20, col = "ivory4", cex = D_t0[1] * scaling)
 points(D_t1[1:n_25], pch = 20, col = "steelblue", cex = D_t1[1:n_25] * scaling) 
