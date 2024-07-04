@@ -462,12 +462,21 @@ rpart.plot::rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
 
 # Module 3: Adaptive Boosting 
 
+Predictor "matrix" and outcome "vector". Actually the predictor matrix is a
+data frame. The outcome is a factor variable.
+
+```{r}
+X_train <- train[, predictors]
+y_train <- train[, outcome]
+i <- 1 ; m <- nrow(train)
+X_train[i,] ; y_train[i]
+identical(train[i:m,], train)
+```
+
 Setup.
 
 ```{r}
 T <- 100
-# Extract the number of rows
-m <- nrow(train[,outpred])
 # Pre-allocate the empty ensemble
 H <- vector("list", T)
 ```
@@ -483,7 +492,7 @@ y_train <- train[, outcome]
 Initialization weights are normalized equal weights.
 
 ```{r}
-D_t0 <- rep(1, m)/m
+D1 <- rep(1, m)/m
 ```
 
 Train a single weak learner ($h_t$) with the initialization weights and the
@@ -491,7 +500,7 @@ given tree hyperparameter setup.
 
 ```{r}
 h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
-method = "class", weights = D_t0, control = hyptree)
+method = "class", weights = D1, control = hyptree)
 ```
 
 Make predictions with the weak learner (h_t).
@@ -503,13 +512,13 @@ y_class <- predict(object = h, newdata = train[, outpred], type = "class")
 Normalization constant.
 
 ```{r}
-Z_t0 <- sum(D_t0)
+z1 <- sum(D1)
 ```
 
 Weighted accuracy for the training error.
 
 ```{r}
-wacc <- sum(D * (y_train == y_class)) / Z_t0
+wacc <- sum(D1 * (y_train == y_class)) / z1
 ```
 
 Compute the training error (e_t) of the weak learner (h_t). This is simply one
@@ -531,7 +540,7 @@ eta <- 1
 Importance -- or weight -- of a classification tree. 
 
 ```{r}
-a_t0 <- 1/2 * log( (1 - e)  / e) * eta
+alpha1 <- 1/2 * log( (1 - e)  / e) * eta
 ```
 
 The better the model performs (that is, the lower its error) the more weight it
@@ -540,7 +549,7 @@ gets in the overall ensemble - independent of the learning rate $\eta$.
 ```{r}
 fat <- function(x, eta) 1/2 * log(x/(1-x)) * eta
 curve(fat(x, 1), from = 0.5, to = 1, lwd = 2, 
-      ylab = expression("Importance "*(a[t])), 
+      ylab = expression("Importance "*(alpha[t])), 
       xlab = expression("Performance "*(1-epsilon[t])))
 grid()
 curve(fat(x,0.5), from = 0.5, to = 1, lwd = 2, col = "ivory4", add = TRUE)
@@ -555,7 +564,7 @@ equal to observed value in the training set) and a minus one for a
 misclassification (prediction is unequal to observed value in the training set).
 
 ```{r}
-chi <- (y_train == y_class) * 1 + (y_train != y_class) * -1
+chi1 <- (y_train == y_class) * 1 + (y_train != y_class) * -1
 ```
 
 Update the sample weights
@@ -563,20 +572,13 @@ Update the sample weights
 - Increase for misclassified examples (y == y_pred)
 - Decrease for correctly classified examples: (y != y_pred)
 
-```{r}
-D_t1unorm <- D_t0 * exp(-a_t0 * chi)
-```
-
-Define the normalization constant.
+Define the normalization constant and (re)normalize to maintain the
+probabilistic interpretation
 
 ```{r}
-Z <- sum(D_t1unorm)
-```
-
-Normalize the weights (maintain the probabilistic interpretation).
-
-```{r}
-D_t1 <- D_t1unorm/Z
+D2_unorm <- D1 * exp(-alpha1 * chi1)
+Z2 <- sum(D2_unorm)
+D2 <- D2_unorm/Z2
 ```
 
 Weight updating process. Answers, why correctly classified training data points
@@ -613,15 +615,15 @@ Visualize the result of the weight updating process.
 ```{r}
 n_25 <- 25
 scaling <- 175
-plot(c(1, n_25), c(0, D_t0[1] + 0.015) , type = "n", xaxt = "n",
+plot(c(1, n_25), c(0, D1[1] + 0.02) , type = "n", xaxt = "n",
      xlab = "Data point", ylab = "Weight")
 axis(1, at = 1:n_25, labels = paste(1:25), cex = 0.5)
 for(i in 1:n_25) {
-  lines(c(i,i),c(D_t0[i], D_t1[i]), lty = 3)
+  lines(c(i,i),c(D1[i], D2[i]), lty = 3)
 }
-points(D_t0[1:n_25], pch = 20, col = "ivory4", cex = D_t0[1] * scaling)
-points(D_t1[1:n_25], pch = 20, col = "steelblue", cex = D_t1[1:n_25] * scaling) 
-legend("topright", legend = c(expression(D[t[0]]), expression(D[t[1]])), 
+points(D1[1:n_25], pch = 20, col = "ivory4", cex = D1[1] * scaling)
+points(D2[1:n_25], pch = 20, col = "steelblue", cex = D2[1:n_25] * scaling) 
+legend("topright", legend = c(expression(D[1]), expression(D[2])), 
        col = c("ivory4", "steelblue"),
        pch = c(20, 20))
 ```
@@ -633,9 +635,7 @@ Output.
 # Learner
 h
 # Learner weight
-a_t0
 # Observation weight
-D_t1
 ```
 
 Repeat.
