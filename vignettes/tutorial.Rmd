@@ -298,8 +298,7 @@ symbol_colors <- ifelse(y_train == "failure", col1, col2)
 # "0" means "not replicated", "1" means "replicated"
 grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
-   xlab = "power.o", ylab = "n.o", main = "Decision Boundary")
-mtext("Classification Stump")
+   xlab = "power.o", ylab = "n.o")
 points(grid, col = grid_colors, pch = ".")
 points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15)
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
@@ -325,7 +324,7 @@ Code Chunk 2.2
 
 ```{r}
 # Hyperparameter setup for a classification stump
-hyptree <- rpart::rpart.control(
+hyptree <- rpart.control(
   maxdepth = 1, # Maximum depth
   split = "gini") # Gini impurity (default)
 # Fit a classification stump
@@ -432,9 +431,9 @@ adjacent_means[which.min(gini_impurity)]
 Normalized initialization weights. Should not change anything to before.
 
 ```{r}
-N_sample <- nrow(train)
+m <- nrow(train)
 # Equal weight to each observation
-D <- rep(1, N_sample)/N_sample
+D <- rep(1, m)/m
 # Create a decision stump
 h <- rpart::rpart(formula = replicated ~ ., 
                   data = train[, outpred], 
@@ -466,19 +465,12 @@ Predictor "matrix" and outcome "vector". Actually the predictor matrix is a
 data frame. The outcome is a factor variable.
 
 ```{r}
-X_train <- train[, predictors]
+predictors ; outcome
+x_train <- train[, predictors]
 y_train <- train[, outcome]
 i <- 1 ; m <- nrow(train)
-X_train[i,] ; y_train[i]
-identical(train[i:m,], train)
-```
-
-Setup.
-
-```{r}
-T <- 100
-# Pre-allocate the empty ensemble
-H <- vector("list", T)
+x_train[i,] ; y_train[i]
+cbind(x_train, y_train)[i:m,]
 ```
 
 ## Adaptive boosting (1 iteration)
@@ -503,54 +495,40 @@ h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
 method = "class", weights = D1, control = hyptree)
 ```
 
-Make predictions with the weak learner (h_t).
+Make predictions with the weak learner (h_t). Define the normalization constant
+nd calculate the TODO
 
 ```{r}
 y_class <- predict(object = h, newdata = train[, outpred], type = "class")
-```
-
-Normalization constant.
-
-```{r}
-z1 <- sum(D1)
-```
-
-Weighted accuracy for the training error.
-
-```{r}
-wacc <- sum(D1 * (y_train == y_class)) / z1
+epsilon <- sum(D1 * (y_train != y_class)) 
 ```
 
 Compute the training error (e_t) of the weak learner (h_t). This is simply one
 minus the weighted accuracy, given weights D
 
+TODO: alternative for performance accuracy weighting.
+
 ```{r}
-e <- 1 - wacc
+perf <- sum(D1 * (y_train == y_class)) 
+epsilon <- 1 - perf 
 ```
 
 Compute the the weight (a_t) of the weak learner (h_t).
 Reduce the learner weight by a factor eta (learning rate).
 
-Note: First AdaBoost hyperparameter.
-
 ```{r}
-eta <- 1
+eta <- 1 
+alpha1 <- 1/2 * log(perf / epsilon) * eta
 ```
 
-Importance -- or weight -- of a classification tree. 
-
-```{r}
-alpha1 <- 1/2 * log( (1 - e)  / e) * eta
-```
-
-The better the model performs (that is, the lower its error) the more weight it
-gets in the overall ensemble - independent of the learning rate $\eta$.
+Second weighting process: learner weights. The better the model performs (that
+is, the lower its error) the more weight it gets in the overall ensemble -
+independent of the learning rate $\eta$.
 
 ```{r}
 fat <- function(x, eta) 1/2 * log(x/(1-x)) * eta
 curve(fat(x, 1), from = 0.5, to = 1, lwd = 2, 
-      ylab = expression("Importance "*(alpha[t])), 
-      xlab = expression("Performance "*(1-epsilon[t])))
+      ylab = "Importance", xlab = "Performance")
 grid()
 curve(fat(x,0.5), from = 0.5, to = 1, lwd = 2, col = "ivory4", add = TRUE)
 curve(fat(x,0.1), from = 0.5, to = 1, lwd = 2, col = "steelblue", add = TRUE)
@@ -577,8 +555,8 @@ probabilistic interpretation
 
 ```{r}
 D2_unorm <- D1 * exp(-alpha1 * chi1)
-Z2 <- sum(D2_unorm)
-D2 <- D2_unorm/Z2
+Z1 <- sum(D2_unorm)
+D2 <- D2_unorm / Z1
 ```
 
 Weight updating process. Answers, why correctly classified training data points
@@ -590,17 +568,17 @@ curve(feat(0.9, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
       xlab = "Classification", ylab = "Weight update factor",  xaxt = "n") 
 grid()
 points(c(1,-1), c(feat(0.9, 1), feat(0.9, -1)), pch = 20, cex = 2)
-curve(feat(0.5,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3,
+curve(feat(0.7,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3,
       add = TRUE) 
-points(c(1,-1), c(feat(0.5, 1), feat(0.5, -1)), pch = 20, cex = 2, col = "ivory4")
-curve(feat(0.2,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3,
+points(c(1,-1), c(feat(0.7, 1), feat(0.7, -1)), pch = 20, cex = 2, col = "ivory4")
+curve(feat(0.6,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3,
       add = TRUE) 
-points(c(1,-1), c(feat(0.2, 1), feat(0.2, -1)), pch = 20, cex = 2, 
+points(c(1,-1), c(feat(0.6, 1), feat(0.6, -1)), pch = 20, cex = 2, 
        col = "steelblue")
 abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
 legend("topright", legend = c(expression(a[t]*" = 0.9"), 
-                              expression(a[t]*" = 0.5"), 
-                              expression(a[t]*" = 0.2")),
+                              expression(a[t]*" = 0.7"), 
+                              expression(a[t]*" = 0.6")),
        col = c("black", "ivory4", "steelblue"),
        lty = c(1, 1, 1), lwd = 2)
 axis(1,at = c(-1,1))
@@ -640,35 +618,45 @@ h
 
 Repeat.
 
+Setup.
+
+```{r}
+T <- 100
+# Pre-allocate the empty ensemble
+H <- vector("list", T)
+eta <- 0.8
+```
+
 ## Adaptive boosting
 
 Do the loop and explain the second hyperparameter (n_tree)
 
-TODO: Work example.
-
-```{r}
-n_tree <- 1e2
-```
-
 For all $t$ trees or more precisely stumps.
 
 ```{r}
-for (tree in 1:n_trees) {
-  h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
+# TODO: Does not work
+hyptree <- rpart::rpart.control(
+  maxdepth = 1, 
+  split = "gini") 
+# TODO: Use the predictor matrix instead? Easier to read!
+y_train
+D <- rep(1, m)/m
+for (t in seq_len(T)) {
+  h <- rpart::rpart(formula = replicated ~ ., data = train[, outpred] ,
   method = "class", weights = D, control = hyptree)
-  y_pred <- predict(object = h, newdata = test[, outpred], type = "class")
-  wacc <- sum(D * (y == y_pred))/sum(D)
-  e <- 1 - wacc
+  y_class <- predict(object = h, newdata = train[, outpred], type = "class")
+  e <- sum(D * (y_train != y_class)) 
+  # e <- sum(D * (y_train != y_retro)) / sum(D) # TODO
   a <- 0.5 * log( (1 - e)  / e) * eta
-  chi <- (y == y_pred) * 1 + (y != y_pred) * -1
-  D <- D * exp(-a * chi)
-  D <- D/sum(D)
-  # Ensemble 
-  H[[tree]] <- list("learner" = h, "learner_weight" = a,
+  chi <- (y_train == y_class) * 1 + (y_train != y_class) * -1
+  D <- (D * exp(-a * chi)) / sum(D) 
+  D <- D/sum(D) 
+  H[[t]] <- list("learner" = h, "learner_weight" = a,
                     "observation_weight" = D)
-  # sign in testing
+  # TODO: Include the sum and the sign 
 }
 
+# TODO: Where is the result?
 # sign in testing
 ```
 
@@ -713,7 +701,85 @@ AUC::auc(ROC)
 ```
 
 
+```{r}
+# Feature matrix
+X <- train[,c("power.o", "n.o")]
+# Outcome vector
+y_obs <- train[,outcome]
+# Make 0/1 factor into something ADA can handle (-1/1) 
+y_obs_ml <- 2 * as.numeric(y_obs) - 3
+# Number of classes
+k <- length(unique(y_obs))
+# Range(s) as list
+rng <- lapply(X, range, na.rm = TRUE)
+# Grid resolution
+resolution <- 1e3 
+# Colors
+col1 <- "cornflowerblue" ; col2 <- "ivory4"
+# Transparency
+alpha.f <- 0.03
+col1_transp <- adjustcolor(col1, alpha.f)
+col2_transp <- adjustcolor(col2, alpha.f) 
+# First feature sequence
+x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
+# Second feature sequence
+x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
+# Make grid from sequences
+grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
+# Make grid
+# Tree hyperparameter setting 
+tree_hyperpar <- rpart::rpart.control(
+  # Maximum depth of any node tree
+  # Root node countes as depth = 0
+  # Note: Values greatet 30 will give nonsense results on 32-bit machines
+  # Important: We usually boost stumps (depth = 1), or shallow trees
+  maxdepth = 3,
+  # Minimum n° obs in a node for a split to be attempted 
+  minsplit = 5, 
+  # Minimum n° of obs in any terminal <leaf> node 
+  # Default: round(minsplit/3)
+  minbucket = round(5 / 3),
+  # Complexity parameter: Include in
+  # Split must decrease the fit lack of fit by a factor of cp
+  cp = 1e-2,
+  # Number of cross-validations 
+  xval = 10,
+  # Original CART with gini impurity as splitting criterion  
+  split = "gini"
+  # split = "information"
+  )
+# Fit ADAboost
+estimators <- train_adaboost(X, y_obs_ml, 
+                           # Number of trees
+                           n_trees = 5e2, 
+                           eta = 1, 
+                           tree_hyperpar)
+# Predict ADAboost
+y_pred_ml <- test_adaboost(grid, estimators)
+# Make prediction 0/1 instead of -1/1 
+y_pred <- as.factor((y_pred_ml$class + 1) / 2)
+# Contour matrix
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "0" means "not replicated", "1" means "replicated"
+symbol_colors <- ifelse(y_obs == "failure", col1, col2)
+grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
+```
 
+Visualize.
+
+```{r}
+plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
+     xlab = "power.o", ylab = "n.o")
+points(grid, col = grid_colors, pch = ".")
+# points(grid, col = as.integer(y_pred) + 6L, pch = ".")
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# For the black line 
+contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
+        col = "black", levels = (1:(k-1))+.5)
+points(X, col = symbol_colors, pch = as.integer(y_obs) + 15)
+legend("topleft", c("success", "failure") , pch = c(17,16), 
+       col = c(col2, col1), cex=0.7)
+```
 
 # Module 4: Leave-Subject-Out Cross-Validation
 
