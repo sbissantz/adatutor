@@ -624,7 +624,7 @@ for (t in seq_len(T)) {
   H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi)
 }
 names(H) <- paste0("t", seq_len(T))
-h1 <- H$t1 ; cat("Model weight 1:", h1$a) 
+cat("Model weight 1:", H$t1$a) 
 ```
 
 ```{r}
