@@ -324,7 +324,7 @@ Code Chunk 2.2
 
 ```{r}
 # Hyperparameter setup for a classification stump
-hyptree <- rpart.control(
+hyptree <- rpart::rpart.control(
   maxdepth = 1, # Maximum depth
   split = "gini") # Gini impurity (default)
 # Fit a classification stump
@@ -473,7 +473,7 @@ x_train[i,] ; y_train[i]
 cbind(x_train, y_train)[i:m,]
 ```
 
-## Adaptive boosting (1 iteration)
+## Iteration 1 
 
 ```{r}
 # Outcome vectors 
@@ -545,13 +545,8 @@ misclassification (prediction is unequal to observed value in the training set).
 chi1 <- (y_train == y_class) * 1 + (y_train != y_class) * -1
 ```
 
-Update the sample weights
-
-- Increase for misclassified examples (y == y_pred)
-- Decrease for correctly classified examples: (y != y_pred)
-
-Define the normalization constant and (re)normalize to maintain the
-probabilistic interpretation
+Update the sample weights. Define the normalization constant and (re)normalize
+to maintain the probabilistic interpretation.
 
 ```{r}
 D2_unorm <- D1 * exp(-alpha1 * chi1)
@@ -564,21 +559,21 @@ are less reduced than the falsely classified are increased.
 
 ```{r}
 feat <- function(at, x) exp(-at*x)
-curve(feat(0.9, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
+curve(feat(0.719, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
       xlab = "Classification", ylab = "Weight update factor",  xaxt = "n") 
 grid()
-points(c(1,-1), c(feat(0.9, 1), feat(0.9, -1)), pch = 20, cex = 2)
-curve(feat(0.7,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3,
+points(c(1,-1), c(feat(0.719, 1), feat(0.7, -1)), pch = 20, cex = 2)
+curve(feat(0.619,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3,
       add = TRUE) 
-points(c(1,-1), c(feat(0.7, 1), feat(0.7, -1)), pch = 20, cex = 2, col = "ivory4")
-curve(feat(0.6,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3,
+points(c(1,-1), c(feat(0.619, 1), feat(0.6, -1)), pch = 20, cex = 2, col = "ivory4")
+curve(feat(0.519,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3,
       add = TRUE) 
-points(c(1,-1), c(feat(0.6, 1), feat(0.6, -1)), pch = 20, cex = 2, 
+points(c(1,-1), c(feat(0.519, 1), feat(0.51, -1)), pch = 20, cex = 2, 
        col = "steelblue")
 abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
-legend("topright", legend = c(expression(a[t]*" = 0.9"), 
-                              expression(a[t]*" = 0.7"), 
-                              expression(a[t]*" = 0.6")),
+legend("topright", legend = c(expression(a[t]*" = 0.719"), 
+                              expression(a[t]*" = 0.619"), 
+                              expression(a[t]*" = 0.519")),
        col = c("black", "ivory4", "steelblue"),
        lty = c(1, 1, 1), lwd = 2)
 axis(1,at = c(-1,1))
@@ -606,58 +601,30 @@ legend("topright", legend = c(expression(D[1]), expression(D[2])),
        pch = c(20, 20))
 ```
 
+## The loop 
 
-Output.
-
-```{r}
-# Learner
-h
-# Learner weight
-# Observation weight
-```
-
-Repeat.
-
-Setup.
+Put everything in a loop.
 
 ```{r}
+# Use x_train, y_train instead? easier to read
 T <- 100
-# Pre-allocate the empty ensemble
 H <- vector("list", T)
-eta <- 0.8
-```
-
-## Adaptive boosting
-
-Do the loop and explain the second hyperparameter (n_tree)
-
-For all $t$ trees or more precisely stumps.
-
-```{r}
-# TODO: Does not work
-hyptree <- rpart::rpart.control(
-  maxdepth = 1, 
-  split = "gini") 
-# TODO: Use the predictor matrix instead? Easier to read!
-y_train
+# H <- vector("list", T)
+eta <- 1
 D <- rep(1, m)/m
 for (t in seq_len(T)) {
-  h <- rpart::rpart(formula = replicated ~ ., data = train[, outpred] ,
+  h <- rpart(formula = replicated ~ ., data = train[, outpred] ,
   method = "class", weights = D, control = hyptree)
   y_class <- predict(object = h, newdata = train[, outpred], type = "class")
   e <- sum(D * (y_train != y_class)) 
-  # e <- sum(D * (y_train != y_retro)) / sum(D) # TODO
   a <- 0.5 * log( (1 - e)  / e) * eta
   chi <- (y_train == y_class) * 1 + (y_train != y_class) * -1
-  D <- (D * exp(-a * chi)) / sum(D) 
-  D <- D/sum(D) 
-  H[[t]] <- list("learner" = h, "learner_weight" = a,
-                    "observation_weight" = D)
-  # TODO: Include the sum and the sign 
+  D_unorm <- (D * exp(-a * chi))
+  D <- D_unorm/sum(D_unorm) 
+  H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi)
 }
-
-# TODO: Where is the result?
-# sign in testing
+names(H) <- paste0("t", seq_len(T))
+h1 <- H$t1 ; cat("Model weight 1:", h1$a) 
 ```
 
 ```{r}
