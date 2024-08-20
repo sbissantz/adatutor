@@ -606,19 +606,17 @@ legend("topright", legend = c(expression(D[1]), expression(D[2])),
 Put everything in a loop.
 
 ```{r}
-# Use x_train, y_train instead? easier to read
-T <- 100
+T <- 100 # Number of trees 
+eta <- 1 # Learning rate 
 H <- vector("list", T)
-# H <- vector("list", T)
-eta <- 1
 D <- rep(1, m)/m
 for (t in seq_len(T)) {
   h <- rpart(formula = replicated ~ ., data = train[, outpred] ,
   method = "class", weights = D, control = hyptree)
-  y_class <- predict(object = h, newdata = train[, outpred], type = "class")
-  e <- sum(D * (y_train != y_class)) 
+  y_retro <- predict(object = h, newdata = train[, outpred], type = "class")
+  e <- sum(D * (y_train != y_retro)) 
   a <- 0.5 * log( (1 - e)  / e) * eta
-  chi <- (y_train == y_class) * 1 + (y_train != y_class) * -1
+  chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1
   D_unorm <- (D * exp(-a * chi))
   D <- D_unorm/sum(D_unorm) 
   H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi)
@@ -626,6 +624,13 @@ for (t in seq_len(T)) {
 names(H) <- paste0("t", seq_len(T))
 cat("Model weight 1:", H$t1$a) 
 ```
+
+Retrodictions
+
+```{r}
+```
+
+
 
 ```{r}
 # Feature matrices
