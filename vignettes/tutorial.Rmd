@@ -606,12 +606,12 @@ legend("topright", legend = c(expression(D[1]), expression(D[2])),
 Put everything in a loop.
 
 ```{r}
-T <- 100 # Number of trees 
+T <- 1e4 # Number of trees 
 eta <- 1 # Learning rate 
 H <- vector("list", T)
 D <- rep(1, m)/m
 for (t in seq_len(T)) {
-  h <- rpart(formula = replicated ~ ., data = train[, outpred] ,
+  h <- rpart::rpart(formula = replicated ~ ., data = train[, outpred] ,
   method = "class", weights = D, control = hyptree)
   y_retro <- predict(object = h, newdata = train[, outpred], type = "class")
   e <- sum(D * (y_train != y_retro)) 
@@ -619,25 +619,35 @@ for (t in seq_len(T)) {
   chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1
   D_unorm <- (D * exp(-a * chi))
   D <- D_unorm/sum(D_unorm) 
-  H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi)
+  # H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi, "y_retro" =
+  # as.numeric(y_retro))
+  H[[t]] <- list("h" = h, "a" = a, 
+                 "y_retro" = as.numeric(y_retro))
 }
 names(H) <- paste0("t", seq_len(T))
 cat("Model weight 1:", H$t1$a) 
 ```
 
-Retrodictions
+Make retrodictions.
 
 ```{r}
+h <- lapply(H, "[[", "h")
+a <- sapply(H, "[[", "a")
+y_retro_stumps <- sapply(H, "[[", "y_retro")
+y_retro_stumps <- 2 * y_retro_stumps - 3 
+y_retro_ada <- sign(a %*% t(y_retro_stumps))
+table(y_train, yretro_ada) # In-sample 
 ```
 
-
+Make predictions. 
 
 ```{r}
-# Feature matrices
-X_train <- train[, predictors] 
-X_test <- test[, predictors] 
+x_test <- test[, predictors]
+y_pred_stumps <- sapply(h, predict, newdata = x_test, type = "vector")
+y_pred_stumps <- 2 * y_pred_stumps - 3 
+y_pred_ada <- sign(a %*% t(y_pred_stumps))
+table(y_test, y_pred_ada)
 ```
-
 Training on the training set with specified hyperparameters
 
 ```{r}
