@@ -621,8 +621,7 @@ for (t in seq_len(T)) {
   D <- D_unorm/sum(D_unorm) 
   # H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi, "y_retro" =
   # as.numeric(y_retro))
-  H[[t]] <- list("h" = h, "a" = a, 
-                 "y_retro" = as.numeric(y_retro))
+  H[[t]] <- list("h" = h, "a" = a)
 }
 names(H) <- paste0("t", seq_len(T))
 cat("Model weight 1:", H$t1$a) 
@@ -633,10 +632,18 @@ Make retrodictions.
 ```{r}
 h <- lapply(H, "[[", "h")
 a <- sapply(H, "[[", "a")
-y_retro_stumps <- sapply(H, "[[", "y_retro")
+y_retro_stumps <- sapply(h, predict, newdata = x_train, type = "vector")
 y_retro_stumps <- 2 * y_retro_stumps - 3 
 y_retro_ada <- sign(a %*% t(y_retro_stumps))
-table(y_train, yretro_ada) # In-sample 
+table(y_train, y_retro_ada) # In-sample 
+```
+
+Alternative for non-algebraists.
+
+```{r}
+for (n in seq_len(m)) {
+  y_retro_ada[n] <- sign(sum(a * y_retro_stumps[n, ]))
+}
 ```
 
 Make predictions. 
@@ -660,6 +667,9 @@ ensemble <- train_adaboost(X = X_train, # Feature matrix
                            tree_hyperpar = hyptree) 
 ```
 
+### Prediction
+
+Make a function: retrodict_ada
 
 ### Prediction
 
