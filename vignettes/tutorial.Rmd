@@ -627,6 +627,13 @@ names(H) <- paste0("t", seq_len(T))
 cat("Model weight 1:", H$t1$a) 
 ```
 
+```{r}
+# Seems to work!
+H <- train_adaboost2(fml = replicated ~ ., data = train[, outpred], 
+                            T = 1e4, eta = 1,  hyptree = hyptree)
+cat("Model weight 1:", H$t1$a) 
+```
+
 Make retrodictions.
 
 ```{r}
@@ -646,52 +653,7 @@ for (n in seq_len(m)) {
 }
 ```
 
-Make predictions. 
-
-```{r}
-x_test <- test[, predictors]
-y_pred_stumps <- sapply(h, predict, newdata = x_test, type = "vector")
-y_pred_stumps <- 2 * y_pred_stumps - 3 
-y_pred_ada <- sign(a %*% t(y_pred_stumps))
-table(y_test, y_pred_ada)
-```
-Training on the training set with specified hyperparameters
-
-```{r}
-ensemble <- train_adaboost(X = X_train, # Feature matrix 
-                           y = y_train, # Target vector 
-                           # Ensemble hyperparameters
-                           n_trees = 1e4, # Number of learner
-                           eta = 1e-4, # Learning rate
-                           # Tree hyperparameters (see above)
-                           tree_hyperpar = hyptree) 
-```
-
-### Prediction
-
-Make a function: retrodict_ada
-
-### Prediction
-
-```{r}
-test_adaboost
-```
-
-Make predictions with the trained model and add them to the testing set.
-
-```{r}
-y_class <- test_adaboost(X_test, ensemble)$class
-test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
-```
-
-## Evaluation
-
-```{r}
-ROC <- AUC::roc(test$y_pred, test$replicated)
-# Area under the curve
-AUC::auc(ROC)
-```
-
+Prepare the setup for the decision boundary.
 
 ```{r}
 # Feature matrix
@@ -772,6 +734,65 @@ points(X, col = symbol_colors, pch = as.integer(y_obs) + 15)
 legend("topleft", c("success", "failure") , pch = c(17,16), 
        col = c(col2, col1), cex=0.7)
 ```
+
+
+
+```{r}
+ensemble <- train_adaboost(X = X_train, # Feature matrix 
+                           y = y_train, # Target vector 
+                           # Ensemble hyperparameters
+                           n_trees = 1e4, # Number of learner
+                           eta = 1e-4, # Learning rate
+                           # Tree hyperparameters (see above)
+                           tree_hyperpar = hyptree) 
+```
+
+### Prediction
+
+Make a function: retrodict_ada
+
+### Prediction
+
+```{r}
+x_test <- test[, predictors]
+y_pred_stumps <- sapply(h, predict, newdata = x_test, type = "vector")
+y_pred_stumps <- 2 * y_pred_stumps - 3 
+y_pred_ada <- sign(a %*% t(y_pred_stumps))
+table(y_test, y_pred_ada)
+
+x_valid <- valid[, predictors]
+y_valid <- valid[, outcome]
+y_pred_stumps <- sapply(h, predict, newdata = x_valid, type = "vector")
+y_pred_ada <- sign(a %*% t(y_pred_stumps))
+table(y_valid, y_pred_ada)
+```
+
+
+
+```{r}
+test_adaboost
+```
+
+Make predictions with the trained model and add them to the testing set.
+
+Make predictions. 
+
+
+
+```{r}
+y_class <- test_adaboost(X_test, ensemble)$class
+test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
+```
+
+## Evaluation
+
+```{r}
+ROC <- AUC::roc(test$y_pred, test$replicated)
+# Area under the curve
+AUC::auc(ROC)
+```
+
+
 
 # Module 4: Leave-Subject-Out Cross-Validation
 
