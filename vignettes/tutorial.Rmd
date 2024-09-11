@@ -639,7 +639,9 @@ Make retrodictions.
 ```{r}
 h <- lapply(H, "[[", "h")
 a <- sapply(H, "[[", "a")
-y_retro_stumps <- sapply(h, predict, newdata = x_train, type = "vector")
+y_retro_stumps <- sapply(h, predict, 
+                         newdata = train[, outpred], 
+                         type = "vector")
 y_retro_stumps <- 2 * y_retro_stumps - 3 
 y_retro_ada <- sign(a %*% t(y_retro_stumps))
 table(y_train, y_retro_ada) # In-sample 
@@ -683,33 +685,60 @@ grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
 # Make grid
 # Tree hyperparameter setting 
 tree_hyperpar <- rpart::rpart.control(
-  # Maximum depth of any node tree
-  # Root node countes as depth = 0
-  # Note: Values greatet 30 will give nonsense results on 32-bit machines
-  # Important: We usually boost stumps (depth = 1), or shallow trees
-  maxdepth = 3,
-  # Minimum n° obs in a node for a split to be attempted 
-  minsplit = 5, 
-  # Minimum n° of obs in any terminal <leaf> node 
-  # Default: round(minsplit/3)
-  minbucket = round(5 / 3),
-  # Complexity parameter: Include in
-  # Split must decrease the fit lack of fit by a factor of cp
-  cp = 1e-2,
-  # Number of cross-validations 
-  xval = 10,
-  # Original CART with gini impurity as splitting criterion  
-  split = "gini"
-  # split = "information"
-  )
+  maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
+  cp = 1e-2, xval = 10, split = "gini")
 # Fit ADAboost
-estimators <- train_adaboost(X, y_obs_ml, 
+fit <- train_adaboost(X, y_obs_ml, 
                            # Number of trees
                            n_trees = 5e2, 
                            eta = 1, 
                            tree_hyperpar)
 # Predict ADAboost
-y_pred_ml <- test_adaboost(grid, estimators)
+y_pred_ml <- test_adaboost(grid, fit)
+# Make prediction 0/1 instead of -1/1 
+y_pred <- as.factor((y_pred_ml$class + 1) / 2)
+# Contour matrix
+z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# "0" means "not replicated", "1" means "replicated"
+symbol_colors <- ifelse(y_obs == "failure", col1, col2)
+grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
+```
+
+Plot II
+
+```{r}
+# Make 0/1 factor into something ADA can handle (-1/1) 
+y_obs_ml <- 2 * as.numeric(train[,outcome]) - 3
+# Number of classes
+k <- length(unique(y_obs))
+# Range(s) as list
+rng <- lapply(X, range, na.rm = TRUE)
+# Grid resolution
+resolution <- 1e3 
+# Colors
+col1 <- "cornflowerblue" ; col2 <- "ivory4"
+# Transparency
+alpha.f <- 0.03
+col1_transp <- adjustcolor(col1, alpha.f)
+col2_transp <- adjustcolor(col2, alpha.f) 
+# First feature sequence
+x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
+# Second feature sequence
+x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
+# Make grid from sequences
+grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
+# Make grid
+# Tree hyperparameter setting 
+tree_hyperpar <- rpart::rpart.control(
+  # Slightly different hyperparameters to improve visibility of boundary
+  maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
+  cp = 1e-2, split = "gini")
+# Fit ADAboost
+fit <- train_adaboost2(fml = replicated ~ ., 
+                       data = train[,c("replicated", "power.o", "n.o")],
+                       T = 5e2, eta = 1, hyptree = tree_hyperpar)
+# Predict ADAboost
+y_pred_ml <- test_adaboost2(fit, grid)
 # Make prediction 0/1 instead of -1/1 
 y_pred <- as.factor((y_pred_ml$class + 1) / 2)
 # Contour matrix
@@ -735,56 +764,28 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
        col = c(col2, col1), cex=0.7)
 ```
 
-
-
-```{r}
-ensemble <- train_adaboost(X = X_train, # Feature matrix 
-                           y = y_train, # Target vector 
-                           # Ensemble hyperparameters
-                           n_trees = 1e4, # Number of learner
-                           eta = 1e-4, # Learning rate
-                           # Tree hyperparameters (see above)
-                           tree_hyperpar = hyptree) 
-```
-
-### Prediction
-
-Make a function: retrodict_ada
-
-### Prediction
+Make predictions.
 
 ```{r}
 x_test <- test[, predictors]
-y_pred_stumps <- sapply(h, predict, newdata = x_test, type = "vector")
+y_pred_stumps <- sapply(h, predict, 
+                        newdata = test[, outpred], 
+                        type = "vector")
 y_pred_stumps <- 2 * y_pred_stumps - 3 
 y_pred_ada <- sign(a %*% t(y_pred_stumps))
 table(y_test, y_pred_ada)
-
-x_valid <- valid[, predictors]
-y_valid <- valid[, outcome]
-y_pred_stumps <- sapply(h, predict, newdata = x_valid, type = "vector")
-y_pred_ada <- sign(a %*% t(y_pred_stumps))
-table(y_valid, y_pred_ada)
 ```
-
-
-
-```{r}
-test_adaboost
-```
-
-Make predictions with the trained model and add them to the testing set.
 
 Make predictions. 
 
-
+# Module 4: Leave-Subject-Out Cross-Validation
 
 ```{r}
 y_class <- test_adaboost(X_test, ensemble)$class
 test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
 ```
 
-## Evaluation
+## Performance evaluation
 
 ```{r}
 ROC <- AUC::roc(test$y_pred, test$replicated)
@@ -792,11 +793,145 @@ ROC <- AUC::roc(test$y_pred, test$replicated)
 AUC::auc(ROC)
 ```
 
+## Leave project out cross validation
 
+Above, we randomly split the data on the level of study effects, taking care
+that no trials in the training set is also in the testing set. However, a more
+plausible scenario to validate the model is the following: Maybe in the near
+future we might get another large-scale replication project. Thus, we would
+probably use the existing ones to train the model and then use them to make
+predictions for the new one. If so, the cross-validation procedure should mimic
+this approach. We will use "Leave-One-Project-Out Cross-Validation" and try to
+maximize the average performance of the model on the level of study effects (not
+the individual trials) when applied to a new project.
 
-# Module 4: Leave-Subject-Out Cross-Validation
+## User functions 
+
+```{r}
+train_adaboost()
+```
+
+```{r}
+test_adaboost()
+```
+
+```{r}
+# Partition the data by "Project ID"
+df_split <- split(df, df$pid) 
+
+# Pre-allocate the AUC list
+auc <- list()
+
+# Leave-Project-Out Cross-Validation
+runtime <- system.time({
+  for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
+    # Define the testing set
+    test <- df_split[[project]] # TODO: Maybe inconsistent
+    # Define the training set
+    train <- df[!(df$pid %in% project), ]
+    # Fit the model to the data to get the ensemble
+    fit <- train_adaboost(train[,features], train[,target], 
+                                 n_trees = 5,  eta = 1, hyptree)
+    # Make predictions on validation set 
+    ensemble <- test_adaboost(test[,features], ensemble)
+    y_pred <- ensemble$class
+    # Store the performance evaluation (level: effects)
+    auc[[project]] <- AUC::auc( AUC::roc(y_pred, test$replicated) )
+  }})
+# Waiting time
+runtime["elapsed"]
+```
+
+This will run for approximately 4 minutes.
 
 # Module 5: Hyperparameter Optimization using LPO-CV
+
+```{r}
+# TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5
+hgrid <- expand.grid(
+  # Tree-specific 
+  maxdepth = 1:3, # Interaction depth
+  # Ensemble specific
+  n_tree = c(1e1, 1e2), # Number of trees
+  eta = c(1, 0.1), # Learning rate
+  # Container for fold performance
+  ee = NA, ml1 = NA, ml3 = NA, rpp = NA,  ssrp = NA, 
+  auc.mean = NA, runtime = NA) # Average performance
+# Number of combinations 
+hgrid_rows <- nrow(hgrid)
+```
+
+Hyperparameter optimization using Leave-Project-Out Cross-validation.
+
+```{r}
+# Partition the data by "Project ID"
+df_split <- split(df[,voi], df$pid) 
+# Setup a progress bar
+pb <- txtProgressBar(0, hgrid_rows, initial = 0, style = 3) 
+# For each entry in the hypergrid, do...
+for(i in seq_len(hgrid_rows)) {
+  # Progress bar
+  setTxtProgressBar(pb, i) 
+  # Track the iteration time (time-accuracy trade-off)
+  runtime <- system.time({
+    # Leave-One-Project-Out Cross-Validation
+    for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
+      # Define the testing set
+      test <- df_split[[project]] # TODO: Inconsistent (partial matching vs explicit)
+      # Define the training set
+      train <- df[!(df$pid %in% project), ]
+      # Fit the model to the data to get the ensemble
+      ensemble <- train_adaboost(train[,features], train[,target],
+                                 n_trees = hgrid$n_tree[i],  
+                                 eta = hgrid$eta[i], 
+                                 tree_hyperpar = rpart::rpart.control(
+                                   maxdepth = hgrid$maxdepth[i]))
+      # Make predictions on validation set 
+      y_pred <- test_adaboost(test[,features], ensemble)$class
+      # Store the performance evaluation (level: effects)
+      hgrid[[project]][i] <- AUC::auc( AUC::roc(y_pred, test$replicated)) }
+    # Calculate the average performance
+    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8]))
+  }) 
+  # TODO: Inconsistent (partial matching vs explicit)
+  hgrid$runtime[i] <- runtime[["elapsed"]]
+}
+# Close connection 
+close(pb)
+```
+
+Performance evaluation sorted by highest AUC.
+
+```{r}
+# Note: EE is highly anomalous!
+hgrid[order(-hgrid$auc.mean), ] 
+```
+
+Stacking the best performing algorithms could improve the predictions quite
+significantly here! For example, learners 2 and 3 perform quite well on the ee
+project, while learners 1 and 8 perform quite well on ml1.
+
+## Optimized Ensemble 
+
+If we do not stack the results, we should at least fit the model with the
+hyperparameters that had the best average performance (here AUC) across all
+replication projects. However, we don't get a true sense of the model's
+out-of-sample capabilities because we don't have another project it hasn't seen
+yet.
+
+```{r}
+# Define the testing set
+test <- df_split[[project]] # TODO: Maybe inconsistent
+# Define the training set
+train <- df[!(df$pid %in% project), ]
+# Fit the model to the data to get the ensemble
+ensemble <- train_adaboost(train[,features], train[,target], 
+                           n_trees = 1e4,  eta = 1e-3, 
+                           tree_hyperpar = rpart::rpart.control(
+                                 maxdepth = 3))
+# Make predictions on validation set 
+y_pred <- test_adaboost(test[,features], ensemble)$class
+```
 
 # Module 6: Stacking (?) 
 
