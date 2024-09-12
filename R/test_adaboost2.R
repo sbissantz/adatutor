@@ -1,4 +1,5 @@
 #'@export
+# TODO: Make a response and maybe a nonresponsive version with switch!
 test_adaboost2 <- function(H, data, input_checks = TRUE) {
   message("Start the AdaBoost test process:")
   if(isTRUE(input_checks)) {
@@ -10,7 +11,7 @@ test_adaboost2 <- function(H, data, input_checks = TRUE) {
   h <- lapply(H, "[[", "h") ; check_empty(h)
   message("Step 2: Extract the model weights.")
   a <- vapply(H, "[[", FUN.VALUE = numeric(1), "a")
-  message("Step 3: Making predictions/retrodictions.")
+  message("Step 3: Make predictions/retrodictions.")
   pb <- txtProgressBar(min = 0, max = length(h), style = 3)
   y12_stumps <- sapply(seq_along(h), function(i) {
     setTxtProgressBar(pb, i)
