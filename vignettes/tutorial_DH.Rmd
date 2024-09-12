@@ -54,8 +54,8 @@ Full dataset from Altmejd and colleagues plus the SSRP data
 ```{r}
 # Load the data
 # data("altfull723") Switched after discussion with Daniel
-# data("altmext723")
-load("altmext723.rda")
+# data("altmext")
+load("altmext.rda")
 
 # Project ID
 # altfull723$pid <- sub("\\..*", "", as.character(altfull723$id))
@@ -75,7 +75,7 @@ target <- "replicated"
 features <- c("power.o", "effect_size.o", "n.o", "log_p.o")
 
 # Note: No missing values 
-df <- altmext723[,voi]
+df <- altmext[,voi]
 ```
 
 ## Training and testing split 
