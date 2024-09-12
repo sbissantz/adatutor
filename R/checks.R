@@ -48,3 +48,11 @@ check_numeric <- function(x) {
     stop(c(msg, sug), call. = FALSE)
    }
 }
+
+walking_dots <- function(n = 3, delay = 0.5) {
+  for (i in seq_len(n)) {
+      message(".", appendLF = FALSE)
+      Sys.sleep(delay)
+    }
+  message(" Done\n", appendLF = FALSE)
+}
