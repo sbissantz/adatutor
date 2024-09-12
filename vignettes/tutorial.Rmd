@@ -627,10 +627,14 @@ names(H) <- paste0("t", seq_len(T))
 cat("Model weight 1:", H$t1$a) 
 ```
 
+TODO: Get different model weights and I dont understand why!
+DEBUG!
+
 ```{r}
+debugonce(train_adaboost2)
 # Seems to work!
 H <- train_adaboost2(fml = replicated ~ ., data = train[, outpred], 
-                            T = 1e4, eta = 1,  hyptree = hyptree)
+                            T = 1e4, eta = 1,  tree_hyperpar = hyptree)
 cat("Model weight 1:", H$t1$a) 
 ```
 
