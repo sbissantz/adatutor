@@ -22,20 +22,20 @@ train_adaboost2 <- function(formula, data, T, eta, tree_hyperpar, input_checks =
   tmp$weights <- as.symbol("D")
   tmp$method <- "class"
   tmp$control <- as.symbol("tree_hyperpar")
-  rpart_call <- tmp
+  cl_rpart <- tmp
   mtch <- match(c("data", "method"), names(tmp), nomatch = 0L)
   tmp <- tmp[c(1L, mtch)]
   tmp[[1L]] <- quote(predict)
   names(tmp)[2:3] <- c("newdata", "type")
   tmp$object <- as.symbol("h")
-  pred_call <- tmp
+  cl_pred <- tmp
   H <- vector("list", T)
   walking_dots()
   message("Steps 1-4: Run through the algorithm steps.")
   pb <- txtProgressBar(min = 0, max = T, style = 3)
   for (t in seq_len(T)) {
-    h <- eval(rpart_call)
-    y_retro <- eval(pred_call)
+    h <- eval(cl_rpart)
+    y_retro <- eval(cl_pred)
     e <- sum(D * (y_train != y_retro))
     a <- 0.5 * log((1 - e) / e) * eta
     chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1
