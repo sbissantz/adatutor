@@ -228,7 +228,7 @@ all.equal(valid$eid, valid_tilde$eid)
 all.equal(test$eid, test_tilde$eid)
 ```
 
-Pre-implemented solution using the rsample package
+Pre-implemented solution using the `rsample` package
 
 ```{r, eval=FALSE}
 # strat_split <- rsample::initial_split(df, prop = 0.7, strata = "replicated")
@@ -606,6 +606,7 @@ legend("topright", legend = c(expression(D[1]), expression(D[2])),
 Put everything in a loop.
 
 ```{r}
+hyptree <- rpart::rpart.control(maxdepth = 1) 
 T <- 1e4 # Number of trees 
 eta <- 1 # Learning rate 
 H <- vector("list", T)
@@ -613,6 +614,7 @@ D <- rep(1, m)/m
 for (t in seq_len(T)) {
   h <- rpart::rpart(formula = replicated ~ ., data = train[, outpred] ,
   method = "class", weights = D, control = hyptree)
+  browser()
   y_retro <- predict(object = h, newdata = train[, outpred], type = "class")
   e <- sum(D * (y_train != y_retro)) 
   a <- 0.5 * log( (1 - e)  / e) * eta
@@ -627,12 +629,15 @@ names(H) <- paste0("t", seq_len(T))
 cat("Model weight 1:", H$t1$a) 
 ```
 
+Model weights differ!
+
 ```{r}
-# debugonce(train_adaboost2)
-H <- train_adaboost2(replicated ~ ., data = train[, outpred],  
-                     T = 1e4, eta = 1,  tree_hyperpar = hyptree, 
-                     responsive = TRUE)
-cat("Model weight 1:", H$t1$a) 
+hyptree <- rpart::rpart.control(maxdepth = 1) 
+debugonce(train_adaboost2)
+blabla <- train[, outpred]
+Hstar <- train_adaboost2(fml = replicated ~ ., data = blabla,  
+                     T = 1e4, eta = 1,  tree_hyperpar = hyptree)
+cat("Model weight 1:", Hstar$t1$a) 
 ```
 
 Make retrodictions.
