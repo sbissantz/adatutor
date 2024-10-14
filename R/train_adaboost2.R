@@ -10,26 +10,32 @@ train_adaboost2 <- function(formula, data, T, eta, tree_hyperpar, input_checks =
     walking_dots()
   }
   message("Start the initialization process", appendLF = FALSE)
+  # Match the function call
   fcl <- match.call()
+  # Manually build the model frame function call ...
   mtch <- match(c("formula", "data"), names(fcl), nomatch = 0L)
-  tmp <- fcl[c(1L, mtch)]
-  tmp[[1L]] <- quote(stats::model.frame)
-  mf <- eval.parent(tmp)
-  y_train <- model.response(mf)
-  m <- nrow(data)
-  D <- rep(1, m)/m
-  tmp[[1L]] <- quote(rpart::rpart)
+  tmp <- fcl[c(1L, mtch)] # Use a tmp variable to store process details
+  tmp[[1L]] <- quote(stats::model.frame) # Change the function name
+  mf <- eval.parent(tmp) # Evaluate the model frame
+  # Some relevant variables
+  y_train <- model.response(mf) # Store the model response
+  m <- nrow(data) # Store the number of rowns
+  D <- rep(1, m)/m # Calculate the initialization weights
+  H <- vector("list", T) # Empty container for the trees
+  # Manually build the rpart function call ...
+  tmp[[1L]] <- quote(rpart::rpart) # Change the function name
   tmp$weights <- as.symbol("D")
   tmp$method <- "class"
   tmp$control <- as.symbol("tree_hyperpar")
   cl_rpart <- tmp
+  # Manually build the prediction function call ...
   mtch <- match(c("data", "method"), names(tmp), nomatch = 0L)
   tmp <- tmp[c(1L, mtch)]
-  tmp[[1L]] <- quote(predict)
+  tmp[[1L]] <- quote(predict) # Change the function name
   names(tmp)[2:3] <- c("newdata", "type")
   tmp$object <- as.symbol("h")
   cl_pred <- tmp
-  H <- vector("list", T)
+  # Container for the ensemble
   walking_dots()
   message("Steps 1-4: Run through the algorithm steps.")
   pb <- txtProgressBar(min = 0, max = T, style = 3)
