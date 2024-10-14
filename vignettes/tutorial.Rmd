@@ -614,7 +614,6 @@ D <- rep(1, m)/m
 for (t in seq_len(T)) {
   h <- rpart::rpart(formula = replicated ~ ., data = train[, outpred] ,
   method = "class", weights = D, control = hyptree)
-  browser()
   y_retro <- predict(object = h, newdata = train[, outpred], type = "class")
   e <- sum(D * (y_train != y_retro)) 
   a <- 0.5 * log( (1 - e)  / e) * eta
@@ -626,18 +625,8 @@ for (t in seq_len(T)) {
   H[[t]] <- list("h" = h, "a" = a)
 }
 names(H) <- paste0("t", seq_len(T))
-cat("Model weight 1:", H$t1$a) 
-```
 
-Model weights differ!
-
-```{r}
-hyptree <- rpart::rpart.control(maxdepth = 1) 
-debugonce(train_adaboost2)
-blabla <- train[, outpred]
-Hstar <- train_adaboost2(fml = replicated ~ ., data = blabla,  
-                     T = 1e4, eta = 1,  tree_hyperpar = hyptree)
-cat("Model weight 1:", Hstar$t1$a) 
+cat("Model weight 1:", H$t3$a) 
 ```
 
 Make retrodictions.
@@ -661,72 +650,26 @@ for (n in seq_len(m)) {
 }
 ```
 
-Prepare the setup for the decision boundary.
+Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
 ```{r}
-# Feature matrix
-X <- train[,c("power.o", "n.o")]
 # Outcome vector
 y_obs <- train[,outcome]
-# Make 0/1 factor into something ADA can handle (-1/1) 
-y_obs_ml <- 2 * as.numeric(y_obs) - 3
-# Number of classes
-k <- length(unique(y_obs))
-# Range(s) as list
-rng <- lapply(X, range, na.rm = TRUE)
-# Grid resolution
-resolution <- 1e3 
-# Colors
-col1 <- "cornflowerblue" ; col2 <- "ivory4"
-# Transparency
-alpha.f <- 0.03
-col1_transp <- adjustcolor(col1, alpha.f)
-col2_transp <- adjustcolor(col2, alpha.f) 
-# First feature sequence
-x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-# Second feature sequence
-x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
-# Make grid from sequences
-grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
-# Make grid
-# Tree hyperparameter setting 
-tree_hyperpar <- rpart::rpart.control(
-  maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
-  cp = 1e-2, xval = 10, split = "gini")
-# Fit ADAboost
-fit <- train_adaboost(X, y_obs_ml, 
-                           # Number of trees
-                           n_trees = 5e2, 
-                           eta = 1, 
-                           tree_hyperpar)
-# Predict ADAboost
-y_pred_ml <- test_adaboost(grid, fit)
-# Make prediction 0/1 instead of -1/1 
-y_pred <- as.factor((y_pred_ml$class + 1) / 2)
-# Contour matrix
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
-# "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == "failure", col1, col2)
-grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
-```
-
-Plot II
-
-```{r}
-# Make 0/1 factor into something ADA can handle (-1/1) 
+# Make 0/1 factor into something ADA can handle (-1/1)
 y_obs_ml <- 2 * as.numeric(train[,outcome]) - 3
 # Number of classes
-k <- length(unique(y_obs))
+k <- length(unique(y_obs_ml))
 # Range(s) as list
-rng <- lapply(X, range, na.rm = TRUE)
+X_obs <- train[,c("power.o", "n.o")]
+rng <- lapply(X_obs, range, na.rm = TRUE)
 # Grid resolution
-resolution <- 1e3 
+resolution <- 1e3
 # Colors
 col1 <- "cornflowerblue" ; col2 <- "ivory4"
 # Transparency
 alpha.f <- 0.03
 col1_transp <- adjustcolor(col1, alpha.f)
-col2_transp <- adjustcolor(col2, alpha.f) 
+col2_transp <- adjustcolor(col2, alpha.f)
 # First feature sequence
 x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
 # Second feature sequence
@@ -734,19 +677,19 @@ x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
 # Make grid from sequences
 grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
 # Make grid
-# Tree hyperparameter setting 
+# Tree hyperparameter setting
 tree_hyperpar <- rpart::rpart.control(
   # Slightly different hyperparameters to improve visibility of boundary
   maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
   cp = 1e-2, split = "gini")
 # Fit ADAboost
-fit <- train_adaboost2(fml = replicated ~ ., 
+fit <- train_adaboost2(formula = replicated ~ .,
                        data = train[,c("replicated", "power.o", "n.o")],
-                       T = 5e2, eta = 1, hyptree = tree_hyperpar)
+                       T = 5e2, eta = 1, tree_hyperpar = tree_hyperpar)
 # Predict ADAboost
 y_pred_ml <- test_adaboost2(fit, grid)
-# Make prediction 0/1 instead of -1/1 
-y_pred <- as.factor((y_pred_ml$class + 1) / 2)
+# Make prediction 0/1 instead of -1/1
+y_pred <- as.factor((y_pred_ml + 1) / 2)
 # Contour matrix
 z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # "0" means "not replicated", "1" means "replicated"
@@ -765,7 +708,7 @@ z_mat <- matrix(as.integer(y_pred), nrow = resolution)
 # For the black line 
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
         col = "black", levels = (1:(k-1))+.5)
-points(X, col = symbol_colors, pch = as.integer(y_obs) + 15)
+points(X_obs, col = symbol_colors, pch = as.integer(y_obs) + 15)
 legend("topleft", c("success", "failure") , pch = c(17,16), 
        col = c(col2, col1), cex=0.7)
 ```
@@ -786,8 +729,11 @@ Make predictions.
 
 # Module 4: Leave-Subject-Out Cross-Validation
 
+Introduce new function
+
+
 ```{r}
-y_class <- test_adaboost(X_test, ensemble)$class
+y_class <- test_adaboost(x_test, ensemble)$class
 test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
 ```
 
@@ -814,7 +760,10 @@ the individual trials) when applied to a new project.
 ## User functions 
 
 ```{r}
-train_adaboost()
+hyptree <- rpart::rpart.control(maxdepth = 1) 
+Hstar <- train_adaboost2(formula = replicated ~ ., data = train[,outpred],  
+                     T = 1e4, eta = 1,  tree_hyperpar = hyptree)
+cat("Model weight 1:", Hstar$t3$a) 
 ```
 
 ```{r}
