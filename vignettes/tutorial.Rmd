@@ -652,7 +652,7 @@ for (n in seq_len(m)) {
 
 Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
-```{r}
+```{r, eval=FALSE}
 # Outcome vector
 y_obs <- train[,outcome]
 # Make 0/1 factor into something ADA can handle (-1/1)
@@ -699,7 +699,7 @@ grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
 
 Visualize.
 
-```{r}
+```{r, eval = FALSE}
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
      xlab = "power.o", ylab = "n.o")
 points(grid, col = grid_colors, pch = ".")
@@ -729,24 +729,6 @@ Make predictions.
 
 # Module 4: Leave-Subject-Out Cross-Validation
 
-Introduce new function
-
-
-```{r}
-y_class <- test_adaboost(x_test, ensemble)$class
-test$y_pred <- factor( (y_class + 3) / 2, labels = c("no", "yes") )
-```
-
-## Performance evaluation
-
-```{r}
-ROC <- AUC::roc(test$y_pred, test$replicated)
-# Area under the curve
-AUC::auc(ROC)
-```
-
-## Leave project out cross validation
-
 Above, we randomly split the data on the level of study effects, taking care
 that no trials in the training set is also in the testing set. However, a more
 plausible scenario to validate the model is the following: Maybe in the near
@@ -757,18 +739,32 @@ this approach. We will use "Leave-One-Project-Out Cross-Validation" and try to
 maximize the average performance of the model on the level of study effects (not
 the individual trials) when applied to a new project.
 
-## User functions 
+Introduce new functions with some additional sugar.
+
+## Training function
 
 ```{r}
-hyptree <- rpart::rpart.control(maxdepth = 1) 
-Hstar <- train_adaboost2(formula = replicated ~ ., data = train[,outpred],  
-                     T = 1e4, eta = 1,  tree_hyperpar = hyptree)
-cat("Model weight 1:", Hstar$t3$a) 
+H <- train_adaboost2(formula = replicated ~ .,  
+                     data = train[,outpred],   
+                     T = 1e4, eta = 1,  # Boosting hyperparameter
+                     tree_hyperpar = hyptree) # Tree hyperparameter
 ```
+## Testing function
 
 ```{r}
-test_adaboost()
+ytilde_num <- test_adaboost2(H = H, data = x_test)
+test$ytilde <- factor( (ytilde_num + 3) / 2, labels = c("failure", "success") )
 ```
+
+## Performance evaluation
+
+```{r}
+ROC <- AUC::roc(test$ytilde, test$replicated)
+# Area under the curve
+AUC::auc(ROC)
+```
+
+## LOOCV
 
 ```{r}
 # Partition the data by "Project ID"
@@ -780,21 +776,25 @@ auc <- list()
 # Leave-Project-Out Cross-Validation
 runtime <- system.time({
   for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
+    message("Start the ", paste0(project), " model.\n")
     # Define the testing set
-    test <- df_split[[project]] # TODO: Maybe inconsistent
+    test <- df_split[[project]]
     # Define the training set
     train <- df[!(df$pid %in% project), ]
     # Fit the model to the data to get the ensemble
-    fit <- train_adaboost(train[,features], train[,target], 
-                                 n_trees = 5,  eta = 1, hyptree)
+    H <- train_adaboost2(formula = replicated ~ ., 
+                         data = train[,outpred],
+                         T = 1e4, eta = 1,  # Boosting hyperparameter 
+                         tree_hyperpar = hyptree) # Tree hyperparameter
     # Make predictions on validation set 
-    ensemble <- test_adaboost(test[,features], ensemble)
-    y_pred <- ensemble$class
+    ytilde_num <- test_adaboost2(H = H, data = test[, predictors]) 
+    ytilde <- factor( (ytilde_num + 3) / 2, labels = c("failure", "success") )
     # Store the performance evaluation (level: effects)
-    auc[[project]] <- AUC::auc( AUC::roc(y_pred, test$replicated) )
+    auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicated) )
   }})
 # Waiting time
-runtime["elapsed"]
+message("Run time: ", runtime["elapsed"], " s\n")
+c(unlist(auc), "mean" = mean(unlist(auc)))
 ```
 
 This will run for approximately 4 minutes.
@@ -825,30 +825,32 @@ df_split <- split(df[,voi], df$pid)
 pb <- txtProgressBar(0, hgrid_rows, initial = 0, style = 3) 
 # For each entry in the hypergrid, do...
 for(i in seq_len(hgrid_rows)) {
+  message("Overall progress:")
   # Progress bar
-  setTxtProgressBar(pb, i) 
+  setTxtProgressBar(pb, i) ; cat("\n\n")
   # Track the iteration time (time-accuracy trade-off)
   runtime <- system.time({
     # Leave-One-Project-Out Cross-Validation
     for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
       # Define the testing set
-      test <- df_split[[project]] # TODO: Inconsistent (partial matching vs explicit)
+      test <- df_split[[project]] 
       # Define the training set
       train <- df[!(df$pid %in% project), ]
       # Fit the model to the data to get the ensemble
-      ensemble <- train_adaboost(train[,features], train[,target],
-                                 n_trees = hgrid$n_tree[i],  
-                                 eta = hgrid$eta[i], 
-                                 tree_hyperpar = rpart::rpart.control(
+      H <- train_adaboost2(formula = replicated ~ ., 
+                                  data = train[,outpred],
+                                  T = hgrid$n_tree[i],
+                                  eta = hgrid$eta[i],  
+                                  tree_hyperpar = rpart::rpart.control(
                                    maxdepth = hgrid$maxdepth[i]))
       # Make predictions on validation set 
-      y_pred <- test_adaboost(test[,features], ensemble)$class
+      ytilde_num <- test_adaboost2(H = H, data = test[, predictors]) 
+      ytilde <- factor( (ytilde_num + 3) / 2, labels = c("failure", "success") )
       # Store the performance evaluation (level: effects)
-      hgrid[[project]][i] <- AUC::auc( AUC::roc(y_pred, test$replicated)) }
+      hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicated)) }
     # Calculate the average performance
     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8]))
   }) 
-  # TODO: Inconsistent (partial matching vs explicit)
   hgrid$runtime[i] <- runtime[["elapsed"]]
 }
 # Close connection 
