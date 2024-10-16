@@ -57,21 +57,15 @@ walking_dots <- function(n = 3, delay = 0.2) {
   message(" Done\n", appendLF = FALSE)
 }
 
-color_msg <- function(text, color_code = 32, newline = FALSE) {
+color_message <- function(text, color_code = 32, newline = FALSE) {
   msg <- paste0("\033[", color_code, "m", text, "\033[0m")
-  if(newline) {
-    msg <- c(msg, "\n")
-  }
   cat(msg)
 }
-color_msg("test", color_code = 32)
 
 walking_colordots <- function(n = 3, delay = 0.2, color_code = 32) {
   for (i in seq_len(n)) {
-      color_msg(".", newline = FALSE, color_code = color_code)
+      color_message(".", color_code = 30)
       Sys.sleep(delay)
     }
-  color_msg(" Done\n", color_code = color_code, newline = TRUE)
+  color_message(" Done\n", color_code = 32, newline = TRUE)
 }
-
-# walking_colordots(5, color_code = 32)
