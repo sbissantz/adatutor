@@ -1,16 +1,24 @@
 #'@export
-train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks = TRUE) {
-  color_message("Start the AdaBoost training process:\n", color_code = 1,
-            newline = TRUE)
+train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks = TRUE, verbose = TRUE) {
+  if(verbose) {
+    color_message("Start the AdaBoost training process:\n",
+                  color_code = 1, newline = TRUE)
+  }
   if(input_checks) {
-    color_message("Run mild input checks", color_code = 30)
+    if(verbose) {
+      color_message("Run mild input checks", color_code = 30)
+    }
     check_df(data)
     check_length(data)
     check_eta(eta)
     check_numeric(T)
-    walking_colordots()
+    if(verbose) {
+      walking_colordots()
+    }
   }
-  color_message("Start the initialization process", color_code = 30)
+  if(verbose) {
+    color_message("Start the initialization process", color_code = 30)
+  }
   # Match the function call
   fcl <- match.call()
   # Manually build the model frame function call ...
@@ -36,10 +44,12 @@ train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks =
   names(tmp)[2:3] <- c("newdata", "type")
   tmp$object <- as.symbol("h")
   cl_pred <- tmp
-  walking_colordots()
-  color_message("Steps 1-4: Run through the algorithm steps\n",
-                color_code = 30)
-  pb <- txtProgressBar(min = 0, max = T, style = 3)
+  if(verbose) {
+    walking_colordots()
+    color_message("Steps 1-4: Run through the algorithm steps\n",
+                  color_code = 30)
+    pb <- txtProgressBar(min = 0, max = T, style = 3)
+  }
   for (t in seq_len(T)) {
     h <- eval(cl_rpart)
     y_retro <- eval(cl_pred)
@@ -49,13 +59,19 @@ train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks =
     D_unorm <- (D * exp(-a * chi))
     D <- D_unorm / sum(D_unorm)
     H[[t]] <- list("h" = h, "a" = a)
-    setTxtProgressBar(pb, t)
+    if(verbose) {
+      setTxtProgressBar(pb, t)
+    }
   }
-  close(pb)
-  color_message("Create output", color_code = 30)
-  walking_colordots()
+  if(verbose) {
+    close(pb)
+    color_message("Create output", color_code = 30)
+    walking_colordots()
+  }
   names(H) <- paste0("t", seq_len(T))
-  color_message("Training process successfully completed.\n", color_code = 1,
+  if(verbose) {
+    color_message("Training process successfully completed.\n", color_code = 1,
                 newline = TRUE)
+  }
   H
 }
