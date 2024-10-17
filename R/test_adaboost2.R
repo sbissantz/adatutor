@@ -1,7 +1,7 @@
 #'@export
 test_adaboost2 <- function(H, data, input_checks = TRUE) {
   message("Start the AdaBoost test process:")
-  if(isTRUE(input_checks)) {
+  if(input_checks) {
     message("Run mild input checks.", appendLF = FALSE)
     check_list(H)
     check_length(H)
