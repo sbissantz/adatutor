@@ -736,6 +736,7 @@ H <- train_adaboost3(formula = replicated ~ .,
                      tree_hyperpar = hyptree) # Tree hyperparameter
 ```
 
+More expressive formula.
 
 ```{r}
 H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o, 
@@ -743,8 +744,6 @@ H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o,
                      T = 1e4, eta = 1,  
                      tree_hyperpar = hyptree) 
 ```
-
-
 
 ## Testing function
 
