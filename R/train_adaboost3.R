@@ -28,7 +28,7 @@ train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks =
   mf <- eval.parent(tmp) # Evaluate the model frame
   # Some relevant variables
   y_train <- model.response(mf) # Store the model response
-  m <- nrow(data) # Store the number of rowns
+  m <- nrow(mf) # Store the number of rows
   D <- rep(1, m)/m # Calculate the initialization weights
   H <- vector("list", T) # Empty container for the trees
   # Manually build the rpart function call ...
