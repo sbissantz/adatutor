@@ -11,6 +11,10 @@ test_adaboost3 <- function(H, data, input_checks = TRUE, verbose = TRUE) {
     check_length(H)
     check_df(data)
     check_length(data)
+    fcl <- match.call()
+    test_pos <- match("data", names(fcl), nomatch = 0L)
+    train_nme <-  attr(H, "train")
+    check_train(train_nme, fcl[[test_pos]])
   }
   if (verbose) {
     walking_colordots()
