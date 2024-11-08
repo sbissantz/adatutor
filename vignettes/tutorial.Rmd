@@ -815,7 +815,7 @@ hgrid <- expand.grid(
   # Tree-specific 
   "maxdepth" = 1:3, # Interaction depth
   # Ensemble specific
-  "n_tree" = c(1e1, 1e2), # Number of trees
+  "T" = c(1e1, 1e2), # Number of trees
   "eta" = c(1, 0.1), # Learning rate
   # Container for fold performance
   "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA, 
@@ -837,7 +837,7 @@ for(i in seq_len(hgrid_rows)) {
     for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
       # Rudimentary progress report with carriage return "\r"
       cat("\rProgress: ", round(i / hgrid_rows * 100), "%",
-          " | n_tree: ", hgrid$n_tree[i], 
+          " | T: ", hgrid$T[i], 
           " | eta: ", hgrid$eta[i], 
           " | maxdepth: ", hgrid$maxdepth[i],
           " | model: ", project)
@@ -846,11 +846,13 @@ for(i in seq_len(hgrid_rows)) {
       # Define the training set
       train <- df[!(df$pid %in% project), ]
       # Fit the model to the data to get the ensemble
-      H <- train_adaboost3(formula = replicated ~ ., data = train[,outpred],
-                                  T = hgrid$n_tree[i], eta = hgrid$eta[i],  
-                                  tree_hyperpar = rpart::rpart.control(
-                                  maxdepth = hgrid$maxdepth[i]),
-                                  verbose = FALSE)
+      H <- train_adaboost3(replicated ~ ., 
+                           data = train[,outpred],
+                           T = hgrid$T[i],  
+                           eta = hgrid$eta[i],  
+                           tree_hyperpar = rpart::rpart.control(
+                             maxdepth = hgrid$maxdepth[i]), 
+                           verbose = FALSE)
       # Make predictions on validation set 
       ytilde <- test_adaboost3(H = H, data = test[, predictors], 
                                    verbose = FALSE) 
