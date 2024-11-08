@@ -73,5 +73,6 @@ train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks =
     color_message("Training process successfully completed.\n", color_code = 1,
                 newline = TRUE)
   }
+  attr(H, "train") <- cl_pred$newdata
   H
 }
