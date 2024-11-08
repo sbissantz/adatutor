@@ -727,7 +727,7 @@ table(y_test, y_pred_ada)
 
 # Module 4: Leave-Subject-Out Cross-Validation
 
-Introduce new functions with some additional sugar.
+Introduce two wrapper functions with some additional sugar.
 
 ```{r}
 H <- train_adaboost3(formula = replicated ~ .,  
@@ -748,23 +748,36 @@ H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o,
 ## Testing function
 
 ```{r}
-ytilde_num <- test_adaboost3(H = H, data = x_test)
-test$ytilde <- factor( (ytilde_num + 3) / 2, labels = c("failure", "success") )
+ytilde <- test_adaboost3(H = H, data = test[,predictors])
 ```
+
 
 ## Performance evaluation
 
 ```{r}
-ROC <- AUC::roc(test$ytilde, test$replicated)
-# Area under the curve
-AUC::auc(ROC)
+```
+
+Show the imbalances in the data.
+
+```{r}
+table(df$replicated)
+```
+
+Model evaluation.
+
+```{r}
+confusion <- table(ytilde, test$replicated)
+sum(diag(confusion)) / sum(confusion) # Accuracy
+AUC::roc(ytilde, test$replicated) |> AUC::auc()
+y1m1 <- 2 * as.numeric(test$replicated) - 3
+mltools::mcc(as.numeric(ytilde), y1m1)
 ```
 
 ## LOOCV
 
 ```{r}
 # Partition the data by "Project ID"
-df_split <- split(df, df$pid) 
+df_split <- split(df, df$pid)
 
 # Pre-allocate the AUC list
 auc <- list()
@@ -783,8 +796,7 @@ runtime <- system.time({
                          T = 1e4, eta = 1,  # Boosting hyperparameter 
                          tree_hyperpar = hyptree) # Tree hyperparameter
     # Make predictions on validation set 
-    ytilde_num <- test_adaboost3(H = H, data = test[, predictors]) 
-    ytilde <- factor( (ytilde_num + 3) / 2, labels = c("failure", "success") )
+    ytilde <- test_adaboost3(H = H, data = test[, predictors]) 
     # Store the performance evaluation (level: effects)
     auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicated) )
   }})
@@ -840,9 +852,8 @@ for(i in seq_len(hgrid_rows)) {
                                   maxdepth = hgrid$maxdepth[i]),
                                   verbose = FALSE)
       # Make predictions on validation set 
-      ytilde_num <- test_adaboost3(H = H, data = test[, predictors], 
+      ytilde <- test_adaboost3(H = H, data = test[, predictors], 
                                    verbose = FALSE) 
-      ytilde <- factor( (ytilde_num + 3) / 2, labels = c("failure", "success") )
       # Store the performance evaluation (level: effects)
       hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicated)) }
     # Calculate the average performance
@@ -853,6 +864,7 @@ for(i in seq_len(hgrid_rows)) {
 ```
 
 Performance evaluation sorted by highest AUC.
+
 
 ```{r}
 # Note: EE is highly anomalous!
