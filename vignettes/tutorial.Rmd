@@ -16,10 +16,17 @@ knitr::opts_chunk$set(
 
 # Software (maybe together with Approach)
 
+```{r}
+if (!requireNamespace("remotes", quietly = TRUE)) { 
+  install.packages("remotes") 
+} 
+remotes::install_github("sbissantz/adatutor")
+```
+
 - Describe the software used
 
 ```{r setup}
-library(adatutoR)
+library(adatutor)
 ```
 
 - Describe the data set, i.e. data sets used
@@ -36,15 +43,15 @@ data("altmext")
 Full data set from Adam Altmejd and colleagues plus the SSRP data.
 
 ```{r}
-# Variables of interest
-voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "p_value.o", 
-         "replicated")
+# Reviewer metrics
+predictors <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 
 # Name of outcome variable (classification task)
 outcome <- "replicated"
-
-# Names of predictors 
-predictors <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+ 
+# Variables of interest
+voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "p_value.o", 
+         "replicated")
 
 # Names of outcomes and predictors
 outpred <- union(outcome, predictors)
@@ -815,18 +822,18 @@ hgrid <- expand.grid(
   # Tree-specific 
   "maxdepth" = 1:3, # Interaction depth
   # Ensemble specific
-  "T" = c(1e1, 1e2), # Number of trees
+  "T" = c(1e1, 1e2, 1e3), # Number of trees
   "eta" = c(1, 0.1), # Learning rate
   # Container for fold performance
   "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA, 
   "auc.mean" = NA, "runtime" = NA) # Average performance
 # Number of combinations 
-hgrid_rows <- nrow(hgrid)
 ```
 
 Hyperparameter optimization using leave-project-out cross-validation.
 
 ```{r}
+hgrid_rows <- nrow(hgrid)
 # Partition the data by "Project ID"
 df_split <- split(df[,voi], df$pid) 
 # For each entry in the hypergrid, do...
@@ -863,14 +870,13 @@ for(i in seq_len(hgrid_rows)) {
   }) 
   hgrid$runtime[i] <- runtime[["elapsed"]]
 }
+message("\nTotal run time: ", sum(hgrid$runtime))
 ```
 
 Performance evaluation sorted by highest AUC.
 
-
 ```{r}
-# Note: EE is highly anomalous!
-hgrid[order(-hgrid$auc.mean), ] 
+hgrid[order(-hgrid$auc.mean), ]
 ```
 
 Stacking the best performing algorithms could improve the predictions quite
@@ -886,17 +892,11 @@ out-of-sample capabilities because we don't have another project it hasn't seen
 yet.
 
 ```{r}
-# Define the testing set
-test <- df_split[[project]] # TODO: Maybe inconsistent
-# Define the training set
-train <- df[!(df$pid %in% project), ]
-# Fit the model to the data to get the ensemble
-ensemble <- train_adaboost(train[,features], train[,target], 
-                           n_trees = 1e4,  eta = 1e-3, 
-                           tree_hyperpar = rpart::rpart.control(
-                                 maxdepth = 3))
-# Make predictions on validation set 
-y_pred <- test_adaboost(test[,features], ensemble)$class
+H_final <- train_adaboost3(formula = replicated ~ .,   
+                           data = df[,outpred],    
+                           T = 10, eta = 1, 
+                           tree_hyperpar = rpart::rpart.control( 
+                             maxdepth = 1))
 ```
 
 # Module 6: Stacking (?) 
@@ -904,4 +904,3 @@ y_pred <- test_adaboost(test[,features], ensemble)$class
 Stacking the best performing algorithms could improve the predictions quite
 significantly here! For example, learners 2 and 3 perform quite well on the ee
 project, while learners 1 and 8 perform quite well on ml1. 
-
