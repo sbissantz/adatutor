@@ -16,20 +16,22 @@ knitr::opts_chunk$set(
 
 # Software (maybe together with Approach)
 
-```{r}
+Install the package from Github.
+
+```{r eval=FALSE, include=FALSE}
 if (!requireNamespace("remotes", quietly = TRUE)) { 
   install.packages("remotes") 
 } 
 remotes::install_github("sbissantz/adatutor")
 ```
 
-- Describe the software used
+Load the adatutor package.
 
-```{r setup}
+```{r}
 library(adatutor)
 ```
 
-- Describe the data set, i.e. data sets used
+Load the data set.
 
 ```{r}
 # Load the data
@@ -38,37 +40,34 @@ data("altmext")
 
 - TODO: Document the data set in R so that it is accessible with `?altmext`
 
+Full data set from Altmejd et. al plus the SSRP data.
+
 # Introduction 
 
-Full data set from Adam Altmejd and colleagues plus the SSRP data.
+Introduce the relevant variables
 
 ```{r}
-# Reviewer metrics
-predictors <- c("power.o", "effect_size.o", "n.o", "p_value.o")
-
-# Name of outcome variable (classification task)
-outcome <- "replicated"
- 
-# Variables of interest
-voi <- c("pid","eid", "power.o", "effect_size.o", "n.o", "p_value.o", 
-         "replicated")
-
-# Names of outcomes and predictors
-outpred <- union(outcome, predictors)
-
-# Data frame
-df <- altmext[,voi]
+# Reviewer metrics (names)
+prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+# Outcome variable (name)
+outnme <- "replicated"
+# Variables of interest (names)
+voinms <- c("pid","eid", prednms, outnme)
+# Features (names)
+featnms <- union(prednms, outnme)
+# Abbreviate 'altmext'
+df <- altmext[voinms]
 ```
 
 # Module 1: Splitting 
 
 ## Training and testing split 
 
-Start by randomly splitting the data in a training and testing set (70/30).
+Show how to do a simple random split and stratified split.
 
 ### Simple random split 
 
-Simple random split using the full data set
+Do a simple random split using the full data set.
 
 ```{r}
 # Reproducibility
@@ -76,31 +75,36 @@ set.seed(112)
 # Split proportion
 prop <- 0.7
 # Number of effects 
-n_effect <- nrow(df)
+n_fx <- nrow(df)
 # Number of training samples
-n_train <- round(n_effect * prop)
+n_train <- round(n_fx * prop)
 # Training index
-train_idx <- sample(seq_len(n_effect), n_train)
+train_idx <- sample(seq_len(n_fx), n_train)
 # Training and testing set 
 train <- df[train_idx, ]
+# Test set (incl. validation)
 testvalid  <- df[-train_idx, ]
 ```
-Simple wrapper function
+
+Repeat with simple wrapper function.
 
 ```{r}
-tilde <- random_split(df, prop = 0.7, seed = 112)
-train_tilde <- tilde$set1
-testvalid_tilde <- tilde$set2
+# 70/30 random split 
+randsplit <- random_split(df, prop = 0.7, seed = 112)
+# Training set
+train_tld <- randsplit$set1
+# Test set (incl. validation)
+testvalid_tld <- randsplit$set2
 ```
 
-Check wrapper with unique effect identifier 
+Compare results of manual split and wrapper.
 
 ```{r}
-all.equal(train$eid, train_tilde$eid)
-all.equal(testvalid$eid, testvalid_tilde$eid)
+all.equal(train$eid, train_tld$eid)
+all.equal(testvalid$eid, testvalid_tld$eid)
 ```
 
-Simple random split using the test set 
+Extract a validation set. 
 
 ```{r}
 # Reproducibility
@@ -108,139 +112,166 @@ set.seed(112)
 # Split proportion
 prop <- 0.5
 # Number of effects 
-n_effect <- nrow(testvalid)
-# Number of training samples
-n_valid <- round(n_effect * prop)
+n_fx <- nrow(testvalid)
+# N° training samples
+n_valid <- round(n_fx * prop)
 # Training index
-valid_idx <- sample(seq_len(n_effect), n_valid)
-# Training and testing set 
+valid_idx <- sample(seq_len(n_fx), n_valid)
+# Validation set
 valid <- testvalid[valid_idx, ]
-test  <- testvalid[-valid_idx, ] 
+# Test set
+test <- testvalid[-valid_idx, ] 
 ```
 
-With wrapper function
+Repeat with simple wrapper function.
 
 ```{r}
-tilde <- random_split(testvalid, prop = 0.5, seed = 112)
-valid_tilde  <- tilde$set1
-test_tilde <- tilde$set2
+# Another random split
+randsplit <- random_split(testvalid, prop = 0.5, seed = 112)
+# Another validation set
+valid_tld  <- randsplit$set1
+# Another test set 
+test_tld <- randsplit$set2
 ```
 
-Check wrapper with unique effect identifier 
+Compare results of manual split and wrapper.
 
 ```{r}
-all.equal(valid$eid, valid_tilde$eid)
-all.equal(test$eid, test_tilde$eid)
+all.equal(valid$eid, valid_tld$eid)
+all.equal(test$eid, test_tld$eid)
 ```
 
 ### Stratified sampling & imbalances
 
-Show the imbalances in the outcome variable
+Show imbalances in the outcome variable.
 
 ```{r}
+# Frequency table
 tbl_orig <- table(df$replicated)
+# Relative frequencies
 proportions(tbl_orig)
 ```
 
-Show the imbalances in the training and testing set
+Show imbalances in the training and test set.
 
 ```{r}
+# Frequency tables
 tbl_train  <- table(train$replicated)
-proportions(tbl_train)
 tbl_test <- table(test$replicated)
+# Relative frequencies
+proportions(tbl_train)
 proportions(tbl_test)
 ```
-Stratified split using the full data set
+Do a stratified split using the full data set.
 
 ```{r}
 # Reproducibility
 set.seed(112)
 # Split proportion
 prop <- 0.7
-# Partition the data based on the outcome variable
+# Partition data based on outcome 
 set_split <- split(df, df$replicated)
-# Number of training samples (stratified)
-n_train <- lapply(set_split, function(set) round(nrow(set) * prop))
+# N° training samples (stratified)
+n_train <- lapply(set_split, 
+                  function(set) round(nrow(set) * prop))
 # Training index (stratified)
 strat_idx <- mapply(function(set, n) sample(set[,"eid"], n), 
                     set_split, n_train)
 # Training index 
 train_idx <- df$eid %in% unlist(strat_idx) 
-# Training and testing/validation set 
+# Training 
 train <- df[train_idx, ]
+# Test set (incl. validation)
 testvalid  <- df[!train_idx, ]
 ```
 
-Check the results
+Show imbalances in the outcome variable.
 
 ```{r}
-proportions(table(train$replicated))
-proportions(table(testvalid$replicated))
+# Relative from absolute frequencies
+proportions(table(train$replicated)) 
+proportions(table(testvalid$replicated)) 
 ```
-Simple wrapper function
+
+Repeat with simple wrapper function.
 
 ```{r}
-tilde <- stratified_split(df, group = "replicated", id = "eid", prop = 0.7,  
-                          seed = 112)
-train_tilde <- tilde$set1
-testvalid_tilde <- tilde$set2
+# Another stratified split
+stratsplit <- stratified_split(df, group = "replicated", id = "eid", 
+                               prop = 0.7, seed = 112)
+# Another training set
+train_tld <- stratsplit$set1
+# Another test set (incl. validation)
+testvalid_tld <- stratsplit$set2
 ```
 
-Check wrapper on unqiue effect identifier
+Compare results of manual split and wrapper.
 
 ```{r}
-all.equal(train$eid, train_tilde$eid)
-all.equal(testvalid$eid, testvalid_tilde$eid)
+all.equal(train$eid, train_tld$eid)
+all.equal(testvalid$eid, testvalid_tld$eid)
 ```
 
-Stratified split using the test set
+Extract a validation set. 
 
 ```{r}
 # Reproducibility
 set.seed(112)
 # Split proportion
 prop <- 0.5
-# Partition the data based on the outcome variable
+# Partition data based on outcome
 set_split <- split(testvalid, testvalid$replicated)
-# Number of training samples (stratified)
+# N° training samples (stratified)
 n_valid <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Validation index (stratified)
 strat_idx <- mapply(function(set, n) sample(set[,"eid"], n), 
                     set_split, n_valid)
 valid_idx <- testvalid$eid %in% unlist(strat_idx) 
-# Training and testing set 
+# Validation set 
 valid <- testvalid[valid_idx, ]
-test  <- testvalid[!valid_idx, ]
+# Test set 
+test <- testvalid[!valid_idx, ]
 ```
 
-Check the results
+Show imbalances in the outcome variable.
 
 ```{r}
-proportions(table(test$replicated))
-proportions(table(valid$replicated))
+# Relative from absolute frequencies
+proportions(table(train$replicated)) 
+proportions(table(testvalid$replicated)) 
 ```
-Simple wrapper function
+Repeat with simple wrapper function.
 
 ```{r}
-tilde <- stratified_split(testvalid, group = "replicated", id = "eid", 
+# Another stratified split
+stratsplit <- stratified_split(testvalid, group = "replicated", id = "eid", 
                           prop = 0.5, seed = 112)
-valid_tilde <- tilde$set1
-test_tilde <- tilde$set2
+# Another validation set
+valid_tld <- stratsplit$set1
+# Another test set
+test_tld <- stratsplit$set2
 ```
 
-Check wrapper on unique effect identifier 
+Compare results of manual split and wrapper.
 
 ```{r}
-all.equal(valid$eid, valid_tilde$eid)
-all.equal(test$eid, test_tilde$eid)
+all.equal(valid$eid, valid_tld$eid)
+all.equal(test$eid, test_tld$eid)
 ```
 
 Pre-implemented solution using the `rsample` package
 
-```{r, eval=FALSE}
-# strat_split <- rsample::initial_split(df, prop = 0.7, strata = "replicated")
-# train <- rsample::training(strat_split)
-# test <- rsample::testing(strat_split)
+```{r eval=FALSE}
+library(rsample)
+set.seed(112)  
+# Simple random split
+randsplit <- initial_split(df, prop = 0.7)
+train <- training(randsplit)
+testvalid <- testing(randsplit)
+# Stratified split
+stratsplit <- initial_split(df, prop = 0.7, strata = "replicated")
+train <- training(stratsplit)
+testvalid <- testing(stratsplit)
 ```
 
 # Module 2: A Primer on Classification Trees 
@@ -249,13 +280,13 @@ Pre-implemented solution using the `rsample` package
 
 ## Classification trees
 
-Figure 2.1
+Code to reproduce Figure 2.1.
 
 ```{r, dev = "png"}
 # Extract only two predictors 
 # Note: Reduces run-time - decision boundary visualization
 subfeat <- c("power.o", "n.o")
-subdf <-  train[,union(subfeat, outcome)]
+subdf <-  train[,union(subfeat, outnme)]
 # Hyperparameter setup 
 hyptree <- rpart::rpart.control(
   # Maximum depth of any node tree 
@@ -273,11 +304,11 @@ rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy")
 
 #### Classification stumps
 
-Figure 2.2
+Code to reproduce Figure 2.2
 
 ```{r}
 # Outcome variable
-y_train <- train[, outcome]
+y_train <- train[, outnme]
 # Number of classes
 k <- length(unique(subdf$replicated))
 # Range(s) as list
@@ -314,9 +345,9 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
      col = c(col2, col1), cex=0.7)
 ```
 
-Code Chunk 1
+Code Chunk 2.1
 
-```{r Code Chunk 1}
+```{r}
 # Define the condition for the split
 splitcond <- train$power.o < 0.92866
 # Studies with df$power.o < 0.92866 
@@ -330,37 +361,36 @@ table(train$replicated[!splitcond])
 Code Chunk 2.2
 
 ```{r}
-# Hyperparameter setup for a classification stump
-hyptree <- rpart::rpart.control(
+library(rpart)
+# Hyperparameter setup for classification stump
+hyptree <- rpart.control(
   maxdepth = 1, # Maximum depth
   split = "gini") # Gini impurity (default)
-# Fit a classification stump
-cstump <- rpart::rpart(formula = replicated ~ ., 
-                       data = train[,outpred],
-                       method = "class", control = hyptree)
+# Fit classification stump
+cstump <- rpart(formula = replicated ~ ., data = train[,featnms], 
+                method = "class", control = hyptree)
 ```
 
 Code Chunk 2.3
 
 ```{r, eval=FALSE}
+library(rpart.plot)
 # Visualize a classification stump
-rpart.plot::rpart.plot(cstump, extra = 102, digits = 5, box.palette="BuGy")
+rpart.plot(cstump, extra = 102, digits = 5, box.palette="BuGy")
 ```
 
 ### Gini impurity
 
-Figure 2.3
+Code tio reproduce Figure 2.3
 
 ```{r}
 # Calculate Gini Impurity
 x <- seq(0.01, 1, by = 0.01)  # Values for fraction of class k
 y <- 1 - (x^2) - (1-x)^2      # Gini Impurity calculation
-
 # Create the plot
 plot(x, y, type = "l", lwd = 2, # Specify line plot
      xlab = "Proportion of Successes",
      ylab = "Impurity" )
-
 mtext("Two Class Classification Problem")
 # Customize axes
 axis(side = 1, at = seq(0, 1, by = 0.1))
@@ -375,10 +405,9 @@ power_sorted <- sort(train$power.o)
 adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
 ```
 
-Additional material. Calculations in the text. Didiactic not performant.
+Check if calculations in the text are correct. 
 
 ```{r}
-# Example above:
 constant <- adjacent_means[69] # 0.9286641
 N_total <- nrow(train) # N_total: 107
 
@@ -393,15 +422,17 @@ criterion_right <- train$power.o >= constant
 N_right <- length(train$replicated[criterion_right]) # 38 
 right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1) # 29 
 right_failure <- N_right - right_success # failures
+
 # Individual Gini impurities
 gini_left <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
 gini_right <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
+
 # Overall weighted Gini impurity
 gini_impurity <- (N_left / N_total) * gini_left + (N_right / N_total) * gini_right
 round(gini_impurity, digits = 5)
 ```
 
-Control calculations. Quick and dirty.
+Show (quick and dirty) that value is the smallest impurity.
 
 ```{r}
 power_sorted <- sort(train$power.o)
@@ -435,21 +466,20 @@ adjacent_means[which.min(gini_impurity)]
 
 #### Sensitivity to observation weights
 
-Normalized initialization weights. Should not change anything to before.
+Make the assumption of random weights explicit.
 
 ```{r}
 m <- nrow(train)
 # Equal weight to each observation
 D <- rep(1, m)/m
 # Create a decision stump
-h <- rpart::rpart(formula = replicated ~ ., 
-                  data = train[, outpred], 
-                  method = "class", weight = D, control = hyptree)
+h <- rpart(formula = replicated ~ .,   data = train[, featnms],   
+           method = "class",  weight = D, control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(h, digits = 5, box.palette="BuGy")
+rpart.plot(h, digits = 5, box.palette="BuGy")
 ```
 
-Normalized random observation weights for demonstration. Changes result.
+Show sensitivity to observation weights with normalized random weights.
 
 ```{r}
 # Reproducibility
@@ -459,11 +489,10 @@ D_unorm <- runif(107)
 # Normalize (sum: 1)
 D <- D_unorm/sum(D_unorm) 
 # Create a decision stump
-cstump_ast <- rpart::rpart(formula = replicated ~ ., 
-                  data = train[,outpred], 
+cstump_ast <- rpart(formula = replicated ~ .,  data = train[,featnms], 
                   method = "class", weight = D, control = hyptree)
 # Visualize
-rpart.plot::rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
+rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
 ```
 
 # Module 3: Adaptive Boosting 
@@ -472,11 +501,17 @@ Predictor "matrix" and outcome "vector". Actually the predictor matrix is a
 data frame. The outcome is a factor variable.
 
 ```{r}
-predictors ; outcome
-x_train <- train[, predictors]
-y_train <- train[, outcome]
+# Predictors and outcome (names)
+prednms ; outnme 
+# Predictor matrix 
+x_train <- train[, prednms]
+# Outcome vector 
+y_train <- train[, outnme]
+# Indices
 i <- 1 ; m <- nrow(train)
+# i-th row/element
 x_train[i,] ; y_train[i]
+# i-th to m-th row/element
 cbind(x_train, y_train)[i:m,]
 ```
 
@@ -484,8 +519,8 @@ cbind(x_train, y_train)[i:m,]
 
 ```{r}
 # Outcome vectors 
-y_train <- train[, outcome]
-(y_test <- test[, outcome])
+y_train <- train[, outnme]
+(y_test <- test[, outnme])
 ```
 
 Initialization weights are normalized equal weights.
@@ -498,22 +533,20 @@ Train a single weak learner ($h_t$) with the initialization weights and the
 given tree hyperparameter setup.
 
 ```{r}
-h <- rpart::rpart(formula = replicated ~ ., data = train[,outpred] ,
+h <- rpart::rpart(formula = replicated ~ ., data = train[,featnms] ,
 method = "class", weights = D1, control = hyptree)
 ```
 
 Make predictions with the weak learner (h_t). Define the normalization constant
-nd calculate the TODO
+and calculate the TODO
 
 ```{r}
-y_class <- predict(object = h, newdata = train[, outpred], type = "class")
+y_class <- predict(object = h, newdata = train[, featnms], type = "class")
 epsilon <- sum(D1 * (y_train != y_class)) 
 ```
 
 Compute the training error (e_t) of the weak learner (h_t). This is simply one
 minus the weighted accuracy, given weights D
-
-TODO: alternative for performance accuracy weighting.
 
 ```{r}
 perf <- sum(D1 * (y_train == y_class)) 
@@ -601,7 +634,10 @@ axis(1, at = 1:n_25, labels = paste(1:25), cex = 0.5)
 for(i in 1:n_25) {
   lines(c(i,i),c(D1[i], D2[i]), lty = 3)
 }
-points(D1[1:n_25], pch = 20, col = "ivory4", cex = D1[1] * scaling)
+
+points(D1[1:n_25], pch = 20, col = "ivory4",  cex = D1[1] * scaling)
+points(D1[1:n_25], pch = 20, col = ifelse((y_train == y_class), "green", "red"), 
+       cex = D1[1] + 0.2)
 points(D2[1:n_25], pch = 20, col = "steelblue", cex = D2[1:n_25] * scaling) 
 legend("topright", legend = c(expression(D[1]), expression(D[2])), 
        col = c("ivory4", "steelblue"),
@@ -619,9 +655,9 @@ eta <- 1 # Learning rate
 H <- vector("list", T)
 D <- rep(1, m)/m
 for (t in seq_len(T)) {
-  h <- rpart::rpart(formula = replicated ~ ., data = train[, outpred] ,
+  h <- rpart::rpart(formula = replicated ~ ., data = train[, featnms] ,
   method = "class", weights = D, control = hyptree)
-  y_retro <- predict(object = h, newdata = train[, outpred], type = "class")
+  y_retro <- predict(object = h, newdata = train[, featnms], type = "class")
   e <- sum(D * (y_train != y_retro)) 
   a <- 0.5 * log( (1 - e)  / e) * eta
   chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1
@@ -642,7 +678,7 @@ Make retrodictions.
 h <- lapply(H, "[[", "h")
 a <- sapply(H, "[[", "a")
 y_retro_stumps <- sapply(h, predict, 
-                         newdata = train[, outpred], 
+                         newdata = train[, featnms], 
                          type = "vector")
 y_retro_stumps <- 2 * y_retro_stumps - 3 
 y_retro_ada <- sign(a %*% t(y_retro_stumps))
@@ -661,7 +697,7 @@ Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
 ```{r, eval=FALSE}
 # Outcome vector
-y_obs <- train[,outcome]
+y_obs <- train[,outnme]
 # Make 0/1 factor into something ADA can handle (-1/1)
 y_obs_ml <- 2 * as.numeric(train[,outcome]) - 3
 # Number of classes
@@ -725,7 +761,7 @@ Make predictions.
 ```{r}
 x_test <- test[, predictors]
 y_pred_stumps <- sapply(h, predict, 
-                        newdata = test[, outpred], 
+                        newdata = test[, featnms], 
                         type = "vector")
 y_pred_stumps <- 2 * y_pred_stumps - 3 
 y_pred_ada <- sign(a %*% t(y_pred_stumps))
@@ -738,7 +774,7 @@ Introduce two wrapper functions with some additional sugar.
 
 ```{r}
 H <- train_adaboost3(formula = replicated ~ .,  
-                     data = train[,outpred],   
+                     data = train[,featnms],   
                      T = 1e4, eta = 1,  # Boosting hyperparameter
                      tree_hyperpar = hyptree) # Tree hyperparameter
 ```
@@ -747,7 +783,7 @@ More expressive formula.
 
 ```{r}
 H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o, 
-                     data = train[,outpred], 
+                     data = train[,featnms], 
                      T = 1e4, eta = 1,  
                      tree_hyperpar = hyptree) 
 ```
@@ -799,7 +835,7 @@ runtime <- system.time({
     train <- df[!(df$pid %in% project), ]
     # Fit the model to the data to get the ensemble
     H <- train_adaboost3(formula = replicated ~ ., 
-                         data = train[,outpred],
+                         data = train[,featnms],
                          T = 1e4, eta = 1,  # Boosting hyperparameter 
                          tree_hyperpar = hyptree) # Tree hyperparameter
     # Make predictions on validation set 
@@ -854,7 +890,7 @@ for(i in seq_len(hgrid_rows)) {
       train <- df[!(df$pid %in% project), ]
       # Fit the model to the data to get the ensemble
       H <- train_adaboost3(replicated ~ ., 
-                           data = train[,outpred],
+                           data = train[,featnms],
                            T = hgrid$T[i],  
                            eta = hgrid$eta[i],  
                            tree_hyperpar = rpart::rpart.control(
@@ -893,7 +929,7 @@ yet.
 
 ```{r}
 H_final <- train_adaboost3(formula = replicated ~ .,   
-                           data = df[,outpred],    
+                           data = df[,featnms],    
                            T = 10, eta = 1, 
                            tree_hyperpar = rpart::rpart.control( 
                              maxdepth = 1))
