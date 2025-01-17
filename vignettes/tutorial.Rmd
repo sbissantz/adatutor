@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Software (maybe together with Approach)
+# Prerequisite
 
 Install the package from Github.
 
@@ -28,6 +28,7 @@ remotes::install_github("sbissantz/adatutor")
 Load the adatutor package.
 
 ```{r}
+# Load the package
 library(adatutor)
 ```
 
@@ -35,16 +36,15 @@ Load the data set.
 
 ```{r}
 # Load the data
-data("altmext")
+data("altmejd")
+?altmejd
 ```
-
-- TODO: Document the data set in R so that it is accessible with `?altmext`
 
 Full data set from Altmejd et. al plus the SSRP data.
 
 # Introduction 
 
-Introduce the relevant variables
+Introduce the relevant variables.
 
 ```{r}
 # Reviewer metrics (names)
@@ -55,13 +55,13 @@ outnme <- "replicated"
 voinms <- c("pid","eid", prednms, outnme)
 # Features (names)
 featnms <- union(prednms, outnme)
-# Abbreviate 'altmext'
-df <- altmext[voinms]
+# Abbreviate 'altmejd'
+df <- altmejd[voinms]
 ```
 
 # Module 1: Splitting 
 
-## Training and testing split 
+## Training and test split 
 
 Show how to do a simple random split and stratified split.
 
@@ -80,7 +80,7 @@ n_fx <- nrow(df)
 n_train <- round(n_fx * prop)
 # Training index
 train_idx <- sample(seq_len(n_fx), n_train)
-# Training and testing set 
+# Training and test set 
 train <- df[train_idx, ]
 # Test set (incl. validation)
 testvalid  <- df[-train_idx, ]
@@ -89,8 +89,10 @@ testvalid  <- df[-train_idx, ]
 Repeat with simple wrapper function.
 
 ```{r}
-# 70/30 random split 
-randsplit <- random_split(df, prop = 0.7, seed = 112)
+# Reproducibility
+set.seed(112)
+# 70/30 random split
+randsplit <- random_split(df, prop = 0.7)
 # Training set
 train_tld <- randsplit$set1
 # Test set (incl. validation)
@@ -104,33 +106,35 @@ all.equal(train$eid, train_tld$eid)
 all.equal(testvalid$eid, testvalid_tld$eid)
 ```
 
-Extract a validation set. 
+Extract a validation set.
 
 ```{r}
 # Reproducibility
 set.seed(112)
 # Split proportion
 prop <- 0.5
-# Number of effects 
+# Number of effects
 n_fx <- nrow(testvalid)
-# N° training samples
+# Number of training samples
 n_valid <- round(n_fx * prop)
 # Training index
 valid_idx <- sample(seq_len(n_fx), n_valid)
 # Validation set
 valid <- testvalid[valid_idx, ]
 # Test set
-test <- testvalid[-valid_idx, ] 
+test <- testvalid[-valid_idx, ]
 ```
 
 Repeat with simple wrapper function.
 
 ```{r}
+# Reproducibility
+set.seed(112)
 # Another random split
-randsplit <- random_split(testvalid, prop = 0.5, seed = 112)
+randsplit <- random_split(testvalid, prop = 0.5)
 # Another validation set
 valid_tld  <- randsplit$set1
-# Another test set 
+# Another test set
 test_tld <- randsplit$set2
 ```
 
@@ -162,6 +166,7 @@ tbl_test <- table(test$replicated)
 proportions(tbl_train)
 proportions(tbl_test)
 ```
+
 Do a stratified split using the full data set.
 
 ```{r}
@@ -169,17 +174,16 @@ Do a stratified split using the full data set.
 set.seed(112)
 # Split proportion
 prop <- 0.7
-# Partition data based on outcome 
+# Partition data based on outcome
 set_split <- split(df, df$replicated)
-# N° training samples (stratified)
-n_train <- lapply(set_split, 
-                  function(set) round(nrow(set) * prop))
+# Number of training samples (stratified)
+n_train <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Training index (stratified)
-strat_idx <- mapply(function(set, n) sample(set[,"eid"], n), 
+strat_idx <- mapply(function(set, n) sample(set[,"eid"], n),
                     set_split, n_train)
-# Training index 
-train_idx <- df$eid %in% unlist(strat_idx) 
-# Training 
+# Training index
+train_idx <- df$eid %in% unlist(strat_idx)
+# Training
 train <- df[train_idx, ]
 # Test set (incl. validation)
 testvalid  <- df[!train_idx, ]
@@ -189,16 +193,15 @@ Show imbalances in the outcome variable.
 
 ```{r}
 # Relative from absolute frequencies
-proportions(table(train$replicated)) 
-proportions(table(testvalid$replicated)) 
+proportions(table(train$replicated))
+proportions(table(testvalid$replicated))
 ```
 
 Repeat with simple wrapper function.
 
 ```{r}
 # Another stratified split
-stratsplit <- stratified_split(df, group = "replicated", id = "eid", 
-                               prop = 0.7, seed = 112)
+stratsplit <- stratified_split(df, group = "replicated", id = "eid", prop = 0.7)
 # Another training set
 train_tld <- stratsplit$set1
 # Another test set (incl. validation)
@@ -212,7 +215,7 @@ all.equal(train$eid, train_tld$eid)
 all.equal(testvalid$eid, testvalid_tld$eid)
 ```
 
-Extract a validation set. 
+Extract a validation set.
 
 ```{r}
 # Reproducibility
@@ -221,15 +224,15 @@ set.seed(112)
 prop <- 0.5
 # Partition data based on outcome
 set_split <- split(testvalid, testvalid$replicated)
-# N° training samples (stratified)
+# Number of training samples (stratified)
 n_valid <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Validation index (stratified)
-strat_idx <- mapply(function(set, n) sample(set[,"eid"], n), 
+strat_idx <- mapply(function(set, n) sample(set[,"eid"], n),
                     set_split, n_valid)
-valid_idx <- testvalid$eid %in% unlist(strat_idx) 
-# Validation set 
+valid_idx <- testvalid$eid %in% unlist(strat_idx)
+# Validation set
 valid <- testvalid[valid_idx, ]
-# Test set 
+# Test set
 test <- testvalid[!valid_idx, ]
 ```
 
@@ -237,15 +240,15 @@ Show imbalances in the outcome variable.
 
 ```{r}
 # Relative from absolute frequencies
-proportions(table(train$replicated)) 
-proportions(table(testvalid$replicated)) 
+proportions(table(train$replicated))
+proportions(table(testvalid$replicated))
 ```
 Repeat with simple wrapper function.
 
 ```{r}
 # Another stratified split
-stratsplit <- stratified_split(testvalid, group = "replicated", id = "eid", 
-                          prop = 0.5, seed = 112)
+stratsplit <- stratified_split(testvalid, group = "replicated", id = "eid",
+                          prop = 0.5)
 # Another validation set
 valid_tld <- stratsplit$set1
 # Another test set
@@ -263,7 +266,7 @@ Pre-implemented solution using the `rsample` package
 
 ```{r eval=FALSE}
 library(rsample)
-set.seed(112)  
+set.seed(112)
 # Simple random split
 randsplit <- initial_split(df, prop = 0.7)
 train <- training(randsplit)
@@ -274,669 +277,669 @@ train <- training(stratsplit)
 testvalid <- testing(stratsplit)
 ```
 
-# Module 2: A Primer on Classification Trees 
-
-## Classification problems
-
-## Classification trees
-
-Code to reproduce Figure 2.1.
-
-```{r, dev = "png"}
-# Extract only two predictors 
-# Note: Reduces run-time - decision boundary visualization
-subfeat <- c("power.o", "n.o")
-subdf <-  train[,union(subfeat, outnme)]
-# Hyperparameter setup 
-hyptree <- rpart::rpart.control(
-  # Maximum depth of any node tree 
-  maxdepth = 1, 
-  # Minimum number of observations in terminal node
-  minbucket = 4,
-  # Original CART with gini impurity as splitting criterion  
-  split = "gini") # or ID3: split = "information"
-# Create a decision tree 
-h <- rpart::rpart(formula = replicated ~ ., data = subdf,  method = "class", 
-                  control = hyptree)
-# Visualize
-rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy")
-```
-
-#### Classification stumps
-
-Code to reproduce Figure 2.2
-
-```{r}
-# Outcome variable
-y_train <- train[, outnme]
-# Number of classes
-k <- length(unique(subdf$replicated))
-# Range(s) as list
-rng <- lapply(subdf[,subfeat], range, na.rm = TRUE)
-# Grid resolution
-resolution <- 1e3 
-# Colors
-col1 <- "cornflowerblue" ; col2 <- "ivory4"
-# Transparency
-alpha.f <- 0.03
-col1_transp <- adjustcolor(col1, alpha.f)
-col2_transp <- adjustcolor(col2, alpha.f) 
-# First feature sequence
-x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-# Second feature sequence
-x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
-# Make grid from sequences
-grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
-# Predict grid
-y_pred <- predict(h, grid, type = "class")
-# Contour matrix
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
-# "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_train == "failure", col1, col2)
-# "0" means "not replicated", "1" means "replicated"
-grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
-plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
-   xlab = "power.o", ylab = "n.o")
-points(grid, col = grid_colors, pch = ".")
-points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15)
-contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
-      col = "black", levels = (1:(k-1))+.5)
-legend("topleft", c("success", "failure") , pch = c(17,16), 
-     col = c(col2, col1), cex=0.7)
-```
-
-Code Chunk 2.1
-
-```{r}
-# Define the condition for the split
-splitcond <- train$power.o < 0.92866
-# Studies with df$power.o < 0.92866 
-table(train$replicated[splitcond])
-# Studies with df$power.o >= 0.92866 
-table(train$replicated[!splitcond])
-```
-
-## Fit and visuaize a classification stump
-
-Code Chunk 2.2
-
-```{r}
-library(rpart)
-# Hyperparameter setup for classification stump
-hyptree <- rpart.control(
-  maxdepth = 1, # Maximum depth
-  split = "gini") # Gini impurity (default)
-# Fit classification stump
-cstump <- rpart(formula = replicated ~ ., data = train[,featnms], 
-                method = "class", control = hyptree)
-```
-
-Code Chunk 2.3
-
-```{r, eval=FALSE}
-library(rpart.plot)
-# Visualize a classification stump
-rpart.plot(cstump, extra = 102, digits = 5, box.palette="BuGy")
-```
-
-### Gini impurity
-
-Code tio reproduce Figure 2.3
-
-```{r}
-# Calculate Gini Impurity
-x <- seq(0.01, 1, by = 0.01)  # Values for fraction of class k
-y <- 1 - (x^2) - (1-x)^2      # Gini Impurity calculation
-# Create the plot
-plot(x, y, type = "l", lwd = 2, # Specify line plot
-     xlab = "Proportion of Successes",
-     ylab = "Impurity" )
-mtext("Two Class Classification Problem")
-# Customize axes
-axis(side = 1, at = seq(0, 1, by = 0.1))
-```
-
-#### Why `power.o > 0.92866`?
-
-Code Chunk 2.4
-
-```{r}
-power_sorted <- sort(train$power.o)
-adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
-```
-
-Check if calculations in the text are correct. 
-
-```{r}
-constant <- adjacent_means[69] # 0.9286641
-N_total <- nrow(train) # N_total: 107
-
-# Left leaf (power.o < 0.9286641: yes)
-criterion_left <- train$power.o < constant
-N_left <- length(train$replicated[criterion_left]) # 69 total
-left_success <- sum(as.numeric(train$replicated[criterion_left]) - 1) # 19 successes
-left_failure <- N_left - left_success # 50 failures
-
-# Right leaf (power.o < 0.9286641: no)
-criterion_right <- train$power.o >= constant
-N_right <- length(train$replicated[criterion_right]) # 38 
-right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1) # 29 
-right_failure <- N_right - right_success # failures
-
-# Individual Gini impurities
-gini_left <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
-gini_right <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
-
-# Overall weighted Gini impurity
-gini_impurity <- (N_left / N_total) * gini_left + (N_right / N_total) * gini_right
-round(gini_impurity, digits = 5)
-```
-
-Show (quick and dirty) that value is the smallest impurity.
-
-```{r}
-power_sorted <- sort(train$power.o)
-adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2
-gini_impurity <- vector(length = length(adjacent_means))
-  for(i in 1:length(adjacent_means) ) {
-  constant <- adjacent_means[i]
-  N_total <- length(y_train)
-  # Left leaf
-  criterion_left <- train$power.o < constant
-  N_left <- length(train$replicated[criterion_left])
-  left_success <- sum(as.numeric(train$replicated[criterion_left]) - 1)
-  left_failure <- N_left - left_success
-  # Right leaf
-  criterion_right <- train$power.o >= constant
-  N_right <- length(train$replicated[criterion_right])
-  right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1)
-  right_failure <- N_right - right_success
-  # Gini index
-  gini_d1 <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
-  gini_d2 <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
-  # Impurity
-  gini_impurity[i] <- (N_left / N_total) * gini_d1 + 
-    (N_right / N_total) * gini_d2
-  }
-# Position of smallest impurity
-which.min(gini_impurity)
-# Outcome
-adjacent_means[which.min(gini_impurity)]
-```
-
-#### Sensitivity to observation weights
-
-Make the assumption of random weights explicit.
-
-```{r}
-m <- nrow(train)
-# Equal weight to each observation
-D <- rep(1, m)/m
-# Create a decision stump
-h <- rpart(formula = replicated ~ .,   data = train[, featnms],   
-           method = "class",  weight = D, control = hyptree)
-# Visualize
-rpart.plot(h, digits = 5, box.palette="BuGy")
-```
-
-Show sensitivity to observation weights with normalized random weights.
-
-```{r}
-# Reproducibility
-set.seed(112)
-# Random draws from Uniform(0,1)
-D_unorm <- runif(107)
-# Normalize (sum: 1)
-D <- D_unorm/sum(D_unorm) 
-# Create a decision stump
-cstump_ast <- rpart(formula = replicated ~ .,  data = train[,featnms], 
-                  method = "class", weight = D, control = hyptree)
-# Visualize
-rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
-```
-
-# Module 3: Adaptive Boosting 
-
-Predictor "matrix" and outcome "vector". Actually the predictor matrix is a
-data frame. The outcome is a factor variable.
-
-```{r}
-# Predictors and outcome (names)
-prednms ; outnme 
-# Predictor matrix 
-x_train <- train[, prednms]
-# Outcome vector 
-y_train <- train[, outnme]
-# Indices
-i <- 1 ; m <- nrow(train)
-# i-th row/element
-x_train[i,] ; y_train[i]
-# i-th to m-th row/element
-cbind(x_train, y_train)[i:m,]
-```
-
-## Iteration 1 
-
-```{r}
-# Outcome vectors 
-y_train <- train[, outnme]
-(y_test <- test[, outnme])
-```
-
-Initialization weights are normalized equal weights.
-
-```{r}
-D1 <- rep(1, m)/m
-```
-
-Train a single weak learner ($h_t$) with the initialization weights and the
-given tree hyperparameter setup.
-
-```{r}
-h <- rpart::rpart(formula = replicated ~ ., data = train[,featnms] ,
-method = "class", weights = D1, control = hyptree)
-```
-
-Make predictions with the weak learner (h_t). Define the normalization constant
-and calculate the TODO
-
-```{r}
-y_class <- predict(object = h, newdata = train[, featnms], type = "class")
-epsilon <- sum(D1 * (y_train != y_class)) 
-```
-
-Compute the training error (e_t) of the weak learner (h_t). This is simply one
-minus the weighted accuracy, given weights D
-
-```{r}
-perf <- sum(D1 * (y_train == y_class)) 
-epsilon <- 1 - perf 
-```
-
-Compute the the weight (a_t) of the weak learner (h_t).
-Reduce the learner weight by a factor eta (learning rate).
-
-```{r}
-eta <- 1 
-alpha1 <- 1/2 * log(perf / epsilon) * eta
-```
-
-Second weighting process: learner weights. The better the model performs (that
-is, the lower its error) the more weight it gets in the overall ensemble -
-independent of the learning rate $\eta$.
-
-```{r}
-fat <- function(x, eta) 1/2 * log(x/(1-x)) * eta
-curve(fat(x, 1), from = 0.5, to = 1, lwd = 2, 
-      ylab = "Importance", xlab = "Performance")
-grid()
-curve(fat(x,0.5), from = 0.5, to = 1, lwd = 2, col = "ivory4", add = TRUE)
-curve(fat(x,0.1), from = 0.5, to = 1, lwd = 2, col = "steelblue", add = TRUE)
-legend("topleft", legend = c(expression(eta*" = 1"), expression(eta*" = 0.5"),  
-                             expression(eta*" = 0.1")),
-       col = c("black", "ivory4", "steelblue"), lty = c(1, 1, 1), lwd = 2)
-```
-
-Indicator function that gives a one for correct classifications (prediction is
-equal to observed value in the training set) and a minus one for a
-misclassification (prediction is unequal to observed value in the training set).
-
-```{r}
-chi1 <- (y_train == y_class) * 1 + (y_train != y_class) * -1
-```
-
-Update the sample weights. Define the normalization constant and (re)normalize
-to maintain the probabilistic interpretation.
-
-```{r}
-D2_unorm <- D1 * exp(-alpha1 * chi1)
-Z1 <- sum(D2_unorm)
-D2 <- D2_unorm / Z1
-```
-
-Weight updating process. Answers, why correctly classified training data points
-are less reduced than the falsely classified are increased.
-
-```{r}
-feat <- function(at, x) exp(-at*x)
-curve(feat(0.719, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
-      xlab = "Classification", ylab = "Weight update factor",  xaxt = "n") 
-grid()
-points(c(1,-1), c(feat(0.719, 1), feat(0.7, -1)), pch = 20, cex = 2)
-curve(feat(0.619,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3,
-      add = TRUE) 
-points(c(1,-1), c(feat(0.619, 1), feat(0.6, -1)), pch = 20, cex = 2, col = "ivory4")
-curve(feat(0.519,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3,
-      add = TRUE) 
-points(c(1,-1), c(feat(0.519, 1), feat(0.51, -1)), pch = 20, cex = 2, 
-       col = "steelblue")
-abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
-legend("topright", legend = c(expression(a[t]*" = 0.719"), 
-                              expression(a[t]*" = 0.619"), 
-                              expression(a[t]*" = 0.519")),
-       col = c("black", "ivory4", "steelblue"),
-       lty = c(1, 1, 1), lwd = 2)
-axis(1,at = c(-1,1))
-```
-$a = f(e, \eta)$ The more weight $a$ we assign to an individual learner the
-stronger the effect on the observation weights (increase/decrease).
-Misclassifications are always more penalized (increase in observation weight)
-than correct classifications (decrease in observation weights).
-
-Visualize the result of the weight updating process.
-
-```{r}
-n_25 <- 25
-scaling <- 175
-plot(c(1, n_25), c(0, D1[1] + 0.02) , type = "n", xaxt = "n",
-     xlab = "Data point", ylab = "Weight")
-axis(1, at = 1:n_25, labels = paste(1:25), cex = 0.5)
-for(i in 1:n_25) {
-  lines(c(i,i),c(D1[i], D2[i]), lty = 3)
-}
-
-points(D1[1:n_25], pch = 20, col = "ivory4",  cex = D1[1] * scaling)
-points(D1[1:n_25], pch = 20, col = ifelse((y_train == y_class), "green", "red"), 
-       cex = D1[1] + 0.2)
-points(D2[1:n_25], pch = 20, col = "steelblue", cex = D2[1:n_25] * scaling) 
-legend("topright", legend = c(expression(D[1]), expression(D[2])), 
-       col = c("ivory4", "steelblue"),
-       pch = c(20, 20))
-```
-
-## The loop 
-
-Put everything in a loop.
-
-```{r}
-hyptree <- rpart::rpart.control(maxdepth = 1) 
-T <- 1e4 # Number of trees 
-eta <- 1 # Learning rate 
-H <- vector("list", T)
-D <- rep(1, m)/m
-for (t in seq_len(T)) {
-  h <- rpart::rpart(formula = replicated ~ ., data = train[, featnms] ,
-  method = "class", weights = D, control = hyptree)
-  y_retro <- predict(object = h, newdata = train[, featnms], type = "class")
-  e <- sum(D * (y_train != y_retro)) 
-  a <- 0.5 * log( (1 - e)  / e) * eta
-  chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1
-  D_unorm <- (D * exp(-a * chi))
-  D <- D_unorm/sum(D_unorm) 
-  # H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi, "y_retro" =
-  # as.numeric(y_retro))
-  H[[t]] <- list("h" = h, "a" = a)
-}
-names(H) <- paste0("t", seq_len(T))
-
-cat("Model weight 1:", H$t3$a) 
-```
-
-Make retrodictions.
-
-```{r}
-h <- lapply(H, "[[", "h")
-a <- sapply(H, "[[", "a")
-y_retro_stumps <- sapply(h, predict, 
-                         newdata = train[, featnms], 
-                         type = "vector")
-y_retro_stumps <- 2 * y_retro_stumps - 3 
-y_retro_ada <- sign(a %*% t(y_retro_stumps))
-table(y_train, y_retro_ada) # In-sample 
-```
-
-Alternative for non-algebraists.
-
-```{r}
-for (n in seq_len(m)) {
-  y_retro_ada[n] <- sign(sum(a * y_retro_stumps[n, ]))
-}
-```
-
-Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
-
-```{r, eval=FALSE}
-# Outcome vector
-y_obs <- train[,outnme]
-# Make 0/1 factor into something ADA can handle (-1/1)
-y_obs_ml <- 2 * as.numeric(train[,outcome]) - 3
-# Number of classes
-k <- length(unique(y_obs_ml))
-# Range(s) as list
-X_obs <- train[,c("power.o", "n.o")]
-rng <- lapply(X_obs, range, na.rm = TRUE)
-# Grid resolution
-resolution <- 1e3
-# Colors
-col1 <- "cornflowerblue" ; col2 <- "ivory4"
-# Transparency
-alpha.f <- 0.03
-col1_transp <- adjustcolor(col1, alpha.f)
-col2_transp <- adjustcolor(col2, alpha.f)
-# First feature sequence
-x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-# Second feature sequence
-x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
-# Make grid from sequences
-grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
-# Make grid
-# Tree hyperparameter setting
-tree_hyperpar <- rpart::rpart.control(
-  # Slightly different hyperparameters to improve visibility of boundary
-  maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
-  cp = 1e-2, split = "gini")
-# Fit ADAboost
-fit <- train_adaboost2(formula = replicated ~ .,
-                       data = train[,c("replicated", "power.o", "n.o")],
-                       T = 5e2, eta = 1, tree_hyperpar = tree_hyperpar)
-# Predict ADAboost
-y_pred_ml <- test_adaboost2(fit, grid)
-# Make prediction 0/1 instead of -1/1
-y_pred <- as.factor((y_pred_ml + 1) / 2)
-# Contour matrix
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
-# "0" means "not replicated", "1" means "replicated"
-symbol_colors <- ifelse(y_obs == "failure", col1, col2)
-grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
-```
-
-Visualize.
-
-```{r, eval = FALSE}
-plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq), 
-     xlab = "power.o", ylab = "n.o")
-points(grid, col = grid_colors, pch = ".")
-# points(grid, col = as.integer(y_pred) + 6L, pch = ".")
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
-# For the black line 
-contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2, 
-        col = "black", levels = (1:(k-1))+.5)
-points(X_obs, col = symbol_colors, pch = as.integer(y_obs) + 15)
-legend("topleft", c("success", "failure") , pch = c(17,16), 
-       col = c(col2, col1), cex=0.7)
-```
-
-Make predictions.
-
-```{r}
-x_test <- test[, predictors]
-y_pred_stumps <- sapply(h, predict, 
-                        newdata = test[, featnms], 
-                        type = "vector")
-y_pred_stumps <- 2 * y_pred_stumps - 3 
-y_pred_ada <- sign(a %*% t(y_pred_stumps))
-table(y_test, y_pred_ada)
-```
-
-# Module 4: Leave-Subject-Out Cross-Validation
-
-Introduce two wrapper functions with some additional sugar.
-
-```{r}
-H <- train_adaboost3(formula = replicated ~ .,  
-                     data = train[,featnms],   
-                     T = 1e4, eta = 1,  # Boosting hyperparameter
-                     tree_hyperpar = hyptree) # Tree hyperparameter
-```
-
-More expressive formula.
-
-```{r}
-H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o, 
-                     data = train[,featnms], 
-                     T = 1e4, eta = 1,  
-                     tree_hyperpar = hyptree) 
-```
-
-## Testing function
-
-```{r}
-ytilde <- test_adaboost3(H = H, data = test[,predictors])
-```
-
-
-## Performance evaluation
-
-```{r}
-```
-
-Show the imbalances in the data.
-
-```{r}
-table(df$replicated)
-```
-
-Model evaluation.
-
-```{r}
-confusion <- table(ytilde, test$replicated)
-sum(diag(confusion)) / sum(confusion) # Accuracy
-AUC::roc(ytilde, test$replicated) |> AUC::auc()
-y1m1 <- 2 * as.numeric(test$replicated) - 3
-mltools::mcc(as.numeric(ytilde), y1m1)
-```
-
-## LOOCV
-
-```{r}
-# Partition the data by "Project ID"
-df_split <- split(df, df$pid)
-
-# Pre-allocate the AUC list
-auc <- list()
-
-# Leave-Project-Out Cross-Validation
-runtime <- system.time({
-  for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
-    message("\nThe ", paste0(project), " model.\n")
-    # Define the testing set
-    test <- df_split[[project]]
-    # Define the training set
-    train <- df[!(df$pid %in% project), ]
-    # Fit the model to the data to get the ensemble
-    H <- train_adaboost3(formula = replicated ~ ., 
-                         data = train[,featnms],
-                         T = 1e4, eta = 1,  # Boosting hyperparameter 
-                         tree_hyperpar = hyptree) # Tree hyperparameter
-    # Make predictions on validation set 
-    ytilde <- test_adaboost3(H = H, data = test[, predictors]) 
-    # Store the performance evaluation (level: effects)
-    auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicated) )
-  }})
-# Waiting time
-message("Run time: ", runtime["elapsed"], " s\n")
-c(unlist(auc), "mean" = mean(unlist(auc)))
-```
-
-This will run for approximately 4 minutes.
-
-# Module 5: Hyperparameter Optimization using LPO-CV
-
-```{r}
-# TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5
-hgrid <- expand.grid(
-  # Tree-specific 
-  "maxdepth" = 1:3, # Interaction depth
-  # Ensemble specific
-  "T" = c(1e1, 1e2, 1e3), # Number of trees
-  "eta" = c(1, 0.1), # Learning rate
-  # Container for fold performance
-  "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA, 
-  "auc.mean" = NA, "runtime" = NA) # Average performance
-# Number of combinations 
-```
-
-Hyperparameter optimization using leave-project-out cross-validation.
-
-```{r}
-hgrid_rows <- nrow(hgrid)
-# Partition the data by "Project ID"
-df_split <- split(df[,voi], df$pid) 
-# For each entry in the hypergrid, do...
-for(i in seq_len(hgrid_rows)) {
-  # Track the iteration time (time-accuracy trade-off)
-  runtime <- system.time({
-    # Leave-One-Project-Out Cross-Validation
-    for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { 
-      # Rudimentary progress report with carriage return "\r"
-      cat("\rProgress: ", round(i / hgrid_rows * 100), "%",
-          " | T: ", hgrid$T[i], 
-          " | eta: ", hgrid$eta[i], 
-          " | maxdepth: ", hgrid$maxdepth[i],
-          " | model: ", project)
-      # Define the testing set
-      test <- df_split[[project]] 
-      # Define the training set
-      train <- df[!(df$pid %in% project), ]
-      # Fit the model to the data to get the ensemble
-      H <- train_adaboost3(replicated ~ ., 
-                           data = train[,featnms],
-                           T = hgrid$T[i],  
-                           eta = hgrid$eta[i],  
-                           tree_hyperpar = rpart::rpart.control(
-                             maxdepth = hgrid$maxdepth[i]), 
-                           verbose = FALSE)
-      # Make predictions on validation set 
-      ytilde <- test_adaboost3(H = H, data = test[, predictors], 
-                                   verbose = FALSE) 
-      # Store the performance evaluation (level: effects)
-      hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicated)) }
-    # Calculate the average performance
-    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8]))
-  }) 
-  hgrid$runtime[i] <- runtime[["elapsed"]]
-}
-message("\nTotal run time: ", sum(hgrid$runtime))
-```
-
-Performance evaluation sorted by highest AUC.
-
-```{r}
-hgrid[order(-hgrid$auc.mean), ]
-```
-
-Stacking the best performing algorithms could improve the predictions quite
-significantly here! For example, learners 2 and 3 perform quite well on the ee
-project, while learners 1 and 8 perform quite well on ml1.
-
-## Optimized Ensemble 
-
-If we do not stack the results, we should at least fit the model with the
-hyperparameters that had the best average performance (here AUC) across all
-replication projects. However, we don't get a true sense of the model's
-out-of-sample capabilities because we don't have another project it hasn't seen
-yet.
-
-```{r}
-H_final <- train_adaboost3(formula = replicated ~ .,   
-                           data = df[,featnms],    
-                           T = 10, eta = 1, 
-                           tree_hyperpar = rpart::rpart.control( 
-                             maxdepth = 1))
-```
-
-# Module 6: Stacking (?) 
-
-Stacking the best performing algorithms could improve the predictions quite
-significantly here! For example, learners 2 and 3 perform quite well on the ee
-project, while learners 1 and 8 perform quite well on ml1. 
+<!-- # Module 2: A Primer on Classification Trees  -->
+
+<!-- ## Classification problems -->
+
+<!-- ## Classification trees -->
+
+<!-- Code to reproduce Figure 2.1. -->
+
+<!-- ```{r, dev = "png"} -->
+<!-- # Extract only two predictors  -->
+<!-- # Note: Reduces run-time - decision boundary visualization -->
+<!-- subfeat <- c("power.o", "n.o") -->
+<!-- subdf <-  train[,union(subfeat, outnme)] -->
+<!-- # Hyperparameter setup  -->
+<!-- hyptree <- rpart::rpart.control( -->
+<!--   # Maximum depth of any node tree  -->
+<!--   maxdepth = 1,  -->
+<!--   # Minimum n° observations in terminal node -->
+<!--   minbucket = 4, -->
+<!--   # Original CART with gini impurity as splitting criterion   -->
+<!--   split = "gini") # or ID3: split = "information" -->
+<!-- # Create a decision tree  -->
+<!-- h <- rpart::rpart(formula = replicated ~ ., data = subdf,  method = "class",  -->
+<!--                   control = hyptree) -->
+<!-- # Visualize -->
+<!-- rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy") -->
+<!-- ``` -->
+
+<!-- #### Classification stumps -->
+
+<!-- Code to reproduce Figure 2.2 -->
+
+<!-- ```{r} -->
+<!-- # Outcome variable -->
+<!-- y_train <- train[, outnme] -->
+<!-- # Number of classes -->
+<!-- k <- length(unique(subdf$replicated)) -->
+<!-- # Range(s) as list -->
+<!-- rng <- lapply(subdf[,subfeat], range, na.rm = TRUE) -->
+<!-- # Grid resolution -->
+<!-- resolution <- 1e3  -->
+<!-- # Colors -->
+<!-- col1 <- "cornflowerblue" ; col2 <- "ivory4" -->
+<!-- # Transparency -->
+<!-- alpha.f <- 0.03 -->
+<!-- col1_transp <- adjustcolor(col1, alpha.f) -->
+<!-- col2_transp <- adjustcolor(col2, alpha.f)  -->
+<!-- # First feature sequence -->
+<!-- x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution) -->
+<!-- # Second feature sequence -->
+<!-- x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution) -->
+<!-- # Make grid from sequences -->
+<!-- grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq) -->
+<!-- # Predict grid -->
+<!-- y_pred <- predict(h, grid, type = "class") -->
+<!-- # Contour matrix -->
+<!-- z_mat <- matrix(as.integer(y_pred), nrow = resolution) -->
+<!-- # "0" means "not replicated", "1" means "replicated" -->
+<!-- symbol_colors <- ifelse(y_train == "failure", col1, col2) -->
+<!-- # "0" means "not replicated", "1" means "replicated" -->
+<!-- grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp) -->
+<!-- plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),  -->
+<!--    xlab = "power.o", ylab = "n.o") -->
+<!-- points(grid, col = grid_colors, pch = ".") -->
+<!-- points(subdf[,subfeat], col = symbol_colors, pch = as.integer(y_train) + 15) -->
+<!-- contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2,  -->
+<!--       col = "black", levels = (1:(k-1))+.5) -->
+<!-- legend("topleft", c("success", "failure") , pch = c(17,16),  -->
+<!--      col = c(col2, col1), cex=0.7) -->
+<!-- ``` -->
+
+<!-- Code Chunk 2.1 -->
+
+<!-- ```{r} -->
+<!-- # Define the condition for the split -->
+<!-- splitcond <- train$power.o < 0.92866 -->
+<!-- # Studies with df$power.o < 0.92866  -->
+<!-- table(train$replicated[splitcond]) -->
+<!-- # Studies with df$power.o >= 0.92866  -->
+<!-- table(train$replicated[!splitcond]) -->
+<!-- ``` -->
+
+<!-- ## Fit and visuaize a classification stump -->
+
+<!-- Code Chunk 2.2 -->
+
+<!-- ```{r} -->
+<!-- library(rpart) -->
+<!-- # Hyperparameter setup for classification stump -->
+<!-- hyptree <- rpart.control( -->
+<!--   maxdepth = 1, # Maximum depth -->
+<!--   split = "gini") # Gini impurity (default) -->
+<!-- # Fit classification stump -->
+<!-- cstump <- rpart(formula = replicated ~ ., data = train[,featnms],  -->
+<!--                 method = "class", control = hyptree) -->
+<!-- ``` -->
+
+<!-- Code Chunk 2.3 -->
+
+<!-- ```{r, eval=FALSE} -->
+<!-- library(rpart.plot) -->
+<!-- # Visualize a classification stump -->
+<!-- rpart.plot(cstump, extra = 102, digits = 5, box.palette="BuGy") -->
+<!-- ``` -->
+
+<!-- ### Gini impurity -->
+
+<!-- Code tio reproduce Figure 2.3 -->
+
+<!-- ```{r} -->
+<!-- # Calculate Gini Impurity -->
+<!-- x <- seq(0.01, 1, by = 0.01)  # Values for fraction of class k -->
+<!-- y <- 1 - (x^2) - (1-x)^2      # Gini Impurity calculation -->
+<!-- # Create the plot -->
+<!-- plot(x, y, type = "l", lwd = 2, # Specify line plot -->
+<!--      xlab = "Proportion of Successes", -->
+<!--      ylab = "Impurity" ) -->
+<!-- mtext("Two Class Classification Problem") -->
+<!-- # Customize axes -->
+<!-- axis(side = 1, at = seq(0, 1, by = 0.1)) -->
+<!-- ``` -->
+
+<!-- #### Why `power.o > 0.92866`? -->
+
+<!-- Code Chunk 2.4 -->
+
+<!-- ```{r} -->
+<!-- power_sorted <- sort(train$power.o) -->
+<!-- adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2 -->
+<!-- ``` -->
+
+<!-- Check if calculations in the text are correct.  -->
+
+<!-- ```{r} -->
+<!-- constant <- adjacent_means[69] # 0.9286641 -->
+<!-- N_total <- nrow(train) # N_total: 107 -->
+
+<!-- # Left leaf (power.o < 0.9286641: yes) -->
+<!-- criterion_left <- train$power.o < constant -->
+<!-- N_left <- length(train$replicated[criterion_left]) # 69 total -->
+<!-- left_success <- sum(as.numeric(train$replicated[criterion_left]) - 1) # 19 successes -->
+<!-- left_failure <- N_left - left_success # 50 failures -->
+
+<!-- # Right leaf (power.o < 0.9286641: no) -->
+<!-- criterion_right <- train$power.o >= constant -->
+<!-- N_right <- length(train$replicated[criterion_right]) # 38  -->
+<!-- right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1) # 29  -->
+<!-- right_failure <- N_right - right_success # failures -->
+
+<!-- # Individual Gini impurities -->
+<!-- gini_left <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 ) -->
+<!-- gini_right <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 ) -->
+
+<!-- # Overall weighted Gini impurity -->
+<!-- gini_impurity <- (N_left / N_total) * gini_left + (N_right / N_total) * gini_right -->
+<!-- round(gini_impurity, digits = 5) -->
+<!-- ``` -->
+
+<!-- Show (quick and dirty) that value is the smallest impurity. -->
+
+<!-- ```{r} -->
+<!-- power_sorted <- sort(train$power.o) -->
+<!-- adjacent_means <- (power_sorted[-1] + power_sorted[-length(power_sorted)]) / 2 -->
+<!-- gini_impurity <- vector(length = length(adjacent_means)) -->
+<!--   for(i in 1:length(adjacent_means) ) { -->
+<!--   constant <- adjacent_means[i] -->
+<!--   N_total <- length(y_train) -->
+<!--   # Left leaf -->
+<!--   criterion_left <- train$power.o < constant -->
+<!--   N_left <- length(train$replicated[criterion_left]) -->
+<!--   left_success <- sum(as.numeric(train$replicated[criterion_left]) - 1) -->
+<!--   left_failure <- N_left - left_success -->
+<!--   # Right leaf -->
+<!--   criterion_right <- train$power.o >= constant -->
+<!--   N_right <- length(train$replicated[criterion_right]) -->
+<!--   right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1) -->
+<!--   right_failure <- N_right - right_success -->
+<!--   # Gini index -->
+<!--   gini_d1 <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 ) -->
+<!--   gini_d2 <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 ) -->
+<!--   # Impurity -->
+<!--   gini_impurity[i] <- (N_left / N_total) * gini_d1 +  -->
+<!--     (N_right / N_total) * gini_d2 -->
+<!--   } -->
+<!-- # Position of smallest impurity -->
+<!-- which.min(gini_impurity) -->
+<!-- # Outcome -->
+<!-- adjacent_means[which.min(gini_impurity)] -->
+<!-- ``` -->
+
+<!-- #### Sensitivity to observation weights -->
+
+<!-- Make the assumption of random weights explicit. -->
+
+<!-- ```{r} -->
+<!-- m <- nrow(train) -->
+<!-- # Equal weight to each observation -->
+<!-- D <- rep(1, m)/m -->
+<!-- # Create a decision stump -->
+<!-- h <- rpart(formula = replicated ~ .,   data = train[, featnms],    -->
+<!--            method = "class",  weight = D, control = hyptree) -->
+<!-- # Visualize -->
+<!-- rpart.plot(h, digits = 5, box.palette="BuGy") -->
+<!-- ``` -->
+
+<!-- Show sensitivity to observation weights with normalized random weights. -->
+
+<!-- ```{r} -->
+<!-- # Reproducibility -->
+<!-- set.seed(112) -->
+<!-- # Random draws from Uniform(0,1) -->
+<!-- D_unorm <- runif(107) -->
+<!-- # Normalize (sum: 1) -->
+<!-- D <- D_unorm/sum(D_unorm)  -->
+<!-- # Create a decision stump -->
+<!-- cstump_ast <- rpart(formula = replicated ~ .,  data = train[,featnms],  -->
+<!--                   method = "class", weight = D, control = hyptree) -->
+<!-- # Visualize -->
+<!-- rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy") -->
+<!-- ``` -->
+
+<!-- # Module 3: Adaptive Boosting  -->
+
+<!-- Predictor "matrix" and outcome "vector". Actually the predictor matrix is a -->
+<!-- data frame. The outcome is a factor variable. -->
+
+<!-- ```{r} -->
+<!-- # Predictors and outcome (names) -->
+<!-- prednms ; outnme  -->
+<!-- # Predictor matrix  -->
+<!-- x_train <- train[, prednms] -->
+<!-- # Outcome vector  -->
+<!-- y_train <- train[, outnme] -->
+<!-- # Indices -->
+<!-- i <- 1 ; m <- nrow(train) -->
+<!-- # i-th row/element -->
+<!-- x_train[i,] ; y_train[i] -->
+<!-- # i-th to m-th row/element -->
+<!-- cbind(x_train, y_train)[i:m,] -->
+<!-- ``` -->
+
+<!-- ## Iteration 1  -->
+
+<!-- ```{r} -->
+<!-- # Outcome vectors  -->
+<!-- y_train <- train[, outnme] -->
+<!-- (y_test <- test[, outnme]) -->
+<!-- ``` -->
+
+<!-- Initialization weights are normalized equal weights. -->
+
+<!-- ```{r} -->
+<!-- D1 <- rep(1, m)/m -->
+<!-- ``` -->
+
+<!-- Train a single weak learner ($h_t$) with the initialization weights and the -->
+<!-- given tree hyperparameter setup. -->
+
+<!-- ```{r} -->
+<!-- h <- rpart::rpart(formula = replicated ~ ., data = train[,featnms] , -->
+<!-- method = "class", weights = D1, control = hyptree) -->
+<!-- ``` -->
+
+<!-- Make predictions with the weak learner (h_t). Define the normalization constant -->
+<!-- and calculate the TODO -->
+
+<!-- ```{r} -->
+<!-- y_class <- predict(object = h, newdata = train[, featnms], type = "class") -->
+<!-- epsilon <- sum(D1 * (y_train != y_class))  -->
+<!-- ``` -->
+
+<!-- Compute the training error (e_t) of the weak learner (h_t). This is simply one -->
+<!-- minus the weighted accuracy, given weights D -->
+
+<!-- ```{r} -->
+<!-- perf <- sum(D1 * (y_train == y_class))  -->
+<!-- epsilon <- 1 - perf  -->
+<!-- ``` -->
+
+<!-- Compute the the weight (a_t) of the weak learner (h_t). -->
+<!-- Reduce the learner weight by a factor eta (learning rate). -->
+
+<!-- ```{r} -->
+<!-- eta <- 1  -->
+<!-- alpha1 <- 1/2 * log(perf / epsilon) * eta -->
+<!-- ``` -->
+
+<!-- Second weighting process: learner weights. The better the model performs (that -->
+<!-- is, the lower its error) the more weight it gets in the overall ensemble - -->
+<!-- independent of the learning rate $\eta$. -->
+
+<!-- ```{r} -->
+<!-- fat <- function(x, eta) 1/2 * log(x/(1-x)) * eta -->
+<!-- curve(fat(x, 1), from = 0.5, to = 1, lwd = 2,  -->
+<!--       ylab = "Importance", xlab = "Performance") -->
+<!-- grid() -->
+<!-- curve(fat(x,0.5), from = 0.5, to = 1, lwd = 2, col = "ivory4", add = TRUE) -->
+<!-- curve(fat(x,0.1), from = 0.5, to = 1, lwd = 2, col = "steelblue", add = TRUE) -->
+<!-- legend("topleft", legend = c(expression(eta*" = 1"), expression(eta*" = 0.5"),   -->
+<!--                              expression(eta*" = 0.1")), -->
+<!--        col = c("black", "ivory4", "steelblue"), lty = c(1, 1, 1), lwd = 2) -->
+<!-- ``` -->
+
+<!-- Indicator function that gives a one for correct classifications (prediction is -->
+<!-- equal to observed value in the training set) and a minus one for a -->
+<!-- misclassification (prediction is unequal to observed value in the training set). -->
+
+<!-- ```{r} -->
+<!-- chi1 <- (y_train == y_class) * 1 + (y_train != y_class) * -1 -->
+<!-- ``` -->
+
+<!-- Update the sample weights. Define the normalization constant and (re)normalize -->
+<!-- to maintain the probabilistic interpretation. -->
+
+<!-- ```{r} -->
+<!-- D2_unorm <- D1 * exp(-alpha1 * chi1) -->
+<!-- Z1 <- sum(D2_unorm) -->
+<!-- D2 <- D2_unorm / Z1 -->
+<!-- ``` -->
+
+<!-- Weight updating process. Answers, why correctly classified training data points -->
+<!-- are less reduced than the falsely classified are increased. -->
+
+<!-- ```{r} -->
+<!-- feat <- function(at, x) exp(-at*x) -->
+<!-- curve(feat(0.719, x), from = -1, to = 1, ylim = c(0,3), lty = 3, -->
+<!--       xlab = "Classification", ylab = "Weight update factor",  xaxt = "n")  -->
+<!-- grid() -->
+<!-- points(c(1,-1), c(feat(0.719, 1), feat(0.7, -1)), pch = 20, cex = 2) -->
+<!-- curve(feat(0.619,x), from = -1, to = 1, ylim = c(0,2), col = "ivory4", lty = 3, -->
+<!--       add = TRUE)  -->
+<!-- points(c(1,-1), c(feat(0.619, 1), feat(0.6, -1)), pch = 20, cex = 2, col = "ivory4") -->
+<!-- curve(feat(0.519,x), from = -1, to = 1, ylim = c(0,2), col = "steelblue", lty = 3, -->
+<!--       add = TRUE)  -->
+<!-- points(c(1,-1), c(feat(0.519, 1), feat(0.51, -1)), pch = 20, cex = 2,  -->
+<!--        col = "steelblue") -->
+<!-- abline(h = 1, lty = 2, lwd = 1.5, col = "gray30") -->
+<!-- legend("topright", legend = c(expression(a[t]*" = 0.719"),  -->
+<!--                               expression(a[t]*" = 0.619"),  -->
+<!--                               expression(a[t]*" = 0.519")), -->
+<!--        col = c("black", "ivory4", "steelblue"), -->
+<!--        lty = c(1, 1, 1), lwd = 2) -->
+<!-- axis(1,at = c(-1,1)) -->
+<!-- ``` -->
+<!-- $a = f(e, \eta)$ The more weight $a$ we assign to an individual learner the -->
+<!-- stronger the effect on the observation weights (increase/decrease). -->
+<!-- Misclassifications are always more penalized (increase in observation weight) -->
+<!-- than correct classifications (decrease in observation weights). -->
+
+<!-- Visualize the result of the weight updating process. -->
+
+<!-- ```{r} -->
+<!-- n_25 <- 25 -->
+<!-- scaling <- 175 -->
+<!-- plot(c(1, n_25), c(0, D1[1] + 0.02) , type = "n", xaxt = "n", -->
+<!--      xlab = "Data point", ylab = "Weight") -->
+<!-- axis(1, at = 1:n_25, labels = paste(1:25), cex = 0.5) -->
+<!-- for(i in 1:n_25) { -->
+<!--   lines(c(i,i),c(D1[i], D2[i]), lty = 3) -->
+<!-- } -->
+
+<!-- points(D1[1:n_25], pch = 20, col = "ivory4",  cex = D1[1] * scaling) -->
+<!-- points(D1[1:n_25], pch = 20, col = ifelse((y_train == y_class), "green", "red"),  -->
+<!--        cex = D1[1] + 0.2) -->
+<!-- points(D2[1:n_25], pch = 20, col = "steelblue", cex = D2[1:n_25] * scaling)  -->
+<!-- legend("topright", legend = c(expression(D[1]), expression(D[2])),  -->
+<!--        col = c("ivory4", "steelblue"), -->
+<!--        pch = c(20, 20)) -->
+<!-- ``` -->
+
+<!-- ## The loop  -->
+
+<!-- Put everything in a loop. -->
+
+<!-- ```{r} -->
+<!-- hyptree <- rpart::rpart.control(maxdepth = 1)  -->
+<!-- T <- 1e4 # Number of trees  -->
+<!-- eta <- 1 # Learning rate  -->
+<!-- H <- vector("list", T) -->
+<!-- D <- rep(1, m)/m -->
+<!-- for (t in seq_len(T)) { -->
+<!--   h <- rpart::rpart(formula = replicated ~ ., data = train[, featnms] , -->
+<!--   method = "class", weights = D, control = hyptree) -->
+<!--   y_retro <- predict(object = h, newdata = train[, featnms], type = "class") -->
+<!--   e <- sum(D * (y_train != y_retro))  -->
+<!--   a <- 0.5 * log( (1 - e)  / e) * eta -->
+<!--   chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1 -->
+<!--   D_unorm <- (D * exp(-a * chi)) -->
+<!--   D <- D_unorm/sum(D_unorm)  -->
+<!--   # H[[t]] <- list("h" = h, "a" = a, "D" = D, "chi" = chi, "y_retro" = -->
+<!--   # as.numeric(y_retro)) -->
+<!--   H[[t]] <- list("h" = h, "a" = a) -->
+<!-- } -->
+<!-- names(H) <- paste0("t", seq_len(T)) -->
+
+<!-- cat("Model weight 1:", H$t3$a)  -->
+<!-- ``` -->
+
+<!-- Make retrodictions. -->
+
+<!-- ```{r} -->
+<!-- h <- lapply(H, "[[", "h") -->
+<!-- a <- sapply(H, "[[", "a") -->
+<!-- y_retro_stumps <- sapply(h, predict,  -->
+<!--                          newdata = train[, featnms],  -->
+<!--                          type = "vector") -->
+<!-- y_retro_stumps <- 2 * y_retro_stumps - 3  -->
+<!-- y_retro_ada <- sign(a %*% t(y_retro_stumps)) -->
+<!-- table(y_train, y_retro_ada) # In-sample  -->
+<!-- ``` -->
+
+<!-- Alternative for non-algebraists. -->
+
+<!-- ```{r} -->
+<!-- for (n in seq_len(m)) { -->
+<!--   y_retro_ada[n] <- sign(sum(a * y_retro_stumps[n, ])) -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- Prepare the setup for the decision boundary. Note: This might run for 5 minutes. -->
+
+<!-- ```{r, eval=FALSE} -->
+<!-- # Outcome vector -->
+<!-- y_obs <- train[,outnme] -->
+<!-- # Make 0/1 factor into something ADA can handle (-1/1) -->
+<!-- y_obs_ml <- 2 * as.numeric(train[,outcome]) - 3 -->
+<!-- # Number of classes -->
+<!-- k <- length(unique(y_obs_ml)) -->
+<!-- # Range(s) as list -->
+<!-- X_obs <- train[,c("power.o", "n.o")] -->
+<!-- rng <- lapply(X_obs, range, na.rm = TRUE) -->
+<!-- # Grid resolution -->
+<!-- resolution <- 1e3 -->
+<!-- # Colors -->
+<!-- col1 <- "cornflowerblue" ; col2 <- "ivory4" -->
+<!-- # Transparency -->
+<!-- alpha.f <- 0.03 -->
+<!-- col1_transp <- adjustcolor(col1, alpha.f) -->
+<!-- col2_transp <- adjustcolor(col2, alpha.f) -->
+<!-- # First feature sequence -->
+<!-- x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution) -->
+<!-- # Second feature sequence -->
+<!-- x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution) -->
+<!-- # Make grid from sequences -->
+<!-- grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq) -->
+<!-- # Make grid -->
+<!-- # Tree hyperparameter setting -->
+<!-- tree_hyperpar <- rpart::rpart.control( -->
+<!--   # Slightly different hyperparameters to improve visibility of boundary -->
+<!--   maxdepth = 3, minsplit = 5, minbucket = round(5 / 3), -->
+<!--   cp = 1e-2, split = "gini") -->
+<!-- # Fit ADAboost -->
+<!-- fit <- train_adaboost2(formula = replicated ~ ., -->
+<!--                        data = train[,c("replicated", "power.o", "n.o")], -->
+<!--                        T = 5e2, eta = 1, tree_hyperpar = tree_hyperpar) -->
+<!-- # Predict ADAboost -->
+<!-- y_pred_ml <- test_adaboost2(fit, grid) -->
+<!-- # Make prediction 0/1 instead of -1/1 -->
+<!-- y_pred <- as.factor((y_pred_ml + 1) / 2) -->
+<!-- # Contour matrix -->
+<!-- z_mat <- matrix(as.integer(y_pred), nrow = resolution) -->
+<!-- # "0" means "not replicated", "1" means "replicated" -->
+<!-- symbol_colors <- ifelse(y_obs == "failure", col1, col2) -->
+<!-- grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) -->
+<!-- ``` -->
+
+<!-- Visualize. -->
+
+<!-- ```{r, eval = FALSE} -->
+<!-- plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),  -->
+<!--      xlab = "power.o", ylab = "n.o") -->
+<!-- points(grid, col = grid_colors, pch = ".") -->
+<!-- # points(grid, col = as.integer(y_pred) + 6L, pch = ".") -->
+<!-- z_mat <- matrix(as.integer(y_pred), nrow = resolution) -->
+<!-- # For the black line  -->
+<!-- contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2,  -->
+<!--         col = "black", levels = (1:(k-1))+.5) -->
+<!-- points(X_obs, col = symbol_colors, pch = as.integer(y_obs) + 15) -->
+<!-- legend("topleft", c("success", "failure") , pch = c(17,16),  -->
+<!--        col = c(col2, col1), cex=0.7) -->
+<!-- ``` -->
+
+<!-- Make predictions. -->
+
+<!-- ```{r} -->
+<!-- x_test <- test[, predictors] -->
+<!-- y_pred_stumps <- sapply(h, predict,  -->
+<!--                         newdata = test[, featnms],  -->
+<!--                         type = "vector") -->
+<!-- y_pred_stumps <- 2 * y_pred_stumps - 3  -->
+<!-- y_pred_ada <- sign(a %*% t(y_pred_stumps)) -->
+<!-- table(y_test, y_pred_ada) -->
+<!-- ``` -->
+
+<!-- # Module 4: Leave-Subject-Out Cross-Validation -->
+
+<!-- Introduce two wrapper functions with some additional sugar. -->
+
+<!-- ```{r} -->
+<!-- H <- train_adaboost3(formula = replicated ~ .,   -->
+<!--                      data = train[,featnms],    -->
+<!--                      T = 1e4, eta = 1,  # Boosting hyperparameter -->
+<!--                      tree_hyperpar = hyptree) # Tree hyperparameter -->
+<!-- ``` -->
+
+<!-- More expressive formula. -->
+
+<!-- ```{r} -->
+<!-- H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o,  -->
+<!--                      data = train[,featnms],  -->
+<!--                      T = 1e4, eta = 1,   -->
+<!--                      tree_hyperpar = hyptree)  -->
+<!-- ``` -->
+
+<!-- ## Test function -->
+
+<!-- ```{r} -->
+<!-- ytilde <- test_adaboost3(H = H, data = test[,predictors]) -->
+<!-- ``` -->
+
+
+<!-- ## Performance evaluation -->
+
+<!-- ```{r} -->
+<!-- ``` -->
+
+<!-- Show the imbalances in the data. -->
+
+<!-- ```{r} -->
+<!-- table(df$replicated) -->
+<!-- ``` -->
+
+<!-- Model evaluation. -->
+
+<!-- ```{r} -->
+<!-- confusion <- table(ytilde, test$replicated) -->
+<!-- sum(diag(confusion)) / sum(confusion) # Accuracy -->
+<!-- AUC::roc(ytilde, test$replicated) |> AUC::auc() -->
+<!-- y1m1 <- 2 * as.numeric(test$replicated) - 3 -->
+<!-- mltools::mcc(as.numeric(ytilde), y1m1) -->
+<!-- ``` -->
+
+<!-- ## LOOCV -->
+
+<!-- ```{r} -->
+<!-- # Partition the data by "Project ID" -->
+<!-- df_split <- split(df, df$pid) -->
+
+<!-- # Pre-allocate the AUC list -->
+<!-- auc <- list() -->
+
+<!-- # Leave-Project-Out Cross-Validation -->
+<!-- runtime <- system.time({ -->
+<!--   for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) {  -->
+<!--     message("\nThe ", paste0(project), " model.\n") -->
+<!--     # Define the test set -->
+<!--     test <- df_split[[project]] -->
+<!--     # Define the training set -->
+<!--     train <- df[!(df$pid %in% project), ] -->
+<!--     # Fit the model to the data to get the ensemble -->
+<!--     H <- train_adaboost3(formula = replicated ~ .,  -->
+<!--                          data = train[,featnms], -->
+<!--                          T = 1e4, eta = 1,  # Boosting hyperparameter  -->
+<!--                          tree_hyperpar = hyptree) # Tree hyperparameter -->
+<!--     # Make predictions on validation set  -->
+<!--     ytilde <- test_adaboost3(H = H, data = test[, predictors])  -->
+<!--     # Store the performance evaluation (level: effects) -->
+<!--     auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicated) ) -->
+<!--   }}) -->
+<!-- # Waiting time -->
+<!-- message("Run time: ", runtime["elapsed"], " s\n") -->
+<!-- c(unlist(auc), "mean" = mean(unlist(auc))) -->
+<!-- ``` -->
+
+<!-- This will run for approximately 4 minutes. -->
+
+<!-- # Module 5: Hyperparameter Optimization using LPO-CV -->
+
+<!-- ```{r} -->
+<!-- # TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5 -->
+<!-- hgrid <- expand.grid( -->
+<!--   # Tree-specific  -->
+<!--   "maxdepth" = 1:3, # Interaction depth -->
+<!--   # Ensemble specific -->
+<!--   "T" = c(1e1, 1e2, 1e3), # Number of trees -->
+<!--   "eta" = c(1, 0.1), # Learning rate -->
+<!--   # Container for fold performance -->
+<!--   "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA,  -->
+<!--   "auc.mean" = NA, "runtime" = NA) # Average performance -->
+<!-- # Number of combinations  -->
+<!-- ``` -->
+
+<!-- Hyperparameter optimization using leave-project-out cross-validation. -->
+
+<!-- ```{r} -->
+<!-- hgrid_rows <- nrow(hgrid) -->
+<!-- # Partition the data by "Project ID" -->
+<!-- df_split <- split(df[,voi], df$pid)  -->
+<!-- # For each entry in the hypergrid, do... -->
+<!-- for(i in seq_len(hgrid_rows)) { -->
+<!--   # Track the iteration time (time-accuracy trade-off) -->
+<!--   runtime <- system.time({ -->
+<!--     # Leave-One-Project-Out Cross-Validation -->
+<!--     for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) {  -->
+<!--       # Rudimentary progress report with carriage return "\r" -->
+<!--       cat("\rProgress: ", round(i / hgrid_rows * 100), "%", -->
+<!--           " | T: ", hgrid$T[i],  -->
+<!--           " | eta: ", hgrid$eta[i],  -->
+<!--           " | maxdepth: ", hgrid$maxdepth[i], -->
+<!--           " | model: ", project) -->
+<!--       # Define the test set -->
+<!--       test <- df_split[[project]]  -->
+<!--       # Define the training set -->
+<!--       train <- df[!(df$pid %in% project), ] -->
+<!--       # Fit the model to the data to get the ensemble -->
+<!--       H <- train_adaboost3(replicated ~ .,  -->
+<!--                            data = train[,featnms], -->
+<!--                            T = hgrid$T[i],   -->
+<!--                            eta = hgrid$eta[i],   -->
+<!--                            tree_hyperpar = rpart::rpart.control( -->
+<!--                              maxdepth = hgrid$maxdepth[i]),  -->
+<!--                            verbose = FALSE) -->
+<!--       # Make predictions on validation set  -->
+<!--       ytilde <- test_adaboost3(H = H, data = test[, predictors],  -->
+<!--                                    verbose = FALSE)  -->
+<!--       # Store the performance evaluation (level: effects) -->
+<!--       hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicated)) } -->
+<!--     # Calculate the average performance -->
+<!--     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8])) -->
+<!--   })  -->
+<!--   hgrid$runtime[i] <- runtime[["elapsed"]] -->
+<!-- } -->
+<!-- message("\nTotal run time: ", sum(hgrid$runtime)) -->
+<!-- ``` -->
+
+<!-- Performance evaluation sorted by highest AUC. -->
+
+<!-- ```{r} -->
+<!-- hgrid[order(-hgrid$auc.mean), ] -->
+<!-- ``` -->
+
+<!-- Stacking the best performing algorithms could improve the predictions quite -->
+<!-- significantly here! For example, learners 2 and 3 perform quite well on the ee -->
+<!-- project, while learners 1 and 8 perform quite well on ml1. -->
+
+<!-- ## Optimized Ensemble  -->
+
+<!-- If we do not stack the results, we should at least fit the model with the -->
+<!-- hyperparameters that had the best average performance (here AUC) across all -->
+<!-- replication projects. However, we don't get a true sense of the model's -->
+<!-- out-of-sample capabilities because we don't have another project it hasn't seen -->
+<!-- yet. -->
+
+<!-- ```{r} -->
+<!-- H_final <- train_adaboost3(formula = replicated ~ .,    -->
+<!--                            data = df[,featnms],     -->
+<!--                            T = 10, eta = 1,  -->
+<!--                            tree_hyperpar = rpart::rpart.control(  -->
+<!--                              maxdepth = 1)) -->
+<!-- ``` -->
+
+<!-- # Module 6: Stacking (?)  -->
+
+<!-- Stacking the best performing algorithms could improve the predictions quite -->
+<!-- significantly here! For example, learners 2 and 3 perform quite well on the ee -->
+<!-- project, while learners 1 and 8 perform quite well on ml1.  -->
