@@ -9,7 +9,7 @@
 csv_file <- system.file(
   "extdata",
   "ssrp723.csv",
-  package = "adatutoR"
+  package = "adatutor"
 )
 
 # Get the headers
@@ -19,13 +19,13 @@ headers <- scan(csv_file, what = character(), nlines = 1, sep = ",")
 extdata <- read.csv(csv_file, na.strings = "", col.names = headers)
 
 # Import: These are the actual replication results from the SSRP publication
-extdata$replicated <- c("replicated", "replicated", "replicated", "replicated",
-                        "not_replicated", "replicated", "not_replicated",
-                        "replicated", "not_replicated", "not_replicated",
-                        "replicated", "not_replicated", "not_replicated",
-                        "replicated", "replicated", "not_replicated",
-                        "replicated", "replicated", "replicated",
-                        "not_replicated", "not_replicated")
+extdata$replicate <- c("replicate", "replicate", "replicate", "replicate",
+                        "not_replicate", "replicate", "not_replicate",
+                        "replicate", "not_replicate", "not_replicate",
+                        "replicate", "not_replicate", "not_replicate",
+                        "replicate", "replicate", "not_replicate",
+                        "replicate", "replicate", "replicate",
+                        "not_replicate", "not_replicate")
 
 # Specify relevant variables
 relevant_vars <- c(
@@ -105,7 +105,7 @@ relevant_vars <- c(
   #  it from the training data since it also captures a feature of the paper
   #  selection process used in the ML projects. The authors wanted a benchmark
   #  for comparison, and included a number of papers that had been successfully
-  #  replicated many times before. These studies are all older, making the
+  #  replicate many times before. These studies are all older, making the
   #  publication  year  variable a proxy for papers with (already known) high
   #  replication rates."
 
@@ -124,9 +124,9 @@ relevant_vars <- c(
   # Author note: "[F]or cases when the planned sample size has not been
   # using actual replication sample size as a proxy."
 
-  # Replicated: Binary outcome variable, study is replicated if p < =0.05 and
+  # replicate: Binary outcome variable, study is replicate if p < =0.05 and
   # effect goes in the same direction as the original
-  "replicated" #outcome
+  "replicate" #outcome
 
   # Relative Effect Size; The continuous outcome variable; the standardized
   # replication effect size relative to the original effect
@@ -160,7 +160,7 @@ relevant_vars <- c(
 )
 
 # Select only valid cases
-valid_cases <- extdata$drop == FALSE & !is.na(extdata$replicated)
+valid_cases <- extdata$drop == FALSE & !is.na(extdata$replicate)
 
 # Keep only valid cases and relevant variables
 ssrp723 <- extdata[valid_cases, relevant_vars]
@@ -173,7 +173,7 @@ names(ssrp723)[eid_pat] <- "eid"
 ssrp723$pid <- rep("ssrp", nrow(extdata))
 
 # Make a new binary variable
-ssrp723$replicated <- ifelse(ssrp723$replicated == "replicated", 1, 0)
+ssrp723$replicate <- ifelse(ssrp723$replicate == "replicate", 1, 0)
 
 # Save the data set as R data
 usethis::use_data(ssrp723, overwrite = TRUE)
