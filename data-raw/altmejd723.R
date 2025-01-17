@@ -9,7 +9,7 @@
 csv_file <- system.file(
   "extdata",
   "altmejd723.csv",
-  package = "adatutoR"
+  package = "adatutor"
 )
 
 # Get the headers
@@ -169,6 +169,9 @@ names(altmejd723)[eid_pat] <- "eid"
 # Add pid - "project id"
 pid_pat <- grep("project", colnames(altmejd723) )
 names(altmejd723)[pid_pat] <- "pid"
+
+nme_pat <- grep("replicated", colnames(altmejd723))
+colnames(altmejd723)[nme_pat] <- "replicate"
 
 # Save the data set as R data
 usethis::use_data(altmejd723, overwrite = TRUE)
