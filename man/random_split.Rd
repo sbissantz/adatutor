@@ -27,10 +27,10 @@ on a specified proportion.
 }
 \examples{
 # Load a dataset
-data(almtext)
+data(altmejd)
 
 # A 70-30 simple random split
-split <- random_split(altmext, prop = 0.7)
+split <- random_split(altmejd, prop = 0.7)
 
 # Access the subsets
 set1 <- split$set1
