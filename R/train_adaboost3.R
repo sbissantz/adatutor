@@ -1,4 +1,56 @@
-#'@export
+#' Train an AdaBoost Model
+#'
+#' This function trains an AdaBoost model using decision trees as weak learners.
+#' The implementation allows for customization of the number of iterations,
+#' learning rate, and decision tree hyperparameters. It also provides verbose
+#' output to track the training progress.
+#'
+#' @param formula A symbolic description of the model to be fitted (e.g.,
+#'   `response ~ predictors`).
+#' @param data A data frame containing the variables in the model.
+#' @param T An integer specifying the number of boosting iterations.
+#' @param eta A numeric value representing the learning rate of the algorithm.
+#' @param tree_hyperpar A list of control parameters for the decision tree
+#'   learner (passed to `rpart::rpart` as the `control` argument).
+#' @param input_checks A logical value indicating whether to perform input
+#'   validation checks. Defaults to `TRUE`.
+#' @param verbose A logical value indicating whether to display verbose output
+#'   during the training process. Defaults to `TRUE`.
+#'
+#' @details The function implements the AdaBoost algorithm with a specified
+#' number of iterations (`T`). It initializes observation weights, trains a
+#' sequence of decision trees, and updates the weights at each iteration based
+#' on prediction errors. A final ensemble of weak learners is produced.
+#'
+#' Key steps in the algorithm:
+#' 1. Initialize observation weights.
+#' 2. Train a decision tree using the current weights.
+#' 3. Compute the weighted classification error and update the observation
+#' weights.
+#' 4. Store the weak learner and its associated weight.
+#'
+#' @return
+#' A list containing the trained weak learners (`h`) and their associated weights (`a`).
+#' Additional attributes may be included for model tracking purposes.
+#'
+#' @examples
+#' \dontrun{
+#' # Example usage:
+#' library(rpart)
+#' data(iris)
+#' # Prepare binary classification data
+#' iris_binary <- iris[iris$Species != "setosa", ]
+#' iris_binary$Species <- factor(iris_binary$Species)
+#'
+#' # Set tree hyperparameters
+#' tree_control <- rpart.control(maxdepth = 1, cp = 0)
+#'
+#' # Train AdaBoost model
+#' model <- train_adaboost3(Species ~ ., data = iris_binary, T = 10,
+#'                          eta = 0.5, tree_hyperpar = tree_control)
+#' }
+#'
+#' @export
 train_adaboost3 <- function(formula, data, T, eta, tree_hyperpar, input_checks = TRUE, verbose = TRUE) {
   if(verbose) {
     color_message("Start the AdaBoost training process:\n",
