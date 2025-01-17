@@ -56,23 +56,13 @@ check_train <- function(train_nme, test_nme) {
     }
 }
 
-walking_dots <- function(n = 3, delay = 0.2) {
-  for (i in seq_len(n)) {
-      message(".", appendLF = FALSE)
-      Sys.sleep(delay)
+check_prop <- function(x) {
+    if(min(x) < 0 | max(x) > 1) {
+      msg <- paste0("Specified proportion ", "`", deparse(x),"` is not between 0 and 1.")
+      stop(msg, call. = FALSE)
     }
-  message(" Done\n", appendLF = FALSE)
-}
-
-color_message <- function(text, color_code = 32, newline = FALSE) {
-  msg <- paste0("\033[", color_code, "m", text, "\033[0m")
-  cat(msg)
-}
-
-walking_colordots <- function(n = 3, delay = 0.2, color_code = 32) {
-  for (i in seq_len(n)) {
-      color_message(".", color_code = 30)
-      Sys.sleep(delay)
+    if(min(x) == 0 | max(x) == 1) {
+      msg <- paste0("Specified proportion ", "`", deparse(x),"` is not practical.")
+      warning(msg, call. = FALSE)
     }
-  color_message(" Done\n", color_code = 32, newline = TRUE)
 }
