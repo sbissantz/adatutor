@@ -27,4 +27,4 @@
 #' The data and additional information on the data set can be downloaded from
 #' their OSF repository. <https://osf.io/4fn73/>
 #'
-"altmjed"
+"altmejd"
