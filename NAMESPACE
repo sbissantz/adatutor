@@ -2,9 +2,9 @@
 
 export(random_split)
 export(stratified_split)
+export(testAda)
 export(test_adaboost)
 export(test_adaboost2)
-export(test_adaboost3)
+export(trainAda)
 export(train_adaboost)
 export(train_adaboost2)
-export(train_adaboost3)
