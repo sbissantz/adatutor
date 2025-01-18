@@ -50,12 +50,12 @@ Introduce the relevant variables.
 # Reviewer metrics (names)
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 # Outcome variable (name)
-outnme <- "replicated"
+outnme <- "replicate"
 # Variables of interest (names)
 voinms <- c("pid","eid", prednms, outnme)
 # Features (names)
 featnms <- union(prednms, outnme)
-# Abbreviate 'altmejd'
+# Shorten 'altmejd'
 df <- altmejd[voinms]
 ```
 
@@ -151,7 +151,7 @@ Show imbalances in the outcome variable.
 
 ```{r}
 # Frequency table
-tbl_orig <- table(df$replicated)
+tbl_orig <- table(df$replicate)
 # Relative frequencies
 proportions(tbl_orig)
 ```
@@ -160,8 +160,8 @@ Show imbalances in the training and test set.
 
 ```{r}
 # Frequency tables
-tbl_train  <- table(train$replicated)
-tbl_test <- table(test$replicated)
+tbl_train  <- table(train$replicate)
+tbl_test <- table(test$replicate)
 # Relative frequencies
 proportions(tbl_train)
 proportions(tbl_test)
@@ -175,7 +175,7 @@ set.seed(112)
 # Split proportion
 prop <- 0.7
 # Partition data based on outcome
-set_split <- split(df, df$replicated)
+set_split <- split(df, df$replicate)
 # Number of training samples (stratified)
 n_train <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Training index (stratified)
@@ -193,15 +193,15 @@ Show imbalances in the outcome variable.
 
 ```{r}
 # Relative from absolute frequencies
-proportions(table(train$replicated))
-proportions(table(testvalid$replicated))
+proportions(table(train$replicate))
+proportions(table(testvalid$replicate))
 ```
 
 Repeat with simple wrapper function.
 
 ```{r}
 # Another stratified split
-stratsplit <- stratified_split(df, group = "replicated", id = "eid", prop = 0.7)
+stratsplit <- stratified_split(df, group = "replicate", id = "eid", prop = 0.7)
 # Another training set
 train_tld <- stratsplit$set1
 # Another test set (incl. validation)
@@ -223,7 +223,7 @@ set.seed(112)
 # Split proportion
 prop <- 0.5
 # Partition data based on outcome
-set_split <- split(testvalid, testvalid$replicated)
+set_split <- split(testvalid, testvalid$replicate)
 # Number of training samples (stratified)
 n_valid <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Validation index (stratified)
@@ -240,14 +240,14 @@ Show imbalances in the outcome variable.
 
 ```{r}
 # Relative from absolute frequencies
-proportions(table(train$replicated))
-proportions(table(testvalid$replicated))
+proportions(table(train$replicate))
+proportions(table(testvalid$replicate))
 ```
 Repeat with simple wrapper function.
 
 ```{r}
 # Another stratified split
-stratsplit <- stratified_split(testvalid, group = "replicated", id = "eid",
+stratsplit <- stratified_split(testvalid, group = "replicate", id = "eid",
                           prop = 0.5)
 # Another validation set
 valid_tld <- stratsplit$set1
@@ -272,7 +272,7 @@ randsplit <- initial_split(df, prop = 0.7)
 train <- training(randsplit)
 testvalid <- testing(randsplit)
 # Stratified split
-stratsplit <- initial_split(df, prop = 0.7, strata = "replicated")
+stratsplit <- initial_split(df, prop = 0.7, strata = "replicate")
 train <- training(stratsplit)
 testvalid <- testing(stratsplit)
 ```
@@ -291,7 +291,7 @@ testvalid <- testing(stratsplit)
 <!-- subfeat <- c("power.o", "n.o") -->
 <!-- subdf <-  train[,union(subfeat, outnme)] -->
 <!-- # Hyperparameter setup  -->
-<!-- hyptree <- rpart::rpart.control( -->
+<!-- treehypar <- rpart::rpart.control( -->
 <!--   # Maximum depth of any node tree  -->
 <!--   maxdepth = 1,  -->
 <!--   # Minimum n° observations in terminal node -->
@@ -299,8 +299,8 @@ testvalid <- testing(stratsplit)
 <!--   # Original CART with gini impurity as splitting criterion   -->
 <!--   split = "gini") # or ID3: split = "information" -->
 <!-- # Create a decision tree  -->
-<!-- h <- rpart::rpart(formula = replicated ~ ., data = subdf,  method = "class",  -->
-<!--                   control = hyptree) -->
+<!-- h <- rpart::rpart(formula = replicate ~ ., data = subdf,  method = "class",  -->
+<!--                   control = treehypar) -->
 <!-- # Visualize -->
 <!-- rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy") -->
 <!-- ``` -->
@@ -313,7 +313,7 @@ testvalid <- testing(stratsplit)
 <!-- # Outcome variable -->
 <!-- y_train <- train[, outnme] -->
 <!-- # Number of classes -->
-<!-- k <- length(unique(subdf$replicated)) -->
+<!-- k <- length(unique(subdf$replicate)) -->
 <!-- # Range(s) as list -->
 <!-- rng <- lapply(subdf[,subfeat], range, na.rm = TRUE) -->
 <!-- # Grid resolution -->
@@ -334,9 +334,9 @@ testvalid <- testing(stratsplit)
 <!-- y_pred <- predict(h, grid, type = "class") -->
 <!-- # Contour matrix -->
 <!-- z_mat <- matrix(as.integer(y_pred), nrow = resolution) -->
-<!-- # "0" means "not replicated", "1" means "replicated" -->
+<!-- # "0" means "not replicate", "1" means "replicate" -->
 <!-- symbol_colors <- ifelse(y_train == "failure", col1, col2) -->
-<!-- # "0" means "not replicated", "1" means "replicated" -->
+<!-- # "0" means "not replicate", "1" means "replicate" -->
 <!-- grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp) -->
 <!-- plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),  -->
 <!--    xlab = "power.o", ylab = "n.o") -->
@@ -354,9 +354,9 @@ testvalid <- testing(stratsplit)
 <!-- # Define the condition for the split -->
 <!-- splitcond <- train$power.o < 0.92866 -->
 <!-- # Studies with df$power.o < 0.92866  -->
-<!-- table(train$replicated[splitcond]) -->
+<!-- table(train$replicate[splitcond]) -->
 <!-- # Studies with df$power.o >= 0.92866  -->
-<!-- table(train$replicated[!splitcond]) -->
+<!-- table(train$replicate[!splitcond]) -->
 <!-- ``` -->
 
 <!-- ## Fit and visuaize a classification stump -->
@@ -366,12 +366,12 @@ testvalid <- testing(stratsplit)
 <!-- ```{r} -->
 <!-- library(rpart) -->
 <!-- # Hyperparameter setup for classification stump -->
-<!-- hyptree <- rpart.control( -->
+<!-- treehypar <- rpart.control( -->
 <!--   maxdepth = 1, # Maximum depth -->
 <!--   split = "gini") # Gini impurity (default) -->
 <!-- # Fit classification stump -->
-<!-- cstump <- rpart(formula = replicated ~ ., data = train[,featnms],  -->
-<!--                 method = "class", control = hyptree) -->
+<!-- cstump <- rpart(formula = replicate ~ ., data = train[,featnms],  -->
+<!--                 method = "class", control = treehypar) -->
 <!-- ``` -->
 
 <!-- Code Chunk 2.3 -->
@@ -416,14 +416,14 @@ testvalid <- testing(stratsplit)
 
 <!-- # Left leaf (power.o < 0.9286641: yes) -->
 <!-- criterion_left <- train$power.o < constant -->
-<!-- N_left <- length(train$replicated[criterion_left]) # 69 total -->
-<!-- left_success <- sum(as.numeric(train$replicated[criterion_left]) - 1) # 19 successes -->
+<!-- N_left <- length(train$replicate[criterion_left]) # 69 total -->
+<!-- left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) # 19 successes -->
 <!-- left_failure <- N_left - left_success # 50 failures -->
 
 <!-- # Right leaf (power.o < 0.9286641: no) -->
 <!-- criterion_right <- train$power.o >= constant -->
-<!-- N_right <- length(train$replicated[criterion_right]) # 38  -->
-<!-- right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1) # 29  -->
+<!-- N_right <- length(train$replicate[criterion_right]) # 38  -->
+<!-- right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) # 29  -->
 <!-- right_failure <- N_right - right_success # failures -->
 
 <!-- # Individual Gini impurities -->
@@ -446,13 +446,13 @@ testvalid <- testing(stratsplit)
 <!--   N_total <- length(y_train) -->
 <!--   # Left leaf -->
 <!--   criterion_left <- train$power.o < constant -->
-<!--   N_left <- length(train$replicated[criterion_left]) -->
-<!--   left_success <- sum(as.numeric(train$replicated[criterion_left]) - 1) -->
+<!--   N_left <- length(train$replicate[criterion_left]) -->
+<!--   left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) -->
 <!--   left_failure <- N_left - left_success -->
 <!--   # Right leaf -->
 <!--   criterion_right <- train$power.o >= constant -->
-<!--   N_right <- length(train$replicated[criterion_right]) -->
-<!--   right_success <- sum(as.numeric(train$replicated[criterion_right]) - 1) -->
+<!--   N_right <- length(train$replicate[criterion_right]) -->
+<!--   right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) -->
 <!--   right_failure <- N_right - right_success -->
 <!--   # Gini index -->
 <!--   gini_d1 <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 ) -->
@@ -476,8 +476,8 @@ testvalid <- testing(stratsplit)
 <!-- # Equal weight to each observation -->
 <!-- D <- rep(1, m)/m -->
 <!-- # Create a decision stump -->
-<!-- h <- rpart(formula = replicated ~ .,   data = train[, featnms],    -->
-<!--            method = "class",  weight = D, control = hyptree) -->
+<!-- h <- rpart(formula = replicate ~ .,   data = train[, featnms],    -->
+<!--            method = "class",  weight = D, control = treehypar) -->
 <!-- # Visualize -->
 <!-- rpart.plot(h, digits = 5, box.palette="BuGy") -->
 <!-- ``` -->
@@ -492,8 +492,8 @@ testvalid <- testing(stratsplit)
 <!-- # Normalize (sum: 1) -->
 <!-- D <- D_unorm/sum(D_unorm)  -->
 <!-- # Create a decision stump -->
-<!-- cstump_ast <- rpart(formula = replicated ~ .,  data = train[,featnms],  -->
-<!--                   method = "class", weight = D, control = hyptree) -->
+<!-- cstump_ast <- rpart(formula = replicate ~ .,  data = train[,featnms],  -->
+<!--                   method = "class", weight = D, control = treehypar) -->
 <!-- # Visualize -->
 <!-- rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy") -->
 <!-- ``` -->
@@ -536,8 +536,8 @@ testvalid <- testing(stratsplit)
 <!-- given tree hyperparameter setup. -->
 
 <!-- ```{r} -->
-<!-- h <- rpart::rpart(formula = replicated ~ ., data = train[,featnms] , -->
-<!-- method = "class", weights = D1, control = hyptree) -->
+<!-- h <- rpart::rpart(formula = replicate ~ ., data = train[,featnms] , -->
+<!-- method = "class", weights = D1, control = treehypar) -->
 <!-- ``` -->
 
 <!-- Make predictions with the weak learner (h_t). Define the normalization constant -->
@@ -652,14 +652,14 @@ testvalid <- testing(stratsplit)
 <!-- Put everything in a loop. -->
 
 <!-- ```{r} -->
-<!-- hyptree <- rpart::rpart.control(maxdepth = 1)  -->
+<!-- treehypar <- rpart::rpart.control(maxdepth = 1)  -->
 <!-- T <- 1e4 # Number of trees  -->
 <!-- eta <- 1 # Learning rate  -->
 <!-- H <- vector("list", T) -->
 <!-- D <- rep(1, m)/m -->
 <!-- for (t in seq_len(T)) { -->
-<!--   h <- rpart::rpart(formula = replicated ~ ., data = train[, featnms] , -->
-<!--   method = "class", weights = D, control = hyptree) -->
+<!--   h <- rpart::rpart(formula = replicate ~ ., data = train[, featnms] , -->
+<!--   method = "class", weights = D, control = treehypar) -->
 <!--   y_retro <- predict(object = h, newdata = train[, featnms], type = "class") -->
 <!--   e <- sum(D * (y_train != y_retro))  -->
 <!--   a <- 0.5 * log( (1 - e)  / e) * eta -->
@@ -724,21 +724,21 @@ testvalid <- testing(stratsplit)
 <!-- grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq) -->
 <!-- # Make grid -->
 <!-- # Tree hyperparameter setting -->
-<!-- tree_hyperpar <- rpart::rpart.control( -->
+<!-- treehypar <- rpart::rpart.control( -->
 <!--   # Slightly different hyperparameters to improve visibility of boundary -->
 <!--   maxdepth = 3, minsplit = 5, minbucket = round(5 / 3), -->
 <!--   cp = 1e-2, split = "gini") -->
 <!-- # Fit ADAboost -->
-<!-- fit <- train_adaboost2(formula = replicated ~ ., -->
-<!--                        data = train[,c("replicated", "power.o", "n.o")], -->
-<!--                        T = 5e2, eta = 1, tree_hyperpar = tree_hyperpar) -->
+<!-- fit <- trainAda(formula = replicate ~ ., -->
+<!--                        data = train[,c("replicate", "power.o", "n.o")], -->
+<!--                        T = 5e2, eta = 1, treehypar = treehypar) -->
 <!-- # Predict ADAboost -->
 <!-- y_pred_ml <- test_adaboost2(fit, grid) -->
 <!-- # Make prediction 0/1 instead of -1/1 -->
 <!-- y_pred <- as.factor((y_pred_ml + 1) / 2) -->
 <!-- # Contour matrix -->
 <!-- z_mat <- matrix(as.integer(y_pred), nrow = resolution) -->
-<!-- # "0" means "not replicated", "1" means "replicated" -->
+<!-- # "0" means "not replicate", "1" means "replicate" -->
 <!-- symbol_colors <- ifelse(y_obs == "failure", col1, col2) -->
 <!-- grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp) -->
 <!-- ``` -->
@@ -776,19 +776,19 @@ testvalid <- testing(stratsplit)
 <!-- Introduce two wrapper functions with some additional sugar. -->
 
 <!-- ```{r} -->
-<!-- H <- train_adaboost3(formula = replicated ~ .,   -->
+<!-- H <- trainAda(formula = replicate ~ .,   -->
 <!--                      data = train[,featnms],    -->
 <!--                      T = 1e4, eta = 1,  # Boosting hyperparameter -->
-<!--                      tree_hyperpar = hyptree) # Tree hyperparameter -->
+<!--                      treehypar = treehypar) # Tree hyperparameter -->
 <!-- ``` -->
 
 <!-- More expressive formula. -->
 
 <!-- ```{r} -->
-<!-- H <- train_adaboost3(replicated ~ power.o + effect_size.o + n.o + p_value.o,  -->
+<!-- H <- trainAda(replicate ~ power.o + effect_size.o + n.o + p_value.o,  -->
 <!--                      data = train[,featnms],  -->
 <!--                      T = 1e4, eta = 1,   -->
-<!--                      tree_hyperpar = hyptree)  -->
+<!--                      treehypar = treehypar)  -->
 <!-- ``` -->
 
 <!-- ## Test function -->
@@ -806,16 +806,16 @@ testvalid <- testing(stratsplit)
 <!-- Show the imbalances in the data. -->
 
 <!-- ```{r} -->
-<!-- table(df$replicated) -->
+<!-- table(df$replicate) -->
 <!-- ``` -->
 
 <!-- Model evaluation. -->
 
 <!-- ```{r} -->
-<!-- confusion <- table(ytilde, test$replicated) -->
+<!-- confusion <- table(ytilde, test$replicate) -->
 <!-- sum(diag(confusion)) / sum(confusion) # Accuracy -->
-<!-- AUC::roc(ytilde, test$replicated) |> AUC::auc() -->
-<!-- y1m1 <- 2 * as.numeric(test$replicated) - 3 -->
+<!-- AUC::roc(ytilde, test$replicate) |> AUC::auc() -->
+<!-- y1m1 <- 2 * as.numeric(test$replicate) - 3 -->
 <!-- mltools::mcc(as.numeric(ytilde), y1m1) -->
 <!-- ``` -->
 
@@ -837,14 +837,14 @@ testvalid <- testing(stratsplit)
 <!--     # Define the training set -->
 <!--     train <- df[!(df$pid %in% project), ] -->
 <!--     # Fit the model to the data to get the ensemble -->
-<!--     H <- train_adaboost3(formula = replicated ~ .,  -->
+<!--     H <- trainAda(formula = replicate ~ .,  -->
 <!--                          data = train[,featnms], -->
 <!--                          T = 1e4, eta = 1,  # Boosting hyperparameter  -->
-<!--                          tree_hyperpar = hyptree) # Tree hyperparameter -->
+<!--                          treehypar = treehypar) # Tree hyperparameter -->
 <!--     # Make predictions on validation set  -->
 <!--     ytilde <- test_adaboost3(H = H, data = test[, predictors])  -->
 <!--     # Store the performance evaluation (level: effects) -->
-<!--     auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicated) ) -->
+<!--     auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicate) ) -->
 <!--   }}) -->
 <!-- # Waiting time -->
 <!-- message("Run time: ", runtime["elapsed"], " s\n") -->
@@ -892,18 +892,18 @@ testvalid <- testing(stratsplit)
 <!--       # Define the training set -->
 <!--       train <- df[!(df$pid %in% project), ] -->
 <!--       # Fit the model to the data to get the ensemble -->
-<!--       H <- train_adaboost3(replicated ~ .,  -->
+<!--       H <- trainAda(replicate ~ .,  -->
 <!--                            data = train[,featnms], -->
 <!--                            T = hgrid$T[i],   -->
 <!--                            eta = hgrid$eta[i],   -->
-<!--                            tree_hyperpar = rpart::rpart.control( -->
+<!--                            treehypar = rpart::rpart.control( -->
 <!--                              maxdepth = hgrid$maxdepth[i]),  -->
 <!--                            verbose = FALSE) -->
 <!--       # Make predictions on validation set  -->
 <!--       ytilde <- test_adaboost3(H = H, data = test[, predictors],  -->
 <!--                                    verbose = FALSE)  -->
 <!--       # Store the performance evaluation (level: effects) -->
-<!--       hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicated)) } -->
+<!--       hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicate)) } -->
 <!--     # Calculate the average performance -->
 <!--     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8])) -->
 <!--   })  -->
@@ -931,10 +931,10 @@ testvalid <- testing(stratsplit)
 <!-- yet. -->
 
 <!-- ```{r} -->
-<!-- H_final <- train_adaboost3(formula = replicated ~ .,    -->
+<!-- H_final <- trainAda(formula = replicate ~ .,    -->
 <!--                            data = df[,featnms],     -->
 <!--                            T = 10, eta = 1,  -->
-<!--                            tree_hyperpar = rpart::rpart.control(  -->
+<!--                            treehypar = rpart::rpart.control(  -->
 <!--                              maxdepth = 1)) -->
 <!-- ``` -->
 
