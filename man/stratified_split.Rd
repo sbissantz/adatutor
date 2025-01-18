@@ -13,7 +13,7 @@ stratified_split(set, group, id, prop = 0.7)
 in \code{set}.}
 
 \item{id}{A character string specifying the name of the (categorical) stratum
-variable in `set .}
+variable in \code{set}.}
 
 \item{prop}{A numeric value between 0 and 1 indicating the proportion of rows
 to include in the first subset. Defaults to 0.7.}
