@@ -93,7 +93,7 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
   y_train <- model.response(mf) # Store the model response
   m <- nrow(mf) # Store the number of rows
   D <- rep(1, m)/m # Calculate the initialization weights
-  H <- vector("list", T) # Empty container for the trees
+  H <- vector("list", T) # Empty container for the trees and weights
   # Manually build the rpart function call ...
   tmp[[1L]] <- quote(rpart::rpart) # Change the function name
   tmp$weights <- as.symbol("D")
