@@ -2,17 +2,18 @@
 % Please edit documentation in R/testAda.R
 \name{testAda}
 \alias{testAda}
-\title{Generate Predictions From a Trained AdaBoost Classifier}
+\title{Generate Predictions or Retrodictions From a Set of (Adaptively) Boosted Trees and Model Weights}
 \usage{
-testAda(H, data, input_checks = TRUE, verbose = TRUE)
+testAda(fit, data, input_checks = TRUE, verbose = TRUE)
 }
 \arguments{
-\item{H}{A list representing the trained AdaBoost model. Each element of the
-list contains a weak learner (e.g., a decision stump) and its corresponding
-weight.}
+\item{fit}{A model fitted with \code{\link[adatutor]{trainAda}}. This is a
+list of boosted trees and theirs weights. More specifically, each element
+of the list contains a weak learner (e.g., a decision stump) and its
+corresponding weight.}
 
-\item{data}{A data frame containing the test dataset for predictions. The
-structure should match the training dataset used to generate \code{H}.}
+\item{data}{A data frame containing the test set for predictions. The
+structure should match the training set used to generate \code{h}.}
 
 \item{input_checks}{A logical value indicating whether to perform input
 validation checks. Defaults to \code{TRUE}.}
@@ -26,20 +27,22 @@ model. The predictions are in the form of \code{-1} or \code{1},
 corresponding to binary classification outcomes.
 }
 \description{
-This function performs the testing phase of the AdaBoost
-algorithm. It processes the trained model, validates input data, extracts
-weak learners, and makes predictions or retrodictions on the test dataset.
+This function implements the testing phase of the AdaBoost
+algorithm. It extracts the adaptively boosted weak learners (e.g.
+classification stumps) and their corresponding weights to combine them into
+the weighted sum \deqn{H(\mathbf{x}) = \sum_{i=1}^Ta_th_t(\mathbf x),}
+which yields AdaBoost's predictions or retrodictions on a given set.
 }
 \details{
 The function proceeds as follows:
 \enumerate{
 \item If \code{input_checks} is \code{TRUE}, basic input validation is
-performed to ensure that \code{H} is a valid AdaBoost model and \code{data}
+performed to ensure that \code{h} is a valid AdaBoost model and \code{data}
 is appropriate for predictions.
 \item Progress messages and animations are shown if \code{verbose} is
 \code{TRUE}.
-\item Weak learners (\code{h}) and their weights (\code{a}) are extracted
-from \code{H}.
+\item Boosted weak learners (\code{h}) and their weights (\code{a}) are extracted
+from \code{fit}.
 \item Predictions or retrodictions are generated for each weak learner
 using the test set.
 \item Individual predictions are combined using the weights from the
@@ -48,7 +51,7 @@ AdaBoost model to produce the final predictions.
 }
 \examples{
 # Example usage:
-# Assume `H` is a trained model and `test` is a data frame.
-# y_pred <- testAda(H, test_data)
+# Assume `fit` is a trained model and `test` is a data frame.
+# ypred <- testAda(fit, test)
 
 }
