@@ -146,7 +146,7 @@ check_numeric <- function(x) {
 check_train <- function(trainnme, testnme) {
     if(trainnme == testnme) {
       msg <- paste0("`", deparse(trainnme),"` was also used for training.")
-      stop(msg, call. = FALSE)
+      message(msg, call. = FALSE)
     }
 }
 
@@ -162,11 +162,11 @@ check_train <- function(trainnme, testnme) {
 #' \dontrun{check_prop(0)}  # Issues a warning
 #'
 check_prop <- function(x) {
-    if(min(x) < 0 | max(x) > 1) {
+    if(x < 0 | x > 1) {
       msg <- paste0("Specified proportion ", "`", deparse(x),"` is not between 0 and 1.")
       stop(msg, call. = FALSE)
     }
-    if(min(x) == 0 | max(x) == 1) {
+    if(x == 0 | x == 1) {
       msg <- paste0("Specified proportion ", "`", deparse(x),"` is not practical.")
       sug <- "Use a value greater than 0 and less than 1."
       warning(msg, call. = FALSE)
