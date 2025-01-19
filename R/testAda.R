@@ -1,15 +1,18 @@
-#' @title Generate Predictions From a Trained AdaBoost Classifier
+#' @title Generate Predictions or Retrodictions From a Set of (Adaptively) Boosted Trees and Model Weights
 #'
-#' @description This function performs the testing phase of the AdaBoost
-#'   algorithm. It processes the trained model, validates input data, extracts
-#'   weak learners, and makes predictions or retrodictions on the test dataset.
+#' @description This function implements the testing phase of the AdaBoost
+#'   algorithm. It extracts the adaptively boosted weak learners (e.g.
+#'   classification stumps) and their corresponding weights to combine them into
+#'   the weighted sum \deqn{H(\mathbf{x}) = \sum_{i=1}^Ta_th_t(\mathbf x),}
+#'   which yields AdaBoost's predictions or retrodictions on a given set.
 #'
-#' @param H A list representing the trained AdaBoost model. Each element of the
-#'   list contains a weak learner (e.g., a decision stump) and its corresponding
-#'   weight.
+#' @param fit A model fitted with \code{\link[adatutor]{trainAda}}. This is a
+#'   list of boosted trees and theirs weights. More specifically, each element
+#'   of the list contains a weak learner (e.g., a decision stump) and its
+#'   corresponding weight.
 #'
-#' @param data A data frame containing the test dataset for predictions. The
-#'   structure should match the training dataset used to generate \code{H}.
+#' @param data A data frame containing the test set for predictions. The
+#'   structure should match the training set used to generate \code{h}.
 #'
 #' @param input_checks A logical value indicating whether to perform input
 #'   validation checks. Defaults to \code{TRUE}.
@@ -20,12 +23,12 @@
 #' @details The function proceeds as follows:
 #' \enumerate{
 #'   \item If \code{input_checks} is \code{TRUE}, basic input validation is
-#'   performed to ensure that \code{H} is a valid AdaBoost model and \code{data}
-#'   is appropriate for predictions.
+#'   performed to ensure that \code{fit} is a valid AdaBoost model and
+#'   \code{data} is appropriate for predictions.
 #'   \item Progress messages and animations are shown if \code{verbose} is
 #'   \code{TRUE}.
-#'   \item Weak learners (\code{h}) and their weights (\code{a}) are extracted
-#'   from \code{H}.
+#'   \item Boosted weak learners (\code{h}) and their weights (\code{a}) are extracted
+#'   from \code{fit}.
 #'   \item Predictions or retrodictions are generated for each weak learner
 #'   using the test set.
 #'   \item Individual predictions are combined using the weights from the
@@ -38,11 +41,11 @@
 #'
 #' @examples
 #' # Example usage:
-#' # Assume `H` is a trained model and `test` is a data frame.
-#' # y_pred <- testAda(H, test_data)
+#' # Assume `fit` is a trained model and `test` is a data frame.
+#' # ypred <- testAda(fit, test)
 #'
 #'@export
-testAda <- function(H, data, input_checks = TRUE, verbose = TRUE) {
+testAda <- function(fit, data, input_checks = TRUE, verbose = TRUE) {
   if (verbose) {
     color_message("Start the AdaBoost test process:\n", color_code = 1)
   }
@@ -50,13 +53,13 @@ testAda <- function(H, data, input_checks = TRUE, verbose = TRUE) {
   if (verbose) {
     color_message("Run mild input checks", color_code = 30)
   }
-    check_list(H)
-    check_length(H)
+    check_list(fit)
+    check_length(fit)
     check_df(data)
     check_length(data)
     fcl <- match.call()
     test_pos <- match("data", names(fcl), nomatch = 0L)
-    trainnme <-  attr(H, "train")
+    trainnme <-  attr(fit, "train")
     check_train(trainnme, fcl[[test_pos]])
   }
   if (verbose) {
@@ -64,12 +67,14 @@ testAda <- function(H, data, input_checks = TRUE, verbose = TRUE) {
     color_message("Extract the trees", color_code = 30)
     walking_colordots()
   }
-  h <- lapply(H, "[[", "h") ; check_length(h)
+  h <- lapply(fit, "[[", "h")
+  check_length(h)
   if (verbose) {
   color_message("Extract the model weights", color_code = 30)
   walking_colordots()
   }
-  a <- vapply(H, "[[", numeric(1), "a") ; check_length(a)
+  a <- vapply(fit, "[[", numeric(1), "a")
+  check_length(a)
   if (verbose) {
     color_message("Make predictions/retrodictions\n", color_code = 30)
     pb <- txtProgressBar(min = 0, max = length(h), style = 3)
