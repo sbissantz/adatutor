@@ -280,13 +280,13 @@ x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
 # Make grid from sequences
 grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
 # Predict grid
-y_pred <- predict(h, grid, type = "class")
+ypred <- predict(h, grid, type = "class")
 # Contour matrix
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+z_mat <- matrix(as.integer(ypred), nrow = resolution)
 # "0" means "not replicate", "1" means "replicate"
 symbol_colors <- ifelse(y_train == "failure", col1, col2)
 # "0" means "not replicate", "1" means "replicate"
-grid_colors <- ifelse(y_pred == "failure", col1_transp, col2_transp)
+grid_colors <- ifelse(ypred == "failure", col1_transp, col2_transp)
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),
    xlab = "power.o", ylab = "n.o")
 points(grid, col = grid_colors, pch = ".")
@@ -460,14 +460,17 @@ h1 <- rpart::rpart(formula = replicate ~ ., data = train[,featnms],
 Calculate the classification stumps error.
 
 ```{r listing_20}
-y_class <- predict(h1, newdata = train[, featnms], type = "class")
-epsilon <- sum(D1 * (y_class != y_train))
+# Retrodictions (training data)
+yretro <- predict(h1, newdata = train[, featnms], type = "class")
+# Retrodictions do not match observations
+epsilon <- sum(D1 * (yretro != y_train))
 ```
 
 Calculate the classification stump's performance.
 
 ```{r listing_21}
-perf <- sum(D1 * (y_class == y_train))
+# Retrodictions match observations
+perf <- sum(D1 * (yretro == y_train))
 epsilon <- 1 - perf
 ```
 
@@ -499,7 +502,7 @@ legend("topleft", legend = c(expression(eta*" = 1"), expression(eta*" = 0.5"),
 Calculate the update factor for the initialization weights.
 
 ```{r listing_23}
-chi1 <- (y_class == y_train) * 1 + (y_class != y_train) * -1
+chi1 <- (yretro == y_train) * 1 + (yretro != y_train) * -1
 D2_raw <- D1 * exp(-alpha1 * chi1)
 Z1 <- sum(D2_raw)
 D2 <- D2_raw / Z1
@@ -507,7 +510,7 @@ D2 <- D2_raw / Z1
 
 Reproduce Figure 7.
 
-```{r}
+```{r figure_7}
 feat <- function(at, x) exp(-at*x)
 curve(feat(0.719, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
       xlab = "Classification", ylab = "Weight update factor",  xaxt = "n")
@@ -531,7 +534,7 @@ axis(1,at = c(-1,1))
 
 Reproduce Figure 8.
 
-```{r}
+```{r figure_8}
 n_25 <- 25
 scaling <- 175
 plot(c(1, n_25), c(0, D1[1] + 0.02) , type = "n", xaxt = "n",
@@ -542,7 +545,7 @@ for(i in 1:n_25) {
 }
 
 points(D1[1:n_25], pch = 20, col = "ivory4",  cex = D1[1] * scaling)
-points(D1[1:n_25], pch = 20, col = ifelse((y_train == y_class), "green", "red"),
+points(D1[1:n_25], pch = 20, col = ifelse((y_train == yretro), "green", "red"),
        cex = D1[1] + 0.2)
 points(D2[1:n_25], pch = 20, col = "steelblue", cex = D2[1:n_25] * scaling)
 legend("topright", legend = c(expression(D[1]), expression(D[2])),
@@ -554,20 +557,20 @@ legend("topright", legend = c(expression(D[1]), expression(D[2])),
 
 Loop through the algorithmic steps.
 
-```{r}
-treehypar <- rpart::rpart.control(maxdepth = 1)
+```{r listing_24}
+treehypar <- rpart.control(maxdepth = 1)
 T <- 1e4 # Number of trees
 eta <- 1 # Learning rate
 # Container: Learner & weights 
 fit <- vector("list", T)
 D <- rep(1, m)/m
 for (t in seq_len(T)) {
-  h <- rpart::rpart(formula = replicate ~ ., data = train[, featnms] ,
+  h <- rpart(formula = replicate ~ ., data = train[, featnms],
   method = "class", weights = D, control = treehypar)
-  y_retro <- predict(object = h, newdata = train[, featnms], type = "class")
-  e <- sum(D * (y_retro != y_train))
+  yretro <- predict(object = h, newdata = train[, featnms], type = "class")
+  e <- sum(D * (yretro != y_train))
   a <- 0.5 * log( (1 - e)  / e) * eta
-  chi <- (y_retro == y_train) * 1 + (y_retro != y_train) * -1
+  chi <- (yretro == y_train) * 1 + (yretro != y_train) * -1
   D_raw <- (D * exp(-a * chi))
   D <- D_raw/sum(D_raw)
   fit[[t]] <- list("h" = h, "a" = a)
@@ -579,21 +582,23 @@ cat("Model weight 1:", fit$t1$a)
 
 Evaluate the retrodictive performance of the ensemble.
 
-```{r}
+```{r listing_25}
 h <- lapply(fit, "[[", "h")
 a <- sapply(fit, "[[", "a")
-y_retro_stumps <- sapply(h, predict, newdata = train[, featnms], 
+yretro_stumps <- sapply(h, predict, newdata = train[, featnms], 
                          type = "vector")
-y_retro_stumps <- 2 * y_retro_stumps - 3
-y_retro_ada <- sign(a %*% t(y_retro_stumps))
-table(y_train, y_retro_ada) # In-sample
+yretro_stumps <- 2 * yretro_stumps - 3
+yretro_ada <- sign(a %*% t(yretro_stumps))
+# Confusion matrix
+table(y_train, yretro_ada)
+# Perfect retrodictions!
 ```
 
 Replace matrix multiplication with a loop.
 
 ```{r listing_26}
 for (n in seq_len(m)) {
-  y_retro_ada[n] <- sign(sum(a * y_retro_stumps[n, ]))
+  yretro_ada[n] <- sign(sum(a * yretro_stumps[n, ]))
 }
 ```
 
@@ -601,14 +606,14 @@ Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
 ```{r figure_9, cache=TRUE}
 # Outcome vector
-y_obs <- train[,outnme]
+yobs <- train[,outnme]
 # Make 0/1 factor into something ADA can handle (-1/1)
-y_obs_ml <- 2 * as.numeric(train[,outnme]) - 3
+yobs_ml <- 2 * as.numeric(train[,outnme]) - 3
 # Number of classes
-k <- length(unique(y_obs_ml))
+k <- length(unique(yobs_ml))
 # Range(s) as list
-X_obs <- train[,c("power.o", "n.o")]
-rng <- lapply(X_obs, range, na.rm = TRUE)
+Xobs <- train[,c("power.o", "n.o")]
+rng <- lapply(Xobs, range, na.rm = TRUE)
 # Grid resolution
 resolution <- 1e3
 # Colors
@@ -635,43 +640,48 @@ fit <- trainAda(formula = replicate ~ .,
                 T = 5e2, eta = 1, treehypar = treehypar, verbose = FALSE, 
                 input_checks = FALSE)
 # Predict ADAboost
-y_pred_ml <- testAda(fit, grid, input_checks = FALSE, verbose = FALSE)
+ypred_ml <- testAda(fit, grid, input_checks = FALSE, verbose = FALSE)
 # Make prediction 0/1 instead of -1/1
-y_pred <- as.factor((y_pred_ml + 1) / 2)
+ypred <- as.factor((ypred_ml + 1) / 2)
 # Contour matrix
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+z_mat <- matrix(as.integer(ypred), nrow = resolution)
 # "0" means "not replicate", "1" means "replicate"
-symbol_colors <- ifelse(y_obs == "failure", col1, col2)
-grid_colors <- ifelse(y_pred == 0, col1_transp, col2_transp)
+symbol_colors <- ifelse(yobs == "failure", col1, col2)
+grid_colors <- ifelse(ypred == 0, col1_transp, col2_transp)
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),
      xlab = "power.o", ylab = "n.o")
 points(grid, col = grid_colors, pch = ".")
-# points(grid, col = as.integer(y_pred) + 6L, pch = ".")
-z_mat <- matrix(as.integer(y_pred), nrow = resolution)
+# points(grid, col = as.integer(ypred) + 6L, pch = ".")
+z_mat <- matrix(as.integer(ypred), nrow = resolution)
 # For the black line
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2,
         col = "black", levels = (1:(k-1))+.5)
-points(X_obs, col = symbol_colors, pch = as.integer(y_obs) + 15)
+points(Xobs, col = symbol_colors, pch = as.integer(yobs) + 15)
 legend("topleft", c("success", "failure") , pch = c(17,16),
        col = c(col2, col1), cex=0.7)
 ```
 
 Make predictions.
 
-TODO
+TODO: "object 'y_test' not found".
 
-```{r}
-y_pred_stumps <- sapply(h, predict, newdata = test[, featnms], type = "vector")
-y_pred_stumps <- 2 * y_pred_stumps - 3
-y_pred_ada <- sign(a %*% t(y_pred_stumps))
-table(y_test, y_pred_ada)
+```{r listing_27}
+# Important: Test set
+y_test <- test[, outnme]
+# Predictions (test data)
+ypred_stumps <- sapply(h, predict, newdata = test[, featnms], type = "vector")
+ypred_stumps <- 2 * ypred_stumps - 3
+ypred_ada <- sign(a %*% t(ypred_stumps))
+# Confusion matrix
+table(y_test, ypred_ada)
+# Inperfect predictions!
 ```
 
 <!-- # Module 4: Leave-Subject-Out Cross-Validation -->
 
 <!-- Introduce two wrapper functions with some additional sugar. -->
 
-<!-- ```{r} -->
+<!-- ```{r listing_28} -->
 <!-- # Boosted trees and weights -->
 <!-- fit <- trainAda(formula = replicate ~ ., -->
 <!--                 data = train[,featnms], -->
