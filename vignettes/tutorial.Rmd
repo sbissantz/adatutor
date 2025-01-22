@@ -3,7 +3,8 @@ title: "A Hands-On Tutorial on Adaptive Boosting for Psychologists: Predicting
 Replication Success with AdaBoost"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Tutorial}
+  %\VignetteIndexEntry{A Hands-On Tutorial on Adaptive Boosting for
+  Psychologists: Predicting Replication Success with AdaBoostTutorial}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -20,8 +21,9 @@ knitr::opts_chunk$set(
 Install the `adatutor` package form GitHub and load it.
 
 ```{r listing_1a, eval=FALSE}
-# Install the package from GitHub 
+# Load the package
 library("remotes")
+# Install the package from GitHub 
 install_github("sbissantz/adatutor")
 ```
 
@@ -76,7 +78,7 @@ n_fx <- nrow(df)
 n_train <- round(n_fx * prop)
 # Training index
 train_idx <- sample(seq_len(n_fx), n_train)
-# Training and test set
+# Training set 
 train <- df[train_idx, ]
 # Test set (incl. validation)
 testvalid  <- df[-train_idx, ]
@@ -180,6 +182,7 @@ testvalid <- stratsplit$set2
 Pre-implemented solution using the `rsample` package.
 
 ```{r listing_10, eval=FALSE}
+# Load the package
 library(rsample)
 set.seed(112)
 # Simple random split
@@ -212,7 +215,7 @@ treehypar <- rpart::rpart.control(
   # Original CART with gini impurity as splitting criterion
   split = "gini") # or ID3: split = "information"
 # Create a decision tree
-h <- rpart::rpart(formula = replicate ~ ., data = subdf,  method = "class",
+h <- rpart::rpart(replicate ~ ., data = subdf,  method = "class",
                   control = treehypar)
 # Visualize
 rpart.plot::rpart.plot(h, extra = 102, digits = 5, box.palette="BuGy")
@@ -224,11 +227,11 @@ Retrieve the frequency tables for the outcome variable under the two power
 conditions.
 
 ```{r listing_11}
-# Define the condition for the split
+# Condition for the split
 splitcond <- train$power.o < 0.92866
-# Studies with df$power.o < 0.92866
+# Studies with power.o < 0.92866
 table(train$replicate[splitcond])
-# Studies with df$power.o >= 0.92866
+# Studies with power.o >= 0.92866
 table(train$replicate[!splitcond])
 ```
 
@@ -238,6 +241,7 @@ Set the hyperparameter of a classification tree and fit the model to the
 training data.
 
 ```{r listing_12}
+# Load the package
 library(rpart)
 # Hyperparameter setup: Classification stump
 treehypar <- rpart.control(
@@ -251,8 +255,9 @@ cstump <- rpart(replicate ~ ., data = train[, featnms], method = "class",
 Visualize a fitted classification stump.
 
 ```{r listing_13, eval=FALSE}
+# Load the package
 library(rpart.plot)
-# Visualize a classification stump
+# Visualize classification stump
 rpart.plot(cstump, extra = 102, digits = 5, box.palette="BuGy")
 ```
 
@@ -393,8 +398,8 @@ library(rpart.plot)
 m <- nrow(train)
 # Equal weight to each observation
 D <- rep(1, m)/m
-# Create a decision stump
-cstump <- rpart(formula = replicate ~ ., data = train[, featnms],
+# Fit a decision stump
+cstump <- rpart(replicate ~ ., data = train[, featnms],
            method = "class",  weight = D, control = treehypar)
 # Visualize
 rpart.plot(cstump, digits = 5, box.palette="BuGy")
@@ -421,7 +426,7 @@ rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
 Understand the givens in the AdaBoost algorithm.
 
 ```{r listing_17}
-# prednms and outcome (names)
+# Predictors and outcome (names)
 prednms ; outnme
 # Predictor matrix
 x_train <- train[, prednms]
@@ -450,9 +455,11 @@ D1 <- rep(1, m)/m
 Fit a classification stump with the initialization weights.
 
 ```{r listing_19} 
+# Hyperparameter setup
 treehypar <- rpart.control(maxdepth = 1,  split = "gini") 
-h1 <- rpart::rpart(formula = replicate ~ ., data = train[, featnms], 
-                  method = "class", weights = D1, control = treehypar)
+# Fit classification stump 
+h1 <- rpart(replicate ~ ., data = train[, featnms],  method = "class", 
+            weights = D1, control = treehypar)
 ``` 
 
 #### Step 2
@@ -462,15 +469,17 @@ Calculate the classification stumps error.
 ```{r listing_20}
 # Retrodictions (training data)
 yretro <- predict(h1, newdata = train[, featnms], type = "class")
-# Retrodictions do not match observations
+# Retrodiction error 
 epsilon <- sum(D1 * (yretro != y_train))
+# Retrodictions do not match observations!
 ```
 
 Calculate the classification stump's performance.
 
 ```{r listing_21}
-# Retrodictions match observations
+# Retrodivitve performance
 perf <- sum(D1 * (yretro == y_train))
+# Retrodictive error
 epsilon <- 1 - perf
 ```
 
@@ -479,7 +488,9 @@ epsilon <- 1 - perf
 Calculate the classification stump’s weight assuming a learning rate eta of 1.
 
 ```{r}
+# Learning rate
 eta <- 1
+# Learner weight
 alpha1 <- 1/2 * log(perf / epsilon) * eta
 ```
 
@@ -502,9 +513,13 @@ legend("topleft", legend = c(expression(eta*" = 1"), expression(eta*" = 0.5"),
 Calculate the update factor for the initialization weights.
 
 ```{r listing_23}
+# Indicator trick
 chi1 <- (yretro == y_train) * 1 + (yretro != y_train) * -1
+# Unormalized weights (t2)
 D2_raw <- D1 * exp(-alpha1 * chi1)
+# Normalization constant
 Z1 <- sum(D2_raw)
+# Normalized weights (t1)
 D2 <- D2_raw / Z1
 ```
 
@@ -558,6 +573,7 @@ legend("topright", legend = c(expression(D[1]), expression(D[2])),
 Loop through the algorithmic steps.
 
 ```{r listing_24}
+# Hyperparameter setup
 treehypar <- rpart.control(maxdepth = 1)
 T <- 1e4 # Number of trees
 eta <- 1 # Learning rate
@@ -583,11 +599,16 @@ cat("Model weight 1:", fit$t1$a)
 Evaluate the retrodictive performance of the ensemble.
 
 ```{r listing_25}
+# Boosted classification stumps
 h <- lapply(fit, "[[", "h")
+# Model weights
 a <- sapply(fit, "[[", "a")
+# Retrodictions from stumps
 yretro_stumps <- sapply(h, predict, newdata = train[, featnms], 
                          type = "vector")
+# Transformed values (-1,1)
 yretro_stumps <- 2 * yretro_stumps - 3
+# Retrodictions from full model
 yretro_ada <- sign(a %*% t(yretro_stumps))
 # Confusion matrix
 table(y_train, yretro_ada)
@@ -673,7 +694,7 @@ ypred_ada <- sign(a %*% t(ypred_stumps))
 table(y_test, ypred_ada)
 # Inperfect predictions!
 ```
-# Module 4: Leave-Subject-Out Cross-Validation
+# Module 4: Leave-Project-Out Cross-Validation
 
 Introduce two wrapper functions with some additional sugar.
 
@@ -694,15 +715,19 @@ ypred <- testAda(fit, data = test[, prednms])
 Show different measures to evaluate the predictive performance of the ensemble.
 
 ```{r}
+# Confusion matrix
 confusion <- table(ypred, test$replicate)
 # Accuracy
 sum(diag(confusion)) / sum(confusion) 
-# Area under the curve
+# Load the package
 library(AUC)
-roc(ypred, test$replicate) |> AUC::auc()
-# Matthew correlation 
+# Area under the curve
+auc(roc(ypred, test$replicate))
+# Transformed values (-1, 1)
 y1m1 <- 2 * as.numeric(test$replicate) - 3
+# Load the package
 library(mltools)
+# Matthew correlation 
 mcc(as.numeric(ypred), y1m1)
 ```
 
@@ -712,30 +737,31 @@ Do a leave-project-out cross-validation. Note that this runs for approximately 4
 minutes.
 
 ```{r listing_30}
-# Partition the data by pid 
+# Partition data by pid 
 df_split <- split(df, df$pid)
-# Pre-allocate the AUC list
+# Pre-allocate AUC list
 auc <- list()
 # Leave-Project-Out Cross-Validation
 runtime <- system.time({
   # For each replication project...
   for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
-    message("\nThe ", paste0(project), " model.\n")
-    # Define the test set
+    message("\nThe ", paste0(rp), " model.\n")
+    # Define test set
     test <- df_split[[rp]]
-    # Define the training set
+    # Define training set
     train <- df[!(df$pid %in% rp), ]
-    # Fit the model to the data 
+    # Fit model to the data 
     fit <- trainAda(replicate ~ ., data = train[, featnms],
                     T = 1e4, eta = 1,  # Boosting hyperparameter
                     treehypar = treehypar) # Tree hyperparameter
     # Make predictions on test set
     ypred <- testAda(fit, data = test[, prednms])
-    # Store the performance evaluation 
+    # Store performance evaluation 
     auc[[rp]] <- auc(roc(ypred, test$replicate))
   }})
 # Waiting time
 message("Run time: ", runtime["elapsed"], " s\n")
+# Results
 c(unlist(auc), "mean" = mean(unlist(auc)))
 ```
 
@@ -744,6 +770,7 @@ c(unlist(auc), "mean" = mean(unlist(auc)))
 Define a hypergrid.
 
 ```{r listing_31}
+# Define hypergrid
 hgrid <- expand.grid(
   # Tree-specific
   "maxdepth" = 1:3, # Interaction depth
@@ -759,12 +786,13 @@ Do hyperparameter optimization using a leave-project-out cross-validation
 strategy. Note that this runs for approximately 5 Minutes.
 
 ```{r listing_32}
+# Number of rows
 hgrid_rows <- nrow(hgrid)
-# Partition the data by pid 
+# Partition data by pid 
 df_split <- split(df[, voinms], df$pid)
 # For each entry in the hypergrid...
 for(i in seq_len(hgrid_rows)) {
-  # Track the iteration time 
+  # Track iteration time 
   runtime <- system.time({
     # Leave-One-Project-Out Cross-Validation
     for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
@@ -774,11 +802,11 @@ for(i in seq_len(hgrid_rows)) {
           " | eta: ", hgrid$eta[i],
           " | maxdepth: ", hgrid$maxdepth[i],
           " | model: ", rp)
-      # Define the test set
+      # Define test set
       test <- df_split[[rp]]
-      # Define the training set
+      # Define training set
       train <- df[!(df$pid %in% rp), ]
-      # Fit model to the data 
+      # Fit model to data 
       fit <- trainAda(replicate ~ ., data = train[, featnms], T = hgrid$T[i],  
                       eta = hgrid$eta[i], treehypar = rpart.control( 
                       maxdepth = hgrid$maxdepth[i]), verbose = FALSE)
@@ -798,8 +826,9 @@ hgrid[order(-hgrid$auc.mean), ]
 
 Fit the final model to the data. 
 
-```{r}
-fit_final <- trainAda(formula = replicate ~ ., data = df[, featnms], 
+```{r listing_33}
+# Fit optimized model
+fit_final <- trainAda(replicate ~ ., data = df[, featnms], 
                       T = 10, eta = 1, treehypar = rpart::rpart.control(
                         maxdepth = 1))
 ```
