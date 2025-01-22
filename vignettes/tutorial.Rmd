@@ -126,7 +126,7 @@ set_split <- split(df, df$replicate)
 # Number of training samples (stratified)
 n_train <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Training index (stratified)
-strat_idx <- mapply(function(set, n) sample(set[,"eid"], n),
+strat_idx <- mapply(function(set, n) sample(set[, "eid"], n),
                     set_split, n_train)
 # Training index
 train_idx <- df$eid %in% unlist(strat_idx)
@@ -148,7 +148,7 @@ set_split <- split(testvalid, testvalid$replicate)
 # Number of training samples (stratified)
 n_valid <- lapply(set_split, function(set) round(nrow(set) * prop))
 # Validation index (stratified)
-strat_idx <- mapply(function(set, n) sample(set[,"eid"], n),
+strat_idx <- mapply(function(set, n) sample(set[, "eid"], n),
                     set_split, n_valid)
 valid_idx <- testvalid$eid %in% unlist(strat_idx)
 # Validation set
@@ -199,10 +199,10 @@ testvalid <- testing(stratsplit)
 Reproduce Figure 2.1.
 
 ```{r figure_2}
-# Extract only two predictors
+# Extract only two prednms
 # Note: Reduces run-time - decision boundary visualization
 subfeat <- c("power.o", "n.o")
-subdf <-  train[,union(subfeat, outnme)]
+subdf <-  train[, union(subfeat, outnme)]
 # Hyperparameter setup
 treehypar <- rpart::rpart.control(
   # Maximum depth of any node tree
@@ -244,7 +244,7 @@ treehypar <- rpart.control(
   maxdepth = 1, # Maximum depth
   split = "gini") # Gini impurity (default)
 # Fit classification stump
-cstump <- rpart(replicate ~ ., data = train[,featnms], method = "class", 
+cstump <- rpart(replicate ~ ., data = train[, featnms], method = "class", 
                 control = treehypar)
 ```
 
@@ -264,7 +264,7 @@ y_train <- train[, outnme]
 # Number of classes
 k <- length(unique(subdf$replicate))
 # Range(s) as list
-rng <- lapply(subdf[,subfeat], range, na.rm = TRUE)
+rng <- lapply(subdf[, subfeat], range, na.rm = TRUE)
 # Grid resolution
 resolution <- 1e3
 # Colors
@@ -394,7 +394,7 @@ m <- nrow(train)
 # Equal weight to each observation
 D <- rep(1, m)/m
 # Create a decision stump
-cstump <- rpart(formula = replicate ~ .,   data = train[, featnms],
+cstump <- rpart(formula = replicate ~ ., data = train[, featnms],
            method = "class",  weight = D, control = treehypar)
 # Visualize
 rpart.plot(cstump, digits = 5, box.palette="BuGy")
@@ -421,7 +421,7 @@ rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
 Understand the givens in the AdaBoost algorithm.
 
 ```{r listing_17}
-# Predictors and outcome (names)
+# prednms and outcome (names)
 prednms ; outnme
 # Predictor matrix
 x_train <- train[, prednms]
@@ -432,7 +432,7 @@ i <- 1 ; m <- nrow(train)
 # i-th row/element
 x_train[i,] ; y_train[i]
 # i-th to m-th row/element
-cbind(x_train, y_train)[i:m,]
+cbind(x_train, y_train)[i:m, ]
 ```
 
 #### Initialization
@@ -451,7 +451,7 @@ Fit a classification stump with the initialization weights.
 
 ```{r listing_19} 
 treehypar <- rpart.control(maxdepth = 1,  split = "gini") 
-h1 <- rpart::rpart(formula = replicate ~ ., data = train[,featnms], 
+h1 <- rpart::rpart(formula = replicate ~ ., data = train[, featnms], 
                   method = "class", weights = D1, control = treehypar)
 ``` 
 
@@ -606,13 +606,13 @@ Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
 ```{r figure_9, cache=TRUE}
 # Outcome vector
-yobs <- train[,outnme]
+yobs <- train[, outnme]
 # Make 0/1 factor into something ADA can handle (-1/1)
-yobs_ml <- 2 * as.numeric(train[,outnme]) - 3
+yobs_ml <- 2 * as.numeric(train[, outnme]) - 3
 # Number of classes
 k <- length(unique(yobs_ml))
 # Range(s) as list
-Xobs <- train[,c("power.o", "n.o")]
+Xobs <- train[, c("power.o", "n.o")]
 rng <- lapply(Xobs, range, na.rm = TRUE)
 # Grid resolution
 resolution <- 1e3
@@ -651,7 +651,6 @@ grid_colors <- ifelse(ypred == 0, col1_transp, col2_transp)
 plot(NULL, xlim = range(x1_seq), ylim = range(x2_seq),
      xlab = "power.o", ylab = "n.o")
 points(grid, col = grid_colors, pch = ".")
-# points(grid, col = as.integer(ypred) + 6L, pch = ".")
 z_mat <- matrix(as.integer(ypred), nrow = resolution)
 # For the black line
 contour(x1_seq, x2_seq, z_mat, add = TRUE, drawlabels = FALSE, lwd = 2,
@@ -662,8 +661,6 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
 ```
 
 Make predictions.
-
-TODO: "object 'y_test' not found".
 
 ```{r listing_27}
 # Important: Test set
@@ -676,170 +673,133 @@ ypred_ada <- sign(a %*% t(ypred_stumps))
 table(y_test, ypred_ada)
 # Inperfect predictions!
 ```
+# Module 4: Leave-Subject-Out Cross-Validation
 
-<!-- # Module 4: Leave-Subject-Out Cross-Validation -->
+Introduce two wrapper functions with some additional sugar.
 
-<!-- Introduce two wrapper functions with some additional sugar. -->
+## Two Wrapper Functions
 
-<!-- ```{r listing_28} -->
-<!-- # Boosted trees and weights -->
-<!-- fit <- trainAda(formula = replicate ~ ., -->
-<!--                 data = train[,featnms], -->
-<!--                 T = 1e4, eta = 1,  # Boosting hyperparameter -->
-<!--                 treehypar = treehypar) # Tree hyperparameter -->
-<!-- ``` -->
+Introduce the wrapper functions.
 
-<!-- More expressive formula. -->
+```{r listing_28}
+# Boosted stumps and weights
+fit <- trainAda(formula = replicate ~ .,
+                data = train[, featnms],
+                T = 1e4, eta = 1,  # Boosting hyperparameter
+                treehypar = treehypar) # Tree hyperparameter
+# Predictions on test set
+ypred <- testAda(fit, data = test[, prednms])
+```
 
-<!-- ```{r} -->
-<!-- fit <- trainAda(replicate ~ power.o + effect_size.o + n.o + p_value.o, -->
-<!--                 data = train[,featnms], -->
-<!--                 T = 1e4, eta = 1, -->
-<!--                 treehypar = treehypar) -->
-<!-- ``` -->
+Show different measures to evaluate the predictive performance of the ensemble.
 
-<!-- ## Test function -->
+```{r}
+confusion <- table(ypred, test$replicate)
+# Accuracy
+sum(diag(confusion)) / sum(confusion) 
+# Area under the curve
+library(AUC)
+roc(ypred, test$replicate) |> AUC::auc()
+# Matthew correlation 
+y1m1 <- 2 * as.numeric(test$replicate) - 3
+library(mltools)
+mcc(as.numeric(ypred), y1m1)
+```
 
-<!-- ```{r} -->
-<!-- ypred <- testAda(fit, data = test[,prednms]) -->
-<!-- ``` -->
+## Leave-Project-Out Cross-Validation
 
-<!-- ## Performance evaluation -->
+Do a leave-project-out cross-validation. Note that this runs for approximately 4
+minutes.
 
-<!-- ```{r} -->
-<!-- ``` -->
+```{r listing_30}
+# Partition the data by pid 
+df_split <- split(df, df$pid)
+# Pre-allocate the AUC list
+auc <- list()
+# Leave-Project-Out Cross-Validation
+runtime <- system.time({
+  # For each replication project...
+  for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
+    message("\nThe ", paste0(project), " model.\n")
+    # Define the test set
+    test <- df_split[[rp]]
+    # Define the training set
+    train <- df[!(df$pid %in% rp), ]
+    # Fit the model to the data 
+    fit <- trainAda(replicate ~ ., data = train[, featnms],
+                    T = 1e4, eta = 1,  # Boosting hyperparameter
+                    treehypar = treehypar) # Tree hyperparameter
+    # Make predictions on test set
+    ypred <- testAda(fit, data = test[, prednms])
+    # Store the performance evaluation 
+    auc[[rp]] <- auc(roc(ypred, test$replicate))
+  }})
+# Waiting time
+message("Run time: ", runtime["elapsed"], " s\n")
+c(unlist(auc), "mean" = mean(unlist(auc)))
+```
 
-<!-- Show the imbalances in the data. -->
+## Hyperparameter Optimization using LPO-CV
 
-<!-- ```{r} -->
-<!-- table(df$replicate) -->
-<!-- ``` -->
+Define a hypergrid.
 
-<!-- Model evaluation. -->
+```{r listing_31}
+hgrid <- expand.grid(
+  # Tree-specific
+  "maxdepth" = 1:3, # Interaction depth
+  # Ensemble specific
+  "T" = c(1e1, 1e2, 1e3), # Number of trees
+  "eta" = c(1, 0.1), # Learning rate
+  # Container for fold performance
+  "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA,
+  "auc.mean" = NA, "runtime" = NA) # Average performance
+```
 
-<!-- ```{r} -->
-<!-- confusion <- table(ytilde, test$replicate) -->
-<!-- sum(diag(confusion)) / sum(confusion) # Accuracy -->
-<!-- AUC::roc(ytilde, test$replicate) |> AUC::auc() -->
-<!-- y1m1 <- 2 * as.numeric(test$replicate) - 3 -->
-<!-- mltools::mcc(as.numeric(ytilde), y1m1) -->
-<!-- ``` -->
+Do hyperparameter optimization using a leave-project-out cross-validation
+strategy. Note that this runs for approximately 5 Minutes.
 
-<!-- ## LOOCV -->
+```{r listing_32}
+hgrid_rows <- nrow(hgrid)
+# Partition the data by pid 
+df_split <- split(df[, voinms], df$pid)
+# For each entry in the hypergrid...
+for(i in seq_len(hgrid_rows)) {
+  # Track the iteration time 
+  runtime <- system.time({
+    # Leave-One-Project-Out Cross-Validation
+    for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
+      # Optimize progress report 
+      cat("\rProgress: ", round(i / hgrid_rows * 100), "%",
+          " | T: ", hgrid$T[i],
+          " | eta: ", hgrid$eta[i],
+          " | maxdepth: ", hgrid$maxdepth[i],
+          " | model: ", rp)
+      # Define the test set
+      test <- df_split[[rp]]
+      # Define the training set
+      train <- df[!(df$pid %in% rp), ]
+      # Fit model to the data 
+      fit <- trainAda(replicate ~ ., data = train[, featnms], T = hgrid$T[i],  
+                      eta = hgrid$eta[i], treehypar = rpart.control( 
+                      maxdepth = hgrid$maxdepth[i]), verbose = FALSE)
+      # Make predictions on test set
+      ypred <- testAda(fit, data = test[, prednms], verbose = FALSE)
+      # Store performance evaluations 
+      hgrid[[rp]][i] <- auc(roc(ypred, test$replicate))
+      }
+    # Calculate average performance
+    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, 4:8]))
+  })
+  hgrid$runtime[i] <- runtime[["elapsed"]]
+}
+# Hypergrid sorted by average auc
+hgrid[order(-hgrid$auc.mean), ]
+```
 
-<!-- ```{r} -->
-<!-- # Partition the data by "Project ID" -->
-<!-- df_split <- split(df, df$pid) -->
+Fit the final model to the data. 
 
-<!-- # Pre-allocate the AUC list -->
-<!-- auc <- list() -->
-
-<!-- # Leave-Project-Out Cross-Validation -->
-<!-- runtime <- system.time({ -->
-<!--   for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { -->
-<!--     message("\nThe ", paste0(project), " model.\n") -->
-<!--     # Define the test set -->
-<!--     test <- df_split[[project]] -->
-<!--     # Define the training set -->
-<!--     train <- df[!(df$pid %in% project), ] -->
-<!--     # Fit the model to the data to get the ensemble -->
-<!--     H <- trainAda(formula = replicate ~ ., -->
-<!--                          data = train[,featnms], -->
-<!--                          T = 1e4, eta = 1,  # Boosting hyperparameter -->
-<!--                          treehypar = treehypar) # Tree hyperparameter -->
-<!--     # Make predictions on validation set -->
-<!--     ytilde <- testAda(H = H, data = test[, predictors]) -->
-<!--     # Store the performance evaluation (level: effects) -->
-<!--     auc[[project]] <- AUC::auc( AUC::roc(ytilde, test$replicate) ) -->
-<!--   }}) -->
-<!-- # Waiting time -->
-<!-- message("Run time: ", runtime["elapsed"], " s\n") -->
-<!-- c(unlist(auc), "mean" = mean(unlist(auc))) -->
-<!-- ``` -->
-
-<!-- This will run for approximately 4 minutes. -->
-
-<!-- # Module 5: Hyperparameter Optimization using LPO-CV -->
-
-<!-- ```{r} -->
-<!-- # TODO: Increase n_trees 1e2:1e5 and reduce eta 1e-2 : 1e-5 -->
-<!-- hgrid <- expand.grid( -->
-<!--   # Tree-specific -->
-<!--   "maxdepth" = 1:3, # Interaction depth -->
-<!--   # Ensemble specific -->
-<!--   "T" = c(1e1, 1e2, 1e3), # Number of trees -->
-<!--   "eta" = c(1, 0.1), # Learning rate -->
-<!--   # Container for fold performance -->
-<!--   "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA, -->
-<!--   "auc.mean" = NA, "runtime" = NA) # Average performance -->
-<!-- # Number of combinations -->
-<!-- ``` -->
-
-<!-- Hyperparameter optimization using leave-project-out cross-validation. -->
-
-<!-- ```{r} -->
-<!-- hgrid_rows <- nrow(hgrid) -->
-<!-- # Partition the data by "Project ID" -->
-<!-- df_split <- split(df[,voi], df$pid) -->
-<!-- # For each entry in the hypergrid, do... -->
-<!-- for(i in seq_len(hgrid_rows)) { -->
-<!--   # Track the iteration time (time-accuracy trade-off) -->
-<!--   runtime <- system.time({ -->
-<!--     # Leave-One-Project-Out Cross-Validation -->
-<!--     for (project in c("ee", "ml1", "ml3", "rpp", "ssrp")) { -->
-<!--       # Rudimentary progress report with carriage return "\r" -->
-<!--       cat("\rProgress: ", round(i / hgrid_rows * 100), "%", -->
-<!--           " | T: ", hgrid$T[i], -->
-<!--           " | eta: ", hgrid$eta[i], -->
-<!--           " | maxdepth: ", hgrid$maxdepth[i], -->
-<!--           " | model: ", project) -->
-<!--       # Define the test set -->
-<!--       test <- df_split[[project]] -->
-<!--       # Define the training set -->
-<!--       train <- df[!(df$pid %in% project), ] -->
-<!--       # Fit the model to the data to get the ensemble -->
-<!--       H <- trainAda(replicate ~ ., -->
-<!--                            data = train[,featnms], -->
-<!--                            T = hgrid$T[i], -->
-<!--                            eta = hgrid$eta[i], -->
-<!--                            treehypar = rpart::rpart.control( -->
-<!--                              maxdepth = hgrid$maxdepth[i]), -->
-<!--                            verbose = FALSE) -->
-<!--       # Make predictions on validation set -->
-<!--       ytilde <- testAda(H = H, data = test[, predictors], -->
-<!--                                    verbose = FALSE) -->
-<!--       # Store the performance evaluation (level: effects) -->
-<!--       hgrid[[project]][i] <- AUC::auc( AUC::roc(ytilde, test$replicate)) } -->
-<!--     # Calculate the average performance -->
-<!--     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i,4:8])) -->
-<!--   }) -->
-<!--   hgrid$runtime[i] <- runtime[["elapsed"]] -->
-<!-- } -->
-<!-- message("\nTotal run time: ", sum(hgrid$runtime)) -->
-<!-- ``` -->
-
-<!-- Performance evaluation sorted by highest AUC. -->
-
-<!-- ```{r} -->
-<!-- hgrid[order(-hgrid$auc.mean), ] -->
-<!-- ``` -->
-
-<!-- Stacking the best performing algorithms could improve the predictions quite -->
-<!-- significantly here! For example, learners 2 and 3 perform quite well on the ee -->
-<!-- project, while learners 1 and 8 perform quite well on ml1. -->
-
-<!-- ## Optimized Ensemble -->
-
-<!-- If we do not stack the results, we should at least fit the model with the -->
-<!-- hyperparameters that had the best average performance (here AUC) across all -->
-<!-- replication projects. However, we don't get a true sense of the model's -->
-<!-- out-of-sample capabilities because we don't have another project it hasn't seen -->
-<!-- yet. -->
-
-<!-- ```{r} -->
-<!-- H_final <- trainAda(formula = replicate ~ ., -->
-<!--                            data = df[,featnms], -->
-<!--                            T = 10, eta = 1, -->
-<!--                            treehypar = rpart::rpart.control( -->
-<!--                              maxdepth = 1)) -->
-<!-- ``` -->
+```{r}
+fit_final <- trainAda(formula = replicate ~ ., data = df[, featnms], 
+                      T = 10, eta = 1, treehypar = rpart::rpart.control(
+                        maxdepth = 1))
+```
