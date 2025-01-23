@@ -415,7 +415,7 @@ D_raw <- runif(107)
 # Normalize (sum to 1)
 D <- D_raw/sum(D_raw)
 # Create a decision stump
-cstump_ast <- rpart(formula = replicate ~ .,  data = train[,featnms],
+cstump_ast <- rpart(replicate ~ .,  data = train[,featnms],
                   method = "class", weight = D, control = treehypar)
 # Visualize
 rpart.plot(cstump_ast, extra = 100, digits = 5, box.palette="BuGy")
@@ -515,11 +515,11 @@ Calculate the update factor for the initialization weights.
 ```{r listing_23}
 # Indicator trick
 chi1 <- (yretro == y_train) * 1 + (yretro != y_train) * -1
-# Unormalized weights (t2)
+# Unnormalized weights 
 D2_raw <- D1 * exp(-alpha1 * chi1)
 # Normalization constant
 Z1 <- sum(D2_raw)
-# Normalized weights (t1)
+# Normalized weights
 D2 <- D2_raw / Z1
 ```
 
@@ -581,7 +581,7 @@ eta <- 1 # Learning rate
 fit <- vector("list", T)
 D <- rep(1, m)/m
 for (t in seq_len(T)) {
-  h <- rpart(formula = replicate ~ ., data = train[, featnms],
+  h <- rpart(replicate ~ ., data = train[, featnms],
   method = "class", weights = D, control = treehypar)
   yretro <- predict(object = h, newdata = train[, featnms], type = "class")
   e <- sum(D * (yretro != y_train))
@@ -656,7 +656,7 @@ treehypar <- rpart::rpart.control(
   maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
   cp = 1e-2, split = "gini")
 # Fit AdaBoost
-fit <- trainAda(formula = replicate ~ ., 
+fit <- trainAda(replicate ~ ., 
                 data = train[,c("replicate", "power.o", "n.o")], 
                 T = 5e2, eta = 1, treehypar = treehypar, verbose = FALSE, 
                 input_checks = FALSE)
@@ -704,7 +704,7 @@ Introduce the wrapper functions.
 
 ```{r listing_28}
 # Boosted stumps and weights
-fit <- trainAda(formula = replicate ~ .,
+fit <- trainAda(replicate ~ .,
                 data = train[, featnms],
                 T = 1e4, eta = 1,  # Boosting hyperparameter
                 treehypar = treehypar) # Tree hyperparameter
@@ -716,15 +716,15 @@ Show different measures to evaluate the predictive performance of the ensemble.
 
 ```{r}
 # Confusion matrix
-confusion <- table(ypred, test$replicate)
+confusion <- table(ypred, y_test)
 # Accuracy
 sum(diag(confusion)) / sum(confusion) 
 # Load the package
 library(AUC)
 # Area under the curve
-auc(roc(ypred, test$replicate))
+auc(roc(ypred, y_test))
 # Transformed values (-1, 1)
-y1m1 <- 2 * as.numeric(test$replicate) - 3
+y1m1 <- 2 * as.numeric(y_test) - 3
 # Load the package
 library(mltools)
 # Matthew correlation 
@@ -746,18 +746,17 @@ runtime <- system.time({
   # For each replication project...
   for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
     message("\nThe ", paste0(rp), " model.\n")
-    # Define test set
+    # Training and test set 
     test <- df_split[[rp]]
-    # Define training set
     train <- df[!(df$pid %in% rp), ]
     # Fit model to the data 
     fit <- trainAda(replicate ~ ., data = train[, featnms],
                     T = 1e4, eta = 1,  # Boosting hyperparameter
                     treehypar = treehypar) # Tree hyperparameter
-    # Make predictions on test set
+    # Predictions
     ypred <- testAda(fit, data = test[, prednms])
-    # Store performance evaluation 
-    auc[[rp]] <- auc(roc(ypred, test$replicate))
+    # Performance evaluation 
+    auc[[rp]] <- auc(roc(ypred, y_test))
   }})
 # Waiting time
 message("Run time: ", runtime["elapsed"], " s\n")
@@ -772,14 +771,17 @@ Define a hypergrid.
 ```{r listing_31}
 # Define hypergrid
 hgrid <- expand.grid(
-  # Tree-specific
-  "maxdepth" = 1:3, # Interaction depth
-  # Ensemble specific
-  "T" = c(1e1, 1e2, 1e3), # Number of trees
-  "eta" = c(1, 0.1), # Learning rate
+  # Tree-specific:
+  # Tree depth
+  "depth" = 1:3, 
+  # Boosting specific:
+  # Number of trees
+  "T" = c(1e1, 1e2, 1e3), 
+  # Learning rate
+  "eta" = c(1, 0.1), 
   # Container for fold performance
   "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA,
-  "auc.mean" = NA, "runtime" = NA) # Average performance
+  "auc.mean" = NA, "runtime" = NA) 
 ```
 
 Do hyperparameter optimization using a leave-project-out cross-validation
@@ -800,20 +802,18 @@ for(i in seq_len(hgrid_rows)) {
       cat("\rProgress: ", round(i / hgrid_rows * 100), "%",
           " | T: ", hgrid$T[i],
           " | eta: ", hgrid$eta[i],
-          " | maxdepth: ", hgrid$maxdepth[i],
+          " | depth: ", hgrid$depth[i],
           " | model: ", rp)
       # Define test set
       test <- df_split[[rp]]
       # Define training set
       train <- df[!(df$pid %in% rp), ]
       # Fit model to data 
-      fit <- trainAda(replicate ~ ., data = train[, featnms], T = hgrid$T[i],  
-                      eta = hgrid$eta[i], treehypar = rpart.control( 
-                      maxdepth = hgrid$maxdepth[i]), verbose = FALSE)
+      fit <- trainAda(replicate ~ ., data = train[, featnms], T = hgrid$T[i], eta = hgrid$eta[i], treehypar = rpart.control(maxdepth = hgrid$depth[i]), verbose = FALSE)
       # Make predictions on test set
       ypred <- testAda(fit, data = test[, prednms], verbose = FALSE)
       # Store performance evaluations 
-      hgrid[[rp]][i] <- auc(roc(ypred, test$replicate))
+      hgrid[[rp]][i] <- auc(roc(ypred, y_test))
       }
     # Calculate average performance
     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, 4:8]))
@@ -829,6 +829,5 @@ Fit the final model to the data.
 ```{r listing_33}
 # Fit optimized model
 fit_final <- trainAda(replicate ~ ., data = df[, featnms], 
-                      T = 10, eta = 1, treehypar = rpart::rpart.control(
-                        maxdepth = 1))
+                      T = 10, eta = 1, treehypar = rpart.control(maxdepth = 1))
 ```
