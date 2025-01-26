@@ -163,13 +163,22 @@ valid_cases <- extdata$drop == FALSE & !is.na(extdata$replicated)
 altmejd723 <- extdata[valid_cases, relevant_vars]
 
 # Switch from "id" to "eid" - "effect id"
-eid_pat <- grep("id", colnames(altmejd723) )
+eid_pat <- grep("id", colnames(altmejd723))
 names(altmejd723)[eid_pat] <- "eid"
 
 # Add pid - "project id"
-pid_pat <- grep("project", colnames(altmejd723) )
+pid_pat <- grep("project", colnames(altmejd723))
 names(altmejd723)[pid_pat] <- "pid"
 
+# Rename "ee" to "eerp" in eid
+ee_pat <- grep("ee", altmejd723$eid)
+altmejd723$eid[ee_pat] <- gsub("ee", "eerp", altmejd723$eid[ee_pat])
+
+# Rename "ee" to "eerp" in pid
+ee_pat <- grep("ee", altmejd723$pid)
+altmejd723$pid[ee_pat] <- "eerp"
+
+# Change "replicated" in replicate
 nme_pat <- grep("replicated", colnames(altmejd723))
 colnames(altmejd723)[nme_pat] <- "replicate"
 
