@@ -656,10 +656,9 @@ treehypar <- rpart::rpart.control(
   maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
   cp = 1e-2, split = "gini")
 # Fit AdaBoost
-fit <- trainAda(replicate ~ ., 
-                data = train[,c("replicate", "power.o", "n.o")], 
-                T = 5e2, eta = 1, treehypar = treehypar, verbose = FALSE, 
-                input_checks = FALSE)
+fit <- trainAda(replicate ~ ., data = train[,c("replicate", "power.o", "n.o")], 
+                T = 5e2, eta = 1, treehypar = treehypar, 
+                verbose = FALSE, input_checks = FALSE)
 # Predict ADAboost
 ypred_ml <- testAda(fit, grid, input_checks = FALSE, verbose = FALSE)
 # Make prediction 0/1 instead of -1/1
@@ -744,7 +743,7 @@ auc <- list()
 # Leave-Project-Out Cross-Validation
 runtime <- system.time({
   # For each replication project...
-  for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
+  for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
     message("\nThe ", paste0(rp), " model.\n")
     # Training and test set 
     test <- df_split[[rp]]
@@ -780,7 +779,7 @@ hgrid <- expand.grid(
   # Learning rate
   "eta" = c(1, 0.1), 
   # Container for fold performance
-  "ee" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA,
+  "eerp" = NA, "ml1" = NA, "ml3" = NA, "rpp" = NA,  "ssrp" = NA,
   "auc.mean" = NA, "runtime" = NA) 
 ```
 
@@ -797,7 +796,7 @@ for(i in seq_len(hgrid_rows)) {
   # Track iteration time 
   runtime <- system.time({
     # Leave-One-Project-Out Cross-Validation
-    for (rp in c("ee", "ml1", "ml3", "rpp", "ssrp")) {
+    for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
       # Optimize progress report 
       cat("\rProgress: ", round(i / hgrid_rows * 100), "%",
           " | T: ", hgrid$T[i],
