@@ -4,5 +4,4 @@
 .httr-oauth
 .DS_Store
 data/.Rapp.history
-inst/doc
 vignettes/tutorial_DH.Rmd
