@@ -3,7 +3,7 @@
 \docType{data}
 \name{altmejd}
 \alias{altmejd}
-\title{Shortened version of Altmejd et al.'s replication database}
+\title{Short version of Altmejd et al.'s replication database}
 \format{
 A data frame with 152 study effects (rows) rows; 2 identifiers, and 5
 predictors (i.e., 7 columns):
@@ -13,7 +13,7 @@ predictors (i.e., 7 columns):
 \item{eid}{Effect identifier}
 \item{pid}{Project identifier: Many Labs 1 (ML1), Many Labs 3 (ML3),
 Replication Project Psychology (RPP), Experimental Economics
-Replication Project (EE), Social Science  Replication Project (SSRP)}
+Replication Project (EERP), Social Science  Replication Project (SSRP)}
 \item{effect_size.o}{Standardized effect size of the original study}
 \item{p_value.o}{P value of the original study}
 \item{power.o}{Power of the original study}
