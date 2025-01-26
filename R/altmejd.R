@@ -1,4 +1,4 @@
-#' @title Shortened version of Altmejd et al.'s replication database
+#' @title Short version of Altmejd et al.'s replication database
 #'
 #' @description An adapted version of the replication database by Altmejd et al.
 #'   (2018). It includes replication projects of social science lab experiments
@@ -14,7 +14,7 @@
 #'   \item{eid}{Effect identifier}
 #'   \item{pid}{Project identifier: Many Labs 1 (ML1), Many Labs 3 (ML3),
 #'   Replication Project Psychology (RPP), Experimental Economics
-#'   Replication Project (EE), Social Science  Replication Project (SSRP)}
+#'   Replication Project (EERP), Social Science  Replication Project (SSRP)}
 #'   \item{effect_size.o}{Standardized effect size of the original study}
 #'   \item{p_value.o}{P value of the original study}
 #'   \item{power.o}{Power of the original study}
