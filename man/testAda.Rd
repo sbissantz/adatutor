@@ -37,8 +37,8 @@ which yields AdaBoost's predictions or retrodictions on a given set.
 The function proceeds as follows:
 \enumerate{
 \item If \code{input_checks} is \code{TRUE}, basic input validation is
-performed to ensure that \code{h} is a valid AdaBoost model and \code{data}
-is appropriate for predictions.
+performed to ensure that \code{fit} is a valid AdaBoost model and
+\code{data} is appropriate for predictions.
 \item Progress messages and animations are shown if \code{verbose} is
 \code{TRUE}.
 \item Boosted weak learners (\code{h}) and their weights (\code{a}) are extracted
