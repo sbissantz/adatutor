@@ -177,3 +177,4 @@ ssrp723$replicate <- ifelse(ssrp723$replicate == "replicate", 1, 0)
 
 # Save the data set as R data
 usethis::use_data(ssrp723, overwrite = TRUE)
+
