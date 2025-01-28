@@ -137,7 +137,7 @@ testvalid  <- df[!train_idx, ]
 
 Complete a 70/15/15 stratified split.
 
-```{r}
+```{r, listing_8}
 # Reproducibility
 set.seed(112)
 # Split proportion
@@ -198,7 +198,7 @@ testvalid <- testing(stratsplit)
 
 Reproduce Figure 2.1.
 
-```{r figure_2, fig.width=4}
+```{r figure_2, fig.width=5, fig.asp = 1}
 # Extract only two prednms
 # Note: Reduces run-time - decision boundary visualization
 subfeat <- c("power.o", "n.o")
@@ -251,7 +251,7 @@ cstump <- rpart(replicate ~ ., data = train[, voinms], method = "class",
 
 Visualize a fitted classification stump.
 
-```{r listing_13, eval=FALSE}
+```{r listing_13}
 # Load the package
 library(rpart.plot)
 # Visualize classification stump
@@ -260,7 +260,7 @@ rpart.plot(cstump, extra = 102, digits = 4, box.palette="BuGy")
 
 Reproduce Figure 3.
 
-```{r figure_3, fig.width=7}
+```{r figure_3, fig.width=8, fig.asp = .62}
 # Outcome variable
 y_train <- train[, outnme]
 # Number of classes
@@ -303,7 +303,7 @@ legend("topleft", c("success", "failure") , pch = c(17,16),
 
 Reproduce Figure 4. 
 
-```{r figure_4, fig.width=4}
+```{r figure_4, fig.width=5, fig.asp = 1}
 # Calculate Gini Impurity
 x <- seq(0.01, 1, by = 0.01)  # Values for fraction of class k
 y <- 1 - (x^2) - (1-x)^2      # Gini Impurity calculation
@@ -501,7 +501,7 @@ alpha1 <- 1/2 * log(perf / epsilon) * eta
 
 Reproduce Figure 6.
 
-```{r figure_6, fig.width=4}
+```{r figure_6, fig.width=5, fig.asp = 1}
 fat <- function(x, eta) 1/2 * log(x/(1-x)) * eta
 curve(fat(x, 1), from = 0.5, to = 1, lwd = 2,
       ylab = "Importance", xlab = "Performance")
@@ -530,7 +530,7 @@ D2 <- D2_raw / Z1
 
 Reproduce Figure 7.
 
-```{r figure_7, fig.width=4}
+```{r figure_7, fig.width=5, fig.asp = 1}
 feat <- function(at, x) exp(-at*x)
 curve(feat(0.719, x), from = -1, to = 1, ylim = c(0,3), lty = 3,
       xlab = "Classification", ylab = "Weight update factor",  xaxt = "n")
@@ -554,7 +554,7 @@ axis(1,at = c(-1,1))
 
 Reproduce Figure 8.
 
-```{r figure_8, fig.width=4}
+```{r figure_8, fig.width=5, fig.asp = 1}
 n_25 <- 25
 scaling <- 175
 plot(c(1, n_25), c(0, D1[1] + 0.02) , type = "n", xaxt = "n",
@@ -630,7 +630,7 @@ for (n in seq_len(m)) {
 
 Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
-```{r figure_9, cache=TRUE, fig.width=7}
+```{r figure_9, cache=TRUE, fig.width=8, fig.asp = .62}
 # Outcome vector
 yobs <- train[, outnme]
 # Make 0/1 factor into something ADA can handle (-1/1)
@@ -658,7 +658,7 @@ grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
 # Tree hyperparameter setting
 treehypar <- rpart::rpart.control(
   # Slightly different hyperparameters to improve visibility of boundary
-  maxdepth = 3, minsplit = 5, minbucket = round(5 / 3),
+  maxdepth = 2, minsplit = 5, minbucket = round(5 / 3),
   cp = 1e-2, split = "gini")
 # Fit AdaBoost
 fit <- trainAda(replicate ~ ., data = train[,c("replicate", "power.o", "n.o")], 
