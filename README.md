@@ -1,6 +1,4 @@
-# adatutoR
-
-<img src='inst/sticker/adatutor_sticker.png' align="right" height="139" />
+# adatutor <img src='inst/sticker/sticker.png' align="right" height="139" />
 
 <!-- badges: start -->
 [![CRAN status](https://www.r-pkg.org/badges/version/elisr)](https://CRAN.R-project.org/package=elisr)
