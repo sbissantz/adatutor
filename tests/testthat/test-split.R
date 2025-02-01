@@ -1,4 +1,5 @@
 test_that("random_split() works", {
+  set.seed(112)
   split <- random_split(altmejd, prop = 0.7)
   expect_length(split, 2)
   expect_equal(dim(split$set1), c(106,7))
@@ -6,6 +7,7 @@ test_that("random_split() works", {
 })
 
 test_that("stratified_split() works", {
+  set.seed(112)
   split <- stratified_split(altmejd, group = "replicate", id = "eid",
                             prop = 0.7)
   expect_length(split, 2)
