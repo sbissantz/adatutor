@@ -1,4 +1,4 @@
-# adatutor <img src='inst/sticker/sticker.png' align="right" height="139" />
+# adatutor -- Introducing the Boosting Framework with AdaBoost <img src='inst/sticker/sticker.png' align="right" height="139" />
 
 <!-- badges: start -->
 [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
@@ -8,4 +8,4 @@
 [![test-coverage](https://github.com/sbissantz/adatutor/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/sbissantz/adatutor/actions/workflows/test-coverage.yaml)
 <!-- badges: end -->
 
-# Introducing the Boosting Framework with AdaBoost 
+# 
