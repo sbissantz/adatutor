@@ -29,10 +29,10 @@ check_prop(x)
 \item{x}{A generic input to be validated. The expected type depends on the
 specific function.}
 
-\item{train_nme}{A character string representing the name of the training
+\item{trainnme}{A character string representing the name of the training
 set.}
 
-\item{test_nme}{A character string representing the name of the test
+\item{testnme}{A character string representing the name of the test
 set.}
 }
 \value{
