@@ -29,7 +29,6 @@ NULL
 #'
 #' @examples
 #' # Example usage:
-#' check_df(altmext)  # Passes since altmext is a data frame
 #' \dontrun{check_df(5)}  # Fails with an error message
 #'
 check_df <- function(x) {
@@ -49,7 +48,6 @@ check_df <- function(x) {
 #'
 #' @examples
 #' # Example usage:
-#' check_eta(0.5)  # Passes
 #' \dontrun{check_eta("a")}  # Fails with an error
 #'
 check_eta <- function(x) {
@@ -77,7 +75,6 @@ check_eta <- function(x) {
 #'
 #' @examples
 #' # Example usage:
-#' check_length(c(1, 2, 3))  # Passes
 #' \dontrun{check_length(character(0))}  # Fails with an error
 #'
 check_length <- function(x) {
@@ -98,7 +95,6 @@ check_length <- function(x) {
 #'
 #' @examples
 #' # Example usage:
-#' check_list(list(a = 1, b = 2))  # Passes
 #' \dontrun{check_list(5)}  # Fails with an error
 #'
 check_list <- function(x) {
@@ -121,7 +117,6 @@ check_list <- function(x) {
 #'
 #' @examples
 #' # Example usage:
-#' check_numeric(5)  # Passes
 #' \dontrun{check_numeric("a")}  # Fails with an error
 #'
 check_numeric <- function(x) {
@@ -140,7 +135,6 @@ check_numeric <- function(x) {
 #'
 #' @examples
 #' # Example usage:
-#' check_train("train", "test")  # Passes
 #' \dontrun{check_train("train", "train")}  # Fails with an error
 #'
 check_train <- function(trainnme, testnme) {
@@ -157,8 +151,6 @@ check_train <- function(trainnme, testnme) {
 #'
 #' @examples
 #' # Example usage:
-#' check_prop(0.7)  # Passes
-#' \dontrun{check_prop(1.5)}  # Fails with an error
 #' \dontrun{check_prop(0)}  # Issues a warning
 #'
 check_prop <- function(x) {
