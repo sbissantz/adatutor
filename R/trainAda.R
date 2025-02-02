@@ -90,7 +90,7 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
   tmp[[1L]] <- quote(stats::model.frame) # Change the function name
   mf <- eval.parent(tmp) # Evaluate the model frame
   # Some relevant variables
-  y_train <- model.response(mf) # Store the model response
+  y_train <- stats::model.response(mf) # Store the model response
   m <- nrow(mf) # Store the number of rows
   D <- rep(1, m)/m # Calculate the initialization weights
   H <- vector("list", T) # Empty container for the trees and weights
@@ -123,7 +123,7 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
     D <- D_unorm / sum(D_unorm)
     H[[t]] <- list("h" = h, "a" = a)
     if(verbose) {
-      setTxtProgressBar(pb, t)
+      utils::setTxtProgressBar(pb, t)
     }
   }
   if(verbose) {

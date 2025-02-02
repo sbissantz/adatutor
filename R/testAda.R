@@ -77,13 +77,13 @@ testAda <- function(fit, data, input_checks = TRUE, verbose = TRUE) {
   check_length(a)
   if (verbose) {
     color_message("Make predictions/retrodictions\n", color_code = 30)
-    pb <- txtProgressBar(min = 0, max = length(h), style = 3)
+    pb <- utils::txtProgressBar(min = 0, max = length(h), style = 3)
   }
   y12_stumps <- sapply(seq_along(h), function(t) {
   if (verbose) {
-    setTxtProgressBar(pb, t)
+    utils::setTxtProgressBar(pb, t)
   }
-    predict(h[[t]], newdata = data, type = "vector")
+    stats::predict(h[[t]], newdata = data, type = "vector")
   })
   if (verbose) {
     close(pb)  # Close progress bar when done
