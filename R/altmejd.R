@@ -16,6 +16,7 @@
 #'   Replication Project Psychology (RPP), Experimental Economics
 #'   Replication Project (EERP), Social Science  Replication Project (SSRP)}
 #'   \item{effect_size.o}{Standardized effect size of the original study}
+#'   \item{n.o}{Number of observations in the original study}
 #'   \item{p_value.o}{P value of the original study}
 #'   \item{power.o}{Power of the original study}
 #'   \item{replicate}{Replication success indicator}
