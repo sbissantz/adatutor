@@ -36,7 +36,7 @@ NULL
 #'
 #' @examples
 #' # Example usage:
-#' walking_dots(n = 5, delay = 0.1)
+#' \dontrun{walking_dots(n = 5, delay = 0.1)}
 #'
 walking_dots <- function(n = 3, delay = 0.2) {
   for (i in seq_len(n)) {
@@ -53,8 +53,7 @@ walking_dots <- function(n = 3, delay = 0.2) {
 #'
 #' @examples
 #' # Example usage:
-#' color_message("A green message", color_code = 32)
-#' color_message("A red message\n", color_code = 31, newline = TRUE)
+#' \dontrun{color_message("A green message", color_code = 32)}
 #'
 color_message <- function(text, color_code = 32, newline = FALSE) {
   msg <- paste0("\033[", color_code, "m", text, "\033[0m")
@@ -70,7 +69,7 @@ color_message <- function(text, color_code = 32, newline = FALSE) {
 #'
 #' @examples
 #' # Example usage:
-#' walking_colordots(n = 4, delay = 0.15, color_code = 34)
+#' \dontrun{walking_colordots(n = 4, delay = 0.15, color_code = 34)}
 #'
 walking_colordots <- function(n = 3, delay = 0.2, color_code = 32) {
   for (i in seq_len(n)) {
