@@ -198,7 +198,7 @@ testvalid <- testing(stratsplit)
 
 Reproduce Figure 2.1.
 
-```{r figure_2, fig.width=5, fig.asp = 1}
+```{r figure_2}
 # Extract only two prednms
 # Note: Reduces run-time - decision boundary visualization
 subfeat <- c("power.o", "n.o")
@@ -260,7 +260,7 @@ rpart.plot(cstump, extra = 102, digits = 4, box.palette="BuGy")
 
 Reproduce Figure 3.
 
-```{r figure_3, fig.width=8, fig.asp = .62}
+```{r figure_3, fig.width=7, fig.asp = .75}
 # Outcome variable
 y_train <- train[, outnme]
 # Number of classes
@@ -330,13 +330,9 @@ which(round(adjmeans, 4) == 0.9305)
 Check if calculations in the text are correct.
 
 ```{r}
-# old: constant <- adjmeans[69] # 0.930541 
 adj_pat <- which(round(adjmeans, 4) == 0.9305)
-# adj_pat <- which(round(adjmeans,7) == 0.9304579)
 const <- adjmeans[adj_pat]
 N_total <- nrow(train) # 107
-# Left leaf (power.o < 0.9305: yes)
-# Left leaf (power.o < 0.930541: yes)
 criterion_left <- train$power.o < const
 N_left <- length(train$replicate[criterion_left]) # 66 total
 left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) # 17 
@@ -344,9 +340,6 @@ left_failure <- N_left - left_success # 49 failures
 # Gini impuritiy (left)
 gini_left <- 1 - ( (left_failure / N_left)^2 + (left_success / N_left)^2 )
 gini_left # 0.382
-
-# Right leaf (power.o < 0.9305: yes)
-# Left leaf (power.o < 0.930541: yes)
 criterion_right <- train$power.o >= const
 N_right <- length(train$replicate[criterion_right]) # 41
 right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) # 31 
@@ -354,7 +347,6 @@ right_failure <- N_right - right_success # 10
 # Gini impuritiy (right)
 gini_right <- 1 - ( (right_failure / N_right)^2 + (right_success / N_right)^2 )
 gini_right # 0.3688281
-
 # Overall weighted Gini impurity
 gini_impurity <- (N_left / N_total) * gini_left + (N_right / N_total) * gini_right
 round(gini_impurity, digits = 5) # 0.37724
@@ -580,7 +572,7 @@ Loop through the algorithmic steps.
 ```{r listing_24}
 # Hyperparameter setup
 treehypar <- rpart.control(maxdepth = 1)
-T <- 1e4 # Number of trees
+T <- 1e3 # Number of trees
 eta <- 1 # Learning rate
 # Container: Learner & weights 
 fit <- vector("list", T)
@@ -630,7 +622,7 @@ for (n in seq_len(m)) {
 
 Prepare the setup for the decision boundary. Note: This might run for 5 minutes.
 
-```{r figure_9, cache=TRUE, fig.width=8, fig.asp = .62}
+```{r figure_9, cache=TRUE, fig.width=7, fig.asp = .75}
 # Outcome vector
 yobs <- train[, outnme]
 # Make 0/1 factor into something ADA can handle (-1/1)
@@ -710,7 +702,8 @@ Introduce the wrapper functions.
 # Boosted stumps and weights
 fit <- trainAda(replicate ~ .,
                 data = train[, voinms],
-                T = 1e4, eta = 1,  # Boosting hyperparameter
+                T = 1e3, eta = 1,  # Boosting hyperparameter
+                # T = 1e2, eta = 1,  # Boosting hyperparameter
                 treehypar = treehypar) # Tree hyperparameter
 # Predictions on test set
 ypred <- testAda(fit, data = test[, prednms])
@@ -718,7 +711,7 @@ ypred <- testAda(fit, data = test[, prednms])
 
 Show different measures to evaluate the predictive performance of the ensemble.
 
-```{r}
+```{r listing_29}
 # Confusion matrix
 confusion <- table(ypred, y_test)
 # Accuracy
@@ -727,12 +720,6 @@ sum(diag(confusion)) / sum(confusion)
 library(AUC)
 # Area under the curve
 auc(roc(ypred, y_test))
-# Transformed values (-1, 1)
-y1m1 <- 2 * as.numeric(y_test) - 3
-# Load the package
-library(mltools)
-# Matthew correlation 
-mcc(as.numeric(ypred), y1m1)
 ```
 
 ## Leave-Project-Out Cross-Validation
@@ -755,7 +742,7 @@ runtime <- system.time({
     train <- df[!(df$pid %in% rp), ]
     # Fit model to the data 
     fit <- trainAda(replicate ~ ., data = train[, voinms],
-                    T = 1e4, eta = 1,  # Boosting hyperparameter
+                    T = 1e2, eta = 1,  # Boosting hyperparameter
                     treehypar = treehypar) # Tree hyperparameter
     # Predictions
     ypred <- testAda(fit, data = test[, prednms])
