@@ -54,13 +54,12 @@ in a specified color, with a delay between each, and ends with a colored
 }
 \examples{
 # Example usage:
-walking_dots(n = 5, delay = 0.1)
+\dontrun{walking_dots(n = 5, delay = 0.1)}
 
 # Example usage:
-color_message("A green message", color_code = 32)
-color_message("A red message\n", color_code = 31, newline = TRUE)
+\dontrun{color_message("A green message", color_code = 32)}
 
 # Example usage:
-walking_colordots(n = 4, delay = 0.15, color_code = 34)
+\dontrun{walking_colordots(n = 4, delay = 0.15, color_code = 34)}
 
 }
