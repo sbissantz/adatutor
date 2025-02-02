@@ -12,10 +12,10 @@
 #' @param x A generic input to be validated. The expected type depends on the
 #'   specific function.
 #'
-#' @param train_nme A character string representing the name of the training
+#' @param trainnme A character string representing the name of the training
 #'   set.
 #'
-#' @param test_nme A character string representing the name of the test
+#' @param testnme A character string representing the name of the test
 #'   set.
 #'
 #' @name checks
