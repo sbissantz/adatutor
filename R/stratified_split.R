@@ -24,7 +24,7 @@
 #' data(altmejd)
 #'
 #' # Perform a 70-30 stratified split by
-#' split <- stratified_split(altmejd, group = "replicated", id = "eid", prop = 0.7)
+#' split <- stratified_split(altmejd, group = "replicate", id = "eid", prop = 0.7)
 #'
 #' # Access the subsets
 #' set1 <- split$set1
