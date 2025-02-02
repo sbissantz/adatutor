@@ -103,7 +103,7 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
   # Manually build the prediction function call ...
   mtch <- match(c("data", "method"), names(tmp), nomatch = 0L)
   tmp <- tmp[c(1L, mtch)]
-  tmp[[1L]] <- quote(predict) # Change the function name
+  tmp[[1L]] <- quote(stats::predict) # Change the function name
   names(tmp)[2:3] <- c("newdata", "type")
   tmp$object <- as.symbol("h")
   cl_pred <- tmp
