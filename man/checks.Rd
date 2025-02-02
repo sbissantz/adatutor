@@ -78,32 +78,24 @@ suggestion to validate the input.
 }
 \examples{
 # Example usage:
-check_df(altmext)  # Passes since altmext is a data frame
 \dontrun{check_df(5)}  # Fails with an error message
 
 # Example usage:
-check_eta(0.5)  # Passes
 \dontrun{check_eta("a")}  # Fails with an error
 
 # Example usage:
-check_length(c(1, 2, 3))  # Passes
 \dontrun{check_length(character(0))}  # Fails with an error
 
 # Example usage:
-check_list(list(a = 1, b = 2))  # Passes
 \dontrun{check_list(5)}  # Fails with an error
 
 # Example usage:
-check_numeric(5)  # Passes
 \dontrun{check_numeric("a")}  # Fails with an error
 
 # Example usage:
-check_train("train", "test")  # Passes
 \dontrun{check_train("train", "train")}  # Fails with an error
 
 # Example usage:
-check_prop(0.7)  # Passes
-\dontrun{check_prop(1.5)}  # Fails with an error
 \dontrun{check_prop(0)}  # Issues a warning
 
 }
