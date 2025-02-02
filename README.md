@@ -8,4 +8,6 @@
 [![test-coverage](https://github.com/sbissantz/adatutor/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/sbissantz/adatutor/actions/workflows/test-coverage.yaml)
 <!-- badges: end -->
 
-# 
+## Description
+
+The `adatutor` package supports our efforts to introduce boosting to psychologists with little machine learning background. It provides the necessary datasets and some convenience functions that we use in our hands-on tutorial.
