@@ -10,4 +10,6 @@
 
 ## Description
 
-The `adatutor` package supports our efforts to introduce boosting to psychologists with little machine learning background. It provides the necessary datasets and some convenience functions that we use in our hands-on tutorial.
+The `adatutor` package supports our efforts to introduce boosting to
+psychologists with little machine learning background. It provides the necessary
+datasets and some convenience functions that we use in our hands-on tutorial.
