@@ -1,0 +1,32 @@
+#' @title An even shorter version of Altmejd et al.'s replication database
+#'
+#' @description A subset of Altmejd et al.'s (2018) replication database. Note
+#'   that this dataset is only used internally, to build the full database (see
+#'   \code{\link[adatutor]{altmejd}}). It includes replication projects of
+#'   social science lab experiments for four large-scale replication projects:
+#'   Many Labs 1 and 3, the Replication Project Psychology, and the Experimental
+#'   Economics Replication Project. The data for the Social Science  Replication
+#'   Project (SSRP) are missing.
+#'
+#' @format A data frame with 131 study effects (i.e., rows); 2 identifiers, and
+#'   5 predictors (i.e., 7 columns):
+#'
+#' \describe{
+#'   \item{eid}{Effect identifier}
+#'   \item{pid}{Project identifier: Many Labs 1 (ML1), Many Labs 3 (ML3),
+#'   Replication Project Psychology (RPP), Experimental Economics
+#'   Replication Project (EERP)}
+#'   \item{effect_size.o}{Standardized effect size of the original study}
+#'   \item{n.o}{Number of observations in the original study}
+#'   \item{p_value.o}{P value of the original study}
+#'   \item{power.o}{Power of the original study}
+#'   \item{replicate}{Replication success indicator}
+#' }
+#' @source Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
+#'   Predicting the replicability of social science lab experiments. PLOS ONE
+#'   14(12): e0225826. <https://doi.org/10.1371/journal.pone.0225826>
+#'
+#' The data and additional information on the data set can be downloaded from
+#' their OSF repository. <https://osf.io/4fn73/>
+#'
+"altmejd723"
