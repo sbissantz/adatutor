@@ -111,7 +111,7 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
     walking_colordots()
     color_message("Steps 1-4: Run through the algorithm steps\n",
                   color_code = 30)
-    pb <- txtProgressBar(min = 0, max = T, style = 3)
+    pb <- utils::txtProgressBar(min = 0, max = T, style = 3)
   }
   for (t in seq_len(T)) {
     h <- eval(cl_rpart)
