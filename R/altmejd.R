@@ -6,11 +6,10 @@
 #'   Replication Project Psychology, the Experimental Economics Replication
 #'   Project, and the Social Science Replication Project.
 #'
-#' @format A data frame with 152 study effects (rows) rows; 2 identifiers, and 5
-#'   predictors (i.e., 7 columns):
+#' @format A data frame with 152 study effects (i.e., rows) rows; 2 identifiers,
+#'   and 5 predictors (i.e., 7 columns):
 #'
 #' \describe{
-#'
 #'   \item{eid}{Effect identifier}
 #'   \item{pid}{Project identifier: Many Labs 1 (ML1), Many Labs 3 (ML3),
 #'   Replication Project Psychology (RPP), Experimental Economics
