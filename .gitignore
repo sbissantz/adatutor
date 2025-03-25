@@ -5,6 +5,5 @@
 .DS_Store
 data/.Rapp.history
 vignettes/tutorial_DH.Rmd
-/doc/
 /Meta/
 inst/doc
