@@ -3,7 +3,7 @@ pkgdown: 2.1.3
 pkgdown_sha: ~
 articles:
   adatutor: adatutor.html
-last_built: 2025-07-11T11:37Z
+last_built: 2025-07-11T11:41Z
 urls:
   reference: https://sbissantz.github.io/adatutor/reference
   article: https://sbissantz.github.io/adatutor/articles
