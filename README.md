@@ -22,4 +22,3 @@ R, use something like the following:
 ```r
 remotes::install_github("sbissantz/adatutor")
 ```
-.
