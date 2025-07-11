@@ -1,5 +1,4 @@
 url: https://sbissantz.github.io/adatutor/
 template:
   bootstrap: 5
-  params:
-    bootswatch: flatly
+
