@@ -1,6 +1,6 @@
 Package: adatutor
 Title: Introducing the Boosting Framework with AdaBoost
-Version: 0.0.1
+Version: 1.0.0
 Authors@R: 
     c(person(given = "Steven", family = "Bißantz", 
              email = "steven.bissantz@gmail.com", 
