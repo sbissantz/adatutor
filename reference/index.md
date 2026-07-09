@@ -1,0 +1,31 @@
+# Package index
+
+## All functions
+
+- [`altmejd`](https://sbissantz.github.io/adatutor/reference/altmejd.md)
+  : Short version of Altmejd et al.'s replication database
+- [`altmejd723`](https://sbissantz.github.io/adatutor/reference/altmejd723.md)
+  : An even shorter version of Altmejd et al.'s replication database
+- [`check_df()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  [`check_eta()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  [`check_length()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  [`check_list()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  [`check_numeric()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  [`check_train()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  [`check_prop()`](https://sbissantz.github.io/adatutor/reference/checks.md)
+  : Miscellaneous Functions for Input Validation
+- [`walking_dots()`](https://sbissantz.github.io/adatutor/reference/feedback.md)
+  [`color_message()`](https://sbissantz.github.io/adatutor/reference/feedback.md)
+  [`walking_colordots()`](https://sbissantz.github.io/adatutor/reference/feedback.md)
+  : Utility Functions for Console Feedback and Styling
+- [`random_split()`](https://sbissantz.github.io/adatutor/reference/random_split.md)
+  : Randomly Split a Dataset into Two Subsets
+- [`ssrp723`](https://sbissantz.github.io/adatutor/reference/ssrp723.md)
+  : An even shorter version of Altmejd et al.'s replication database
+- [`stratified_split()`](https://sbissantz.github.io/adatutor/reference/stratified_split.md)
+  : Stratified Split of a Dataset into Two Subsets
+- [`testAda()`](https://sbissantz.github.io/adatutor/reference/testAda.md)
+  : Generate Predictions or Retrodictions From a Set of (Adaptively)
+  Boosted Trees and Model Weights
+- [`trainAda()`](https://sbissantz.github.io/adatutor/reference/trainAda.md)
+  : Train a Set of Classification Trees Using AdaBoost
