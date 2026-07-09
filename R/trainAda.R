@@ -19,8 +19,10 @@
 #'
 #' @param eta A numeric value representing the learning rate of the algorithm.
 #'
-#' @param treehypar A list of control parameters for decision trees
-#' (passed to \code{\link[rpart]{rpart.control}}).
+#' @param maxdepth An integer specifying the maximum depth of the decision trees.
+#'   Defaults to 1.
+#'
+#' @param treehypar An optional list of additional control parameters for decision trees (passed to rpart.control). These will be safely merged with the internal AdaBoost speed optimizations. Defaults to \code{formula}.
 #'
 #' @param input_checks A logical value indicating whether to perform input
 #'   validation checks. Defaults to `TRUE`.
@@ -62,7 +64,7 @@
 #' }
 #'
 #' @export
-trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verbose = TRUE) {
+trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, input_checks = TRUE, verbose = TRUE) {
   if(verbose) {
     color_message("Start the AdaBoost training process:\n",
                   color_code = 1, newline = TRUE)
@@ -79,9 +81,25 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
       walking_colordots()
     }
   }
+
   if(verbose) {
     color_message("Start the initialization process", color_code = 30)
   }
+  
+  # Set fast default control parameters for rpart
+  def_ctrl <- rpart::rpart.control(
+    maxdepth = maxdepth, 
+    xval = 0,           
+    maxsurrogate = 0,   
+    cp = 0              
+  )
+  # Overwrite defaults with user-specified parameters if provided
+  if (!is.null(treehypar) && is.list(treehypar)) {
+    treehypar <- utils::modifyList(def_ctrl, treehypar)
+  } else {
+    treehypar <- def_ctrl
+  }
+  
   # Match the function call
   fcl <- match.call()
   # Manually build the model frame function call ...
@@ -89,17 +107,25 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
   tmp <- fcl[c(1L, mtch)] # Use a tmp variable to store process details
   tmp[[1L]] <- quote(stats::model.frame) # Change the function name
   mf <- eval.parent(tmp) # Evaluate the model frame
+  
   # Some relevant variables
   y_train <- stats::model.response(mf) # Store the model response
   m <- nrow(mf) # Store the number of rows
   D <- rep(1, m)/m # Calculate the initialization weights
   H <- vector("list", T) # Empty container for the trees and weights
+
   # Manually build the rpart function call ...
   tmp[[1L]] <- quote(rpart::rpart) # Change the function name
   tmp$weights <- as.symbol("D")
   tmp$method <- "class"
   tmp$control <- as.symbol("treehypar")
+
+  # Assign tmp to cl_rpart
   cl_rpart <- tmp
+  # Tell rpart to drop memory-heavy objects
+  cl_rpart$model <- FALSE 
+  cl_rpart$y <- FALSE
+
   # Manually build the prediction function call ...
   mtch <- match(c("data", "method"), names(tmp), nomatch = 0L)
   tmp <- tmp[c(1L, mtch)]
@@ -107,35 +133,54 @@ trainAda <- function(formula, data, T, eta, treehypar, input_checks = TRUE, verb
   names(tmp)[2:3] <- c("newdata", "type")
   tmp$object <- as.symbol("h")
   cl_pred <- tmp
+
+  # Verbose output for the training process
   if(verbose) {
     walking_colordots()
     color_message("Steps 1-4: Run through the algorithm steps\n",
                   color_code = 30)
     pb <- utils::txtProgressBar(min = 0, max = T, style = 3)
   }
+
+  # Algorithmic steps (optimized: speed & memory)
   for (t in seq_len(T)) {
     h <- eval(cl_rpart)
     y_retro <- eval(cl_pred)
-    e <- sum(D * (y_train != y_retro))
+    correct <- (y_train == y_retro)
+    e_init <- sum(D[!correct]) 
+    e <- max(e_init, 1e-10) 
     a <- 0.5 * log((1 - e) / e) * eta
-    chi <- (y_train == y_retro) * 1 + (y_train != y_retro) * -1
-    D_unorm <- (D * exp(-a * chi))
+    exp_a <- exp(a)
+    exp_ma <- exp(-a)
+    D_unorm <- D
+    D_unorm[correct] <- D[correct] * exp_ma
+    D_unorm[!correct] <- D[!correct] * exp_a
     D <- D_unorm / sum(D_unorm)
+    h$where <- NULL
+    h$call <- NULL
     H[[t]] <- list("h" = h, "a" = a)
     if(verbose) {
       utils::setTxtProgressBar(pb, t)
     }
   }
+
+  # Verbose output for the training process
   if(verbose) {
     close(pb)
     color_message("Create output", color_code = 30)
     walking_colordots()
   }
+
+  # Name the list elements for clarity
   names(H) <- paste0("t", seq_len(T))
   if(verbose) {
     color_message("Training process successfully completed.\n", color_code = 1,
                 newline = TRUE)
   }
+
+  # Add name as attribute for tracking
   attr(H, "train") <- cl_pred$newdata
+
+  # Return object
   H
 }
