@@ -22,7 +22,8 @@
 #' @param maxdepth An integer specifying the maximum depth of the decision trees.
 #'   Defaults to 1.
 #'
-#' @param treehypar An optional list of additional control parameters for decision trees (passed to rpart.control). These will be safely merged with the internal AdaBoost speed optimizations. Defaults to \code{formula}.
+#' @param treehypar An optional list of additional control parameters for decision trees (passed to rpart.control). 
+#' These will be safely merged with the internal AdaBoost speed optimizations. Defaults to \code{NULL}.
 #'
 #' @param input_checks A logical value indicating whether to perform input
 #'   validation checks. Defaults to `TRUE`.
@@ -102,6 +103,7 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, inpu
   
   # Match the function call
   fcl <- match.call()
+  
   # Manually build the model frame function call ...
   mtch <- match(c("formula", "data"), names(fcl), nomatch = 0L)
   tmp <- fcl[c(1L, mtch)] # Use a tmp variable to store process details
@@ -122,6 +124,7 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, inpu
 
   # Assign tmp to cl_rpart
   cl_rpart <- tmp
+  
   # Tell rpart to drop memory-heavy objects
   cl_rpart$model <- FALSE 
   cl_rpart$y <- FALSE
@@ -146,19 +149,24 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, inpu
   for (t in seq_len(T)) {
     h <- eval(cl_rpart)
     y_retro <- eval(cl_pred)
+    
     correct <- (y_train == y_retro)
     e_init <- sum(D[!correct]) 
     e <- max(e_init, 1e-10) 
     a <- 0.5 * log((1 - e) / e) * eta
+    
     exp_a <- exp(a)
     exp_ma <- exp(-a)
     D_unorm <- D
     D_unorm[correct] <- D[correct] * exp_ma
     D_unorm[!correct] <- D[!correct] * exp_a
     D <- D_unorm / sum(D_unorm)
+    
     h$where <- NULL
     h$call <- NULL
+    
     H[[t]] <- list("h" = h, "a" = a)
+    
     if(verbose) {
       utils::setTxtProgressBar(pb, t)
     }
@@ -173,6 +181,7 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, inpu
 
   # Name the list elements for clarity
   names(H) <- paste0("t", seq_len(T))
+  
   if(verbose) {
     color_message("Training process successfully completed.\n", color_code = 1,
                 newline = TRUE)
@@ -182,5 +191,5 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, inpu
   attr(H, "train") <- cl_pred$newdata
 
   # Return object
-  H
+  return(H)
 }
