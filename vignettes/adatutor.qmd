@@ -1,14 +1,15 @@
 ---
 title: "A Short Overview"
-output: rmarkdown::html_vignette
-bibliography: references.bib 
+bibliography: references.bib
 vignette: >
-  %\VignetteIndexEntry{adatutor}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{A Short Overview}
+  %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r}
+#| label: setup
+#| include: false
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
@@ -24,11 +25,12 @@ weights based on classification errors. Here, we apply AdaBoost to predict the
 replication success of social science lab experiments using data from
 @altmejd2019.
 
-## Setup 
+## Setup
 
 Before we start, make sure the `adatutor` package is installed and loaded.
 
-```{r setup}
+```{r}
+#| label: load-package
 # Load package
 library(adatutor)
 ```
@@ -39,6 +41,7 @@ replication projects, which we will use to classify the replication outcomes of
 social science lab experiment. The dataset can be loaded with:
 
 ```{r}
+#| label: load-data
 # Load data
 data(altmejd)
 ```
@@ -49,13 +52,15 @@ We will use only a subset of the predictors used by @altmejd2019 -- the
 *reviewer metrics*. Here are the names of the reviewer metrics:
 
 ```{r}
+#| label: prednms
 # Reviewer metrics (names)
-prednms <- c("power.o","effect_size.o", "n.o","p_value.o")
+prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 ```
 
 Our outcome variable is a binary measure of replication success with the name:
 
 ```{r}
+#| label: outnme
 # Outcome variable (name)
 outnme <- "replicate"
 ```
@@ -65,6 +70,7 @@ outnme <- "replicate"
 The predictors and outcomes are the variables of interest in our prediction task.
 
 ```{r}
+#| label: voinms
 # Variables of interest
 voinms <- c(prednms, outnme)
 ```
@@ -72,6 +78,7 @@ voinms <- c(prednms, outnme)
 For convenience, we abbreviate the original name of the dataset.
 
 ```{r}
+#| label: shorten-df
 # Shorten 'altmejd'
 df <- altmejd
 ```
@@ -79,11 +86,12 @@ df <- altmejd
 Setting a seed ensures reproducible results:
 
 ```{r}
+#| label: seed
 # Reproducibility
 set.seed(112)
 ```
 
-## Splitting the Data 
+## Splitting the Data
 
 To evaluate model performance, we split the data into training (70%) and test
 (30%) sets.
@@ -93,6 +101,7 @@ To evaluate model performance, we split the data into training (70%) and test
 A standard random split:
 
 ```{r}
+#| label: random-split
 # Simple random split
 randsplit <- random_split(df, prop = 0.7)
 train <- randsplit$set1
@@ -104,6 +113,7 @@ test <- randsplit$set2
 Stratified sampling ensures proportional representation of the outcome variable:
 
 ```{r}
+#| label: stratified-split
 # Stratified split
 stratsplit <- stratified_split(df, group = "replicate", id = "eid", prop = 0.7)
 train <- stratsplit$set1
@@ -117,6 +127,7 @@ The AdaBoost algorithm combines multiple base models into a strong overall model
 the following hyperparameter setup:
 
 ```{r}
+#| label: treehypar
 # Tree hyperparameter setup
 treehypar <- rpart::rpart.control(
   # Maximum depth
@@ -128,15 +139,16 @@ treehypar <- rpart::rpart.control(
 ### Training Phase
 
 In addition to the tree hyperparameters, we need to set the boosting
-hyperparameters.  The key hyperparameters are:
+hyperparameters. The key hyperparameters are:
 
-* `T`: Number of base models
-
-* `eta`: Learning rate
+- `T`: Number of base models
+- `eta`: Learning rate
 
 Here, we develop an ensemble with 100 stumps and a learning rate of 1:
 
-```{r, results='hide'}
+```{r}
+#| label: train
+#| results: hide
 # Boosted stumps and weights
 fit <- trainAda(replicate ~ ., data = train[, voinms],
   # Boosting hyperparameter
@@ -150,7 +162,9 @@ fit <- trainAda(replicate ~ ., data = train[, voinms],
 Once the model is trained, we can use it to make predictions on the data in the
 test set:
 
-```{r, results='hide'}
+```{r}
+#| label: predict
+#| results: hide
 # Predictions on test set
 ypred <- testAda(fit, data = test[, prednms])
 ```
@@ -160,10 +174,40 @@ ypred <- testAda(fit, data = test[, prednms])
 A confusion matrix can help us evaluate the prediction accuracy:
 
 ```{r}
+#| label: confusion
 # Confusion matrix
 table(ypred, test[, outnme])
 ```
 
+## Feature Importance
+
+AdaBoost is restricted to decision stumps here, so every tree in the ensemble
+splits on exactly one variable. Each stump carries a voting weight (`a`) based
+on its accuracy; grouping stumps by the variable they split on and summing
+their weights gives a feature-importance score. AdaBoost sequentially
+targets the hardest-to-predict observations by re-weighting the data, so a
+variable that is frequently chosen -- especially by high-weight stumps --
+is one that consistently helped correct the ensemble's biggest mistakes. Total
+accumulated weight is therefore a direct, mathematically grounded measure of a
+feature's predictive contribution.
+
+```{r}
+#| label: importance
+important <- adaImport(fit)
+head(important, 10)
+```
+
+```{r}
+#| label: importance-plot
+#| fig-alt: "Horizontal bar chart of AdaBoost feature importance"
+plotAdaImport(important, top_n = 15)
+```
+
+*TODO*: Rename function to `calculate_importance()` or `get_importance()` 
+*TODO*: Rename function to `plot_importance()`
+*TODO* rename function to `train_adaboost()` and `test_adaboost()`?
+
 ## References
 
-<div id="refs"></div>
+::: {#refs}
+:::
