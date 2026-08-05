@@ -14,45 +14,42 @@
 #' @param data A data frame containing the test set for predictions. The
 #'   structure should match the training set used to generate \code{h}.
 #'
+#' @param type A character string indicating the type of prediction to return.
+#'   Options are \code{"class"} for hard class labels (-1, 1), \code{"margin"}
+#'   for the raw continuous boosting score (ideal for ROC AUC calculations),
+#'   or \code{"prob"} for class probabilities. Defaults to \code{"class"}.
+#'
+#' @param calibrator An optional object of class \code{"adaCalibrator"} (from
+#'   \code{\link[adatutor]{calibrateAda}}) used to map margins to calibrated
+#'   probabilities when \code{type = "prob"}. If \code{NULL} (the default), a
+#'   calibrator attached to \code{fit} (via \code{trainAda(..., calibrate =
+#'   TRUE)}) is used when present; otherwise probabilities fall back to the raw
+#'   logistic transform \eqn{1 / (1 + e^{-2F})}, which is monotone in the margin
+#'   (so AUC is unaffected) but not calibrated.
+#'
 #' @param input_checks A logical value indicating whether to perform input
 #'   validation checks. Defaults to \code{TRUE}.
 #'
 #' @param verbose A logical value specifying whether to display progress
 #'   messages and animations. Defaults to \code{TRUE}.
 #'
-#' @details The function proceeds as follows:
-#' \enumerate{
-#'   \item If \code{input_checks} is \code{TRUE}, basic input validation is
-#'   performed to ensure that \code{fit} is a valid AdaBoost model and
-#'   \code{data} is appropriate for predictions.
-#'   \item Progress messages and animations are shown if \code{verbose} is
-#'   \code{TRUE}.
-#'   \item Boosted weak learners (\code{h}) and their weights (\code{a}) are extracted
-#'   from \code{fit}.
-#'   \item Predictions or retrodictions are generated for each weak learner
-#'   using the test set.
-#'   \item Individual predictions are combined using the weights from the
-#'   AdaBoost model to produce the final predictions.
-#' }
-#'
 #' @return A numeric vector containing the final predictions from the AdaBoost
-#'   model. The predictions are in the form of \code{-1} or \code{1},
-#'   corresponding to binary classification outcomes.
+#'   model. Depending on the \code{type} argument, this will be class labels, 
+#'   margins, or probabilities.
 #'
-#' @examples
-#' # Example usage:
-#' # Assume `fit` is a trained model and `test` is a data frame.
-#' # ypred <- testAda(fit, test)
-#'
-#'@export
-testAda <- function(fit, data, input_checks = TRUE, verbose = TRUE) {
+#' @export
+testAda <- function(fit, data, type = c("class", "margin", "prob"), calibrator = NULL, input_checks = TRUE, verbose = TRUE) {
+  
+  # Match the requested type (defaults to "class")
+  type <- match.arg(type)
+
   if (verbose) {
     color_message("Start the AdaBoost test process:\n", color_code = 1)
   }
   if(input_checks) {
-  if (verbose) {
-    color_message("Run mild input checks", color_code = 30)
-  }
+    if (verbose) {
+      color_message("Run mild input checks", color_code = 30)
+    }
     check_list(fit)
     check_length(fit)
     check_df(data)
@@ -70,30 +67,56 @@ testAda <- function(fit, data, input_checks = TRUE, verbose = TRUE) {
   h <- lapply(fit, "[[", "h")
   check_length(h)
   if (verbose) {
-  color_message("Extract the model weights", color_code = 30)
-  walking_colordots()
+    color_message("Extract the model weights", color_code = 30)
+    walking_colordots()
   }
   a <- vapply(fit, "[[", numeric(1), "a")
   check_length(a)
+  
   if (verbose) {
     color_message("Make predictions/retrodictions\n", color_code = 30)
-    pb <- utils::txtProgressBar(min = 0, max = length(h), style = 3)
   }
-  y12_stumps <- sapply(seq_along(h), function(t) {
+  
+  # Define expected N for vapply
+  N <- nrow(data)
+  # Use vapply instead of sapply (faster). Wrap in matrix() because vapply
+  # simplifies to a plain vector when N == 1, which would turn the matrix
+  # product below into a T x T outer product.
+  y12_stumps <- matrix(
+    vapply(h, function(tree) {
+      stats::predict(tree, newdata = data, type = "vector")
+    }, FUN.VALUE = numeric(N)),
+    nrow = N
+  )
+  
   if (verbose) {
-    utils::setTxtProgressBar(pb, t)
-  }
-    stats::predict(h[[t]], newdata = data, type = "vector")
-  })
-  if (verbose) {
-    close(pb)  # Close progress bar when done
     color_message("Combine predictions/retrodictions", color_code = 30)
   }
+  
   ypred_stumps <- 2 * y12_stumps - 3
-  ypred_ada <- sign(a %*% t(ypred_stumps))
+  
+  # Calculate the continuous raw margin
+  raw_margin <- as.vector(a %*% t(ypred_stumps))
+  
   if (verbose) {
     walking_colordots()
     color_message("Test process successfully completed.\n", color_code = 1)
   }
-  ypred_ada
+  
+  # Return based on requested type
+  if (type == "class") {
+    sign(raw_margin)
+  } else if (type == "prob") {
+    # Prefer an explicit calibrator, then one attached to the fit; otherwise
+    # fall back to the raw (uncalibrated) logistic transform.
+    cal <- if (!is.null(calibrator)) calibrator else attr(fit, "calibrator")
+    if (!is.null(cal)) {
+      b <- cal$coefficients
+      stats::plogis(b[[1]] + b[[2]] * raw_margin)
+    } else {
+      stats::plogis(2 * raw_margin)
+    }
+  } else {
+    raw_margin
+  }
 }
