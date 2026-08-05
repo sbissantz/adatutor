@@ -1,8 +1,10 @@
 .Rproj.user
 .Rhistory
+.RData
 .Rdata
 .httr-oauth
 .DS_Store
+inst/context/
 data/.Rapp.history
 vignettes/tutorial_DH.Rmd
 /Meta/
