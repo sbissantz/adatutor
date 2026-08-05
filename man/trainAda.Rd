@@ -4,7 +4,18 @@
 \alias{trainAda}
 \title{Train a Set of Classification Trees Using AdaBoost}
 \usage{
-trainAda(formula, data, T, eta, treehypar, input_checks = TRUE, verbose = TRUE)
+trainAda(
+  formula,
+  data,
+  T,
+  eta,
+  maxdepth = 1,
+  treehypar = NULL,
+  calibrate = FALSE,
+  nfolds = 5,
+  input_checks = TRUE,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{formula}{A \code{\link[stats]{formula}} specifying the relationship
@@ -19,8 +30,22 @@ Interactions are not supported (see the \code{formula} argument in
 
 \item{eta}{A numeric value representing the learning rate of the algorithm.}
 
-\item{treehypar}{A list of control parameters for decision trees
-(passed to \code{\link[rpart]{rpart.control}}).}
+\item{maxdepth}{An integer specifying the maximum depth of the trees.
+Defaults to 1 (decision stumps).}
+
+\item{treehypar}{An optional list of additional control parameters for decision
+trees (passed to \code{\link[rpart]{rpart.control}}). These will be safely
+merged with the internal AdaBoost speed optimizations. Defaults to \code{NULL}.}
+
+\item{calibrate}{A logical value indicating whether to attach a probability
+calibrator (Platt scaling) to the fitted model. When \code{TRUE}, a
+calibrator is fitted via internal cross-validation (see
+\code{\link[adatutor]{calibrateAda}}) and stored on the returned object, so
+that \code{\link[adatutor]{testAda}} with \code{type = "prob"} returns
+calibrated probabilities. Defaults to \code{FALSE} (raw logistic transform).}
+
+\item{nfolds}{An integer giving the number of cross-validation folds used to
+build the calibrator when \code{calibrate = TRUE}. Defaults to 5.}
 
 \item{input_checks}{A logical value indicating whether to perform input
 validation checks. Defaults to \code{TRUE}.}
@@ -37,9 +62,10 @@ tracking purposes.
 The function trains a set of classification trees using
 AdaBoost. It is built on top of the \code{rpart} package, so the full range
 of tree hyperparameters can be used to fine-tune the trees (see, e.g.,
-\code{\link[rpart]{rpart.control}}). In addition, the implementation
-allows customization of the number of trees and the learning rate. It also
-provides verbose output to track the training progress.
+\code{\link[rpart]{rpart.control}}). By default, it uses hyperparameter
+settings heavily optimized for boosting (no internal CV, no missing data
+splits, zero complexity parameter). Users can overwrite these or add
+additional parameters via the \code{treehypar} argument.
 }
 \details{
 The function implements the AdaBoost algorithm with a specified
@@ -51,26 +77,7 @@ Key steps in the algorithm:
 \enumerate{
 \item Initialize observation weights.
 \item Train a decision tree using the current weights.
-\item Compute the weighted classification error and update the observation
-weights.
+\item Compute the weighted classification error and update the observation weights.
 \item Store the weak learner and its associated weight.
 }
-}
-\examples{
-\dontrun{
-# Example usage:
-library(rpart)
-data(iris)
-# Prepare binary classification data
-irisbin <- iris[iris$Species != "setosa", ]
-irisbin$Species <- factor(irisbin$Species)
-
-# Set tree hyperparameters
-treehypar <- rpart::rpart.control(maxdepth = 1, cp = 0)
-
-# Train AdaBoost model
-model <- trainAda(Species ~ ., data = irisbin, T = 10, eta = 1,
-treehypar = treehypar)
-}
-
 }

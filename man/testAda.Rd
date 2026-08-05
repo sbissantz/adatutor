@@ -4,7 +4,14 @@
 \alias{testAda}
 \title{Generate Predictions or Retrodictions From a Set of (Adaptively) Boosted Trees and Model Weights}
 \usage{
-testAda(fit, data, input_checks = TRUE, verbose = TRUE)
+testAda(
+  fit,
+  data,
+  type = c("class", "margin", "prob"),
+  calibrator = NULL,
+  input_checks = TRUE,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{fit}{A model fitted with \code{\link[adatutor]{trainAda}}. This is a
@@ -15,6 +22,19 @@ corresponding weight.}
 \item{data}{A data frame containing the test set for predictions. The
 structure should match the training set used to generate \code{h}.}
 
+\item{type}{A character string indicating the type of prediction to return.
+Options are \code{"class"} for hard class labels (-1, 1), \code{"margin"}
+for the raw continuous boosting score (ideal for ROC AUC calculations),
+or \code{"prob"} for class probabilities. Defaults to \code{"class"}.}
+
+\item{calibrator}{An optional object of class \code{"adaCalibrator"} (from
+\code{\link[adatutor]{calibrateAda}}) used to map margins to calibrated
+probabilities when \code{type = "prob"}. If \code{NULL} (the default), a
+calibrator attached to \code{fit} (via \code{trainAda(..., calibrate =
+TRUE)}) is used when present; otherwise probabilities fall back to the raw
+logistic transform \eqn{1 / (1 + e^{-2F})}, which is monotone in the margin
+(so AUC is unaffected) but not calibrated.}
+
 \item{input_checks}{A logical value indicating whether to perform input
 validation checks. Defaults to \code{TRUE}.}
 
@@ -23,8 +43,8 @@ messages and animations. Defaults to \code{TRUE}.}
 }
 \value{
 A numeric vector containing the final predictions from the AdaBoost
-model. The predictions are in the form of \code{-1} or \code{1},
-corresponding to binary classification outcomes.
+model. Depending on the \code{type} argument, this will be class labels,
+margins, or probabilities.
 }
 \description{
 This function implements the testing phase of the AdaBoost
@@ -32,26 +52,4 @@ algorithm. It extracts the adaptively boosted weak learners (e.g.
 classification stumps) and their corresponding weights to combine them into
 the weighted sum \deqn{H(\mathbf{x}) = \sum_{i=1}^Ta_th_t(\mathbf x),}
 which yields AdaBoost's predictions or retrodictions on a given set.
-}
-\details{
-The function proceeds as follows:
-\enumerate{
-\item If \code{input_checks} is \code{TRUE}, basic input validation is
-performed to ensure that \code{fit} is a valid AdaBoost model and
-\code{data} is appropriate for predictions.
-\item Progress messages and animations are shown if \code{verbose} is
-\code{TRUE}.
-\item Boosted weak learners (\code{h}) and their weights (\code{a}) are extracted
-from \code{fit}.
-\item Predictions or retrodictions are generated for each weak learner
-using the test set.
-\item Individual predictions are combined using the weights from the
-AdaBoost model to produce the final predictions.
-}
-}
-\examples{
-# Example usage:
-# Assume `fit` is a trained model and `test` is a data frame.
-# ypred <- testAda(fit, test)
-
 }
