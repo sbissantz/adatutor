@@ -71,7 +71,7 @@ color_message <- function(text, color_code = 32, newline = FALSE) {
 #' # Example usage:
 #' \dontrun{walking_colordots(n = 4, delay = 0.15, color_code = 34)}
 #'
-walking_colordots <- function(n = 3, delay = 0.2, color_code = 32) {
+walking_colordots <- function(n = 3, delay = 0.1, color_code = 32) {
   for (i in seq_len(n)) {
       color_message(".", color_code = 30)
       Sys.sleep(delay)
