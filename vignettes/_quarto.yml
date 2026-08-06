@@ -1,0 +1,15 @@
+project:
+  type: default
+
+engine: knitr
+
+# Shared options applied to every .qmd in this folder (the vignettes).
+# Per-vignette YAML can still override any of these.
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-tools: true
+    df-print: kable
+    html-math-method: mathjax
+    embed-resources: true
