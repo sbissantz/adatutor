@@ -15,17 +15,10 @@
 #'   structure should match the training set used to generate \code{h}.
 #'
 #' @param type A character string indicating the type of prediction to return.
-#'   Options are \code{"class"} for hard class labels (-1, 1), \code{"margin"}
-#'   for the raw continuous boosting score (ideal for ROC AUC calculations),
-#'   or \code{"prob"} for class probabilities. Defaults to \code{"class"}.
-#'
-#' @param calibrator An optional object of class \code{"adaCalibrator"} (from
-#'   \code{\link[adatutor]{calibrateAda}}) used to map margins to calibrated
-#'   probabilities when \code{type = "prob"}. If \code{NULL} (the default), a
-#'   calibrator attached to \code{fit} (via \code{trainAda(..., calibrate =
-#'   TRUE)}) is used when present; otherwise probabilities fall back to the raw
-#'   logistic transform \eqn{1 / (1 + e^{-2F})}, which is monotone in the margin
-#'   (so AUC is unaffected) but not calibrated.
+#'   Options are \code{"class"} for hard class labels (-1, 1) or \code{"margin"}
+#'   for the raw continuous boosting score. Defaults to \code{"class"}. Use
+#'   \code{"margin"} for rank-based measures such as the ROC AUC: the margin
+#'   carries the ranking that hard class labels throw away.
 #'
 #' @param input_checks A logical value indicating whether to perform input
 #'   validation checks. Defaults to \code{TRUE}.
@@ -34,19 +27,24 @@
 #'   messages and animations. Defaults to \code{TRUE}.
 #'
 #' @return A numeric vector containing the final predictions from the AdaBoost
-#'   model. Depending on the \code{type} argument, this will be class labels, 
-#'   margins, or probabilities.
+#'   model. Depending on the \code{type} argument, this will be class labels or
+#'   margins.
 #'
 #' @export
-testAda <- function(fit, data, type = c("class", "margin", "prob"), calibrator = NULL, input_checks = TRUE, verbose = TRUE) {
-  
+testAda <- function(
+  fit,
+  data,
+  type = c("class", "margin"),
+  input_checks = TRUE,
+  verbose = TRUE
+) {
   # Match the requested type (defaults to "class")
   type <- match.arg(type)
 
   if (verbose) {
     color_message("Start the AdaBoost test process:\n", color_code = 1)
   }
-  if(input_checks) {
+  if (input_checks) {
     if (verbose) {
       color_message("Run mild input checks", color_code = 30)
     }
@@ -56,7 +54,7 @@ testAda <- function(fit, data, type = c("class", "margin", "prob"), calibrator =
     check_length(data)
     fcl <- match.call()
     test_pos <- match("data", names(fcl), nomatch = 0L)
-    trainnme <-  attr(fit, "train")
+    trainnme <- attr(fit, "train")
     check_train(trainnme, fcl[[test_pos]])
   }
   if (verbose) {
@@ -72,50 +70,44 @@ testAda <- function(fit, data, type = c("class", "margin", "prob"), calibrator =
   }
   a <- vapply(fit, "[[", numeric(1), "a")
   check_length(a)
-  
+
   if (verbose) {
     color_message("Make predictions/retrodictions\n", color_code = 30)
   }
-  
+
   # Define expected N for vapply
   N <- nrow(data)
   # Use vapply instead of sapply (faster). Wrap in matrix() because vapply
   # simplifies to a plain vector when N == 1, which would turn the matrix
   # product below into a T x T outer product.
   y12_stumps <- matrix(
-    vapply(h, function(tree) {
-      stats::predict(tree, newdata = data, type = "vector")
-    }, FUN.VALUE = numeric(N)),
+    vapply(
+      h,
+      function(tree) {
+        stats::predict(tree, newdata = data, type = "vector")
+      },
+      FUN.VALUE = numeric(N)
+    ),
     nrow = N
   )
-  
+
   if (verbose) {
     color_message("Combine predictions/retrodictions", color_code = 30)
   }
-  
+
   ypred_stumps <- 2 * y12_stumps - 3
-  
+
   # Calculate the continuous raw margin
   raw_margin <- as.vector(a %*% t(ypred_stumps))
-  
+
   if (verbose) {
     walking_colordots()
     color_message("Test process successfully completed.\n", color_code = 1)
   }
-  
+
   # Return based on requested type
   if (type == "class") {
     sign(raw_margin)
-  } else if (type == "prob") {
-    # Prefer an explicit calibrator, then one attached to the fit; otherwise
-    # fall back to the raw (uncalibrated) logistic transform.
-    cal <- if (!is.null(calibrator)) calibrator else attr(fit, "calibrator")
-    if (!is.null(cal)) {
-      b <- cal$coefficients
-      stats::plogis(b[[1]] + b[[2]] * raw_margin)
-    } else {
-      stats::plogis(2 * raw_margin)
-    }
   } else {
     raw_margin
   }

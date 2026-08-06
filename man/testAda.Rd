@@ -7,8 +7,7 @@
 testAda(
   fit,
   data,
-  type = c("class", "margin", "prob"),
-  calibrator = NULL,
+  type = c("class", "margin"),
   input_checks = TRUE,
   verbose = TRUE
 )
@@ -23,17 +22,10 @@ corresponding weight.}
 structure should match the training set used to generate \code{h}.}
 
 \item{type}{A character string indicating the type of prediction to return.
-Options are \code{"class"} for hard class labels (-1, 1), \code{"margin"}
-for the raw continuous boosting score (ideal for ROC AUC calculations),
-or \code{"prob"} for class probabilities. Defaults to \code{"class"}.}
-
-\item{calibrator}{An optional object of class \code{"adaCalibrator"} (from
-\code{\link[adatutor]{calibrateAda}}) used to map margins to calibrated
-probabilities when \code{type = "prob"}. If \code{NULL} (the default), a
-calibrator attached to \code{fit} (via \code{trainAda(..., calibrate =
-TRUE)}) is used when present; otherwise probabilities fall back to the raw
-logistic transform \eqn{1 / (1 + e^{-2F})}, which is monotone in the margin
-(so AUC is unaffected) but not calibrated.}
+Options are \code{"class"} for hard class labels (-1, 1) or \code{"margin"}
+for the raw continuous boosting score. Defaults to \code{"class"}. Use
+\code{"margin"} for rank-based measures such as the ROC AUC: the margin
+carries the ranking that hard class labels throw away.}
 
 \item{input_checks}{A logical value indicating whether to perform input
 validation checks. Defaults to \code{TRUE}.}
@@ -43,8 +35,8 @@ messages and animations. Defaults to \code{TRUE}.}
 }
 \value{
 A numeric vector containing the final predictions from the AdaBoost
-model. Depending on the \code{type} argument, this will be class labels,
-margins, or probabilities.
+model. Depending on the \code{type} argument, this will be class labels or
+margins.
 }
 \description{
 This function implements the testing phase of the AdaBoost

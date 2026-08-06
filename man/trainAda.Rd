@@ -11,8 +11,6 @@ trainAda(
   eta,
   maxdepth = 1,
   treehypar = NULL,
-  calibrate = FALSE,
-  nfolds = 5,
   input_checks = TRUE,
   verbose = TRUE
 )
@@ -36,16 +34,6 @@ Defaults to 1 (decision stumps).}
 \item{treehypar}{An optional list of additional control parameters for decision
 trees (passed to \code{\link[rpart]{rpart.control}}). These will be safely
 merged with the internal AdaBoost speed optimizations. Defaults to \code{NULL}.}
-
-\item{calibrate}{A logical value indicating whether to attach a probability
-calibrator (Platt scaling) to the fitted model. When \code{TRUE}, a
-calibrator is fitted via internal cross-validation (see
-\code{\link[adatutor]{calibrateAda}}) and stored on the returned object, so
-that \code{\link[adatutor]{testAda}} with \code{type = "prob"} returns
-calibrated probabilities. Defaults to \code{FALSE} (raw logistic transform).}
-
-\item{nfolds}{An integer giving the number of cross-validation folds used to
-build the calibrator when \code{calibrate = TRUE}. Defaults to 5.}
 
 \item{input_checks}{A logical value indicating whether to perform input
 validation checks. Defaults to \code{TRUE}.}

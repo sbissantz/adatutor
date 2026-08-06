@@ -3,9 +3,9 @@
 #' @description The function trains a set of classification trees using
 #'   AdaBoost. It is built on top of the \code{rpart} package, so the full range
 #'   of tree hyperparameters can be used to fine-tune the trees (see, e.g.,
-#'   \code{\link[rpart]{rpart.control}}). By default, it uses hyperparameter 
-#'   settings heavily optimized for boosting (no internal CV, no missing data 
-#'   splits, zero complexity parameter). Users can overwrite these or add 
+#'   \code{\link[rpart]{rpart.control}}). By default, it uses hyperparameter
+#'   settings heavily optimized for boosting (no internal CV, no missing data
+#'   splits, zero complexity parameter). Users can overwrite these or add
 #'   additional parameters via the \code{treehypar} argument.
 #'
 #' @param formula A \code{\link[stats]{formula}} specifying the relationship
@@ -19,23 +19,13 @@
 #' @param T An integer specifying the number of trees.
 #'
 #' @param eta A numeric value representing the learning rate of the algorithm.
-#' 
-#' @param maxdepth An integer specifying the maximum depth of the trees. 
+#'
+#' @param maxdepth An integer specifying the maximum depth of the trees.
 #'   Defaults to 1 (decision stumps).
 #'
 #' @param treehypar An optional list of additional control parameters for decision
 #'   trees (passed to \code{\link[rpart]{rpart.control}}). These will be safely
 #'   merged with the internal AdaBoost speed optimizations. Defaults to \code{NULL}.
-#'
-#' @param calibrate A logical value indicating whether to attach a probability
-#'   calibrator (Platt scaling) to the fitted model. When \code{TRUE}, a
-#'   calibrator is fitted via internal cross-validation (see
-#'   \code{\link[adatutor]{calibrateAda}}) and stored on the returned object, so
-#'   that \code{\link[adatutor]{testAda}} with \code{type = "prob"} returns
-#'   calibrated probabilities. Defaults to \code{FALSE} (raw logistic transform).
-#'
-#' @param nfolds An integer giving the number of cross-validation folds used to
-#'   build the calibrator when \code{calibrate = TRUE}. Defaults to 5.
 #'
 #' @param input_checks A logical value indicating whether to perform input
 #'   validation checks. Defaults to `TRUE`.
@@ -59,22 +49,36 @@
 #' tracking purposes.
 #'
 #' @export
-trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, calibrate = FALSE, nfolds = 5, input_checks = TRUE, verbose = TRUE) {
-
-  if(verbose) {
-    color_message("Start the AdaBoost training process:\n", color_code = 1, newline = TRUE)
+trainAda <- function(
+  formula,
+  data,
+  T,
+  eta,
+  maxdepth = 1,
+  treehypar = NULL,
+  input_checks = TRUE,
+  verbose = TRUE
+) {
+  if (verbose) {
+    color_message(
+      "Start the AdaBoost training process:\n",
+      color_code = 1,
+      newline = TRUE
+    )
   }
 
-  if(input_checks) {
-    if(verbose) color_message("Run mild input checks", color_code = 30)
+  if (input_checks) {
+    if (verbose) {
+      color_message("Run mild input checks", color_code = 30)
+    }
     check_df(data)
     check_length(data)
     check_eta(eta)
     check_numeric(T)
-    if(verbose) walking_colordots()
+    if (verbose) walking_colordots()
   }
 
-  if(verbose) {
+  if (verbose) {
     color_message("Start the initialization process", color_code = 30)
   }
 
@@ -93,7 +97,7 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, cali
     treehypar <- def_ctrl
   }
 
-  # We still use match.call() ONLY to grab the literal name of the dataset 
+  # We still use match.call() ONLY to grab the literal name of the dataset
   # so we can attach it as a tracking attribute at the very end.
   data_name <- match.call()[["data"]]
 
@@ -109,23 +113,25 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, cali
   D <- rep(1, m) / m
   H <- vector("list", T)
 
-  if(verbose) {
+  if (verbose) {
     walking_colordots()
-    color_message("Steps 1-4: Run through the algorithm steps\n", color_code = 30)
+    color_message(
+      "Steps 1-4: Run through the algorithm steps\n",
+      color_code = 30
+    )
     pb <- utils::txtProgressBar(min = 0, max = T, style = 3)
   }
 
   for (t in seq_len(T)) {
-
     # Clean, direct standard evaluation function call
     h <- rpart::rpart(
-      formula  = formula,
-      data     = data,
-      weights  = D,
-      method   = "class",
-      control  = treehypar,
-      model    = FALSE,
-      y        = FALSE
+      formula = formula,
+      data = data,
+      weights = D,
+      method = "class",
+      control = treehypar,
+      model = FALSE,
+      y = FALSE
     )
 
     # Clean, direct prediction
@@ -140,45 +146,41 @@ trainAda <- function(formula, data, T, eta, maxdepth = 1, treehypar = NULL, cali
     a <- 0.5 * log((1 - e) / e) * eta
 
     D_unorm <- D
-    D_unorm[ correct] <- D[ correct] * exp(-a)
-    D_unorm[!correct] <- D[!correct] * exp( a)
+    D_unorm[correct] <- D[correct] * exp(-a)
+    D_unorm[!correct] <- D[!correct] * exp(a)
     D <- D_unorm / sum(D_unorm)
 
     # Memory cleanup before storing
     h$where <- NULL
-    h$call  <- NULL
+    h$call <- NULL
 
     H[[t]] <- list("h" = h, "a" = a)
 
-    if(verbose) utils::setTxtProgressBar(pb, t)
+    if (verbose) utils::setTxtProgressBar(pb, t)
   }
 
-  if(verbose) {
+  if (verbose) {
     close(pb)
     color_message("Create output", color_code = 30)
     walking_colordots()
-    color_message("Training process successfully completed.\n", color_code = 1, newline = TRUE)
+    color_message(
+      "Training process successfully completed.\n",
+      color_code = 1,
+      newline = TRUE
+    )
   }
 
   names(H) <- paste0("t", seq_len(T))
   attr(H, "train") <- data_name
 
   # Stash the hyperparameters (with a clean formula environment to avoid
-  # capturing the training data) so the model can be refitted later, e.g. for
-  # cross-validated probability calibration.
+  # capturing the training data) so the model can be refitted later.
   form_store <- formula
   environment(form_store) <- globalenv()
   attr(H, "formula") <- form_store
   attr(H, "T") <- T
   attr(H, "eta") <- eta
   attr(H, "maxdepth") <- maxdepth
-
-  # Optionally attach a Platt-scaling calibrator built via internal CV.
-  if (calibrate) {
-    if (verbose) color_message("Fit probability calibrator (Platt scaling)", color_code = 30)
-    attr(H, "calibrator") <- calibrateAda(H, data, nfolds = nfolds, verbose = FALSE)
-    if (verbose) walking_colordots()
-  }
 
   return(H)
 }
