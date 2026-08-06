@@ -9,7 +9,10 @@ plotVarimpAda(imp_df, top_n = 15)
 \arguments{
 \item{imp_df}{The data frame output from \code{\link[adatutor]{varimpAda}}.}
 
-\item{top_n}{The number of top variables to display (defaults to 15).}
+\item{top_n}{The maximum number of variables to display (defaults to 15). If
+the ensemble split on fewer variables, all of them are shown. The viridis
+gradient is stretched across however many bars are drawn, running from the
+darkest purple for the most important variable to yellow for the least.}
 }
 \description{
 Generates a horizontal bar chart of the top N most important features.
