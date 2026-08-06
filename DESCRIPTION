@@ -19,6 +19,7 @@ Depends:
 Imports:
     utils (>= 4.5),
     stats (>= 4.5),
+    graphics (>= 4.5),
     AUC (>= 0.3),
     rpart (>= 4.1),
     rpart.plot (>= 3.1),
