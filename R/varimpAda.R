@@ -30,7 +30,9 @@ varimpAda <- function(fit) {
     imp <- tree$variable.importance
 
     # Safety check: ensure the tree actually made a split
-    if (is.null(imp) || sum(imp) == 0) next
+    if (is.null(imp) || sum(imp) == 0) {
+      next
+    }
 
     # Distribute this tree's model weight across the variables it split on. A
     # stump has one entry, so it receives the full weight.
@@ -47,8 +49,11 @@ varimpAda <- function(fit) {
 
   # No tree in the ensemble split on anything
   if (length(var_wght) == 0) {
-    return(data.frame(variable = character(0), importance = numeric(0),
-                      stringsAsFactors = FALSE))
+    return(data.frame(
+      variable = character(0),
+      importance = numeric(0),
+      stringsAsFactors = FALSE
+    ))
   }
 
   # Convert tallied list into 'clean' data frame
