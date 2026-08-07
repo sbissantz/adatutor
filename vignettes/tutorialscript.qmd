@@ -924,9 +924,20 @@ fit <- trainAda(
   treehypar = treehypar
 )
 
-# Predictions on test set
-ypred <- testAda(fit, data = test[, prednms])
+# Predictions on test set (class labels, for the confusion matrix)
+ypred <- testAda(fit, data = test[, prednms], type = "class")
+
+# Predictions on test set (margins, for the AUC)
+ymargin <- testAda(fit, data = test[, prednms], type = "margin")
 ```
+
+::: {.callout-important}
+## `type = "class"` gives balanced accuracy, not AUC
+
+A two-valued score collapses the ROC curve to a single interior point, whose
+area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
+AUC; keep `type = "class"` for the confusion matrix.
+:::
 
 #### Listing 31: Code showing different measures to evaluate the predictive performance of the ensemble.
 
@@ -938,10 +949,10 @@ confusion <- table(ypred, y_test)
 sum(diag(confusion)) / sum(confusion)
 
 # Load package
-library(AUC)
+library(PRROC)
 
-# Area under the curve
-auc(roc(ypred, y_test))
+# Area under the curve (scored on the margin)
+roc.curve(scores.class0 = ymargin, weights.class0 = as.integer(y_test) - 1)$auc
 
 # Base rates
 df$replicate_01 <- as.integer(df$replicate) - 1
@@ -950,6 +961,12 @@ baserates <- aggregate(replicate_01 ~ pid, df, mean)
 # Average base rate
 mean(baserates$replicate_01)
 ```
+
+::: {.callout-important}
+## `type = "class"` gives balanced accuracy, not AUC
+Switched to `PRROC` package. Cite and fix in the tutorial.
+:::
+
 
 #### Listing 32: Code to do a leave-project-out cross-validation. Note that this ran for approximately 2 minutes on our laptops.
 
@@ -975,10 +992,13 @@ runtime <- system.time({
       eta = 1,
       treehypar = treehypar
     )
-    # Predictions (left-out project)
-    ypred <- testAda(fit, data = test[, prednms])
+    # Predictions (left-out project), on the margin so the AUC sees the ranking
+    ypred <- testAda(fit, data = test[, prednms], type = "margin")
     # Performance evaluation
-    auc[[rp]] <- auc(roc(ypred, test$replicate))
+    auc[[rp]] <- roc.curve(
+      scores.class0 = ypred,
+      weights.class0 = as.integer(test$replicate) - 1
+    )$auc
   }
 })
 
@@ -1054,10 +1074,18 @@ for (i in seq_len(hgrid_rows)) {
         treehypar = rpart.control(maxdepth = hgrid$depth[i]),
         verbose = FALSE
       )
-      # Predictions
-      ypred <- testAda(fit, data = test[, prednms], verbose = FALSE)
+      # Predictions (on the margin, so the AUC sees the ranking)
+      ypred <- testAda(
+        fit,
+        data = test[, prednms],
+        type = "margin",
+        verbose = FALSE
+      )
       # Performance evaluation
-      hgrid[[rp]][i] <- auc(roc(ypred, test$replicate))
+      hgrid[[rp]][i] <- roc.curve(
+        scores.class0 = ypred,
+        weights.class0 = as.integer(test$replicate) - 1
+      )$auc
     }
     # Average performance
     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, 4:8]))
