@@ -133,7 +133,8 @@ treehypar <- rpart::rpart.control(
   # Maximum depth
   maxdepth = 1,
   # Gini impurity (default)
-  split = "gini")
+  split = "gini"
+)
 ```
 
 ### Training Phase
@@ -144,17 +145,21 @@ hyperparameters. The key hyperparameters are:
 - `T`: Number of base models
 - `eta`: Learning rate
 
-Here, we develop an ensemble with 100 stumps and a learning rate of 1:
+Here, we develop an ensemble with 10 stumps and a learning rate of 1:
 
 ```{r}
 #| label: train
 #| results: hide
 # Boosted stumps and weights
-fit <- trainAda(replicate ~ ., data = train[, voinms],
+fit <- trainAda(
+  replicate ~ .,
+  data = train[, voinms],
   # Boosting hyperparameter
-  T = 10, eta = 1,
+  T = 10,
+  eta = 1,
   # Tree hyperparameter
-  treehypar = treehypar)
+  treehypar = treehypar
+)
 ```
 
 ### Test Phase
@@ -188,24 +193,19 @@ their weights gives a feature-importance score. AdaBoost sequentially
 targets the hardest-to-predict observations by re-weighting the data, so a
 variable that is frequently chosen -- especially by high-weight stumps --
 is one that consistently helped correct the ensemble's biggest mistakes. Total
-accumulated weight is therefore a direct, mathematically grounded measure of a
-feature's predictive contribution.
+accumulated weight is therefore a direct measure of a feature's predictive contribution.
 
 ```{r}
 #| label: importance
-important <- adaImport(fit)
+important <- varimpAda(fit)
 head(important, 10)
 ```
 
 ```{r}
 #| label: importance-plot
 #| fig-alt: "Horizontal bar chart of AdaBoost feature importance"
-plotAdaImport(important, top_n = 15)
+plotVarimpAda(important, top_n = 15)
 ```
-
-*TODO*: Rename function to `calculate_importance()` or `get_importance()` 
-*TODO*: Rename function to `plot_importance()`
-*TODO* rename function to `train_adaboost()` and `test_adaboost()`?
 
 ## References
 
