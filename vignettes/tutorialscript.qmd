@@ -17,7 +17,7 @@ vignette: >
 library(remotes)
 
 # Install package from GitHub
-install_github("sbissantz/adatutor")
+# install_github("sbissantz/adatutor")
 
 # Load package
 library(adatutor)
@@ -214,6 +214,25 @@ testvalid <- testing(stratsplit)
 #### Figure 2
 
 ```{r}
+# Where the manuscript keeps its figures. Most readers will not have this
+# folder, and then the plots just go to the screen as usual. Each export wraps
+# the same call rather than repeating it, so the file and the figure you see on
+# screen cannot drift apart.
+figdir <- "./inst/figures"
+to_file <- dir.exists(figdir)
+
+# One column of the paper's two-column layout, and the full text width, both
+# measured from the typeset manuscript. Drawing at the size a figure is printed
+# at means nothing is scaled afterwards, which is what keeps the labels legible:
+# a figure drawn at the full width and then squeezed into a column loses half
+# its type size. The two decision-boundary plots take the wider pair, and they
+# are the two the manuscript already sets as `figure*` -- at column width the
+# studies collide into one band and the boundary smears.
+col_w <- 3.44 * 1.25
+col_h <- 2.45 * 1.25
+full_w <- 6.94 * 0.8
+full_h <- 4.94 * 0.8
+
 # Select only two predictors
 # Note: Reduce run-time - decision boundary visualization
 subfeat <- c("power.o", "n.o")
@@ -235,7 +254,28 @@ h <- rpart::rpart(
   control = treehypar
 )
 # Visualize
-rpart.plot::rpart.plot(h, extra = 102, digits = 4, box.palette = "BuGy")
+sty <- tree_colors(h)
+
+if (to_file) {
+  pdf(
+    file.path(figdir, "cstump.pdf"),
+    width = col_w,
+    height = col_h,
+    pointsize = 9
+  )
+}
+
+rpart.plot::rpart.plot(
+  h,
+  extra = 102,
+  digits = 4,
+  box.col = sty$box,
+  col = sty$text
+)
+
+if (to_file) {
+  dev.off()
+}
 ```
 
 ::: {.callout-important}
@@ -290,72 +330,71 @@ cstump <- rpart(
 library(rpart.plot)
 
 # Visualize classification stump
-rpart.plot::rpart.plot(cstump, extra = 102, digits = 4, box.palette = "BuGy")
+sty <- tree_colors(cstump)
+rpart.plot::rpart.plot(
+  cstump,
+  extra = 102,
+  digits = 4,
+  box.col = sty$box,
+  col = sty$text
+)
 ```
 
 #### Figure 3
 
 ```{r}
-# Outcome variable
-y_train <- train[, outnme]
-# Number of classes
-k <- length(unique(subdf$replicate))
-# Range(s) as list
-rng <- lapply(subdf[, subfeat], range, na.rm = TRUE)
-# Grid resolution
-resolution <- 1000
-# Colors
-col1 <- "cornflowerblue"
-col2 <- "ivory4"
-# Transparency
-alpha.f <- 0.03
-col1_transp <- adjustcolor(col1, alpha.f)
-col2_transp <- adjustcolor(col2, alpha.f)
-# First feature sequence
-x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-# Second feature sequence
-x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
-# Make grid from sequences
-grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
-# Predict grid
-ypred <- predict(h, grid, type = "class")
-# Contour matrix
-z_mat <- matrix(as.integer(ypred), nrow = resolution)
-# "0" means "not replicate", "1" means "replicate"
-symbol_colors <- ifelse(y_train == "failure", col1, col2)
-# "0" means "not replicate", "1" means "replicate"
-grid_colors <- ifelse(ypred == "failure", col1_transp, col2_transp)
-plot(
-  NULL,
-  xlim = range(x1_seq),
-  ylim = range(x2_seq),
+# `dboundary`, not `cstump`: in the manuscript `cstump` is the tree diagram
+# above, and this is the boundary that tree draws. Both are `figure*` floats
+# there, which is why they get the wider geometry.
+if (to_file) {
+  pdf(
+    file.path(figdir, "dboundary.pdf"),
+    width = full_w,
+    height = full_h,
+    pointsize = 9
+  )
+}
+
+# Visualize the stump's decision boundary. `shade = "margin"` colours by the
+# predicted probability rather than by the class alone, so the two regions read
+# as the moderate .26 and .76 they actually are -- and it is the same encoding
+# Figure 9 uses, which is what makes the two figures comparable.
+plot_adabound(
+  h,
+  data = subdf,
+  shade = "margin",
   xlab = "Power (original study)",
   ylab = "Sample size (original study)"
 )
-points(grid, col = grid_colors, pch = ".")
-points(subdf[, subfeat], col = symbol_colors, pch = as.integer(y_train) + 15)
-contour(
-  x1_seq,
-  x2_seq,
-  z_mat,
-  add = TRUE,
-  drawlabels = FALSE,
-  lwd = 2,
-  col = "black",
-  levels = (1:(k - 1)) + .5
-)
-legend(
-  "topleft",
-  c("success", "failure"),
-  pch = c(17, 16),
-  col = c(col2, col1),
-  cex = 0.7
-)
+
+if (to_file) {
+  dev.off()
+}
 ```
 
 #### Figure 4
 
 ```{r}
+if (to_file) {
+  pdf(
+    file.path(figdir, "gini.pdf"),
+    width = col_w,
+    height = col_h,
+    pointsize = 9
+  )
+}
+
+op <- par(
+  mar = c(2.9, 2.9, 1.9, 0.6),
+  mgp = c(1.7, 0.45, 0),
+  tcl = -0.25,
+  cex.axis = 0.9
+)
+
+# a single curve, so one color rather than a scale -- the same anchor viridis
+# uses for the first/darkest entry elsewhere in the tutorial
+col <- viridisLite::viridis(1, end = 0.85)
+
 # Calculate Gini Impurity
 x <- seq(0.01, 1, by = 0.01) # Values for fraction of class k
 y <- 1 - (x^2) - (1 - x)^2 # Gini Impurity calculation
@@ -365,12 +404,17 @@ plot(
   y,
   type = "l",
   lwd = 2, # Specify line plot
+  col = col,
   xlab = "Proportion of Successes",
   ylab = "Impurity"
 )
-mtext("Two Class Classification Problem")
 # Customize axes
 axis(side = 1, at = seq(0, 1, by = 0.1))
+
+par(op)
+if (to_file) {
+  dev.off()
+}
 ```
 
 #### Listing 14: Code to calculate means of neighboring units and find the position of the relevant power value.
@@ -457,12 +501,13 @@ cstump <- rpart(
   replicate ~ .,
   data = train[, voinms],
   method = "class",
-  weight = D,
+  weights = D,
   control = treehypar
 )
 
 # Visualize
-rpart.plot(cstump, digits = 4, box.palette = "BuGy")
+sty <- tree_colors(cstump)
+rpart.plot(cstump, digits = 4, box.col = sty$box, col = sty$text)
 ```
 
 #### Listing 16: Code to show the sensitivity to observation weights by using normalized random weights from a uniform distribution.
@@ -482,12 +527,33 @@ cstump_ast <- rpart(
   replicate ~ .,
   data = train[, voinms],
   method = "class",
-  weight = D,
+  weights = D,
   control = treehypar
 )
 
 # Visualize
-rpart.plot(cstump_ast, extra = 100, digits = 4, box.palette = "BuGy")
+sty <- tree_colors(cstump_ast)
+
+if (to_file) {
+  pdf(
+    file.path(figdir, "cstumpwght.pdf"),
+    width = col_w,
+    height = col_h,
+    pointsize = 9
+  )
+}
+
+rpart.plot(
+  cstump_ast,
+  extra = 100,
+  digits = 4,
+  box.col = sty$box,
+  col = sty$text
+)
+
+if (to_file) {
+  dev.off()
+}
 ```
 
 # Module 3: AdaBoost
@@ -573,12 +639,37 @@ alpha1 <- 1 / 2 * log(perf / epsilon) * eta
 #### Figure 6
 
 ```{r}
+if (to_file) {
+  pdf(
+    file.path(figdir, "importance.pdf"),
+    width = col_w,
+    height = col_h,
+    pointsize = 9
+  )
+}
+
+# Tighter margins than the default: at this size the defaults would leave
+# almost no room to plot in. `par(op)` at the end puts them back, because the
+# whole document runs in one session and the settings would otherwise leak
+# into every later figure.
+op <- par(
+  mar = c(2.9, 2.9, 1.9, 0.6),
+  mgp = c(1.7, 0.45, 0),
+  tcl = -0.25,
+  cex.axis = 0.9
+)
+
+# three ordered learning rates, so the palette runs with them. `end = 0.85`
+# stops short of viridis's yellow, which is invisible as a line on white
+pal <- viridisLite::viridis(3, end = 0.85)
+
 fat <- function(x, eta) 1 / 2 * log(x / (1 - x)) * eta
 curve(
   fat(x, 1),
   from = 0.5,
   to = 1,
   lwd = 2,
+  col = pal[1],
   ylab = "Importance",
   xlab = "Performance"
 )
@@ -589,7 +680,7 @@ curve(
   to = 1,
   lty = 2,
   lwd = 2,
-  col = "ivory4",
+  col = pal[2],
   add = TRUE
 )
 curve(
@@ -598,20 +689,41 @@ curve(
   to = 1,
   lty = 4,
   lwd = 2,
-  col = "steelblue",
+  col = pal[3],
   add = TRUE
 )
+# The legend sits in the margin above the panel, where `main` would go, so it
+# never covers a curve. `xpd = NA` is what lets it draw outside the plotting
+# region; the default top margin already reserves the room. `text.width = NA`
+# gives each entry its own width -- without it `horiz` pads every column out to
+# the widest label, which strings short entries across the whole panel.
+usr <- par("usr")
 legend(
-  "topleft",
+  x = (usr[1] + usr[2]) / 2,
+  y = usr[4] + 0.055 * (usr[4] - usr[3]),
+  xjust = 0.5,
+  yjust = 0,
+  horiz = TRUE,
+  xpd = NA,
+  bty = "n",
+  text.width = NA,
+  x.intersp = 0.7,
+  seg.len = 1.2,
+  cex = 0.9,
   legend = c(
     expression(eta * " = 1"),
     expression(eta * " = 0.5"),
     expression(eta * " = 0.1")
   ),
-  col = c("black", "ivory4", "steelblue"),
+  col = pal,
   lty = c(1, 2, 4),
   lwd = 2
 )
+
+par(op)
+if (to_file) {
+  dev.off()
+}
 ```
 
 #### Listing 23: Code to calculate the update factor for the initialization weights.
@@ -633,6 +745,25 @@ D2 <- D2_raw / Z1
 #### Figure 7
 
 ```{r}
+if (to_file) {
+  pdf(
+    file.path(figdir, "updatefactor.pdf"),
+    width = col_w,
+    height = col_h,
+    pointsize = 9
+  )
+}
+
+op <- par(
+  mar = c(2.9, 2.9, 1.9, 0.6),
+  mgp = c(1.7, 0.45, 0),
+  tcl = -0.25,
+  cex.axis = 0.9
+)
+
+# same three-step palette as Figure 6: the model weights are ordered too
+pal <- viridisLite::viridis(3, end = 0.85)
+
 feat <- function(at, x) exp(-at * x)
 curve(
   feat(0.719, x),
@@ -640,18 +771,25 @@ curve(
   to = 1,
   ylim = c(0.3, 2.2),
   lty = 3,
+  col = pal[1],
   xlab = "Classification",
   ylab = "Weight update factor",
   xaxt = "n"
 )
 grid()
-points(c(1, -1), c(feat(0.719, 1), feat(0.7, -1)), pch = 20, cex = 2)
+points(
+  c(1, -1),
+  c(feat(0.719, 1), feat(0.7, -1)),
+  pch = 20,
+  cex = 2,
+  col = pal[1]
+)
 curve(
   feat(0.619, x),
   from = -1,
   to = 1,
   ylim = c(0, 2),
-  col = "ivory4",
+  col = pal[2],
   lty = 3,
   add = TRUE
 )
@@ -660,14 +798,14 @@ points(
   c(feat(0.619, 1), feat(0.6, -1)),
   pch = 17,
   cex = 2,
-  col = "ivory4"
+  col = pal[2]
 )
 curve(
   feat(0.519, x),
   from = -1,
   to = 1,
   ylim = c(0, 2),
-  col = "steelblue",
+  col = pal[3],
   lty = 3,
   add = TRUE
 )
@@ -676,56 +814,144 @@ points(
   c(feat(0.519, 1), feat(0.51, -1)),
   pch = 15,
   cex = 2,
-  col = "steelblue"
+  col = pal[3]
 )
 abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
+usr <- par("usr")
 legend(
-  "topright",
+  x = (usr[1] + usr[2]) / 2,
+  y = usr[4] + 0.055 * (usr[4] - usr[3]),
+  xjust = 0.5,
+  yjust = 0,
+  horiz = TRUE,
+  xpd = NA,
+  bty = "n",
+  text.width = NA,
+  x.intersp = 0.7,
+  seg.len = 1.2,
+  cex = 0.9,
   legend = c(
     expression(a[t] * " = 0.719"),
     expression(a[t] * " = 0.619"),
     expression(a[t] * " = 0.519")
   ),
-  col = c("black", "ivory4", "steelblue"),
+  col = pal,
   lty = c(1, 1, 1),
   pch = c(20, 17, 15),
   lwd = 2
 )
 axis(1, at = c(-1, 1))
+
+par(op)
+if (to_file) {
+  dev.off()
+}
 ```
 
 #### Figure 8
 
+::: {.callout-note}
+## What the yellow means here
+
+The yellow band marks the studies the stump got **wrong**, which is not what
+yellow means in Figures 3 and 9. There it is the bright end of the scale over
+the ensemble's margin, so it reads as a predicted replication *success*. Here it
+is a background highlight rather than a data point's colour, and it marks the
+studies whose weight is about to rise.
+:::
+
 ```{r}
-n_25 <- 25
-scaling <- 175
+if (to_file) {
+  pdf(
+    file.path(figdir, "weightone.pdf"),
+    width = col_w,
+    height = col_h,
+    pointsize = 9
+  )
+}
+
+op <- par(
+  mar = c(2.9, 2.9, 1.9, 0.6),
+  mgp = c(1.7, 0.45, 0),
+  tcl = -0.25,
+  cex.axis = 0.9
+)
+
+n_25 <- 25 # TODO: Do we need this?
+scaling <- 2
+
+# D1 and D2 keep a colour each. `end = 0.5` leaves D2 teal rather than
+# yellow-green, which would go muddy against the yellow band below
+pal <- viridisLite::viridis(2, end = 0.5)
+band <- adjustcolor(viridisLite::viridis(1, begin = 1), 0.35)
+
+# area, not diameter: cex scales the width of the point, so the eye reads a
+# doubled weight as four times the ink unless we take the square root
+bubble <- function(w) sqrt(w / D1[1]) * scaling
+
+wrong <- which(y_train[1:n_25] != yretro[1:n_25])
+ylim <- c(0, D1[1] + 0.012)
+
 plot(
-  c(1, n_25),
-  c(0, D1[1] + 0.02),
+  c(0.5, n_25 + 0.5),
+  ylim,
   type = "n",
   xaxt = "n",
   xlab = "Data point",
   ylab = "Weight"
 )
-axis(1, at = 1:n_25, labels = paste(1:25), cex = 0.5)
+# the band goes behind everything: misclassification belongs to the data point,
+# not to either of its two weights
+rect(wrong - 0.42, ylim[1], wrong + 0.42, ylim[2], col = band, border = NA)
+box()
+# every fifth point: 25 labels do not fit the width of a column
+axis(1, at = c(1, seq(5, n_25, 5)))
 for (i in 1:n_25) {
-  lines(c(i, i), c(D1[i], D2[i]), lty = 3)
+  lines(c(i, i), c(D1[i], D2[i]), lty = 3, col = "grey45")
 }
 
-points(D1[1:n_25], pch = 20, col = "ivory4", cex = D1[1] * scaling)
 points(
+  1:n_25,
   D1[1:n_25],
-  pch = 20,
-  col = ifelse((y_train == yretro), "green", "red"),
-  cex = D1[1] + 0.2
+  pch = 21,
+  bg = pal[1],
+  col = "white",
+  cex = bubble(D1[1:n_25]),
+  lwd = 1.3
 )
-points(D2[1:n_25], pch = 20, col = "steelblue", cex = D2[1:n_25] * scaling)
+points(
+  1:n_25,
+  D2[1:n_25],
+  pch = 21,
+  bg = pal[2],
+  col = "white",
+  cex = bubble(D2[1:n_25]),
+  lwd = 1.3
+)
+usr <- par("usr")
 legend(
-  "topright",
-  legend = c(expression(D[1]), expression(D[2])),
-  col = c("ivory4", "steelblue"),
-  pch = c(20, 20)
+  x = (usr[1] + usr[2]) / 2,
+  y = usr[4] + 0.055 * (usr[4] - usr[3]),
+  xjust = 0.5,
+  yjust = 0,
+  horiz = TRUE,
+  xpd = NA,
+  bty = "n",
+  text.width = NA,
+  x.intersp = 0.7,
+  seg.len = 1.2,
+  cex = 0.9,
+  legend = c(expression(D[1]), expression(D[2]), "misclassified"),
+  pt.bg = c(pal, band),
+  col = c("white", "white", "grey60"),
+  pch = c(21, 21, 22),
+  pt.cex = 1.3
 )
+
+par(op)
+if (to_file) {
+  dev.off()
+}
 ```
 
 #### Listing 24: Code to loop through the algorithmic steps. Note that the code can take several seconds to complete.
@@ -799,31 +1025,6 @@ yretro_ada <- sign(a %*% t(yretro_stumps))
 #### Figure 9
 
 ```{r}
-# Outcome vector
-yobs <- train[, outnme]
-# Make 0/1 factor into something ADA can handle (-1/1)
-yobs_ml <- 2 * as.numeric(train[, outnme]) - 3
-# Number of classes
-k <- length(unique(yobs_ml))
-# Range(s) as list
-Xobs <- train[, c("power.o", "n.o")]
-rng <- lapply(Xobs, range, na.rm = TRUE)
-# Grid resolution
-resolution <- 1e3
-# Colors
-col1 <- "cornflowerblue"
-col2 <- "ivory4"
-# Transparency
-alpha.f <- 0.03
-col1_transp <- adjustcolor(col1, alpha.f)
-col2_transp <- adjustcolor(col2, alpha.f)
-# First feature sequence
-x1_seq <- seq(rng$power.o[1], rng$power.o[2], length.out = resolution)
-# Second feature sequence
-x2_seq <- seq(rng$n.o[1], rng$n.o[2], length.out = resolution)
-# Make grid from sequences
-grid <- expand.grid("power.o" = x1_seq, "n.o" = x2_seq)
-# Make grid
 # Tree hyperparameter setting
 treehypar <- rpart::rpart.control(
   # Slightly different hyperparameters to improve visibility of boundary
@@ -833,53 +1034,40 @@ treehypar <- rpart::rpart.control(
   cp = 1e-2,
   split = "gini"
 )
-# Fit AdaBoost
+
+# Fit AdaBoost on the two features
 fit <- trainAda(
   replicate ~ .,
   data = train[, c("replicate", "power.o", "n.o")],
   T = 5e2,
   eta = 1,
   treehypar = treehypar,
-  verbose = FALSE,
-  input_checks = FALSE
+  verbose = FALSE
 )
-# Predict ADAboost
-ypred_ml <- testAda(fit, grid, input_checks = FALSE, verbose = FALSE)
-# Make prediction 0/1 instead of -1/1
-ypred <- as.factor((ypred_ml + 1) / 2)
-# Contour matrix
-z_mat <- matrix(as.integer(ypred), nrow = resolution)
-# "0" means "not replicate", "1" means "replicate"
-symbol_colors <- ifelse(yobs == "failure", col1, col2)
-grid_colors <- ifelse(ypred == 0, col1_transp, col2_transp)
-plot(
-  NULL,
-  xlim = range(x1_seq),
-  ylim = range(x2_seq),
+
+# Both decision-boundary plots span the full text width: at column width the
+# studies collide into a single band and the boundary stops reading as a line
+if (to_file) {
+  pdf(
+    file.path(figdir, "boundaryada.pdf"),
+    width = full_w,
+    height = full_h,
+    pointsize = 9
+  )
+}
+
+# Visualize the ensemble's decision boundary
+plot_adabound(
+  fit,
+  data = train,
+  shade = "margin",
   xlab = "Power (original study)",
   ylab = "Sample size (original study)"
 )
-points(grid, col = grid_colors, pch = ".")
-z_mat <- matrix(as.integer(ypred), nrow = resolution)
-# For the black line
-contour(
-  x1_seq,
-  x2_seq,
-  z_mat,
-  add = TRUE,
-  drawlabels = FALSE,
-  lwd = 2,
-  col = "black",
-  levels = (1:(k - 1)) + .5
-)
-points(Xobs, col = symbol_colors, pch = as.integer(yobs) + 15)
-legend(
-  "topleft",
-  c("success", "failure"),
-  pch = c(17, 16),
-  col = c(col2, col1),
-  cex = 0.7
-)
+
+if (to_file) {
+  dev.off()
+}
 ```
 
 #### Listing 27: Code to evaluate the retrodictive performance of the ensemble.
@@ -910,6 +1098,8 @@ table(y_test, ypred_ada) # Inperfect predictions
 
 # Module 4: Leave-Project-Out Cross-Validation and Hyperparameter Optimization
 
+## Two Wrapper Functions
+
 #### Listing 30: Code introducing the wrapper functions. Note that we reduced the number of trees to speed up runtime in the upcoming sections.
 
 ```{r}
@@ -939,6 +1129,8 @@ area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
 AUC; keep `type = "class"` for the confusion matrix.
 :::
 
+## Evaluating Model Performance
+
 #### Listing 31: Code showing different measures to evaluate the predictive performance of the ensemble.
 
 ```{r}
@@ -948,11 +1140,8 @@ confusion <- table(ypred, y_test)
 # Accuracy
 sum(diag(confusion)) / sum(confusion)
 
-# Load package
-library(PRROC)
-
 # Area under the curve (scored on the margin)
-roc.curve(scores.class0 = ymargin, weights.class0 = as.integer(y_test) - 1)$auc
+auroc(y_test, ymargin)
 
 # Base rates
 df$replicate_01 <- as.integer(df$replicate) - 1
@@ -963,10 +1152,23 @@ mean(baserates$replicate_01)
 ```
 
 ::: {.callout-important}
-## `type = "class"` gives balanced accuracy, not AUC
-Switched to `PRROC` package. Cite and fix in the tutorial.
+## Switched to `PRROC` package
+Cite and fix everywhere - especially in the tutorial.
 :::
 
+::: {.callout-note}
+## Where the AUC comes from
+
+`auroc()` is a thin wrapper around `PRROC::roc.curve()` (Grau, Grosse &
+Keilwagen), which does the actual work; `auprc()` wraps `pr.curve()` from the
+same package. The wrapper exists so the outcome can be passed in whatever form
+you have it -- a factor, 0/1, -1/1 or logical. `roc.curve()` itself expects a
+0/1 vector and returns a wrong number without complaint if handed a 1/2 one, so
+the conversion is worth doing once, in one place.
+
+:::
+
+## Leave-Project-Out Cross-Validation
 
 #### Listing 32: Code to do a leave-project-out cross-validation. Note that this ran for approximately 2 minutes on our laptops.
 
@@ -995,10 +1197,7 @@ runtime <- system.time({
     # Predictions (left-out project), on the margin so the AUC sees the ranking
     ypred <- testAda(fit, data = test[, prednms], type = "margin")
     # Performance evaluation
-    auc[[rp]] <- roc.curve(
-      scores.class0 = ypred,
-      weights.class0 = as.integer(test$replicate) - 1
-    )$auc
+    auc[[rp]] <- auroc(test$replicate, ypred)
   }
 })
 
@@ -1006,8 +1205,11 @@ runtime <- system.time({
 message("Run time: ", runtime["elapsed"], " s\n")
 
 # Results
+# TODO: From mean to plot?
 c(unlist(auc), "mean" = mean(unlist(auc)))
 ```
+
+## Hyperparameter Optimization
 
 #### Listing 33: Code to define a hypergrid.
 
@@ -1082,10 +1284,7 @@ for (i in seq_len(hgrid_rows)) {
         verbose = FALSE
       )
       # Performance evaluation
-      hgrid[[rp]][i] <- roc.curve(
-        scores.class0 = ypred,
-        weights.class0 = as.integer(test$replicate) - 1
-      )$auc
+      hgrid[[rp]][i] <- auroc(test$replicate, ypred)
     }
     # Average performance
     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, 4:8]))
@@ -1097,7 +1296,166 @@ for (i in seq_len(hgrid_rows)) {
 hgrid[order(-hgrid$auc.mean), ]
 ```
 
-#### Listing 35: Code to fit the final model to the data.
+## Selecting versus Evaluating
+
+Listing 34 scored every setting in the hypergrid on all five projects, and we
+took the row with the best average. That number is not an estimate of how the
+chosen model will do on a new project: the same five projects picked the winner
+and then graded it. To see how much that matters, the selection has to happen
+where the project being scored cannot influence it.
+
+Nested leave-project-out cross-validation does exactly that. The outer loop holds
+out one project. The inner loop repeats the whole grid search on the four that
+remain, choosing hyperparameters without ever seeing the held-out project. The
+selected setting is then refit on those four projects and scored on the fifth.
+Repeat five times.
+
+The result is easy to misread, so it is worth being precise about what it
+estimates. **Nested LPO-CV does not give you a performance estimate for a
+particular hyperparameter setting.** It estimates the *procedure* -- "run the
+grid search, then fit the winner." Every model built inside the nesting is
+discarded; none of them is the model you ship. You still fit one setting on all
+five projects, as in Listing 35. Nesting tells you what to expect from that
+model, not what it scores.
+
+Two things follow. First, the five inner searches may each select a different
+setting, and the setting that won in Listing 34 may be chosen by none of them.
+That is expected rather than alarming: with five projects there is no stable
+"best" setting to find, and seeing that instability directly is more informative
+than the average that hides it. Second, the nested estimate is *conservative*
+here, because each nested model saw four projects while the model you ship sees
+five.
+
+If nesting does not hand you a model, what does? The three listings have three
+different jobs, and it is worth being explicit about which is which:
+
+| job | listing |
+|:----|:--------|
+| Choose the hyperparameters, using all five projects | Listing 34 |
+| Estimate what that choosing procedure is worth | Listing 35 |
+| Fit the model you will actually use | Listing 36 |
+
+So Listing 34 still picks the setting and Listing 36 still fits it on the full
+dataset -- nesting changes neither. What it changes is the number you quote
+alongside that model: not the winning average from Listing 34, which the same
+five projects produced by selecting it, but the nested estimate, which no project
+had a hand in choosing.
+
+The settings the inner searches picked are worth looking at, but they are a
+diagnostic rather than a shortlist. They have the same standing as the
+coefficients fitted inside each cross-validation fold back in Module 1: nobody
+averages those, and nobody asks which fold's coefficients to keep. They are
+by-products of a procedure being measured, not candidates for shipping.
+
+::: {.callout-tip}
+## Set the depth with `maxdepth`, not with `treehypar`
+
+`rpart.control(maxdepth = 3)` returns *every* `rpart` default, not just the depth
+you named -- including `cp = 0.01`, `xval = 10` and `maxsurrogate = 5`. Passed
+through `treehypar`, those overwrite the settings `trainAda()` chose for
+boosting. `trainAda()` keeps `cp` at `rpart`'s own 0.01 precisely so that the two
+forms fit the *same* trees: we checked, and the trees, the model weights and the
+margins are identical. What still differs is `xval = 10`, ten internal
+cross-validations per weak learner that nothing reads, costing about thirty per
+cent of the runtime.
+
+So this is a tidiness point, not a correctness one. Use the `maxdepth` argument
+for depth, and reserve `treehypar` for controls you genuinely mean to change --
+`minsplit` and `minbucket` are the ones that actually change how the trees grow.
+:::
+
+#### Listing 35: Code to do a nested leave-project-out cross-validation. Note that this ran for approximately 10 minutes on our laptops.
+
+```{r}
+# Projects, in the order they take their turn
+projects <- c("eerp", "ml1", "ml3", "rpp", "ssrp")
+
+# Partition data by project ID
+df_split <- split(df, df$pid)
+
+# One honest score and one selected setting per project
+nested_auc <- list()
+selected <- list()
+
+runtime <- system.time({
+  # OUTER loop: evaluates
+  for (rp in projects) {
+    # Progress report
+    message("\nOuter fold: ", rp, "\n")
+
+    # Training and test set. The test project leaves the data entirely, so
+    # nothing below can see it.
+    test <- df_split[[rp]]
+    train <- df[!(df$pid %in% rp), ]
+
+    # INNER loop: selects. This is the same grid search as Listing 34, run on
+    # the training projects only -- so we can hand it to lpocv().
+    inner <- lpocv(
+      replicate ~ power.o + effect_size.o + n.o + p_value.o,
+      data = train,
+      group = "pid",
+      grid = hgrid[, c("depth", "T", "eta")]
+    )
+
+    # Rank the settings by their mean over the inner folds. Here the mean is a
+    # ranking device, not a performance estimate.
+    inner_auc <- summary(inner, metric = "auroc")
+    ranked <- aggregate(estimate ~ setting, data = inner_auc, FUN = mean)
+
+    # The setting the four training projects chose, on their own
+    best <- hgrid[ranked$setting[which.max(ranked$estimate)], ]
+    selected[[rp]] <- best[, c("depth", "T", "eta")]
+
+    # Refit at that setting and score the untouched project
+    fit <- trainAda(
+      replicate ~ .,
+      data = train[, voinms],
+      T = best$T,
+      eta = best$eta,
+      maxdepth = best$depth,
+      verbose = FALSE
+    )
+    ypred <- testAda(
+      fit,
+      data = test[, prednms],
+      type = "margin",
+      verbose = FALSE
+    )
+    nested_auc[[rp]] <- auroc(test$replicate, ypred)
+  }
+})
+
+# Waiting time
+message("Run time: ", runtime["elapsed"], " s\n")
+
+# The honest expectation, per project
+unlist(nested_auc)
+
+# What each outer fold selected, and how often they disagree
+do.call(rbind, selected)
+```
+
+Only the outer loop is new. The inner one is the leave-project-out search we
+already ran in Listing 34, so we hand it to `lpocv()` rather than write it out
+again -- the single change is that it now sees `train` instead of `df`.
+
+The whole procedure is also one call, which is what we use from here on:
+
+```{r}
+nested <- lpocv(
+  replicate ~ power.o + effect_size.o + n.o + p_value.o,
+  data = df,
+  group = "pid",
+  grid = hgrid[, c("depth", "T", "eta")],
+  nested = TRUE,
+  criterion = "auroc"
+)
+nested
+```
+
+## Finalizing an Ensemble
+
+#### Listing 36: Code to fit the final model to the data.
 
 ```{r}
 # Fit optimized model
