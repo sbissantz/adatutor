@@ -12,3 +12,6 @@ vignettes/tutorial_DH.Rmd
 inst/doc
 /doc/
 docs
+
+# intermediate slices from data-raw/hypergrid.R; the shipped result is data/
+data-raw/cache/
