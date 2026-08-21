@@ -10,9 +10,11 @@ vignette: >
 
 # Prerequisites
 
-#### Listing 1: Code to install the adatutor package form GitHub, load and attach it.
+#### Listing 1
 
-```{r}
+Code to install the adatutor package form GitHub, load and attach it.
+
+```{r listing-1}
 # Load package
 library(remotes)
 
@@ -25,16 +27,20 @@ library(adatutor)
 
 # Empirical Example
 
-#### Listing 2: Code to load the dataset.
+#### Listing 2
 
-```{r}
+Code to load the dataset.
+
+```{r listing-2}
 # Load data
 data(altmejd)
 ```
 
-#### Listing 3: Code to prepare the data.
+#### Listing 3
 
-```{r}
+Code to prepare the data.
+
+```{r listing-3}
 # Reviewer metrics (names)
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 
@@ -50,9 +56,11 @@ df <- altmejd
 
 # Module 1: Data Splitting
 
-#### Listing 4: Code to do a 70/30 simple random split.
+#### Listing 4
 
-```{r}
+Code to do a 70/30 simple random split.
+
+```{r listing-4}
 # For reproducibility
 set.seed(112)
 
@@ -75,9 +83,11 @@ train <- df[train_idx, ]
 testvalid <- df[-train_idx, ]
 ```
 
-#### Listing 5: Code to complete a 70/15/15 simple random split
+#### Listing 5
 
-```{r}
+Code to complete a 70/15/15 simple random split
+
+```{r listing-5}
 # For reproducibility
 set.seed(112)
 
@@ -100,9 +110,12 @@ valid <- testvalid[valid_idx, ]
 test <- testvalid[-valid_idx, ]
 ```
 
-#### Listing 6: Code to check for imbalances in the outcome variable of the original dataset and the test set.
+#### Listing 6
 
-```{r}
+Code to check for imbalances in the outcome variable of the original dataset
+and the test set.
+
+```{r listing-6}
 # Frequency tables
 tbl_orig <- table(df$replicate)
 tbl_testvalid <- table(testvalid$replicate)
@@ -112,9 +125,11 @@ proportions(tbl_orig)
 proportions(tbl_testvalid)
 ```
 
-#### Listing 7: Code to do a 70/30 stratified split.
+#### Listing 7
 
-```{r}
+Code to do a 70/30 stratified split.
+
+```{r listing-7}
 # For reproducibility
 set.seed(112)
 
@@ -144,9 +159,11 @@ train <- df[train_idx, ]
 testvalid <- df[!train_idx, ]
 ```
 
-#### Listing 8: Code to complete a 70/15/15 stratified split
+#### Listing 8
 
-```{r}
+Code to complete a 70/15/15 stratified split
+
+```{r listing-8}
 # For reproducibility
 set.seed(112)
 
@@ -174,9 +191,12 @@ valid <- testvalid[valid_idx, ]
 test <- testvalid[!valid_idx, ]
 ```
 
-#### Listing 9: Code to do a 70/30 random and stratified split, with the pre-implemented functions of the adatutor package.
+#### Listing 9
 
-```{r}
+Code to do a 70/30 random and stratified split, with the pre-implemented
+functions of the adatutor package.
+
+```{r listing-9}
 # For reproducibility
 set.seed(112)
 
@@ -191,9 +211,11 @@ train <- stratsplit$set1
 testvalid <- stratsplit$set2
 ```
 
-#### Listing 10: Code to do a 70/30 random and stratified split, with the rsample package.
+#### Listing 10
 
-```{r}
+Code to do a 70/30 random and stratified split, with the rsample package.
+
+```{r listing-10}
 # Load package
 library(rsample)
 
@@ -211,9 +233,33 @@ train <- training(stratsplit)
 testvalid <- testing(stratsplit)
 ```
 
+::: {.callout-important}
+## Restore the split before going on
+
+Module 1 showed several ways to split, and each one overwrote `train`. Whichever
+you ran last is the one still in memory, so from here the numbers would drift
+away from the text.
+
+Everything from Module 2 onward is built on the stratified split of Listings 7
+and 8. The package ships it, so load it back and the stumps, weights and figures
+come out as described. Setting a seed would not be enough on its own: R changed
+`sample()` in version 3.6.0 and moved every seeded split in the wild with it,
+which is why the sets themselves travel with the package rather than the recipe
+for them.
+:::
+
+```{r restore-split}
+# The split every later module is written against
+train <- altmejd_splits$train
+valid <- altmejd_splits$valid
+test <- altmejd_splits$test
+```
+
 #### Figure 2
 
-```{r}
+Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62\% of the training data and the right leaf node contains about 38\%. The label in each node (\enquote{success}, \enquote{failure}) represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
+
+```{r figure-2}
 # Where the manuscript keeps its figures. Most readers will not have this
 # folder, and then the plots just go to the screen as usual. Each export wraps
 # the same call rather than repeating it, so the file and the figure you see on
@@ -254,7 +300,7 @@ h <- rpart::rpart(
   control = treehypar
 )
 # Visualize
-sty <- tree_colors(h)
+sty <- viridis_tree(h)
 
 if (to_file) {
   pdf(
@@ -278,18 +324,14 @@ if (to_file) {
 }
 ```
 
-::: {.callout-important}
-## Important note
-
-We suggest running Listings 7 & 8 again, before proceeding with the other
-modules. This should guarantee the same training, validation, and test set.
-:::
-
 # Module 2: Classification Stumps
 
-#### Listing 11: Code to retrieve the frequency tables for the outcome variable under the two power conditions.
+#### Listing 11
 
-```{r}
+Code to retrieve the frequency tables for the outcome variable under the two
+power conditions.
+
+```{r listing-11}
 # Condition for the split
 splitcond <- train$power.o < 0.9305
 
@@ -300,9 +342,12 @@ table(train$replicate[splitcond])
 table(train$replicate[!splitcond])
 ```
 
-#### Listing 12: Code to set the hyperparameters of a classification tree and fit the model to the training data.
+#### Listing 12
 
-```{r}
+Code to set the hyperparameters of a classification tree and fit the model to
+the training data.
+
+```{r listing-12}
 # Load package
 library(rpart)
 
@@ -323,14 +368,16 @@ cstump <- rpart(
 )
 ```
 
-#### Listing 13: Code to visualize a fitted classification stump.
+#### Listing 13
 
-```{r}
+Code to visualize a fitted classification stump.
+
+```{r listing-13}
 # Load package
 library(rpart.plot)
 
 # Visualize classification stump
-sty <- tree_colors(cstump)
+sty <- viridis_tree(cstump)
 rpart.plot::rpart.plot(
   cstump,
   extra = 102,
@@ -342,7 +389,9 @@ rpart.plot::rpart.plot(
 
 #### Figure 3
 
-```{r}
+Visualization of the decision boundary of a classification stump. The predictor variable on the x-axis is the power of the original study effect. The predictor variable on the y-axis is the number of observations. So the y-axis does not display the outcome variable, but another study characteristic. However, since classification stumps are classification trees of depth one, only one study characteristic (i.e., power in this case) is used as a predictor to separate successfully replicated study effects from failed ones. The decision boundary is set at a power value of 0.9305 (vertical line). The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+
+```{r figure-3}
 # `dboundary`, not `cstump`: in the manuscript `cstump` is the tree diagram
 # above, and this is the boundary that tree draws. Both are `figure*` floats
 # there, which is why they get the wider geometry.
@@ -374,7 +423,9 @@ if (to_file) {
 
 #### Figure 4
 
-```{r}
+Visualization of the Gini impurity for a two-class classification problem. The x-axis is the proportion or probability of Class 1 (e.g., the proportion of successes in the empirical example). The y-axis is the measure of Gini impurity. The Gini impurity is highest when the classes are equally represented. This occurs when the proportion of Class 1 is 0.5, meaning there are as many instances of Class 1 (i.e., successes) as of Class 2 (i.e., failures). The more homogeneous a class becomes, the lower the Gini impurity. The Gini impurity is zero if there are only instances of one type (i.e., only successes or failures).
+
+```{r figure-4}
 if (to_file) {
   pdf(
     file.path(figdir, "gini.pdf"),
@@ -417,9 +468,12 @@ if (to_file) {
 }
 ```
 
-#### Listing 14: Code to calculate means of neighboring units and find the position of the relevant power value.
+#### Listing 14
 
-```{r}
+Code to calculate means of neighboring units and find the position of the
+relevant power value.
+
+```{r listing-14}
 # Sorted vector
 power_srt <- sort(train$power.o)
 
@@ -459,7 +513,7 @@ adjmeans <- (power_srt[-1] + power_srt[-length(power_srt)]) / 2
 gini_impurity <- vector(length = length(adjmeans))
 for (i in seq_along(adjmeans)) {
   constant <- adjmeans[i]
-  N_total <- length(y_train)
+  N_total <- nrow(train)
   # Left leaf
   criterion_left <- train$power.o < constant
   N_left <- length(train$replicate[criterion_left])
@@ -484,9 +538,11 @@ which.min(gini_impurity)
 adjmeans[which.min(gini_impurity)]
 ```
 
-#### Listing 15: Code to make the assumption of equal weights explicit.
+#### Listing 15
 
-```{r}
+Code to make the assumption of equal weights explicit.
+
+```{r listing-15}
 # Load package
 library(rpart.plot)
 
@@ -506,13 +562,18 @@ cstump <- rpart(
 )
 
 # Visualize
-sty <- tree_colors(cstump)
+sty <- viridis_tree(cstump)
 rpart.plot(cstump, digits = 4, box.col = sty$box, col = sty$text)
 ```
 
-#### Listing 16: Code to show the sensitivity to observation weights by using normalized random weights from a uniform distribution.
+#### Listing 16
 
-```{r}
+Code to show the sensitivity to observation weights by using normalized random
+weights from a uniform distribution.
+
+Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the \texttt{extra} argument of the \texttt{rpart.plot()} function with a value set to \texttt{100}.
+
+```{r listing-16}
 # For reproducibility
 set.seed(112)
 
@@ -532,7 +593,7 @@ cstump_ast <- rpart(
 )
 
 # Visualize
-sty <- tree_colors(cstump_ast)
+sty <- viridis_tree(cstump_ast)
 
 if (to_file) {
   pdf(
@@ -558,9 +619,11 @@ if (to_file) {
 
 # Module 3: AdaBoost
 
-#### Listing 17: Code to understand the givens in the AdaBoost algorithm.
+#### Listing 17
 
-```{r}
+Code to understand the givens in the AdaBoost algorithm.
+
+```{r listing-17}
 # Predictors and outcome (names)
 prednms
 outnme
@@ -583,16 +646,20 @@ y_train[i]
 cbind(x_train, y_train)[i:m, ]
 ```
 
-#### Listing 18: Code to generate initialization weights in the AdaBoost algorithm.
+#### Listing 18
 
-```{r}
+Code to generate initialization weights in the AdaBoost algorithm.
+
+```{r listing-18}
 # Initialization weights
 D1 <- rep(1, m) / m
 ```
 
-#### Listing 19: Code to fit a classification stump with the initialization weights.
+#### Listing 19
 
-```{r}
+Code to fit a classification stump with the initialization weights.
+
+```{r listing-19}
 # Hyperparameter setup
 treehypar <- rpart.control(maxdepth = 1, split = "gini")
 
@@ -606,9 +673,11 @@ h1 <- rpart(
 )
 ```
 
-#### Listing 20: Code to calculate the classification stump's error.
+#### Listing 20
 
-```{r}
+Code to calculate the classification stump's error.
+
+```{r listing-20}
 # Retrodictions (training data)
 yretro <- predict(h1, newdata = train[, voinms], type = "class")
 
@@ -616,9 +685,11 @@ yretro <- predict(h1, newdata = train[, voinms], type = "class")
 epsilon <- sum(D1 * (yretro != y_train))
 ```
 
-#### Listing 21: Code to calculate the classification stump's performance.
+#### Listing 21
 
-```{r}
+Code to calculate the classification stump's performance.
+
+```{r listing-21}
 # Retrodivitve performance
 perf <- sum(D1 * (yretro == y_train))
 
@@ -626,9 +697,12 @@ perf <- sum(D1 * (yretro == y_train))
 epsilon <- 1 - perf
 ```
 
-#### Listing 22: Code to calculate the classification stump's weight assuming a learning rate eta of 1.
+#### Listing 22
 
-```{r}
+Code to calculate the classification stump's weight assuming a learning rate
+eta of 1.
+
+```{r listing-22}
 # Learning rate
 eta <- 1
 
@@ -638,7 +712,9 @@ alpha1 <- 1 / 2 * log(perf / epsilon) * eta
 
 #### Figure 6
 
-```{r}
+Visualization of how the importance of a classification stump ($\alpha_t$) varies with its performance ($1-\epsilon_t$). Overall, the better the performance of a stump, the higher its weight. Put another way, the lower a stump's error ($\epsilon_t$), the higher its importance ($a_t$). The boosting hyperparameter ($\eta$) allows to further attenuate the weight of a classification stump. This could later help to improve the predictive performance of AdaBoost (see Module~4).
+
+```{r figure-6}
 if (to_file) {
   pdf(
     file.path(figdir, "importance.pdf"),
@@ -653,13 +729,13 @@ if (to_file) {
 # whole document runs in one session and the settings would otherwise leak
 # into every later figure.
 op <- par(
-  mar = c(2.9, 2.9, 1.9, 0.6),
+  mar = c(2.9, 2.9, 3.0, 0.6),
   mgp = c(1.7, 0.45, 0),
   tcl = -0.25,
   cex.axis = 0.9
 )
 
-# three ordered learning rates, so the palette runs with them. `end = 0.85`
+# three ordered learning rates, so palette runs with them. `end = 0.85`
 # stops short of viridis's yellow, which is invisible as a line on white
 pal <- viridisLite::viridis(3, end = 0.85)
 
@@ -692,7 +768,7 @@ curve(
   col = pal[3],
   add = TRUE
 )
-# The legend sits in the margin above the panel, where `main` would go, so it
+# Legend sits in the margin above the panel (where `main` is), so it
 # never covers a curve. `xpd = NA` is what lets it draw outside the plotting
 # region; the default top margin already reserves the room. `text.width = NA`
 # gives each entry its own width -- without it `horiz` pads every column out to
@@ -726,9 +802,11 @@ if (to_file) {
 }
 ```
 
-#### Listing 23: Code to calculate the update factor for the initialization weights.
+#### Listing 23
 
-```{r}
+Code to calculate the update factor for the initialization weights.
+
+```{r listing-23}
 # Indicator trick
 chi1 <- (yretro == y_train) * 1 + (yretro != y_train) * -1
 
@@ -744,7 +822,9 @@ D2 <- D2_raw / Z1
 
 #### Figure 7
 
-```{r}
+Visualization of how the update factor ($e^{-\alpha\chi}$) varies depending on the classification result and the importance of the model ($\alpha_t$). If the classifier classifies an observation correctly, $\chi$ takes the value 1 and the weight or importance of the observation is reduced in the next iteration. In the case of a misclassification, $\chi$ takes the value -1 and the weight of the observation increases. The observation will be more important in the next iteration.
+
+```{r figure-7}
 if (to_file) {
   pdf(
     file.path(figdir, "updatefactor.pdf"),
@@ -755,13 +835,13 @@ if (to_file) {
 }
 
 op <- par(
-  mar = c(2.9, 2.9, 1.9, 0.6),
+  mar = c(2.9, 2.9, 3.0, 0.6),
   mgp = c(1.7, 0.45, 0),
   tcl = -0.25,
   cex.axis = 0.9
 )
 
-# same three-step palette as Figure 6: the model weights are ordered too
+# same three-step palette as Figure 6: model weights are ordered too
 pal <- viridisLite::viridis(3, end = 0.85)
 
 feat <- function(at, x) exp(-at * x)
@@ -850,17 +930,9 @@ if (to_file) {
 
 #### Figure 8
 
-::: {.callout-note}
-## What the yellow means here
+Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the \texttt{altmejd} dataset. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
 
-The yellow band marks the studies the stump got **wrong**, which is not what
-yellow means in Figures 3 and 9. There it is the bright end of the scale over
-the ensemble's margin, so it reads as a predicted replication *success*. Here it
-is a background highlight rather than a data point's colour, and it marks the
-studies whose weight is about to rise.
-:::
-
-```{r}
+```{r figure-8}
 if (to_file) {
   pdf(
     file.path(figdir, "weightone.pdf"),
@@ -871,7 +943,7 @@ if (to_file) {
 }
 
 op <- par(
-  mar = c(2.9, 2.9, 1.9, 0.6),
+  mar = c(2.9, 2.9, 3.0, 0.6),
   mgp = c(1.7, 0.45, 0),
   tcl = -0.25,
   cex.axis = 0.9
@@ -954,9 +1026,15 @@ if (to_file) {
 }
 ```
 
-#### Listing 24: Code to loop through the algorithmic steps. Note that the code can take several seconds to complete.
+#### Listing 24
 
-```{r}
+Code to loop through the algorithmic steps.
+
+::: {.callout-note}
+The code can take several seconds to complete.
+:::
+
+```{r listing-24}
 # Hyperparameter setup
 treehypar <- rpart.control(maxdepth = 1)
 
@@ -995,9 +1073,11 @@ names(fit) <- paste0("t", seq_len(T))
 cat("Model weight 1:", fit$t1$a)
 ```
 
-#### Listing 25: Code to generate ensemble retrodictions.
+#### Listing 25
 
-```{r}
+Code to generate ensemble retrodictions.
+
+```{r listing-25}
 # Boosted classification stumps
 h <- lapply(fit, "[[", "h")
 
@@ -1014,9 +1094,11 @@ yretro_stumps <- 2 * yretro_stumps - 3
 yretro_ada <- sign(a %*% t(yretro_stumps))
 ```
 
-#### Listing 26: Code to replace matrix multiplication with a loop.
+#### Listing 26
 
-```{r}
+Code to replace matrix multiplication with a loop.
+
+```{r listing-26}
 #for (m in seq_len(m)) {
 #yretro_ada[m] <- sign(sum(a * yretro_stumps[m, ]))
 #}
@@ -1024,7 +1106,9 @@ yretro_ada <- sign(a %*% t(yretro_stumps))
 
 #### Figure 9
 
-```{r}
+Visualization of the decision boundary of 500 adaptively boosted shallow classification trees. The trees were fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+
+```{r figure-9}
 # Tree hyperparameter setting
 treehypar <- rpart::rpart.control(
   # Slightly different hyperparameters to improve visibility of boundary
@@ -1070,16 +1154,20 @@ if (to_file) {
 }
 ```
 
-#### Listing 27: Code to evaluate the retrodictive performance of the ensemble.
+#### Listing 27
 
-```{r}
+Code to evaluate the retrodictive performance of the ensemble.
+
+```{r listing-27}
 # Confusion matrix
 table(y_train, yretro_ada) # Perfect retrodictions
 ```
 
-#### Listing 28: Code to generate ensemble predictions.
+#### Listing 28
 
-```{r}
+Code to generate ensemble predictions.
+
+```{r listing-28}
 # Outcome variable (test set)
 y_test <- test[, outnme]
 
@@ -1089,9 +1177,11 @@ ypred_stumps <- 2 * ypred_stumps - 3
 ypred_ada <- sign(a %*% t(ypred_stumps))
 ```
 
-#### Listing 29: Code to evaluate the predictive performance of the ensemble.
+#### Listing 29
 
-```{r}
+Code to evaluate the predictive performance of the ensemble.
+
+```{r listing-29}
 # Confusion matrix
 table(y_test, ypred_ada) # Inperfect predictions
 ```
@@ -1100,9 +1190,15 @@ table(y_test, ypred_ada) # Inperfect predictions
 
 ## Two Wrapper Functions
 
-#### Listing 30: Code introducing the wrapper functions. Note that we reduced the number of trees to speed up runtime in the upcoming sections.
+#### Listing 30
 
-```{r}
+Code introducing the wrapper functions.
+
+::: {.callout-note}
+We reduced the number of trees to speed up runtime in the upcoming sections.
+:::
+
+```{r listing-30}
 # Boosted stumps and weights
 fit <- trainAda(
   replicate ~ .,
@@ -1111,7 +1207,7 @@ fit <- trainAda(
   T = 100,
   eta = 1,
   # Tree hyperparameter
-  treehypar = treehypar
+  maxdepth = 1
 )
 
 # Predictions on test set (class labels, for the confusion matrix)
@@ -1129,11 +1225,154 @@ area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
 AUC; keep `type = "class"` for the confusion matrix.
 :::
 
-## Evaluating Model Performance
+## NEW: Feature Importance
+Note: We should describe the package function before module 4 and maybe move the feature importance before hyperparameter optimization. (before we touch performance)
 
-#### Listing 31: Code showing different measures to evaluate the predictive performance of the ensemble.
+TODO: Describe better.
+So far, we restricted AdaBoost to work with decision stumps. From Module 2 we know, that stumps are trees of depth one that split (at most - recall: cp = 0.01) once on a variable. Recall also, that each stump carries a voting weight (`a`) based on its accuracy. The (relative) feature imporatance score we introduce below is to group stumps by the variable they split on, extract the (adaboost) weight, and sum their given weights. Why does it work? Well, AdaBoost sequentially targets the hardest-to-predict observations by re-weighting data points, so a variable that is frequently chosen, especially by high-weight stumps, is one that consistently helped correct the ensemble's "biggest mistakes". The total
+accumulated weight is thus a direct measure of a feature's predictive contribution or value.
+
+That is the whole idea with nothing borrowed: count up the voting weight of the
+stumps that chose each variable.
+
+Start with initializing a named vector of zeros (to keep the loop readble) gorwing it in Line -- `imp[v] <- imp[v] + fit[[t]]$a` starting from an empty vector. If it does not split the addition step is skipped, so it silently produces nothing.
+
+For stumps we can find the split directly: `frame` is the tree's node table.
+It's first row is our root, so `frame$var[1]` is the variable the stump splits on 
+If it does not split `rpart` writes `<leaf>`.
+
+```{r importance-frame}
+n_preds <- length(prednms)
+# initialization: vector of zeros
+voz <- numeric(n_preds)
+imp <- setNames(voz, prednms)
+for (t in seq_along(fit)) {
+  # variable at the root (stumps)
+  v <- as.character(fit[[t]]$h$frame$var[1])
+  # if it does not split, skip it
+  if (v == "<leaf>") {
+    next
+  }
+  imp[v] <- imp[v] + fit[[t]]$a
+}
+# relative importance: normalize and scale
+imp <- imp / sum(imp) * 100
+# highest importance first
+sort(imp, decreasing = TRUE)
+```
+
+version with rpart helper function
+
+```{r importance-byhand}
+# One slot per predictor, all starting at zero
+n_preds <- length(prednms)
+# initialization: vector of zeros
+voz <- numeric(n_preds)
+imp <- setNames(voz, prednms)
+# walk ensemble, tree by tree
+for (t in seq_along(fit)) {
+  # Shorcut: extract rpart's included measure
+  vi <- fit[[t]][["h"]][["variable.importance"]]
+  # if it does not split, skip it
+  if (is.null(vi)) {
+    next
+  }
+  # stumps split (at most once), i.e. whole model weight goes to that variable
+  imp[names(vi)] <- imp[names(vi)] + fit[[t]]$a
+}
+# Relative importance
+imp <- 100 * imp / sum(imp)
+# Most important first
+sort(imp, decreasing = TRUE)
+```
+
+Note to self: Because in rpart cp is 0.01, by default, the trees do not need to split at all. 
+In fact, twelve of the 100 stumps decided not to, which is why `next` exists. 
+
+Note to self: cp and pruning maybe as box?
+
+Outlook? If we grow deeper trees they can split more than once, and the weight is shared between those variables. Specifically, the weight is shared in proportion to how much each split improved the overall fit. The difference comes down to a one-line difference:
+
+version with rpart helper function, general case
+```{r importance-general}
+fit_deep <- trainAda(
+  replicate ~ .,
+  data = train[, voinms],
+  # Boosting hyperparameter
+  T = 10,
+  eta = 1,
+  # Tree hyperparameter
+  maxdepth = 4
+)
+
+n_preds <- length(prednms)
+voz <- numeric(n_preds)
+imp <- setNames(voz, prednms)
+t <- 1
+for (t in seq_along(fit_deep)) {
+  vi <- fit_deep[[t]][["h"]][["variable.importance"]]
+  if (is.null(vi)) {
+    next
+  }
+  # Split the weight across the variables this tree used, in proportion to
+  # each split's improvement
+  share <- fit_deep[[t]]$a * vi / sum(vi)
+  imp[names(share)] <- imp[names(share)] + share
+}
+imp <- 100 * imp / sum(imp)
+sort(imp, decreasing = TRUE)
+```
+
+If we only have a stump, then `vi` holds a single number, so `vi / sum(vi)` is always 1. So we can the general version also for stumps.
+
+In adaboost's gauge we mainly use the `rpart` helper function `variable.importance`. 
+That is what `gauge()` does, so the two agree. 
 
 ```{r}
+#| label: importance
+important <- gauge(fit)
+head(important, 10)
+
+# The package function and the loop above compute the same thing
+all.equal(
+  setNames(important$importance, important$variable)
+)
+```
+
+We also provide a quick and easy way to visualize the results.
+
+```{r}
+#| label: importance-plot
+#| fig-alt: "Horizontal bar chart of AdaBoost feature importance"
+fit |> gauge() |> plot()
+plot(important, top_n = 15)
+```
+
+
+**Important note** The provided scores are relative (to eachother), so we believe it is more accurate to say, that they describe how the ensemble divided its attention rather than making a satement
+on the net wort of a variable. They are also not "signed", so a variable may rand  
+
+attention rather than what any one variable is worth on its own. They carry no
+sign: a variable can rank highly because high values predict replication success
+or because they predict failure, and this does not distinguish the two.
+Correlated predictors split their share instead of each showing the full effect.
+And the ranking belongs to *this* fit on *this* training data -- it moves with
+the hyperparameters, since deeper trees spread weight over more variables by
+construction.
+:::
+
+For more see Molnar & Pargent.
+
+TODO: Can we bootstrap the importance scores to get a sense of their stability? Or havent we done that already with the LPO-CV?
+
+## Evaluating Model Performance
+
+#### Listing 31
+
+Code showing different measures to evaluate the predictive performance of the
+ensemble.
+
+```{r listing-31}
 # Confusion matrix
 confusion <- table(ypred, y_test)
 
@@ -1157,22 +1396,142 @@ Cite and fix everywhere - especially in the tutorial.
 :::
 
 ::: {.callout-note}
-## Where the AUC comes from
-
 `auroc()` is a thin wrapper around `PRROC::roc.curve()` (Grau, Grosse &
-Keilwagen), which does the actual work; `auprc()` wraps `pr.curve()` from the
-same package. The wrapper exists so the outcome can be passed in whatever form
-you have it -- a factor, 0/1, -1/1 or logical. `roc.curve()` itself expects a
-0/1 vector and returns a wrong number without complaint if handed a 1/2 one, so
-the conversion is worth doing once, in one place.
-
+Keilwagen). Specifically, `auprc()` wraps `pr.curve()`. The wrapper exists so the outcome can be passed in whatever form you have it, for instance as a factor, 0/1, -1/1 or logical. `roc.curve()` itself expects a 0/1 vector and returns a "wrong" number without complaining if you feed it a 1/2.
 :::
+
+
+
+
+
+
 
 ## Leave-Project-Out Cross-Validation
 
-#### Listing 32: Code to do a leave-project-out cross-validation. Note that this ran for approximately 2 minutes on our laptops.
+Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). Then, in Iteration 1, the ML 1 project is used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding the distribution of performance estimates across projects. A measure such as the mean can then be used to summarize the distribution with a point estimate. Note, however, that the distribution provides the richer picture of the validation process.
 
-```{r}
+This diagram is drawn in the manuscript rather than produced from R, so its
+LaTeX source is kept here. The block is not executed.
+
+```tex
+\begin{tikzpicture}[
+    every node/.style={font=\normalsize},
+]
+
+% Styles
+\tikzset{
+    baseblock/.style={
+        draw,
+        minimum height=1.1cm,
+        minimum width=1.9cm,
+        text=black,
+        font=\scriptsize
+    },
+    datanode/.style={
+        baseblock,
+        fill={backcolour},
+        align=center,
+        minimum height=5.9cm
+    },
+    testnode/.style={
+        baseblock,
+        fill={rgb,255:red,68; green,1; blue,84},
+        text=white,
+    },
+    trainnode/.style={
+        baseblock,
+        fill={rgb,255:red,217; green,204; blue,220}
+    },
+    performnode/.style={
+        baseblock,
+        fill={rgb,255:red,33; green,144; blue,140},
+        text=white,
+        align=center,
+    },
+    iterationblock/.style={
+        baseblock,
+        fill={backcolour},
+    },
+    averageblock/.style={
+        baseblock,
+        fill={rgb,255:red,33; green,144; blue,140},
+        text=white,
+        align=center,
+        minimum width=9.9cm,
+        minimum height=1.1cm,
+    }
+}
+
+% Left labels
+\node[datanode] (data) at (-2, -2.4) {Data};
+\node[iterationblock] (ml1)   at (0,  0) {ML1};
+\node[iterationblock] (rpp)   at (0, -1.2) {RPP};
+\node[iterationblock] (ml3)   at (0, -2.4) {ML3};
+\node[iterationblock] (eerp)  at (0, -3.6) {EERP};
+\node[iterationblock] (ssrp)  at (0, -4.8) {SSRP};
+
+% Iteration headers
+\node[iterationblock] (it1) at (2, 1.2) {Iteration 1};
+\node[iterationblock] (it2) at (4, 1.2) {Iteration 2};
+\node[iterationblock] (it3) at (6, 1.2) {Iteration 3};
+\node[iterationblock] (it4) at (8, 1.2) {Iteration 4};
+\node[iterationblock] (it5) at (10, 1.2) {Iteration 5};
+
+% Iteration 1
+\node[testnode]      (a) at (2, 0)   {Test};
+\node[trainnode]     (b) at (2, -1.2) {Training};
+\node[trainnode]     (c) at (2, -2.4) {Training};
+\node[trainnode]     (d) at (2, -3.6) {Training};
+\node[trainnode]     (e) at (2, -4.8) {Training};
+\node[performnode]   (p1) at (2, -6) {\shortstack{Performance\\ML1}};
+
+% Iteration 2
+\node[trainnode]     (f) at (4, 0)   {Training};
+\node[testnode]      (g) at (4, -1.2) {Test};
+\node[trainnode]     (h) at (4, -2.4) {Training};
+\node[trainnode]     (i) at (4, -3.6) {Training};
+\node[trainnode]     (j) at (4, -4.8) {Training};
+\node[performnode]   (p2) at (4, -6) {\shortstack{Performance\\RPP}};
+
+% Iteration 3
+\node[trainnode]     (k) at (6, 0)   {Training};
+\node[trainnode]     (l) at (6, -1.2) {Training};
+\node[testnode]      (m) at (6, -2.4) {Test};
+\node[trainnode]     (n) at (6, -3.6) {Training};
+\node[trainnode]     (o) at (6, -4.8) {Training};
+\node[performnode]   (p3) at (6, -6) {\shortstack{Performance\\ML3}};
+
+% Iteration 4
+\node[trainnode]     (q) at (8, 0)   {Training};
+\node[trainnode]     (r) at (8, -1.2) {Training};
+\node[trainnode]     (s) at (8, -2.4) {Training};
+\node[testnode]      (t) at (8, -3.6) {Test};
+\node[trainnode]     (u) at (8, -4.8) {Training};
+\node[performnode]   (p4) at (8, -6) {\shortstack{Performance\\EERP}};
+
+% Iteration 5
+\node[trainnode]     (v) at (10, 0)   {Training};
+\node[trainnode]     (w) at (10, -1.2) {Training};
+\node[trainnode]     (x) at (10, -2.4) {Training};
+\node[trainnode]     (y) at (10, -3.6) {Training};
+\node[testnode]      (z) at (10, -4.8) {Test};
+\node[performnode]   (p5) at (10, -6) {\shortstack{Performance\\SSRP}};
+
+% Average performance block
+\node[averageblock]  (avg) at (6, -7.2) {Average performance};
+
+\end{tikzpicture}
+```
+
+#### Listing 32
+
+Code to do a leave-project-out cross-validation.
+
+::: {.callout-note}
+This ran for approximately 2 minutes on our laptops.
+:::
+
+```{r listing-32}
 # Partition data by project ID
 df_split <- split(df, df$pid)
 
@@ -1211,9 +1570,11 @@ c(unlist(auc), "mean" = mean(unlist(auc)))
 
 ## Hyperparameter Optimization
 
-#### Listing 33: Code to define a hypergrid.
+#### Listing 33
 
-```{r}
+Code to define a hypergrid.
+
+```{r listing-33}
 # Define hypergrid
 hgrid <- expand.grid(
   # Tree-specific:
@@ -1235,9 +1596,16 @@ hgrid <- expand.grid(
 )
 ```
 
-#### Listing 34: Code to do hyperparameter optimization using a leave-project-out cross-validation strategy. Note that this ran for approximately 3 minutes on our laptops.
+#### Listing 34
 
-```{r}
+Code to do hyperparameter optimization using a leave-project-out
+cross-validation strategy.
+
+::: {.callout-note}
+This ran for approximately 3 minutes on our laptops.
+:::
+
+```{r listing-34}
 # Number of rows
 hgrid_rows <- nrow(hgrid)
 
@@ -1290,33 +1658,70 @@ for (i in seq_len(hgrid_rows)) {
     hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, 4:8]))
   })
   hgrid$runtime[i] <- runtime[["elapsed"]]
-} #
+}
 
 # Hypergrid sorted by average AUC
 hgrid[order(-hgrid$auc.mean), ]
 ```
 
-## Selecting versus Evaluating
+# NEW
 
-Listing 34 scored every setting in the hypergrid on all five projects, and we
-took the row with the best average. That number is not an estimate of how the
-chosen model will do on a new project: the same five projects picked the winner
-and then graded it. To see how much that matters, the selection has to happen
-where the project being scored cannot influence it.
+Listing 34 searches 18 settings and keep the result in columns named after the
+projects. The package ships the full search as `hypergrid`: 
+960 settings, each scored on all five projects under 15 different measures.
 
-Nested leave-project-out cross-validation does exactly that. The outer loop holds
-out one project. The inner loop repeats the whole grid search on the four that
-remain, choosing hyperparameters without ever seeing the held-out project. The
-selected setting is then refit on those four projects and scored on the fifth.
-Repeat five times.
+`lpocv()` returns that as an array rather than a table, because I think in 
+setting x project x metric. So you can easily slice it without a reshape.
 
-The result is easy to misread, so it is worth being precise about what it
-estimates. **Nested LPO-CV does not give you a performance estimate for a
-particular hyperparameter setting.** It estimates the *procedure* -- "run the
-grid search, then fit the winner." Every model built inside the nesting is
-discarded; none of them is the model you ship. You still fit one setting on all
-five projects, as in Listing 35. Nesting tells you what to expect from that
-model, not what it scores.
+```{r hypergrid-array}
+data(hypergrid)
+
+# setting x project x metric
+dim(hypergrid$estimates)
+names(dimnames(hypergrid$estimates))
+
+# `grid` says what each setting is. `cp`, the base learners' complexity
+# parameter, is a column here like any other hyperparameter -- which is why 480
+# combinations become 960 settings.
+head(hypergrid$grid, 3)
+hypergrid$projects
+```
+
+One measure across every setting and project: 960 x 5 matrix, and the grid
+telly us which row is which:
+
+```{r hypergrid-slice}
+au <- hypergrid$estimates[,, "auroc"]
+g <- hypergrid$grid
+
+# One setting, sorted across projects
+i <- which(g$depth == 1 & g$T == 1000 & g$eta == 0.15 & g$cp == 0.01)
+sort(au[i, ], decreasing = TRUE)
+
+# The best each project can be made to look, over the depth-1 stumps
+d1 <- g$depth == 1 & g$cp == 0.01
+apply(au[d1, ], 2, max)
+
+# Rank the settings by their average over the projects
+m <- rowMeans(au)
+cbind(g, mean = round(m, 3))[order(-m), ][1:5, ]
+```
+
+An `NA` here means "undefined" rather than "failed": `ppv` has no value when a model predicts no positives at all, which a ten-tree ensemble does on the smaller projects. 
+
+::: {.callout-important}
+## The mean over projects ranks settings does not estimate performance
+
+The last slice averages five folds that hold 10, 13, 18, 21 and 90 studies and
+share most of their training data, so it hides both the imbalance and the
+dependence. TODO
+:::
+
+
+In small test set you can have the problem of bad luck and up (especially with small test sets) with a handy partition which is too easy to classify and (thus not representative of what would usually happen, i.e. performane overestimate).
+
+
+TODO: Random grid search. Define 20 as a number in the random search
 
 Two things follow. First, the five inner searches may each select a different
 setting, and the setting that won in Listing 34 may be chosen by none of them.
@@ -1364,9 +1769,15 @@ for depth, and reserve `treehypar` for controls you genuinely mean to change --
 `minsplit` and `minbucket` are the ones that actually change how the trees grow.
 :::
 
-#### Listing 35: Code to do a nested leave-project-out cross-validation. Note that this ran for approximately 10 minutes on our laptops.
+#### Listing 35
 
-```{r}
+Code to do a nested leave-project-out cross-validation.
+
+::: {.callout-note}
+This ran for approximately 10 minutes on our laptops.
+:::
+
+```{r listing-35}
 # Projects, in the order they take their turn
 projects <- c("eerp", "ml1", "ml3", "rpp", "ssrp")
 
@@ -1441,7 +1852,7 @@ again -- the single change is that it now sees `train` instead of `df`.
 
 The whole procedure is also one call, which is what we use from here on:
 
-```{r}
+```{r listing-35-oneline}
 nested <- lpocv(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
   data = df,
@@ -1455,9 +1866,11 @@ nested
 
 ## Finalizing an Ensemble
 
-#### Listing 36: Code to fit the final model to the data.
+#### Listing 36
 
-```{r}
+Code to fit the final model to the data.
+
+```{r listing-36}
 # Fit optimized model
 fit_final <- trainAda(
   replicate ~ .,
