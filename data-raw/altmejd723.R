@@ -19,11 +19,10 @@ headers <- scan(csv_file, what = character(), nlines = 1, sep = ",")
 input <- read.csv(csv_file, na.strings = "", col.names = headers)
 
 # Use only the first replication of the effect
-extdata <- input[!duplicated(input$id),]
+extdata <- input[!duplicated(input$id), ]
 
 # Specify relevant variables
 relevant_vars <- c(
-
   # Effect ID
   "id",
 

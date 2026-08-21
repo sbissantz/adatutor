@@ -19,17 +19,32 @@ headers <- scan(csv_file, what = character(), nlines = 1, sep = ",")
 extdata <- read.csv(csv_file, na.strings = "", col.names = headers)
 
 # Import: These are the actual replication results from the SSRP publication
-extdata$replicate <- c("replicate", "replicate", "replicate", "replicate",
-                        "not_replicate", "replicate", "not_replicate",
-                        "replicate", "not_replicate", "not_replicate",
-                        "replicate", "not_replicate", "not_replicate",
-                        "replicate", "replicate", "not_replicate",
-                        "replicate", "replicate", "replicate",
-                        "not_replicate", "not_replicate")
+extdata$replicate <- c(
+  "replicate",
+  "replicate",
+  "replicate",
+  "replicate",
+  "not_replicate",
+  "replicate",
+  "not_replicate",
+  "replicate",
+  "not_replicate",
+  "not_replicate",
+  "replicate",
+  "not_replicate",
+  "not_replicate",
+  "replicate",
+  "replicate",
+  "not_replicate",
+  "replicate",
+  "replicate",
+  "replicate",
+  "not_replicate",
+  "not_replicate"
+)
 
 # Specify relevant variables
 relevant_vars <- c(
-
   # ID
   "id",
 
@@ -166,7 +181,7 @@ valid_cases <- extdata$drop == FALSE & !is.na(extdata$replicate)
 ssrp723 <- extdata[valid_cases, relevant_vars]
 
 # Switch from "id" to "eid" - "effect id"
-eid_pat <- grep("id", colnames(ssrp723) )
+eid_pat <- grep("id", colnames(ssrp723))
 names(ssrp723)[eid_pat] <- "eid"
 
 # Add pid - "project ID"
@@ -177,4 +192,3 @@ ssrp723$replicate <- ifelse(ssrp723$replicate == "replicate", 1, 0)
 
 # Save the data set as R data
 usethis::use_data(ssrp723, overwrite = TRUE)
-
