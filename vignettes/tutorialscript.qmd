@@ -12,7 +12,7 @@ vignette: >
 
 #### Listing 1
 
-Code to install the adatutor package form GitHub, load and attach it.
+Code to install the adatutor package from GitHub, load and attach it.
 
 ```{r listing-1}
 # Load package
@@ -65,65 +65,90 @@ Code to do a 70/30 simple random split.
 set.seed(112)
 
 # Split proportion
-prop <- 0.7
+prop_train <- 0.7
 
 # Number of effects
 n_fx <- nrow(df)
 
 # Number of training samples
-n_train <- round(n_fx * prop)
+n_train <- round(n_fx * prop_train)
 
-# Training index
-train_idx <- sample(seq_len(n_fx), n_train)
+# Row positions
+fx_seq <- seq_len(n_fx)
+
+# Sample from sequence
+fx_smpl <- sample(fx_seq, n_train)
+
+# Inclusion indicator
+train_ind <- fx_seq %in% fx_smpl
 
 # Training set
-train <- df[train_idx, ]
+train <- df[train_ind, ]
 
-# Test set (incl. validation)
-testvalid <- df[-train_idx, ]
+# Test set (as leftover set)
+test <- df[!train_ind, ]
 ```
+
+::: {.callout-important}
+The code has changed. It is not identical to what is in the tutorial.
+:::
 
 #### Listing 5
 
-Code to complete a 70/15/15 simple random split
+Code to do a 70/15/15 simple random split in one pass.
 
 ```{r listing-5}
 # For reproducibility
 set.seed(112)
 
-# Split proportion
-prop <- 0.5
+# Split proportions, of the whole data
+props <- c(train = 0.70, valid = 0.15, test = 0.15)
 
-# Number of effects
-n_fx <- nrow(testvalid)
+# Set sizes, counted from the whole data
+n <- round(n_fx * props)
 
-# Number of validation samples
-n_valid <- round(n_fx * prop)
+# Training sample and inclusion indicator
+train_smpl <- sample(fx_seq, n[["train"]])
+train_ind <- fx_seq %in% train_smpl
 
-# Training index
-valid_idx <- sample(seq_len(n_fx), n_valid)
+# Validation sample and inclusion indicator
+valid_smpl <- sample(fx_seq[!train_ind], n[["valid"]])
+valid_ind <- fx_seq %in% valid_smpl
+
+# Training set
+train <- df[train_ind, ]
 
 # Validation set
-valid <- testvalid[valid_idx, ]
+valid <- df[valid_ind, ]
 
-# Test set
-test <- testvalid[-valid_idx, ]
+# Test set (as leftover set)
+test <- df[!train_ind & !valid_ind, ]
 ```
+
+::: {.callout-important}
+The code has changed. It is not identical to what is in the tutorial. Need to rewrite the section.
+:::
+
+**Side note**: Every count comes from `n_fx`, so `0.15` means fifteen percent of 152 effects. Splitting in two independent steps (as we did earlier) would make the second proportion relative to what remains, and fifteen percent of the whole would then have to be written `0.15 / (1 - 0.70) = 0.5`.
 
 #### Listing 6
 
 Code to check for imbalances in the outcome variable of the original dataset
-and the test set.
+and the held-out set.
 
 ```{r listing-6}
 # Frequency tables
 tbl_orig <- table(df$replicate)
-tbl_testvalid <- table(testvalid$replicate)
+tbl_out <- table(df$replicate[!train_ind])
 
 # Relative frequencies
 proportions(tbl_orig)
-proportions(tbl_testvalid)
+proportions(tbl_out)
 ```
+
+::: {.callout-important}
+The code has changed. It is not identical to what is in the tutorial.
+:::
 
 #### Listing 7
 
@@ -134,88 +159,128 @@ Code to do a 70/30 stratified split.
 set.seed(112)
 
 # Split proportion
-prop <- 0.7
+prop_train <- 0.7
 
 # Partition data based on outcome
 set_split <- split(df, df$replicate)
 
-# Number of validation samples
-n_train <- lapply(set_split, function(set) round(nrow(set) * prop))
+# Number of training samples
+n_train <- lapply(set_split, function(set) round(nrow(set) * prop_train))
 
-# Training index
-strat_idx <- mapply(
+# Training sample, drawn inside each stratum
+train_smpl <- mapply(
   function(set, n) sample(set[, "eid"], n),
   set_split,
   n_train
 )
 
-# Training index
-train_idx <- df$eid %in% unlist(strat_idx)
+# Inclusion indicator
+train_ind <- df$eid %in% unlist(train_smpl)
 
-# Training set
-train <- df[train_idx, ]
-
-# Test set (incl. validation)
-testvalid <- df[!train_idx, ]
+# Combined sets
+strat2_diy <- list(
+  "train" = df[train_ind, ],
+  "test" = df[!train_ind, ]
+)
 ```
+
+::: {.callout-important}
+The code has changed. It is not identical to what is in the tutorial
+:::
 
 #### Listing 8
 
-Code to complete a 70/15/15 stratified split
+Code to do a 70/15/15 stratified split in one pass.
 
 ```{r listing-8}
 # For reproducibility
 set.seed(112)
 
-# Split proportion
-prop <- 0.5
+# Split proportions, of the whole data
+props <- c(train = 0.70, valid = 0.15, test = 0.15)
 
 # Partition data based on outcome
-set_split <- split(testvalid, testvalid$replicate)
+set_split <- split(df, df$replicate)
 
-# Numbers of validation samples
-n_valid <- lapply(set_split, function(set) round(nrow(set) * prop))
+# Set sizes per stratum, both counted from the whole data
+n_train <- lapply(set_split, function(set) round(nrow(set) * props[["train"]]))
+n_valid <- lapply(set_split, function(set) round(nrow(set) * props[["valid"]]))
 
-# Validation index
-strat_idx <- mapply(
+# Training sample, drawn inside each stratum
+train_smpl <- mapply(
   function(set, n) sample(set[, "eid"], n),
+  set_split,
+  n_train
+)
+train_eid <- unlist(train_smpl)
+train_ind <- df$eid %in% train_eid
+
+# Validation sample, drawn from each stratum's effects that are still available
+valid_smpl <- mapply(
+  function(set, n) sample(setdiff(set[, "eid"], train_eid), n),
   set_split,
   n_valid
 )
-valid_idx <- testvalid$eid %in% unlist(strat_idx)
+valid_ind <- df$eid %in% unlist(valid_smpl)
 
-# Validation set
-valid <- testvalid[valid_idx, ]
-
-# Test set
-test <- testvalid[!valid_idx, ]
+# Combined sets
+strat_diy <- list(
+  "train" = df[train_ind, ],
+  "valid" = df[valid_ind, ],
+  "test" = df[!train_ind & !valid_ind, ]
+)
 ```
+
+::: {.callout-important}
+The code has changed. It is not identical to what is in the tutorial. Need to rewrite the section.
+:::
 
 #### Listing 9
 
 Code to do a 70/30 random and stratified split, with the pre-implemented
-functions of the adatutor package.
+function of the adatutor package.
 
 ```{r listing-9}
-# For reproducibility
+# Simple random split (two way)
 set.seed(112)
+rand_pkg <- partition(df, prop = 0.7)
 
-# Simple random split
-randsplit <- random_split(df, prop = 0.7)
-train <- randsplit$set1
-testvalid <- randsplit$set2
+# Stratified split (three way)
+set.seed(112)
+strat_pkg <- partition(df, prop = c(0.7, 0.15, 0.15), strata = "replicate")
 
-# Stratified split
-stratsplit <- stratified_split(df, group = "replicate", id = "eid", prop = 0.7)
-train <- stratsplit$set1
-testvalid <- stratsplit$set2
+# Equality check
+mapply(identical, strat_diy, strat_pkg)
 ```
+
+
+
+On `altmejd` the listings and the function agree, but not everywhere:
+`sample(x, k)` reads a length-one `x` as `1:x`, so a stratum or a remainder
+holding a single row silently draws a value that is not in the data -- with a
+four-member stratum, on more than half of all seeds. `partition()` samples
+positions with `sample.int()` instead and cannot do this, which is the reason to
+reach for a maintained implementation -- this one or `rsample`'s -- once you are
+past the tutorial's own data.
 
 #### Listing 10
 
+For real work you will outgrow a single split -- cross-validation, bootstraps,
+nested resampling -- and at that point the tool to reach for is the `rsample`
+package, which the wider tidymodels ecosystem is built around. Its
+`initial_split()` does what `partition()` does and takes the same `strata`
+argument, so the idea carries over unchanged; what it adds is the two dozen
+other resampling schemes you will want next.
+
+
+TODO: Teach "two functions become one." A simple random split is a stratified split with one stratum — let the code demonstrate it rather than asserting it.
+Retire `rsample` or teach how to use it?
+
+Note: tidymodels consumes rsample
+
 Code to do a 70/30 random and stratified split, with the rsample package.
 
-```{r listing-10}
+```{r}
 # Load package
 library(rsample)
 
@@ -255,7 +320,7 @@ valid <- altmejd_splits$valid
 test <- altmejd_splits$test
 ```
 
-#### Figure 2
+#### Figure 2 (TODO)
 
 Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62\% of the training data and the right leaf node contains about 38\%. The label in each node (\enquote{success}, \enquote{failure}) represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
 
@@ -404,7 +469,7 @@ if (to_file) {
   )
 }
 
-# Visualize the stump's decision boundary. `shade = "margin"` colours by the
+# Visualize the stump's decision boundary. `shade = "margin"` colors by the
 # predicted probability rather than by the class alone, so the two regions read
 # as the moderate .26 and .76 they actually are -- and it is the same encoding
 # Figure 9 uses, which is what makes the two figures comparable.
@@ -952,7 +1017,7 @@ op <- par(
 n_25 <- 25 # TODO: Do we need this?
 scaling <- 2
 
-# D1 and D2 keep a colour each. `end = 0.5` leaves D2 teal rather than
+# D1 and D2 keep a color each. `end = 0.5` leaves D2 teal rather than
 # yellow-green, which would go muddy against the yellow band below
 pal <- viridisLite::viridis(2, end = 0.5)
 band <- adjustcolor(viridisLite::viridis(1, begin = 1), 0.35)
@@ -1073,157 +1138,8 @@ names(fit) <- paste0("t", seq_len(T))
 cat("Model weight 1:", fit$t1$a)
 ```
 
-#### Listing 25
-
-Code to generate ensemble retrodictions.
-
-```{r listing-25}
-# Boosted classification stumps
-h <- lapply(fit, "[[", "h")
-
-# Model weights
-a <- sapply(fit, "[[", "a")
-
-# Retrodictions from stumps
-yretro_stumps <- sapply(h, predict, newdata = train[, prednms], type = "vector")
-
-# Transformed values (-1,1)
-yretro_stumps <- 2 * yretro_stumps - 3
-
-# Retrodictions from full model
-yretro_ada <- sign(a %*% t(yretro_stumps))
-```
-
-#### Listing 26
-
-Code to replace matrix multiplication with a loop.
-
-```{r listing-26}
-#for (m in seq_len(m)) {
-#yretro_ada[m] <- sign(sum(a * yretro_stumps[m, ]))
-#}
-```
-
-#### Figure 9
-
-Visualization of the decision boundary of 500 adaptively boosted shallow classification trees. The trees were fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
-
-```{r figure-9}
-# Tree hyperparameter setting
-treehypar <- rpart::rpart.control(
-  # Slightly different hyperparameters to improve visibility of boundary
-  maxdepth = 2,
-  minsplit = 5,
-  minbucket = round(5 / 3),
-  cp = 1e-2,
-  split = "gini"
-)
-
-# Fit AdaBoost on the two features
-fit <- trainAda(
-  replicate ~ .,
-  data = train[, c("replicate", "power.o", "n.o")],
-  T = 5e2,
-  eta = 1,
-  treehypar = treehypar,
-  verbose = FALSE
-)
-
-# Both decision-boundary plots span the full text width: at column width the
-# studies collide into a single band and the boundary stops reading as a line
-if (to_file) {
-  pdf(
-    file.path(figdir, "boundaryada.pdf"),
-    width = full_w,
-    height = full_h,
-    pointsize = 9
-  )
-}
-
-# Visualize the ensemble's decision boundary
-plot_adabound(
-  fit,
-  data = train,
-  shade = "margin",
-  xlab = "Power (original study)",
-  ylab = "Sample size (original study)"
-)
-
-if (to_file) {
-  dev.off()
-}
-```
-
-#### Listing 27
-
-Code to evaluate the retrodictive performance of the ensemble.
-
-```{r listing-27}
-# Confusion matrix
-table(y_train, yretro_ada) # Perfect retrodictions
-```
-
-#### Listing 28
-
-Code to generate ensemble predictions.
-
-```{r listing-28}
-# Outcome variable (test set)
-y_test <- test[, outnme]
-
-# Predictions (test set)
-ypred_stumps <- sapply(h, predict, newdata = test[, prednms], type = "vector")
-ypred_stumps <- 2 * ypred_stumps - 3
-ypred_ada <- sign(a %*% t(ypred_stumps))
-```
-
-#### Listing 29
-
-Code to evaluate the predictive performance of the ensemble.
-
-```{r listing-29}
-# Confusion matrix
-table(y_test, ypred_ada) # Inperfect predictions
-```
-
-# Module 4: Leave-Project-Out Cross-Validation and Hyperparameter Optimization
-
-## Two Wrapper Functions
-
-#### Listing 30
-
-Code introducing the wrapper functions.
-
-::: {.callout-note}
-We reduced the number of trees to speed up runtime in the upcoming sections.
-:::
-
-```{r listing-30}
-# Boosted stumps and weights
-fit <- trainAda(
-  replicate ~ .,
-  data = train[, voinms],
-  # Boosting hyperparameter
-  T = 100,
-  eta = 1,
-  # Tree hyperparameter
-  maxdepth = 1
-)
-
-# Predictions on test set (class labels, for the confusion matrix)
-ypred <- testAda(fit, data = test[, prednms], type = "class")
-
-# Predictions on test set (margins, for the AUC)
-ymargin <- testAda(fit, data = test[, prednms], type = "margin")
-```
-
-::: {.callout-important}
-## `type = "class"` gives balanced accuracy, not AUC
-
-A two-valued score collapses the ROC curve to a single interior point, whose
-area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
-AUC; keep `type = "class"` for the confusion matrix.
-:::
+TODO: Show that the package solution.
+TODO: Show they are identical? 
 
 ## NEW: Feature Importance
 Note: We should describe the package function before module 4 and maybe move the feature importance before hyperparameter optimization. (before we touch performance)
@@ -1295,7 +1211,7 @@ Outlook? If we grow deeper trees they can split more than once, and the weight i
 
 version with rpart helper function, general case
 ```{r importance-general}
-fit_deep <- trainAda(
+fit_deep <- adaboost(
   replicate ~ .,
   data = train[, voinms],
   # Boosting hyperparameter
@@ -1348,7 +1264,6 @@ fit |> gauge() |> plot()
 plot(important, top_n = 15)
 ```
 
-
 **Important note** The provided scores are relative (to eachother), so we believe it is more accurate to say, that they describe how the ensemble divided its attention rather than making a satement
 on the net wort of a variable. They are also not "signed", so a variable may rand  
 
@@ -1359,11 +1274,174 @@ Correlated predictors split their share instead of each showing the full effect.
 And the ranking belongs to *this* fit on *this* training data -- it moves with
 the hyperparameters, since deeper trees spread weight over more variables by
 construction.
-:::
 
 For more see Molnar & Pargent.
 
 TODO: Can we bootstrap the importance scores to get a sense of their stability? Or havent we done that already with the LPO-CV?
+
+# NEW: Module Retrodictions and Pretrodictions
+
+#### Listing 25
+
+TODO: Here we'll start the new module on prediction and retrodiction.
+
+Code to generate ensemble retrodictions.
+
+```{r listing-25}
+# Boosted classification stumps
+h <- lapply(fit, "[[", "h")
+
+# Model weights
+a <- sapply(fit, "[[", "a")
+
+# Retrodictions from stumps
+yretro_stumps <- sapply(h, predict, newdata = train[, prednms], type = "vector")
+
+# Transformed values (-1,1)
+yretro_stumps <- 2 * yretro_stumps - 3
+
+# Retrodictions from full model
+yretro_ada <- sign(a %*% t(yretro_stumps))
+```
+
+TODO: Add the case that this is equal to the package functions. Show the message with predictions vs. retrodictions?
+
+#### Listing 26
+
+Code to replace matrix multiplication with a loop.
+
+```{r listing-26}
+#for (m in seq_len(m)) {
+#yretro_ada[m] <- sign(sum(a * yretro_stumps[m, ]))
+#}
+```
+
+#### Figure 9
+
+Visualization of the decision boundary of 500 adaptively boosted shallow classification trees. The trees were fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+
+```{r figure-9}
+# Fit AdaBoost on the two features
+fit <- adaboost(
+  replicate ~ .,
+  data = train[, c("replicate", "power.o", "n.o")],
+  T = 5e2,
+  eta = 1,
+  maxdepth = 1,
+  verbose = FALSE
+)
+
+# Both decision-boundary plots span the full text width: at column width the
+# studies collide into a single band and the boundary stops reading as a line
+if (to_file) {
+  pdf(
+    file.path(figdir, "boundaryada.pdf"),
+    width = full_w,
+    height = full_h,
+    pointsize = 9
+  )
+}
+
+# Visualize the ensemble's decision boundary
+plot_adabound(
+  fit,
+  data = train,
+  shade = "margin",
+  xlab = "Power (original study)",
+  ylab = "Sample size (original study)"
+)
+
+if (to_file) {
+  dev.off()
+}
+```
+
+#### Listing 27
+
+Code to evaluate the retrodictive performance of the ensemble.
+
+```{r listing-27}
+# Confusion matrix
+table(y_train, yretro_ada) # Perfect retrodictions
+```
+
+TODO: Show the package solution 
+TODO: Show that both solutions are equal
+TODO: Show that package solution notes retrodictions vs predictions
+(a) in the output and (b) explicitly
+TODO: Use the aditional sugar as move on to use it 
+yretro <- predict(fit, newdata = train[, prednms], type = "class")
+
+#### Listing 28
+
+Code to generate ensemble predictions.
+
+```{r listing-28}
+# Outcome variable (test set)
+y_test <- test[, outnme]
+
+# Predictions (test set)
+ypred_stumps <- sapply(h, predict, newdata = test[, prednms], type = "vector")
+ypred_stumps <- 2 * ypred_stumps - 3
+ypred_ada <- sign(a %*% t(ypred_stumps))
+```
+
+TODO: Show the package solution is equal but warns?
+TODO: Show the package solution 
+TODO: Show that both solutions are equal
+TODO: Show that package solution notes retrodictions vs predictions
+(a) in the output
+TODO: Use the additional sugar as move on to use it 
+
+#### Listing 29
+
+Code to evaluate the predictive performance of the ensemble.
+
+```{r listing-29}
+# Confusion matrix
+table(y_test, ypred_ada) # Inperfect predictions
+```
+
+# Module 4: Leave-Project-Out Cross-Validation and Hyperparameter Optimization
+
+## Two Wrapper Functions
+
+TODO: Wrapper function should be introduced earlier after the DIY version?
+
+#### Listing 30
+
+Code introducing the wrapper functions.
+
+::: {.callout-note}
+We reduced the number of trees to speed up runtime in the upcoming sections.
+:::
+
+```{r listing-30}
+# Boosted stumps and weights
+fit <- adaboost(
+  replicate ~ .,
+  data = train[, voinms],
+  # Boosting hyperparameter
+  T = 100,
+  eta = 1,
+  # Tree hyperparameter
+  maxdepth = 1
+)
+
+# Predictions on test set (class labels, for the confusion matrix)
+ypred <- predict(fit, newdata = test[, prednms], type = "class")
+
+# Predictions on test set (margins, for the AUC)
+ymargin <- predict(fit, newdata = test[, prednms], type = "margin")
+```
+
+::: {.callout-important}
+## `type = "class"` gives balanced accuracy, not AUC
+
+A two-valued score collapses the ROC curve to a single interior point, whose
+area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
+AUC; keep `type = "class"` for the confusion matrix.
+:::
 
 ## Evaluating Model Performance
 
@@ -1399,12 +1477,6 @@ Cite and fix everywhere - especially in the tutorial.
 `auroc()` is a thin wrapper around `PRROC::roc.curve()` (Grau, Grosse &
 Keilwagen). Specifically, `auprc()` wraps `pr.curve()`. The wrapper exists so the outcome can be passed in whatever form you have it, for instance as a factor, 0/1, -1/1 or logical. `roc.curve()` itself expects a 0/1 vector and returns a "wrong" number without complaining if you feed it a 1/2.
 :::
-
-
-
-
-
-
 
 ## Leave-Project-Out Cross-Validation
 
@@ -1546,7 +1618,7 @@ runtime <- system.time({
     test <- df_split[[rp]]
     train <- df[!(df$pid %in% rp), ]
     # Fit model to data
-    fit <- trainAda(
+    fit <- adaboost(
       replicate ~ .,
       data = train[, voinms],
       T = 1000,
@@ -1554,7 +1626,7 @@ runtime <- system.time({
       treehypar = treehypar
     )
     # Predictions (left-out project), on the margin so the AUC sees the ranking
-    ypred <- testAda(fit, data = test[, prednms], type = "margin")
+    ypred <- predict(fit, newdata = test[, prednms], type = "margin")
     # Performance evaluation
     auc[[rp]] <- auroc(test$replicate, ypred)
   }
@@ -1636,7 +1708,7 @@ for (i in seq_len(hgrid_rows)) {
       test <- df_split[[rp]]
       train <- df[!(df$pid %in% rp), ]
       # Fit model to data
-      fit <- trainAda(
+      fit <- adaboost(
         replicate ~ .,
         data = train[, voinms],
         T = hgrid$T[i],
@@ -1645,9 +1717,9 @@ for (i in seq_len(hgrid_rows)) {
         verbose = FALSE
       )
       # Predictions (on the margin, so the AUC sees the ranking)
-      ypred <- testAda(
+      ypred <- predict(
         fit,
-        data = test[, prednms],
+        newdata = test[, prednms],
         type = "margin",
         verbose = FALSE
       )
@@ -1717,6 +1789,28 @@ share most of their training data, so it hides both the imbalance and the
 dependence. TODO
 :::
 
+## Selecting versus Evaluating
+
+Listing 34 scores every setting in the hypergrid on all available (i.e., five) projects, and we took the row with the best average. I think that this number is not an estimate of how the chosen model will do on a new project, because the same five projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
+
+This is the job of nested leave-project-out cross-validation. The outer loop holds
+out one project entirely and the inner loop repeats the whole grid search on the four that remain, choosing hyperparameters without ever seeing the held-out project. The
+chosen setting is then refit on those four projects and scored on the fifth.
+Repeat five times.
+
+When I first met Nested LPO-CV, I had a hard time to wrap my head around the fact, that it does not give me a(n overall) performance estimate for a particular hyperparameter setting. 
+Instead, it puts a number (an estimate) on the procedure: "run the grid search, pick, then fit the winner." Every model built inside the nesting is discarded; none of them is the model you ship. You still fit one setting on all five projects, as in Listing 35. Nesting tells you what to expect from that
+model, not what it scores.
+
+completely separating the tuning process from the evaluation process
+
+if you have a very large training validation and test set you can do the tripple, but if you have very vew data (as we comparably do) we might consider moving to nested cross-validation.
+
+Take our data and split it into folds (the 5 groups in our case). Then we reserve one group, say Group 1, as test set (let's call this the outer test set). 
+Then we take the remaining 4 (Group 2, 3, 4, 5) and split them again into 4 pieces: 3 pieces (Group 2, 3, 4) for the training set and one for the (inner) test set (Group 5). Then we (randomly, we do full Cartesian) search a hyperparameter setting from our test set and train the model with the inner 3 pieces (Group 2, 3, 4) and score it on the inner test set (Group 5) - and then again with a different hyperparameter setting. Then, we select the winning model with the best hyperparameter combi on Group 5 and pass it to the outer loop and train the model using the bigger training set with 4 pieces (Group 2, 3, 4, 5) and then evaluate it on the outer test set (Group 1). And then you repeat the whole procedure again with the next group
+So instead of one model performance on on test set we have 5 (5 Groups) measures. What people than usually do is to take the mean performance across projects.
+So we use all the data as a test set once
+
 
 In small test set you can have the problem of bad luck and up (especially with small test sets) with a handy partition which is too easy to classify and (thus not representative of what would usually happen, i.e. performane overestimate).
 
@@ -1757,8 +1851,8 @@ by-products of a procedure being measured, not candidates for shipping.
 
 `rpart.control(maxdepth = 3)` returns *every* `rpart` default, not just the depth
 you named -- including `cp = 0.01`, `xval = 10` and `maxsurrogate = 5`. Passed
-through `treehypar`, those overwrite the settings `trainAda()` chose for
-boosting. `trainAda()` keeps `cp` at `rpart`'s own 0.01 precisely so that the two
+through `treehypar`, those overwrite the settings `adaboost()` chose for
+boosting. `adaboost()` keeps `cp` at `rpart`'s own 0.01 precisely so that the two
 forms fit the *same* trees: we checked, and the trees, the model weights and the
 margins are identical. What still differs is `xval = 10`, ten internal
 cross-validations per weak learner that nothing reads, costing about thirty per
@@ -1818,7 +1912,7 @@ runtime <- system.time({
     selected[[rp]] <- best[, c("depth", "T", "eta")]
 
     # Refit at that setting and score the untouched project
-    fit <- trainAda(
+    fit <- adaboost(
       replicate ~ .,
       data = train[, voinms],
       T = best$T,
@@ -1826,9 +1920,9 @@ runtime <- system.time({
       maxdepth = best$depth,
       verbose = FALSE
     )
-    ypred <- testAda(
+    ypred <- predict(
       fit,
-      data = test[, prednms],
+      newdata = test[, prednms],
       type = "margin",
       verbose = FALSE
     )
@@ -1872,7 +1966,7 @@ Code to fit the final model to the data.
 
 ```{r listing-36}
 # Fit optimized model
-fit_final <- trainAda(
+fit_final <- adaboost(
   replicate ~ .,
   data = df[, voinms],
   T = 10,
@@ -1880,3 +1974,50 @@ fit_final <- trainAda(
   treehypar = rpart.control(maxdepth = 1)
 )
 ```
+
+# Figure map
+
+Which chunk above produces which figure in the paper. Established by matching
+the actual splits against the captions, not by reading the file names --
+several of those mislead, and one was actively wrong until it was fixed.
+
+| label | file | float | produced by | geometry |
+|:--|:--|:--|:--|:--|
+| `fig:lpocv` | none -- TikZ, above | `figure*` | not from R | -- |
+| `fig:cstump` | `ext/cstump` | `figure` | Figure 2, `rpart.plot(h)`, **two features** | column |
+| `fig:dboundary` | `ext/dboundary` | `figure*` | Figure 3, `plot_adabound(h)` | full |
+| `fig:gini` | `ext/gini` | `figure` | Figure 4, the Gini curve | column |
+| `fig:cstumpwght` | `ext/cstumpwght` | `figure` | Listing 16, `cstump_ast`, `extra = 100` | column |
+| `fig:importance` | `ext/importance` | `figure` | Figure 6, the eta curves | column |
+| `fig:updatefactor` | `ext/updatefactor` | `figure` | Figure 7 | column |
+| `fig:weightone` | `ext/weightone` | `figure` | Figure 8 | column |
+| `fig:boundaryada` | `ext/boundaryada` | `figure*` | Figure 9, `shade = "margin"` | full |
+
+Only the six single-column files and the two `figure*` files come from R. The
+LPO-CV diagram is drawn in the manuscript, which is why its source sits in this
+vignette rather than in a chunk.
+
+## Four things found while establishing that map
+
+1. **`cstump` is a tree, not a boundary.** This vignette used to export the
+   boundary plot under that name, and had already overwritten the tree in the
+   manuscript's `ext/`. Fixed: the boundary is `dboundary.pdf` now.
+2. **Module 2's narrative is the two-feature model.** `fig:cstump`'s caption
+   says "two reviewer metrics: the power of the original study and the number of
+   observations", and Listing 11 and Listing 14's arithmetic both describe the
+   `power.o < 0.9305` split with 66/41 leaves. Listing 12 fits all four features
+   and splits on `p_value.o` with 72/35. Only Listing 12 disagrees with the
+   story. Open.
+3. **`cstumpwght` does not reproduce.** Its caption is Listing 16 exactly --
+   normalized random weights, `extra = 100` -- but the shipped file shows a
+   `p_value.o` split with 72/35 leaves while Listing 16 gives `power.o` with
+   66/41. Open.
+4. **The canonical `train` is Listing 7's, and the RNG order used to matter.**
+   Every hardcoded number in Listing 14 reproduces under it -- 66, 49, 41, .382,
+   .3688281, .37724, and the search finds .9305. This used to be fragile:
+   Listing 9 drew a simple random split first, which advanced the generator, so
+   *its* stratified `train` split at .9261 with 70/37 leaves and none of Listing
+   14's numbers held. Listing 9 now re-seeds before the stratified call, and its
+   `train` is `identical()` to `altmejd_splits$train` -- 107 rows, `power.o` at
+   .9305, leaves 66/41. The callout after Figure 2 still earns its place, since
+   Module 1 offers several splits and only this one is canonical.
