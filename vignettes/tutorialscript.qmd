@@ -121,7 +121,7 @@ train <- df[train_ind, ]
 # Validation set
 valid <- df[valid_ind, ]
 
-# Test set (as leftover set)
+# Test set (as rest set)
 test <- df[!train_ind & !valid_ind, ]
 ```
 
@@ -249,13 +249,13 @@ rand_pkg <- partition(df, prop = 0.7)
 set.seed(112)
 strat_pkg <- partition(df, prop = c(0.7, 0.15, 0.15), strata = "replicate")
 
-# Equality check
+# Verification
 mapply(identical, strat_diy, strat_pkg)
 ```
 
+We recommend the adatutor's partition() function for the explorations and exercises in the tutorial. It validates inputs and is overall more robust than the DIY code above. For instance,
 
-
-On `altmejd` the listings and the function agree, but not everywhere:
+`altmejd` the listings and the function agree, but not everywhere:
 `sample(x, k)` reads a length-one `x` as `1:x`, so a stratum or a remainder
 holding a single row silently draws a value that is not in the data -- with a
 four-member stratum, on more than half of all seeds. `partition()` samples
@@ -265,6 +265,23 @@ past the tutorial's own data.
 
 #### Listing 10
 
+Code to do a 70/30 random and stratified split, with the rsample package.
+
+```{r listing-10}
+# For reproducibility
+set.seed(112)
+
+# Simple random split
+randsplit <- rsample::initial_split(df, prop = 0.7)
+train <- rsample::training(randsplit)
+test <- rsample::testing(randsplit)
+
+# Stratified split
+stratsplit <- rsample::initial_split(df, prop = 0.7, strata = "replicate")
+train <- rsample::training(stratsplit)
+test <- rsample::testing(stratsplit)
+```
+
 For real work you will outgrow a single split -- cross-validation, bootstraps,
 nested resampling -- and at that point the tool to reach for is the `rsample`
 package, which the wider tidymodels ecosystem is built around. Its
@@ -272,122 +289,33 @@ package, which the wider tidymodels ecosystem is built around. Its
 argument, so the idea carries over unchanged; what it adds is the two dozen
 other resampling schemes you will want next.
 
-
 TODO: Teach "two functions become one." A simple random split is a stratified split with one stratum — let the code demonstrate it rather than asserting it.
 Retire `rsample` or teach how to use it?
 
 Note: tidymodels consumes rsample
 
-Code to do a 70/30 random and stratified split, with the rsample package.
+#### Listing [NEW]
 
-```{r}
-# Load package
-library(rsample)
-
-# For reproducibility
-set.seed(112)
-
-# Simple random split
-randsplit <- initial_split(df, prop = 0.7)
-train <- training(randsplit)
-testvalid <- testing(randsplit)
-
-# Stratified split
-stratsplit <- initial_split(df, prop = 0.7, strata = "replicate")
-train <- training(stratsplit)
-testvalid <- testing(stratsplit)
-```
-
-::: {.callout-important}
-## Restore the split before going on
-
-Module 1 showed several ways to split, and each one overwrote `train`. Whichever
-you ran last is the one still in memory, so from here the numbers would drift
-away from the text.
-
-Everything from Module 2 onward is built on the stratified split of Listings 7
-and 8. The package ships it, so load it back and the stumps, weights and figures
-come out as described. Setting a seed would not be enough on its own: R changed
-`sample()` in version 3.6.0 and moved every seeded split in the wild with it,
-which is why the sets themselves travel with the package rather than the recipe
-for them.
-:::
+Code to restore the stratified split from the package.
 
 ```{r restore-split}
+# Load the data
+data(altmejd_splits)
+
 # The split every later module is written against
 train <- altmejd_splits$train
 valid <- altmejd_splits$valid
 test <- altmejd_splits$test
 ```
 
-#### Figure 2 (TODO)
+::: {.callout-important title="Restore the split before going on"}
 
-Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62\% of the training data and the right leaf node contains about 38\%. The label in each node (\enquote{success}, \enquote{failure}) represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
-
-```{r figure-2}
-# Where the manuscript keeps its figures. Most readers will not have this
-# folder, and then the plots just go to the screen as usual. Each export wraps
-# the same call rather than repeating it, so the file and the figure you see on
-# screen cannot drift apart.
-figdir <- "./inst/figures"
-to_file <- dir.exists(figdir)
-
-# One column of the paper's two-column layout, and the full text width, both
-# measured from the typeset manuscript. Drawing at the size a figure is printed
-# at means nothing is scaled afterwards, which is what keeps the labels legible:
-# a figure drawn at the full width and then squeezed into a column loses half
-# its type size. The two decision-boundary plots take the wider pair, and they
-# are the two the manuscript already sets as `figure*` -- at column width the
-# studies collide into one band and the boundary smears.
-col_w <- 3.44 * 1.25
-col_h <- 2.45 * 1.25
-full_w <- 6.94 * 0.8
-full_h <- 4.94 * 0.8
-
-# Select only two predictors
-# Note: Reduce run-time - decision boundary visualization
-subfeat <- c("power.o", "n.o")
-subdf <- train[, union(subfeat, outnme)]
-# Hyperparameter setup
-treehypar <- rpart::rpart.control(
-  # Maximum depth of any node tree
-  maxdepth = 1,
-  # Minimum n° observations in terminal node
-  minbucket = 4,
-  # Original CART with gini impurity as splitting criterion
-  split = "gini"
-) # or ID3: split = "information"
-# Create a decision tree
-h <- rpart::rpart(
-  replicate ~ .,
-  data = subdf,
-  method = "class",
-  control = treehypar
-)
-# Visualize
-sty <- viridis_tree(h)
-
-if (to_file) {
-  pdf(
-    file.path(figdir, "cstump.pdf"),
-    width = col_w,
-    height = col_h,
-    pointsize = 9
-  )
-}
-
-rpart.plot::rpart.plot(
-  h,
-  extra = 102,
-  digits = 4,
-  box.col = sty$box,
-  col = sty$text
-)
-
-if (to_file) {
-  dev.off()
-}
-```
+Module 1 showed several ways to split. Everything from Module 2 onward is built on the stratified split of Listings 7 and 8. The package ships it, so load it back and the stumps, weights and figures
+come out as described. Setting a seed would not be enough on its own: R changed
+`sample()` in version 3.6.0 and moved every seeded split in the wild with it,
+which is why the sets themselves travel with the package rather than the recipe
+for them.
+:::
 
 # Module 2: Classification Stumps
 
@@ -407,130 +335,71 @@ table(train$replicate[splitcond])
 table(train$replicate[!splitcond])
 ```
 
+#### Figure 2
+
+Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62\% of the training data and the right leaf node contains about 38\%. The label in each node (\enquote{success}, \enquote{failure}) represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
+
+```{r figure-2}
+# Fit classification stump
+# Note: Two metrics only
+h_int <- rpart::rpart(
+  replicate ~ power.o + n.o,
+  data = train[, voinms],
+  maxdepth = 1
+)
+
+# Visualize
+tutplot_cstump(h_int, extra = 102)
+```
+
 #### Listing 12
 
 Code to set the hyperparameters of a classification tree and fit the model to
 the training data.
 
 ```{r listing-12}
-# Load package
-library(rpart)
-
-# Hyperparameter setup
-treehypar <- rpart.control(
+# Fit classification stump
+cstump <- rpart::rpart(
+  replicate ~ .,
+  data = train[, voinms],
+  # Classification tree
+  method = "class",
   # Maximum depth
   maxdepth = 1,
   # Gini impurity (default)
-  split = "gini"
-)
-
-# Fit classification stump
-cstump <- rpart(
-  replicate ~ .,
-  data = train[, voinms],
-  method = "class",
-  control = treehypar
+  parms = list(split = "gini")
 )
 ```
 
 #### Listing 13
 
-Code to visualize a fitted classification stump.
+Code to visualize a fitted classification stump. The tree here is not the one in Figure 2, because `cstump` was fitted to all four reviewer metrics and splits on `p_value.o` at 0.0006 into leaves of 72 and 35, whereas Figure 2 uses only `power.o` and `n.o` and splits on `power.o` at 0.9305 into 66 and 41. The two-predictor version is `h`, fitted in the Figure 2 chunk above, so `rpart.plot::rpart.plot(h)` reproduces the figure.
 
 ```{r listing-13}
-# Load package
-library(rpart.plot)
+# Color-blind pallette
+sty <- viridis_tree(cstump)
 
 # Visualize classification stump
-sty <- viridis_tree(cstump)
-rpart.plot::rpart.plot(
-  cstump,
-  extra = 102,
-  digits = 4,
-  box.col = sty$box,
-  col = sty$text
-)
+cstump |>
+  rpart.plot::rpart.plot(
+    extra = 102,
+    digits = 4,
+    box.col = sty$box,
+    col = sty$text
+  )
 ```
 
 #### Figure 3
 
 Visualization of the decision boundary of a classification stump. The predictor variable on the x-axis is the power of the original study effect. The predictor variable on the y-axis is the number of observations. So the y-axis does not display the outcome variable, but another study characteristic. However, since classification stumps are classification trees of depth one, only one study characteristic (i.e., power in this case) is used as a predictor to separate successfully replicated study effects from failed ones. The decision boundary is set at a power value of 0.9305 (vertical line). The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
 
-```{r figure-3}
-# `dboundary`, not `cstump`: in the manuscript `cstump` is the tree diagram
-# above, and this is the boundary that tree draws. Both are `figure*` floats
-# there, which is why they get the wider geometry.
-if (to_file) {
-  pdf(
-    file.path(figdir, "dboundary.pdf"),
-    width = full_w,
-    height = full_h,
-    pointsize = 9
-  )
-}
-
-# Visualize the stump's decision boundary. `shade = "margin"` colors by the
-# predicted probability rather than by the class alone, so the two regions read
-# as the moderate .26 and .76 they actually are -- and it is the same encoding
-# Figure 9 uses, which is what makes the two figures comparable.
-plot_adabound(
-  h,
-  data = subdf,
-  shade = "margin",
-  xlab = "Power (original study)",
-  ylab = "Sample size (original study)"
-)
-
-if (to_file) {
-  dev.off()
-}
-```
-
 #### Figure 4
 
 Visualization of the Gini impurity for a two-class classification problem. The x-axis is the proportion or probability of Class 1 (e.g., the proportion of successes in the empirical example). The y-axis is the measure of Gini impurity. The Gini impurity is highest when the classes are equally represented. This occurs when the proportion of Class 1 is 0.5, meaning there are as many instances of Class 1 (i.e., successes) as of Class 2 (i.e., failures). The more homogeneous a class becomes, the lower the Gini impurity. The Gini impurity is zero if there are only instances of one type (i.e., only successes or failures).
 
 ```{r figure-4}
-if (to_file) {
-  pdf(
-    file.path(figdir, "gini.pdf"),
-    width = col_w,
-    height = col_h,
-    pointsize = 9
-  )
-}
-
-op <- par(
-  mar = c(2.9, 2.9, 1.9, 0.6),
-  mgp = c(1.7, 0.45, 0),
-  tcl = -0.25,
-  cex.axis = 0.9
-)
-
-# a single curve, so one color rather than a scale -- the same anchor viridis
-# uses for the first/darkest entry elsewhere in the tutorial
-col <- viridisLite::viridis(1, end = 0.85)
-
-# Calculate Gini Impurity
-x <- seq(0.01, 1, by = 0.01) # Values for fraction of class k
-y <- 1 - (x^2) - (1 - x)^2 # Gini Impurity calculation
-# Create the plot
-plot(
-  x,
-  y,
-  type = "l",
-  lwd = 2, # Specify line plot
-  col = col,
-  xlab = "Proportion of Successes",
-  ylab = "Impurity"
-)
-# Customize axes
-axis(side = 1, at = seq(0, 1, by = 0.1))
-
-par(op)
-if (to_file) {
-  dev.off()
-}
+# Visualize
+tutplot_gini(x_seq = seq(0.01, 1, by = 0.01), lwd = 2)
 ```
 
 #### Listing 14
@@ -608,9 +477,6 @@ adjmeans[which.min(gini_impurity)]
 Code to make the assumption of equal weights explicit.
 
 ```{r listing-15}
-# Load package
-library(rpart.plot)
-
 # Number of rows
 m <- nrow(train)
 
@@ -618,17 +484,23 @@ m <- nrow(train)
 D <- rep(1, m) / m
 
 # Fit decision stump
-cstump <- rpart(
+cstump <- rpart::rpart(
   replicate ~ .,
   data = train[, voinms],
   method = "class",
-  weights = D,
-  control = treehypar
+  maxdepth = 1,
+  # Equal weights
+  weights = D
 )
 
 # Visualize
 sty <- viridis_tree(cstump)
-rpart.plot(cstump, digits = 4, box.col = sty$box, col = sty$text)
+cstump |>
+  rpart.plot::rpart.plot(
+    digits = 4,
+    box.col = sty$box,
+    col = sty$text
+  )
 ```
 
 #### Listing 16
@@ -649,37 +521,24 @@ D_raw <- runif(107)
 D <- D_raw / sum(D_raw)
 
 # Create decision stump
-cstump_ast <- rpart(
+cstump_ast <- rpart::rpart(
   replicate ~ .,
   data = train[, voinms],
   method = "class",
-  weights = D,
-  control = treehypar
+  maxdepth = 1,
+  weights = D
 )
 
 # Visualize
 sty <- viridis_tree(cstump_ast)
 
-if (to_file) {
-  pdf(
-    file.path(figdir, "cstumpwght.pdf"),
-    width = col_w,
-    height = col_h,
-    pointsize = 9
+cstump_ast |>
+  rpart.plot::rpart.plot(
+    extra = 100,
+    digits = 4,
+    box.col = sty$box,
+    col = sty$text
   )
-}
-
-rpart.plot(
-  cstump_ast,
-  extra = 100,
-  digits = 4,
-  box.col = sty$box,
-  col = sty$text
-)
-
-if (to_file) {
-  dev.off()
-}
 ```
 
 # Module 3: AdaBoost
@@ -725,16 +584,13 @@ D1 <- rep(1, m) / m
 Code to fit a classification stump with the initialization weights.
 
 ```{r listing-19}
-# Hyperparameter setup
-treehypar <- rpart.control(maxdepth = 1, split = "gini")
-
 # Fit classification stump
-h1 <- rpart(
+h1 <- rpart::rpart(
   replicate ~ .,
   data = train[, voinms],
   method = "class",
-  weights = D1,
-  control = treehypar
+  maxdepth = 1,
+  weights = D1
 )
 ```
 
@@ -780,92 +636,20 @@ alpha1 <- 1 / 2 * log(perf / epsilon) * eta
 Visualization of how the importance of a classification stump ($\alpha_t$) varies with its performance ($1-\epsilon_t$). Overall, the better the performance of a stump, the higher its weight. Put another way, the lower a stump's error ($\epsilon_t$), the higher its importance ($a_t$). The boosting hyperparameter ($\eta$) allows to further attenuate the weight of a classification stump. This could later help to improve the predictive performance of AdaBoost (see Module~4).
 
 ```{r figure-6}
-if (to_file) {
-  pdf(
-    file.path(figdir, "importance.pdf"),
-    width = col_w,
-    height = col_h,
-    pointsize = 9
-  )
-}
-
-# Tighter margins than the default: at this size the defaults would leave
-# almost no room to plot in. `par(op)` at the end puts them back, because the
-# whole document runs in one session and the settings would otherwise leak
-# into every later figure.
-op <- par(
-  mar = c(2.9, 2.9, 3.0, 0.6),
-  mgp = c(1.7, 0.45, 0),
-  tcl = -0.25,
-  cex.axis = 0.9
-)
-
-# three ordered learning rates, so palette runs with them. `end = 0.85`
-# stops short of viridis's yellow, which is invisible as a line on white
-pal <- viridisLite::viridis(3, end = 0.85)
-
-fat <- function(x, eta) 1 / 2 * log(x / (1 - x)) * eta
-curve(
-  fat(x, 1),
-  from = 0.5,
-  to = 1,
-  lwd = 2,
-  col = pal[1],
-  ylab = "Importance",
-  xlab = "Performance"
-)
-grid()
-curve(
-  fat(x, 0.5),
-  from = 0.5,
-  to = 1,
-  lty = 2,
-  lwd = 2,
-  col = pal[2],
-  add = TRUE
-)
-curve(
-  fat(x, 0.1),
-  from = 0.5,
-  to = 1,
-  lty = 4,
-  lwd = 2,
-  col = pal[3],
-  add = TRUE
-)
-# Legend sits in the margin above the panel (where `main` is), so it
-# never covers a curve. `xpd = NA` is what lets it draw outside the plotting
-# region; the default top margin already reserves the room. `text.width = NA`
-# gives each entry its own width -- without it `horiz` pads every column out to
-# the widest label, which strings short entries across the whole panel.
-usr <- par("usr")
-legend(
-  x = (usr[1] + usr[2]) / 2,
-  y = usr[4] + 0.055 * (usr[4] - usr[3]),
-  xjust = 0.5,
-  yjust = 0,
-  horiz = TRUE,
-  xpd = NA,
-  bty = "n",
-  text.width = NA,
-  x.intersp = 0.7,
-  seg.len = 1.2,
-  cex = 0.9,
-  legend = c(
-    expression(eta * " = 1"),
-    expression(eta * " = 0.5"),
-    expression(eta * " = 0.1")
-  ),
-  col = pal,
-  lty = c(1, 2, 4),
-  lwd = 2
-)
-
-par(op)
-if (to_file) {
-  dev.off()
-}
+# Visualize
+# Note: One curve per learning rate, with your own stump marked
+tutplot_importance(eta = c(eta, 0.5, 0.1), mark_perf = perf, mark_eta = eta)
 ```
+
+The crosshair is your stump: `perf` across, its importance up. Passing your own
+`eta` as `mark_eta` is what keeps it honest -- without it the mark would stay on
+the first curve no matter what you set in Listing 22. Change the learner or the
+learning rate and the crosshair follows, and the importance it marks is the
+`alpha1` you just computed.
+
+The three curves stay at 1, 0.5 and 0.1, because they are what the figure is
+about. So an `eta` of, say, 0.75 puts your stump *between* two curves rather
+than on one -- which is not a mistake, it is the attenuation made visible.
 
 #### Listing 23
 
@@ -890,107 +674,19 @@ D2 <- D2_raw / Z1
 Visualization of how the update factor ($e^{-\alpha\chi}$) varies depending on the classification result and the importance of the model ($\alpha_t$). If the classifier classifies an observation correctly, $\chi$ takes the value 1 and the weight or importance of the observation is reduced in the next iteration. In the case of a misclassification, $\chi$ takes the value -1 and the weight of the observation increases. The observation will be more important in the next iteration.
 
 ```{r figure-7}
-if (to_file) {
-  pdf(
-    file.path(figdir, "updatefactor.pdf"),
-    width = col_w,
-    height = col_h,
-    pointsize = 9
-  )
-}
-
-op <- par(
-  mar = c(2.9, 2.9, 3.0, 0.6),
-  mgp = c(1.7, 0.45, 0),
-  tcl = -0.25,
-  cex.axis = 0.9
-)
-
-# same three-step palette as Figure 6: model weights are ordered too
-pal <- viridisLite::viridis(3, end = 0.85)
-
-feat <- function(at, x) exp(-at * x)
-curve(
-  feat(0.719, x),
-  from = -1,
-  to = 1,
-  ylim = c(0.3, 2.2),
-  lty = 3,
-  col = pal[1],
-  xlab = "Classification",
-  ylab = "Weight update factor",
-  xaxt = "n"
-)
-grid()
-points(
-  c(1, -1),
-  c(feat(0.719, 1), feat(0.7, -1)),
-  pch = 20,
-  cex = 2,
-  col = pal[1]
-)
-curve(
-  feat(0.619, x),
-  from = -1,
-  to = 1,
-  ylim = c(0, 2),
-  col = pal[2],
-  lty = 3,
-  add = TRUE
-)
-points(
-  c(1, -1),
-  c(feat(0.619, 1), feat(0.6, -1)),
-  pch = 17,
-  cex = 2,
-  col = pal[2]
-)
-curve(
-  feat(0.519, x),
-  from = -1,
-  to = 1,
-  ylim = c(0, 2),
-  col = pal[3],
-  lty = 3,
-  add = TRUE
-)
-points(
-  c(1, -1),
-  c(feat(0.519, 1), feat(0.51, -1)),
-  pch = 15,
-  cex = 2,
-  col = pal[3]
-)
-abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
-usr <- par("usr")
-legend(
-  x = (usr[1] + usr[2]) / 2,
-  y = usr[4] + 0.055 * (usr[4] - usr[3]),
-  xjust = 0.5,
-  yjust = 0,
-  horiz = TRUE,
-  xpd = NA,
-  bty = "n",
-  text.width = NA,
-  x.intersp = 0.7,
-  seg.len = 1.2,
-  cex = 0.9,
-  legend = c(
-    expression(a[t] * " = 0.719"),
-    expression(a[t] * " = 0.619"),
-    expression(a[t] * " = 0.519")
-  ),
-  col = pal,
-  lty = c(1, 1, 1),
+# Visualize
+# Note: One curve per model weight
+tutplot_updatefactor(
+  # Model weights, one curve each
+  alpha = c(0.719, 0.619, 0.519),
+  # Plotting characters for the end points
   pch = c(20, 17, 15),
-  lwd = 2
+  # Line type and width, which the legend inherits
+  lty = 3,
+  lwd = 1,
+  # Vertical range
+  ylim = c(0.3, 2.2)
 )
-axis(1, at = c(-1, 1))
-
-par(op)
-if (to_file) {
-  dev.off()
-}
 ```
 
 #### Figure 8
@@ -998,98 +694,17 @@ if (to_file) {
 Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the \texttt{altmejd} dataset. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
 
 ```{r figure-8}
-if (to_file) {
-  pdf(
-    file.path(figdir, "weightone.pdf"),
-    width = col_w,
-    height = col_h,
-    pointsize = 9
-  )
-}
-
-op <- par(
-  mar = c(2.9, 2.9, 3.0, 0.6),
-  mgp = c(1.7, 0.45, 0),
-  tcl = -0.25,
-  cex.axis = 0.9
-)
-
-n_25 <- 25 # TODO: Do we need this?
-scaling <- 2
-
-# D1 and D2 keep a color each. `end = 0.5` leaves D2 teal rather than
-# yellow-green, which would go muddy against the yellow band below
-pal <- viridisLite::viridis(2, end = 0.5)
-band <- adjustcolor(viridisLite::viridis(1, begin = 1), 0.35)
-
-# area, not diameter: cex scales the width of the point, so the eye reads a
-# doubled weight as four times the ink unless we take the square root
-bubble <- function(w) sqrt(w / D1[1]) * scaling
-
-wrong <- which(y_train[1:n_25] != yretro[1:n_25])
-ylim <- c(0, D1[1] + 0.012)
-
-plot(
-  c(0.5, n_25 + 0.5),
-  ylim,
-  type = "n",
-  xaxt = "n",
-  xlab = "Data point",
-  ylab = "Weight"
-)
-# the band goes behind everything: misclassification belongs to the data point,
-# not to either of its two weights
-rect(wrong - 0.42, ylim[1], wrong + 0.42, ylim[2], col = band, border = NA)
-box()
-# every fifth point: 25 labels do not fit the width of a column
-axis(1, at = c(1, seq(5, n_25, 5)))
-for (i in 1:n_25) {
-  lines(c(i, i), c(D1[i], D2[i]), lty = 3, col = "grey45")
-}
-
-points(
-  1:n_25,
-  D1[1:n_25],
-  pch = 21,
-  bg = pal[1],
-  col = "white",
-  cex = bubble(D1[1:n_25]),
-  lwd = 1.3
-)
-points(
-  1:n_25,
-  D2[1:n_25],
-  pch = 21,
-  bg = pal[2],
-  col = "white",
-  cex = bubble(D2[1:n_25]),
-  lwd = 1.3
-)
-usr <- par("usr")
-legend(
-  x = (usr[1] + usr[2]) / 2,
-  y = usr[4] + 0.055 * (usr[4] - usr[3]),
-  xjust = 0.5,
-  yjust = 0,
-  horiz = TRUE,
-  xpd = NA,
-  bty = "n",
-  text.width = NA,
-  x.intersp = 0.7,
-  seg.len = 1.2,
-  cex = 0.9,
-  legend = c(expression(D[1]), expression(D[2]), "misclassified"),
-  pt.bg = c(pal, band),
-  col = c("white", "white", "grey60"),
-  pch = c(21, 21, 22),
-  pt.cex = 1.3
-)
-
-par(op)
-if (to_file) {
-  dev.off()
-}
+# Visualize
+# Note: The band marks the points the first stump missed
+tutplot_weightone(d1 = D1, d2 = D2, chi = chi1)
 ```
+
+Passing your own `D1`, `D2` and `chi1` is what ties this figure to the listings
+above: change the learner or the weights and the picture follows. `chi1` is not
+optional here, because the weights alone cannot say which points were missed --
+a round grows the misclassified ones only while the stump beats chance. The call
+returns those weights and the missed points invisibly, so assigning it gives you
+the numbers as well as the plot.
 
 #### Listing 24
 
@@ -1100,9 +715,6 @@ The code can take several seconds to complete.
 :::
 
 ```{r listing-24}
-# Hyperparameter setup
-treehypar <- rpart.control(maxdepth = 1)
-
 # Number of trees
 T <- 1000
 
@@ -1117,12 +729,16 @@ D <- rep(1, m) / m
 
 # Loop through steps
 for (t in seq_len(T)) {
-  h <- rpart(
+  h <- rpart::rpart(
     replicate ~ .,
     data = train[, voinms],
     method = "class",
-    weights = D,
-    control = treehypar
+    maxdepth = 1,
+    # off, as `adaboost()` has them: a surrogate only stands in for a missing
+    # value, and `altmejd` has none. Leaving them on would put extra variables
+    # into each stump's `variable.importance` and pull the scores below apart.
+    maxsurrogate = 0,
+    weights = D
   )
   yretro <- predict(object = h, newdata = train[, prednms], type = "class")
   e <- sum(D * (yretro != y_train))
@@ -1161,7 +777,7 @@ If it does not split `rpart` writes `<leaf>`.
 n_preds <- length(prednms)
 # initialization: vector of zeros
 voz <- numeric(n_preds)
-imp <- setNames(voz, prednms)
+imp_diy <- setNames(voz, prednms)
 for (t in seq_along(fit)) {
   # variable at the root (stumps)
   v <- as.character(fit[[t]]$h$frame$var[1])
@@ -1169,22 +785,20 @@ for (t in seq_along(fit)) {
   if (v == "<leaf>") {
     next
   }
-  imp[v] <- imp[v] + fit[[t]]$a
+  imp_diy[v] <- imp_diy[v] + fit[[t]]$a
 }
 # relative importance: normalize and scale
-imp <- imp / sum(imp) * 100
+imp_diy <- imp_diy / sum(imp_diy) * 100
 # highest importance first
-sort(imp, decreasing = TRUE)
+sort(imp_diy, decreasing = TRUE)
 ```
 
-version with rpart helper function
+Alternative loop with `rpart` internals.
+Note: Keep only loop not the full code.
 
 ```{r importance-byhand}
-# One slot per predictor, all starting at zero
-n_preds <- length(prednms)
-# initialization: vector of zeros
-voz <- numeric(n_preds)
-imp <- setNames(voz, prednms)
+#| echo: true
+#| eval: false
 # walk ensemble, tree by tree
 for (t in seq_along(fit)) {
   # Shorcut: extract rpart's included measure
@@ -1194,17 +808,12 @@ for (t in seq_along(fit)) {
     next
   }
   # stumps split (at most once), i.e. whole model weight goes to that variable
-  imp[names(vi)] <- imp[names(vi)] + fit[[t]]$a
+  imp_diy[names(vi)] <- imp_diy[names(vi)] + fit[[t]]$a
 }
-# Relative importance
-imp <- 100 * imp / sum(imp)
-# Most important first
-sort(imp, decreasing = TRUE)
 ```
 
 Note to self: Because in rpart cp is 0.01, by default, the trees do not need to split at all. 
 In fact, twelve of the 100 stumps decided not to, which is why `next` exists. 
-
 Note to self: cp and pruning maybe as box?
 
 Outlook? If we grow deeper trees they can split more than once, and the weight is shared between those variables. Specifically, the weight is shared in proportion to how much each split improved the overall fit. The difference comes down to a one-line difference:
@@ -1223,8 +832,7 @@ fit_deep <- adaboost(
 
 n_preds <- length(prednms)
 voz <- numeric(n_preds)
-imp <- setNames(voz, prednms)
-t <- 1
+imp_deep <- setNames(voz, prednms)
 for (t in seq_along(fit_deep)) {
   vi <- fit_deep[[t]][["h"]][["variable.importance"]]
   if (is.null(vi)) {
@@ -1233,10 +841,10 @@ for (t in seq_along(fit_deep)) {
   # Split the weight across the variables this tree used, in proportion to
   # each split's improvement
   share <- fit_deep[[t]]$a * vi / sum(vi)
-  imp[names(share)] <- imp[names(share)] + share
+  imp_deep[names(share)] <- imp_deep[names(share)] + share
 }
-imp <- 100 * imp / sum(imp)
-sort(imp, decreasing = TRUE)
+imp_deep <- 100 * imp_deep / sum(imp_deep)
+sort(imp_deep, decreasing = TRUE)
 ```
 
 If we only have a stump, then `vi` holds a single number, so `vi / sum(vi)` is always 1. So we can the general version also for stumps.
@@ -1249,10 +857,10 @@ That is what `gauge()` does, so the two agree.
 important <- gauge(fit)
 head(important, 10)
 
-# The package function and the loop above compute the same thing
-all.equal(
-  setNames(important$importance, important$variable)
-)
+# `gauge()` reads `variable.importance` too, so it and `imp_diy` agree. It
+# returns its rows sorted, so index the hand-built vector by its names first.
+imp_pkg <- setNames(important$importance, important$variable)
+all.equal(imp_pkg, imp_diy[names(imp_pkg)])
 ```
 
 We also provide a quick and easy way to visualize the results.
@@ -1319,42 +927,6 @@ Code to replace matrix multiplication with a loop.
 #### Figure 9
 
 Visualization of the decision boundary of 500 adaptively boosted shallow classification trees. The trees were fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
-
-```{r figure-9}
-# Fit AdaBoost on the two features
-fit <- adaboost(
-  replicate ~ .,
-  data = train[, c("replicate", "power.o", "n.o")],
-  T = 5e2,
-  eta = 1,
-  maxdepth = 1,
-  verbose = FALSE
-)
-
-# Both decision-boundary plots span the full text width: at column width the
-# studies collide into a single band and the boundary stops reading as a line
-if (to_file) {
-  pdf(
-    file.path(figdir, "boundaryada.pdf"),
-    width = full_w,
-    height = full_h,
-    pointsize = 9
-  )
-}
-
-# Visualize the ensemble's decision boundary
-plot_adabound(
-  fit,
-  data = train,
-  shade = "margin",
-  xlab = "Power (original study)",
-  ylab = "Sample size (original study)"
-)
-
-if (to_file) {
-  dev.off()
-}
-```
 
 #### Listing 27
 
@@ -1623,7 +1195,7 @@ runtime <- system.time({
       data = train[, voinms],
       T = 1000,
       eta = 1,
-      treehypar = treehypar
+      maxdepth = 1
     )
     # Predictions (left-out project), on the margin so the AUC sees the ranking
     ypred <- predict(fit, newdata = test[, prednms], type = "margin")
@@ -1713,7 +1285,7 @@ for (i in seq_len(hgrid_rows)) {
         data = train[, voinms],
         T = hgrid$T[i],
         eta = hgrid$eta[i],
-        treehypar = rpart.control(maxdepth = hgrid$depth[i]),
+        treehypar = rpart::rpart.control(maxdepth = hgrid$depth[i]),
         verbose = FALSE
       )
       # Predictions (on the margin, so the AUC sees the ranking)
@@ -1811,9 +1383,7 @@ Then we take the remaining 4 (Group 2, 3, 4, 5) and split them again into 4 piec
 So instead of one model performance on on test set we have 5 (5 Groups) measures. What people than usually do is to take the mean performance across projects.
 So we use all the data as a test set once
 
-
 In small test set you can have the problem of bad luck and up (especially with small test sets) with a handy partition which is too easy to classify and (thus not representative of what would usually happen, i.e. performane overestimate).
-
 
 TODO: Random grid search. Define 20 as a number in the random search
 
@@ -1971,7 +1541,7 @@ fit_final <- adaboost(
   data = df[, voinms],
   T = 10,
   eta = 1,
-  treehypar = rpart.control(maxdepth = 1)
+  treehypar = rpart::rpart.control(maxdepth = 1)
 )
 ```
 
