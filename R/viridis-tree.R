@@ -64,3 +64,36 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
 
   list(box = box, text = contrast_stroke(box))
 }
+
+#' @title Pick a Readable Stroke From a Fill Color
+#'
+#' @description Not exported. Chooses black or white for whatever sits on top of
+#'   a filled marker or box, from the fill's own relative luminance.
+#'
+#' @details A white ring separates a dark marker from the panel, but a pale
+#'   marker with a white ring has no edge at all -- viridis's yellow end
+#'   disappears. Deriving the stroke from the fill instead of fixing it means any
+#'   palette works, which is what lets \code{\link[adatutor]{viridis_tree}} and
+#'   \code{\link[adatutor]{plot_adabound}} share one rule.
+#'
+#'   Luminance is the Rec. 709 weighting, \eqn{0.2126 R + 0.7152 G + 0.0722 B} on
+#'   channels scaled to the unit interval. The cut at 0.55 is a shade above the
+#'   midpoint because green dominates the weighting, so a mid-viridis teal reads
+#'   brighter than its position on the scale suggests.
+#'
+#' @param cols One or more colors, in any form
+#'   \code{\link[grDevices]{col2rgb}} accepts.
+#'
+#' @return A character vector the same length as \code{cols}, each element
+#'   \code{"grey15"} or \code{"white"}.
+#'
+#' @name contrast_stroke
+#'
+#' @keywords internal
+contrast_stroke <- function(cols) {
+  rgb <- grDevices::col2rgb(cols) / 255
+  # unname(): a single colour drops to a scalar carrying the channel's own
+  # rowname, which would otherwise ride along into the caller's `col`
+  lum <- unname(0.2126 * rgb[1, ] + 0.7152 * rgb[2, ] + 0.0722 * rgb[3, ])
+  ifelse(lum > 0.55, "grey15", "white")
+}
