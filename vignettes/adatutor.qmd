@@ -103,7 +103,7 @@ A standard random split:
 ```{r}
 #| label: random-split
 # Simple random split
-randsplit <- random_split(df, prop = 0.7)
+randsplit <- partition(df, prop = 0.7)
 train <- randsplit$set1
 test <- randsplit$set2
 ```
@@ -114,8 +114,8 @@ Stratified sampling ensures proportional representation of the outcome variable:
 
 ```{r}
 #| label: stratified-split
-# Stratified split
-stratsplit <- stratified_split(df, group = "replicate", id = "eid", prop = 0.7)
+# Stratified split: the same call, told which variable to hold steady
+stratsplit <- partition(df, prop = 0.7, strata = "replicate")
 train <- stratsplit$set1
 test <- stratsplit$set2
 ```
@@ -150,8 +150,9 @@ Here, we develop an ensemble with 10 stumps and a learning rate of 1:
 ```{r}
 #| label: train
 #| results: hide
+#| message: false
 # Boosted stumps and weights
-fit <- trainAda(
+fit <- adaboost(
   replicate ~ .,
   data = train[, voinms],
   # Boosting hyperparameter
@@ -170,8 +171,9 @@ test set:
 ```{r}
 #| label: predict
 #| results: hide
+#| message: false
 # Predictions on test set
-ypred <- testAda(fit, data = test[, prednms])
+ypred <- predict(fit, newdata = test[, prednms])
 ```
 
 ### Model Evaluation
@@ -197,14 +199,14 @@ accumulated weight is therefore a direct measure of a feature's predictive contr
 
 ```{r}
 #| label: importance
-important <- varimpAda(fit)
+important <- gauge(fit)
 head(important, 10)
 ```
 
 ```{r}
 #| label: importance-plot
 #| fig-alt: "Horizontal bar chart of AdaBoost feature importance"
-plotVarimpAda(important, top_n = 15)
+plot(important, top_n = 15)
 ```
 
 ## References
