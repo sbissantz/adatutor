@@ -611,7 +611,7 @@ epsilon <- sum(D1 * (yretro != y_train))
 Code to calculate the classification stump's performance.
 
 ```{r listing-21}
-# Retrodivitve performance
+# Retrodicitve performance
 perf <- sum(D1 * (yretro == y_train))
 
 # Retrodictive error
