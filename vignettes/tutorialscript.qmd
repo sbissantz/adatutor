@@ -636,20 +636,12 @@ alpha1 <- 1 / 2 * log(perf / epsilon) * eta
 Visualization of how the importance of a classification stump ($\alpha_t$) varies with its performance ($1-\epsilon_t$). Overall, the better the performance of a stump, the higher its weight. Put another way, the lower a stump's error ($\epsilon_t$), the higher its importance ($a_t$). The boosting hyperparameter ($\eta$) allows to further attenuate the weight of a classification stump. This could later help to improve the predictive performance of AdaBoost (see Module~4).
 
 ```{r figure-6}
+# Learning rates
+etas <- c(eta, 0.5, 0.1)
+
 # Visualize
-# Note: One curve per learning rate, with your own stump marked
-tutplot_importance(eta = c(eta, 0.5, 0.1), mark_perf = perf, mark_eta = eta)
+tutplot_importance(eta = etas, mark_perf = perf, mark_eta = eta)
 ```
-
-The crosshair is your stump: `perf` across, its importance up. Passing your own
-`eta` as `mark_eta` is what keeps it honest -- without it the mark would stay on
-the first curve no matter what you set in Listing 22. Change the learner or the
-learning rate and the crosshair follows, and the importance it marks is the
-`alpha1` you just computed.
-
-The three curves stay at 1, 0.5 and 0.1, because they are what the figure is
-about. So an `eta` of, say, 0.75 puts your stump *between* two curves rather
-than on one -- which is not a mistake, it is the attenuation made visible.
 
 #### Listing 23
 
@@ -677,14 +669,12 @@ Visualization of how the update factor ($e^{-\alpha\chi}$) varies depending on t
 # Visualize
 # Note: One curve per model weight
 tutplot_updatefactor(
-  # Model weights, one curve each
+  # Model weights
   alpha = c(0.719, 0.619, 0.519),
-  # Plotting characters for the end points
+  # Rise the figure
   pch = c(20, 17, 15),
-  # Line type and width, which the legend inherits
   lty = 3,
   lwd = 1,
-  # Vertical range
   ylim = c(0.3, 2.2)
 )
 ```
