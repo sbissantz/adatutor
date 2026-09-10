@@ -373,7 +373,7 @@ cstump <- rpart::rpart(
 
 #### Listing 13
 
-Code to visualize a fitted classification stump. The tree here is not the one in Figure 2, because `cstump` was fitted to all four reviewer metrics and splits on `p_value.o` at 0.0006 into leaves of 72 and 35, whereas Figure 2 uses only `power.o` and `n.o` and splits on `power.o` at 0.9305 into 66 and 41. The two-predictor version is `h`, fitted in the Figure 2 chunk above, so `rpart.plot::rpart.plot(h)` reproduces the figure.
+Code to visualize a fitted classification stump. The tree here is not the one in Figure 2, because `cstump` was fitted to all four reviewer metrics and splits on `p_value.o` at 0.0006 into leaves of 72 and 35, whereas Figure 2 uses only `power.o` and `n.o` and splits on `power.o` at 0.9305 into 66 and 41. The two-predictor version is `h_int`, fitted in the Figure 2 chunk above, so `rpart.plot::rpart.plot(h_int)` reproduces the figure.
 
 ```{r listing-13}
 # Color-blind pallette
@@ -392,6 +392,22 @@ cstump |>
 #### Figure 3
 
 Visualization of the decision boundary of a classification stump. The predictor variable on the x-axis is the power of the original study effect. The predictor variable on the y-axis is the number of observations. So the y-axis does not display the outcome variable, but another study characteristic. However, since classification stumps are classification trees of depth one, only one study characteristic (i.e., power in this case) is used as a predictor to separate successfully replicated study effects from failed ones. The decision boundary is set at a power value of 0.9305 (vertical line). The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+
+```{r figure-3}
+# Visualize
+# Note: the stump from Figure 2, now as the boundary it draws
+tutplot_boundary(
+  h_int,
+  data = train,
+  xlab = "Power (original study)",
+  ylab = "Sample size (original study)"
+)
+```
+
+Shading is by the stump's score, not by the class alone, so the two regions read
+as the moderate .26 and .76 they actually are. Hold on to that: Figure 9 draws
+the same picture for the boosted ensemble, and the difference between two flat
+blocks and a many-valued surface is what boosting buys.
 
 #### Figure 4
 
@@ -666,12 +682,15 @@ D2 <- D2_raw / Z1
 Visualization of how the update factor ($e^{-\alpha\chi}$) varies depending on the classification result and the importance of the model ($\alpha_t$). If the classifier classifies an observation correctly, $\chi$ takes the value 1 and the weight or importance of the observation is reduced in the next iteration. In the case of a misclassification, $\chi$ takes the value -1 and the weight of the observation increases. The observation will be more important in the next iteration.
 
 ```{r figure-7}
+# Model weights: yours in the middle, a heavier and a lighter one either
+# side. Taken relative to alpha1, so they follow it if you change eta
+alphas <- round(alpha1 * c(1.35, 1, 0.6), 3)
 # Visualize
 # Note: One curve per model weight
 tutplot_updatefactor(
   # Model weights
-  alpha = c(0.719, 0.619, 0.519),
-  # Rise the figure
+  alpha = alphas,
+  # Rise figure
   pch = c(20, 17, 15),
   lty = 3,
   lwd = 1,
@@ -895,7 +914,7 @@ a <- sapply(fit, "[[", "a")
 # Retrodictions from stumps
 yretro_stumps <- sapply(h, predict, newdata = train[, prednms], type = "vector")
 
-# Transformed values (-1,1)
+# Transform values (-1,1)
 yretro_stumps <- 2 * yretro_stumps - 3
 
 # Retrodictions from full model
@@ -916,7 +935,33 @@ Code to replace matrix multiplication with a loop.
 
 #### Figure 9
 
-Visualization of the decision boundary of 500 adaptively boosted shallow classification trees. The trees were fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+Visualization of the decision boundary of 1000 adaptively boosted shallow classification trees. The number of trees matches the Listings 24 and 25, but the trees were fitted to the training data using only two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+
+```{r figure-9}
+# Refit on the two metrics only, so the boundary is drawable in two dimensions
+ada_int <- adaboost(
+  replicate ~ .,
+  data = train[, c("power.o", "n.o", outnme)],
+  T = 1e3,
+  eta = 1,
+  maxdepth = 1,
+  verbose = FALSE
+)
+
+# Visualize
+# Note: the same call as Figure 3, an ensemble in place of the stump
+tutplot_boundary(
+  ada_int,
+  data = train,
+  xlab = "Power (original study)",
+  ylab = "Sample size (original study)"
+)
+```
+
+Set the two side by side. The stump gave two flat blocks, because a depth-one
+tree has two leaves and so exactly two scores. A thousand of them, each weighted
+by its own alpha, sum to a surface -- and the boundary stops being a vertical
+line.
 
 #### Listing 27
 
@@ -944,6 +989,7 @@ y_test <- test[, outnme]
 
 # Predictions (test set)
 ypred_stumps <- sapply(h, predict, newdata = test[, prednms], type = "vector")
+# Transform values (-1,1)
 ypred_stumps <- 2 * ypred_stumps - 3
 ypred_ada <- sign(a %*% t(ypred_stumps))
 ```
@@ -1545,13 +1591,13 @@ several of those mislead, and one was actively wrong until it was fixed.
 |:--|:--|:--|:--|:--|
 | `fig:lpocv` | none -- TikZ, above | `figure*` | not from R | -- |
 | `fig:cstump` | `ext/cstump` | `figure` | Figure 2, `rpart.plot(h)`, **two features** | column |
-| `fig:dboundary` | `ext/dboundary` | `figure*` | Figure 3, `plot_adabound(h)` | full |
+| `fig:dboundstump` | `ext/dboundstump` | `figure*` | Figure 3, `tutplot_boundary(h_int)` | full |
 | `fig:gini` | `ext/gini` | `figure` | Figure 4, the Gini curve | column |
 | `fig:cstumpwght` | `ext/cstumpwght` | `figure` | Listing 16, `cstump_ast`, `extra = 100` | column |
 | `fig:importance` | `ext/importance` | `figure` | Figure 6, the eta curves | column |
 | `fig:updatefactor` | `ext/updatefactor` | `figure` | Figure 7 | column |
 | `fig:weightone` | `ext/weightone` | `figure` | Figure 8 | column |
-| `fig:boundaryada` | `ext/boundaryada` | `figure*` | Figure 9, `shade = "margin"` | full |
+| `fig:dboundada` | `ext/dboundada` | `figure*` | Figure 9, `tutplot_boundary(ada_int)` | full |
 
 Only the six single-column files and the two `figure*` files come from R. The
 LPO-CV diagram is drawn in the manuscript, which is why its source sits in this
@@ -1561,7 +1607,8 @@ vignette rather than in a chunk.
 
 1. **`cstump` is a tree, not a boundary.** This vignette used to export the
    boundary plot under that name, and had already overwritten the tree in the
-   manuscript's `ext/`. Fixed: the boundary is `dboundary.pdf` now.
+   manuscript's `ext/`. Fixed: the boundary is `dboundstump.pdf` now, and
+   the ensemble's is `dboundada.pdf`.
 2. **Module 2's narrative is the two-feature model.** `fig:cstump`'s caption
    says "two reviewer metrics: the power of the original study and the number of
    observations", and Listing 11 and Listing 14's arithmetic both describe the
