@@ -743,9 +743,9 @@ for (t in seq_len(T)) {
     data = train[, voinms],
     method = "class",
     maxdepth = 1,
-    # off, as `adaboost()` has them: a surrogate only stands in for a missing
-    # value, and `altmejd` has none. Leaving them on would put extra variables
-    # into each stump's `variable.importance` and pull the scores below apart.
+    # Turn off, surrogates stand in for missing values, but we have none.
+    # Leaving it on would put extra variables into each stump's
+    # `variable.importance` and pull the scores below apart.
     maxsurrogate = 0,
     weights = D
   )
