@@ -360,7 +360,7 @@ the training data.
 ```{r listing-12}
 # Fit classification stump
 cstump <- rpart::rpart(
-  replicate ~ .,
+  replicate ~ power.o + n.o,
   data = train[, voinms],
   # Classification tree
   method = "class",
@@ -382,7 +382,7 @@ sty <- viridis_tree(cstump)
 # Visualize classification stump
 cstump |>
   rpart.plot::rpart.plot(
-    extra = 102,
+    extra = 100,
     digits = 4,
     box.col = sty$box,
     col = sty$text
@@ -403,11 +403,6 @@ tutplot_boundary(
   ylab = "Sample size (original study)"
 )
 ```
-
-Shading is by the stump's score, not by the class alone, so the two regions read
-as the moderate .26 and .76 they actually are. Hold on to that: Figure 9 draws
-the same picture for the boosted ensemble, and the difference between two flat
-blocks and a many-valued surface is what boosting buys.
 
 #### Figure 4
 
@@ -501,7 +496,7 @@ D <- rep(1, m) / m
 
 # Fit decision stump
 cstump <- rpart::rpart(
-  replicate ~ .,
+  replicate ~ power.o + n.o,
   data = train[, voinms],
   method = "class",
   maxdepth = 1,
@@ -513,11 +508,21 @@ cstump <- rpart::rpart(
 sty <- viridis_tree(cstump)
 cstump |>
   rpart.plot::rpart.plot(
+    extra = 100,
     digits = 4,
     box.col = sty$box,
     col = sty$text
   )
 ```
+
+
+Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the extra argument of the `rpart.plot()` function with a value set to 100.
+
+```{r}
+# Visualize
+tutplot_cstump(cstump, extra = 100)
+```
+
 
 #### Listing 16
 
@@ -526,19 +531,23 @@ weights from a uniform distribution.
 
 Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the \texttt{extra} argument of the \texttt{rpart.plot()} function with a value set to \texttt{100}.
 
+**Note**: Its not another p_value.o anymore in the tutorial but power.o < 0.6358
+
+
 ```{r listing-16}
 # For reproducibility
-set.seed(112)
+set.seed(110)
 
 # Draws from standard uniform
-D_raw <- runif(107)
+D_raw <- runif(m)
 
 # Normalize (sum to 1)
 D <- D_raw / sum(D_raw)
 
 # Create decision stump
+# Note: the same two metrics as Listing 15, so only the weights differ
 cstump_ast <- rpart::rpart(
-  replicate ~ .,
+  replicate ~ power.o + n.o,
   data = train[, voinms],
   method = "class",
   maxdepth = 1,
