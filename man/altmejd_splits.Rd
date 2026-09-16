@@ -6,14 +6,14 @@
 \title{Stratified 70/15/15 split of the Altmejd data}
 \format{
 A list of three data frames with the columns of
-\code{\link[adatutor]{altmejd}}: 107 study effects in \code{$train}, 22 in
-\code{$valid} and 23 in \code{$test}.
+\code{\link[adatutor]{altmejd}}: 107 study effects in \code{$train}, 23 in
+\code{$valid} and 22 in \code{$test}.
 }
 \description{
 The training, validation and test sets the tutorial works
 through, shipped so a reader's numbers match the ones in the text. Produced
-by \code{data-raw/altmejd-splits.R}, which reproduces Listings 7 and 8 of
-the code-along script.
+by \code{data-raw/altmejd-splits.R}, which builds them with the single
+\code{\link[adatutor]{partition}} call Listings 7 to 9 work up to.
 }
 \details{
 A seed is not enough to pin a split. R changed \code{sample()} in
@@ -33,16 +33,15 @@ set and cut their own test set would get Module 3 numbers that disagree
 with the text, with nothing to say why.
 
 The split is stratified on \code{replicate}, so the share of replication
-successes stays near the .447 of the whole data set: .449, .455 and .435
+successes stays near the .447 of the whole data set: .449, .435 and .455
 respectively. It is also the split the manuscript's Module 2 figures were
-made from, which is not the one Listing 9 produces -- there
-\code{\link[adatutor]{random_split}} runs first and advances the generator.
-The depth-one tree on the two reviewer metrics cuts \code{power.o} at
-0.9305 into leaves of 66 and 41; \code{data-raw/altmejd-splits.R} asserts
-exactly that, so a future change in R fails loudly instead of quietly
-shipping a different split.
+made from. The depth-one tree on the two reviewer metrics cuts
+\code{power.o} at 0.9305 into leaves of 66 and 41;
+\code{data-raw/altmejd-splits.R} asserts that, the three set sizes and the
+stratification, so a future change in R or in \code{partition()} fails
+loudly instead of quietly shipping a different split.
 }
 \seealso{
 \code{\link[adatutor]{altmejd}},
-\code{\link[adatutor]{stratified_split}}
+\code{\link[adatutor]{partition}}
 }

@@ -2,64 +2,126 @@
 % Please edit documentation in R/utils.R
 \name{feedback}
 \alias{feedback}
+\alias{ansi_bold}
+\alias{ansi_dim}
+\alias{ansi_teal}
+\alias{ansi_note}
 \alias{walking_dots}
 \alias{color_message}
 \alias{walking_colordots}
-\title{Utility Functions for Console Feedback and Styling}
+\title{Console Feedback While a Fit Runs}
+\format{
+Character strings, spliced verbatim into \code{\\033[<code>m}.
+}
 \usage{
+ansi_bold
+
+ansi_dim
+
+ansi_teal
+
+ansi_note
+
 walking_dots(n = 3, delay = 0.2)
 
-color_message(text, color_code = 32, newline = FALSE)
+color_message(text, color_code = ansi_teal, newline = FALSE)
 
-walking_colordots(n = 3, delay = 0.2, color_code = 32)
+walking_colordots(n = 3, delay = 0.1, color_code = ansi_teal)
 }
 \arguments{
-\item{n}{An integer specifying the number of iterations for dots or
-animations. Defaults to 3.}
+\item{n}{The number of dots. Defaults to 3.}
 
-\item{delay}{A numeric value specifying the delay (in seconds) between
-iterations or dots. Defaults to 0.2.}
+\item{delay}{Seconds between dots. Defaults to 0.2 for
+\code{walking_dots()} and 0.1 for \code{walking_colordots()}.}
 
-\item{text}{A character string representing the message to be displayed. Used
-in \code{color_message()}.}
+\item{text}{The string to print.}
 
-\item{color_code}{An integer specifying the ANSI color code for the text.
-Defaults to 32 (green).}
+\item{color_code}{An ANSI code, spliced verbatim into the escape
+sequence, so \code{"38;5;30"} and \code{"2"} work as well as a bare
+number. Defaults to \code{ansi_teal}.}
 
-\item{newline}{A logical value indicating whether to append a newline after
-the message. Defaults to \code{FALSE}.}
+\item{newline}{Whether to append a newline after the message. Defaults to
+\code{FALSE}.}
 }
 \value{
-All functions are called for their side effects. They do not return
-values, but produce visual effects in the console, such as animations or
-colored text.
+All three are called for their side effect and return \code{NULL}
+invisibly.
 }
 \description{
-A set of utility functions to enhance the console feedback
-during processes. These functions include animated feedback, colored
-messages, and combinations of both for a better user experience in the
-terminal.
+Not exported. Progress feedback for the long-running fitters:
+animated dots, colored text, and the two combined.
+\code{\link[adatutor]{adaboost}} and
+\code{\link[=predict.adaboost]{predict()}} call them when
+\code{verbose = TRUE}.
 
-\code{walking_dots()} creates a sequence of animated dots (e.g.,
-"...") followed by a "Done" message. The number of dots and the delay can
-be customized.
+The palette lives here rather than as literals at the call
+sites, so the transcript can be re-themed in one place.
 
-\code{color_message()} prints a message in a specified color
-using ANSI color codes. The text and color can be customized.
+\code{walking_dots()} prints \code{n} dots with a pause between
+them, then \dQuote{Done}. Uncolored, and written to the message stream.
 
-\code{walking_colordots()} is a combination of
-\code{walking_dots()} and \code{color_message()}. It prints animated dots
-in a specified color, with a delay between each, and ends with a colored
-"Done" message.
+\code{color_message()} prints \code{text} wrapped in an ANSI
+color code, resetting the color afterwards so nothing leaks into the next
+line.
+
+\code{walking_colordots()} is \code{walking_dots()} in color:
+grey dots, then \dQuote{Done} in \code{color_code}.
+}
+\details{
+All three write to the \emph{message} stream, not to standard
+output. Progress is diagnostic rather than a result, so it belongs on
+\code{stderr} where R puts \code{message()} and \code{warning()}: that keeps
+it out of \code{capture.output()}, out of a shell redirect, and out of
+anything downstream that reads a fit's printed value. It also means a
+knitr chunk hides it with \code{message: false} rather than
+\code{results: hide}.
+
+Color is set with raw ANSI escape codes rather than a dependency. The
+palette has to stay legible on a light \emph{and} a dark terminal, which
+rules out most of it: measured as contrast against white and black and
+taking the worse of the two, viridis's dark purple manages 1.38 on black
+and its yellow 1.26 on white. Only the middle of the scale survives, so:
+
+\describe{
+\item{\code{ansi_teal} (\code{38;5;30})}{Viridis teal, for a completed
+step. xterm-256 index 30 is where viridis 0.4 and 0.5 both quantize, and
+it scores 4.36 against the worse background -- better than either exact
+colour, and 256-colour carries much further than truecolor.}
+\item{\code{ansi_dim} (\code{2})}{Faint, for the running commentary and
+the dots. It dims the terminal's \emph{own} foreground rather than
+naming a colour, so it cannot be invisible on either background. This
+replaces \code{30}, plain black, whose worst case was 1.00 -- it
+disappeared completely on a dark theme.}
+\item{\code{ansi_bold} (\code{1})}{The opening and closing lines.}
+\item{\code{ansi_note} (\code{1;38;5;30})}{Bold teal, for the
+retrodiction notice. Distinguished by weight rather than a second hue:
+viridis is a sequential palette with no categorical warning slot, and the
+band that survives both backgrounds is too narrow to carry two hues a
+reader could tell apart.}
+}
+
+A terminal that understands none of this prints the escapes literally,
+which is why all of it is behind \code{verbose}. One that ignores
+\code{2} renders normal weight, which is harmless.
+
+The dots in \code{walking_colordots()} are always dim. That is deliberate:
+the eye should follow the \dQuote{Done} markers down the transcript, not
+the filler between them, so \code{color_code} sets the color of
+\dQuote{Done} and leaves the dots faint.
+
+\code{delay} exists to make the animation legible, so these functions are
+slower than the work they report on when \code{n} is large. They are not on
+any path that runs per boosting round.
 }
 \examples{
 # Example usage:
 \dontrun{walking_dots(n = 5, delay = 0.1)}
 
 # Example usage:
-\dontrun{color_message("A green message", color_code = 32)}
+\dontrun{color_message("A teal message", color_code = ansi_teal)}
 
 # Example usage:
-\dontrun{walking_colordots(n = 4, delay = 0.15, color_code = 34)}
+\dontrun{walking_colordots(n = 4, delay = 0.15, color_code = ansi_bold)}
 
 }
+\keyword{internal}
