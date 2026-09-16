@@ -322,8 +322,6 @@ for them.
 Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). Then, in Iteration 1, the ML 1 project is used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding the distribution of performance estimates across projects. A measure such as the mean can then be used to summarize the distribution with a point estimate. Note, however, that the distribution provides the richer picture of the validation process.
 
 ```{r figure-1}
-# Visualize
-# Note: one iteration per project, read off the grouping variable itself
 tutplot_lpocv(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
 ```
 
