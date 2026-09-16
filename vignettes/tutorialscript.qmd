@@ -317,6 +317,32 @@ which is why the sets themselves travel with the package rather than the recipe
 for them.
 :::
 
+#### Figure 1 [NEW]
+
+Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). Then, in Iteration 1, the ML 1 project is used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding the distribution of performance estimates across projects. A measure such as the mean can then be used to summarize the distribution with a point estimate. Note, however, that the distribution provides the richer picture of the validation process.
+
+```{r figure-1}
+# Visualize
+# Note: one iteration per project, read off the grouping variable itself
+tutplot_lpocv(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
+```
+
+Remove 1b?
+
+```{r figure-1b}
+tutplot_lpocv(
+  df$pid,
+  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"),
+  proportional = FALSE
+)
+```
+
+The block heights are each project's share of the data, which is worth looking
+at before you read the folds as five comparable estimates. RPP is 59% of the
+rows, so its iteration trains on 62 studies and tests on 90 -- more held out
+than kept. Pass `proportional = FALSE` for equal blocks, and `levels` fixes the
+order: without it the projects come out alphabetically.
+
 # Module 2: Classification Stumps
 
 #### Listing 11
@@ -531,8 +557,10 @@ weights from a uniform distribution.
 
 Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the \texttt{extra} argument of the \texttt{rpart.plot()} function with a value set to \texttt{100}.
 
-**Note**: Its not another p_value.o anymore in the tutorial but power.o < 0.6358
 
+:::{ .callout-note}
+The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.6358)
+:::
 
 ```{r listing-16}
 # For reproducibility
@@ -1097,121 +1125,6 @@ Keilwagen). Specifically, `auprc()` wraps `pr.curve()`. The wrapper exists so th
 
 ## Leave-Project-Out Cross-Validation
 
-Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). Then, in Iteration 1, the ML 1 project is used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding the distribution of performance estimates across projects. A measure such as the mean can then be used to summarize the distribution with a point estimate. Note, however, that the distribution provides the richer picture of the validation process.
-
-This diagram is drawn in the manuscript rather than produced from R, so its
-LaTeX source is kept here. The block is not executed.
-
-```tex
-\begin{tikzpicture}[
-    every node/.style={font=\normalsize},
-]
-
-% Styles
-\tikzset{
-    baseblock/.style={
-        draw,
-        minimum height=1.1cm,
-        minimum width=1.9cm,
-        text=black,
-        font=\scriptsize
-    },
-    datanode/.style={
-        baseblock,
-        fill={backcolour},
-        align=center,
-        minimum height=5.9cm
-    },
-    testnode/.style={
-        baseblock,
-        fill={rgb,255:red,68; green,1; blue,84},
-        text=white,
-    },
-    trainnode/.style={
-        baseblock,
-        fill={rgb,255:red,217; green,204; blue,220}
-    },
-    performnode/.style={
-        baseblock,
-        fill={rgb,255:red,33; green,144; blue,140},
-        text=white,
-        align=center,
-    },
-    iterationblock/.style={
-        baseblock,
-        fill={backcolour},
-    },
-    averageblock/.style={
-        baseblock,
-        fill={rgb,255:red,33; green,144; blue,140},
-        text=white,
-        align=center,
-        minimum width=9.9cm,
-        minimum height=1.1cm,
-    }
-}
-
-% Left labels
-\node[datanode] (data) at (-2, -2.4) {Data};
-\node[iterationblock] (ml1)   at (0,  0) {ML1};
-\node[iterationblock] (rpp)   at (0, -1.2) {RPP};
-\node[iterationblock] (ml3)   at (0, -2.4) {ML3};
-\node[iterationblock] (eerp)  at (0, -3.6) {EERP};
-\node[iterationblock] (ssrp)  at (0, -4.8) {SSRP};
-
-% Iteration headers
-\node[iterationblock] (it1) at (2, 1.2) {Iteration 1};
-\node[iterationblock] (it2) at (4, 1.2) {Iteration 2};
-\node[iterationblock] (it3) at (6, 1.2) {Iteration 3};
-\node[iterationblock] (it4) at (8, 1.2) {Iteration 4};
-\node[iterationblock] (it5) at (10, 1.2) {Iteration 5};
-
-% Iteration 1
-\node[testnode]      (a) at (2, 0)   {Test};
-\node[trainnode]     (b) at (2, -1.2) {Training};
-\node[trainnode]     (c) at (2, -2.4) {Training};
-\node[trainnode]     (d) at (2, -3.6) {Training};
-\node[trainnode]     (e) at (2, -4.8) {Training};
-\node[performnode]   (p1) at (2, -6) {\shortstack{Performance\\ML1}};
-
-% Iteration 2
-\node[trainnode]     (f) at (4, 0)   {Training};
-\node[testnode]      (g) at (4, -1.2) {Test};
-\node[trainnode]     (h) at (4, -2.4) {Training};
-\node[trainnode]     (i) at (4, -3.6) {Training};
-\node[trainnode]     (j) at (4, -4.8) {Training};
-\node[performnode]   (p2) at (4, -6) {\shortstack{Performance\\RPP}};
-
-% Iteration 3
-\node[trainnode]     (k) at (6, 0)   {Training};
-\node[trainnode]     (l) at (6, -1.2) {Training};
-\node[testnode]      (m) at (6, -2.4) {Test};
-\node[trainnode]     (n) at (6, -3.6) {Training};
-\node[trainnode]     (o) at (6, -4.8) {Training};
-\node[performnode]   (p3) at (6, -6) {\shortstack{Performance\\ML3}};
-
-% Iteration 4
-\node[trainnode]     (q) at (8, 0)   {Training};
-\node[trainnode]     (r) at (8, -1.2) {Training};
-\node[trainnode]     (s) at (8, -2.4) {Training};
-\node[testnode]      (t) at (8, -3.6) {Test};
-\node[trainnode]     (u) at (8, -4.8) {Training};
-\node[performnode]   (p4) at (8, -6) {\shortstack{Performance\\EERP}};
-
-% Iteration 5
-\node[trainnode]     (v) at (10, 0)   {Training};
-\node[trainnode]     (w) at (10, -1.2) {Training};
-\node[trainnode]     (x) at (10, -2.4) {Training};
-\node[trainnode]     (y) at (10, -3.6) {Training};
-\node[testnode]      (z) at (10, -4.8) {Test};
-\node[performnode]   (p5) at (10, -6) {\shortstack{Performance\\SSRP}};
-
-% Average performance block
-\node[averageblock]  (avg) at (6, -7.2) {Average performance};
-
-\end{tikzpicture}
-```
-
 #### Listing 32
 
 Code to do a leave-project-out cross-validation.
@@ -1289,6 +1202,8 @@ hgrid <- expand.grid(
 
 Code to do hyperparameter optimization using a leave-project-out
 cross-validation strategy.
+
+**TODO** Random grid search!
 
 ::: {.callout-note}
 This ran for approximately 3 minutes on our laptops.
@@ -1598,7 +1513,7 @@ several of those mislead, and one was actively wrong until it was fixed.
 
 | label | file | float | produced by | geometry |
 |:--|:--|:--|:--|:--|
-| `fig:lpocv` | none -- TikZ, above | `figure*` | not from R | -- |
+| `fig:lpocv` | `ext/lpocv` | `figure*` | Figure 1, `tutplot_lpocv(df$pid)` | full |
 | `fig:cstump` | `ext/cstump` | `figure` | Figure 2, `rpart.plot(h)`, **two features** | column |
 | `fig:dboundstump` | `ext/dboundstump` | `figure*` | Figure 3, `tutplot_boundary(h_int)` | full |
 | `fig:gini` | `ext/gini` | `figure` | Figure 4, the Gini curve | column |
@@ -1608,9 +1523,9 @@ several of those mislead, and one was actively wrong until it was fixed.
 | `fig:weightone` | `ext/weightone` | `figure` | Figure 8 | column |
 | `fig:dboundada` | `ext/dboundada` | `figure*` | Figure 9, `tutplot_boundary(ada_int)` | full |
 
-Only the six single-column files and the two `figure*` files come from R. The
-LPO-CV diagram is drawn in the manuscript, which is why its source sits in this
-vignette rather than in a chunk.
+Every file now comes from R: six single-column and three `figure*`. The LPO-CV
+diagram used to be TikZ drawn in the manuscript, which is why its LaTeX source
+still sits in this vignette -- kept for reference, not executed.
 
 ## Four things found while establishing that map
 
