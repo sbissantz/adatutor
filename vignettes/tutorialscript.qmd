@@ -263,6 +263,14 @@ positions with `sample.int()` instead and cannot do this, which is the reason to
 reach for a maintained implementation -- this one or `rsample`'s -- once you are
 past the tutorial's own data.
 
+#### Figure 1 [NEW]
+
+Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). In Iteration 1, the ML 1 project is then used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out or test data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding a distribution of five performance estimates. It might be tempting to summarize the distribution with a point estimates, but keep in mind that the distribution always provides the richer picture of the validation process.
+
+```{r figure-1}
+tutplot_lpocv(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
+```
+
 #### Listing 10
 
 Code to do a 70/30 random and stratified split, with the rsample package.
@@ -316,30 +324,6 @@ come out as described. Setting a seed would not be enough on its own: R changed
 which is why the sets themselves travel with the package rather than the recipe
 for them.
 :::
-
-#### Figure 1 [NEW]
-
-Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). Then, in Iteration 1, the ML 1 project is used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding the distribution of performance estimates across projects. A measure such as the mean can then be used to summarize the distribution with a point estimate. Note, however, that the distribution provides the richer picture of the validation process.
-
-```{r figure-1}
-tutplot_lpocv(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
-```
-
-Remove 1b?
-
-```{r figure-1b}
-tutplot_lpocv(
-  df$pid,
-  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"),
-  proportional = FALSE
-)
-```
-
-The block heights are each project's share of the data, which is worth looking
-at before you read the folds as five comparable estimates. RPP is 59% of the
-rows, so its iteration trains on 62 studies and tests on 90 -- more held out
-than kept. Pass `proportional = FALSE` for equal blocks, and `levels` fixes the
-order: without it the projects come out alphabetically.
 
 # Module 2: Classification Stumps
 
@@ -423,8 +407,8 @@ Visualization of the decision boundary of a classification stump. The predictor 
 tutplot_boundary(
   h_int,
   data = train,
-  xlab = "Power (original study)",
-  ylab = "Sample size (original study)"
+  xlab = "Power (Original Study)",
+  ylab = "Sample Size (Original Study)"
 )
 ```
 
@@ -546,7 +530,6 @@ Visualization of a classification stump fitted with normalized random weights. N
 # Visualize
 tutplot_cstump(cstump, extra = 100)
 ```
-
 
 #### Listing 16
 
@@ -988,8 +971,8 @@ ada_int <- adaboost(
 tutplot_boundary(
   ada_int,
   data = train,
-  xlab = "Power (original study)",
-  ylab = "Sample size (original study)"
+  xlab = "Power (Original Study)",
+  ylab = "Sample Size (Original Study)"
 )
 ```
 
