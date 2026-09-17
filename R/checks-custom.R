@@ -208,7 +208,7 @@ check_train <- function(
   # mid-word is exactly what a reader skims past.
   body <- c(
     lead,
-    "  Outpus are retrodictions, not predictions."
+    "  Outputs are retrodictions, not predictions."
   )
 
   if (verbose) {
@@ -216,8 +216,8 @@ check_train <- function(
     # plain message would read as one more step rather than a caveat on all of
     # them. The leading blank line separates it from the run it follows.
     color_message(
-      paste0(paste(body, collapse = "\n"), "\n"),
-      color_code = 33
+      paste0(body, "\n"),
+      color_code = ansi_note
     )
   } else {
     message(paste(body, collapse = "\n"))
@@ -234,7 +234,10 @@ check_train <- function(
 #' \dontrun{check_prop(0)}  # Issues a warning
 #'
 check_prop <- function(x) {
-  if (x < 0 | x > 1) {
+  # Vectorised: `partition()` takes one proportion per set, so a length-one
+  # test would error with "the condition has length > 1" rather than saying
+  # what is wrong.
+  if (any(x < 0 | x > 1)) {
     msg <- paste0(
       "Specified proportion ",
       "`",
@@ -243,7 +246,9 @@ check_prop <- function(x) {
     )
     stop(msg, call. = FALSE)
   }
-  if (x == 0 | x == 1) {
+  # Only for a single proportion. With several, a zero is a deliberate empty
+  # set and stays silent -- see `partition()`.
+  if (length(x) == 1L && (x == 0 | x == 1)) {
     msg <- paste0(
       "Specified proportion ",
       "`",
