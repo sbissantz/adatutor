@@ -1,0 +1,44 @@
+#' @title Stratified 70/15/15 split of the Altmejd data
+#'
+#' @description The training, validation and test sets the tutorial works
+#'   through, shipped so a reader's numbers match the ones in the text. Produced
+#'   by \code{data-raw/altmejd-splits.R}, which builds them with the single
+#'   \code{\link[adatutor]{partition}} call Listings 7 to 9 work up to.
+#'
+#' @details A seed is not enough to pin a split. R changed \code{sample()} in
+#'   3.6.0 and every seeded split in the wild moved with it, so the sets
+#'   themselves are shipped rather than the recipe for them.
+#'
+#'   Module 1 teaches the splitting, and a reader following it will build these
+#'   from scratch. These objects are for afterwards: load them from Module 2
+#'   onward and the stumps, weights and figures come out as the text describes.
+#'
+#'   \code{$train} is the set every later module fits on, and \code{$test} the
+#'   one Module 3 evaluates against. \code{$valid} is created by the 70/15/15
+#'   split and then left alone -- the tutorial never needs it, and it is here so
+#'   the third part of the split is not silently missing. The three travel as
+#'   one object so they cannot be loaded apart: a reader who took the training
+#'   set and cut their own test set would get Module 3 numbers that disagree
+#'   with the text, with nothing to say why.
+#'
+#'   The split is stratified on \code{replicate}, so the share of replication
+#'   successes stays near the .447 of the whole data set: .449, .435 and .455
+#'   respectively. It is also the split the manuscript's Module 2 figures were
+#'   made from. The depth-one tree on the two reviewer metrics cuts
+#'   \code{power.o} at 0.9305 into leaves of 66 and 41;
+#'   \code{data-raw/altmejd-splits.R} asserts that, the three set sizes and the
+#'   stratification, so a future change in R or in \code{partition()} fails
+#'   loudly instead of quietly shipping a different split.
+#'
+#' @format A list of three data frames with the columns of
+#'   \code{\link[adatutor]{altmejd}}: 107 study effects in \code{$train}, 23 in
+#'   \code{$valid} and 22 in \code{$test}.
+#'
+#' @seealso \code{\link[adatutor]{altmejd}},
+#'   \code{\link[adatutor]{partition}}
+#'
+#' @name altmejd_splits
+#'
+#' @docType data
+#'
+NULL
