@@ -345,7 +345,7 @@ table(train$replicate[!splitcond])
 
 #### Figure 2
 
-Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62\% of the training data and the right leaf node contains about 38\%. The label in each node (\enquote{success}, \enquote{failure}) represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
+Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62% of the training data and the right leaf node contains about 38%. The label in each node ("success", "failure") represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
 
 ```{r figure-2}
 # Fit classification stump
@@ -536,8 +536,7 @@ tutplot_cstump(cstump, extra = 100)
 Code to show the sensitivity to observation weights by using normalized random
 weights from a uniform distribution.
 
-Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the \texttt{extra} argument of the \texttt{rpart.plot()} function with a value set to \texttt{100}.
-
+Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the `extra` argument of the `rpart.plot()` function with a value set to `100`.
 
 :::{ .callout-note}
 The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.6358)
@@ -667,7 +666,7 @@ alpha1 <- 1 / 2 * log(perf / epsilon) * eta
 
 #### Figure 6
 
-Visualization of how the importance of a classification stump ($\alpha_t$) varies with its performance ($1-\epsilon_t$). Overall, the better the performance of a stump, the higher its weight. Put another way, the lower a stump's error ($\epsilon_t$), the higher its importance ($a_t$). The boosting hyperparameter ($\eta$) allows to further attenuate the weight of a classification stump. This could later help to improve the predictive performance of AdaBoost (see Module~4).
+Visualization of how the importance of a classification stump ($\alpha_t$) varies with its performance ($1-\epsilon_t$). Overall, the better the performance of a stump, the higher its weight. Put another way, the lower a stump's error ($\epsilon_t$), the higher its importance ($a_t$). The boosting hyperparameter ($\eta$) allows to further attenuate the weight of a classification stump. This could later help to improve the predictive performance of AdaBoost (see Module 4).
 
 ```{r figure-6}
 # Learning rates
@@ -718,7 +717,7 @@ tutplot_updatefactor(
 
 #### Figure 8
 
-Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the \texttt{altmejd} dataset. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
+Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the `altmejd` dataset. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
 
 ```{r figure-8}
 # Visualize
