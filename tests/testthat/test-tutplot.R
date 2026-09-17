@@ -827,3 +827,38 @@ test_that("tut_ink() picks readable text for both ends of viridis", {
   expect_identical(tut_ink(pal[5]), "grey15")
   expect_identical(tut_ink(c("#440154", "#FDE725")), c("white", "grey15"))
 })
+
+test_that("axis labels are title case, as APA asks", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  f <- tempfile(fileext = ".pdf")
+  g <- tempfile(fileext = ".pdf")
+  on.exit(unlink(c(f, g)), add = TRUE)
+
+  txt <- function(p) paste(system2("pdftotext", c(p, "-"), stdout = TRUE),
+                           collapse = " ")
+
+  # the labels are literals inside the drawing code, not defaults, so
+  # `formals()` cannot see them -- assert on what is actually drawn
+  tutplot_updatefactor(file = f)
+  expect_match(txt(f), "Weight Update Factor")
+  expect_no_match(txt(f), "Weight update factor")
+
+  tutplot_weightone(file = g)
+  expect_match(txt(g), "Data Point")
+  expect_no_match(txt(g), "Data point")
+})
+
+test_that("tutplot_lpocv() leaves the figure's title to the caption", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  f <- tempfile(fileext = ".pdf")
+  on.exit(unlink(f), add = TRUE)
+
+  tutplot_lpocv(altmejd$pid, file = f)
+  out <- paste(system2("pdftotext", c(f, "-"), stdout = TRUE), collapse = " ")
+
+  # the axis label and the column headers stay
+  expect_match(out, "Data")
+  expect_match(out, "Iteration 1")
+  # the in-panel title does not: it duplicated the numbered caption
+  expect_no_match(out, "Leave-Project-Out Cross-Validation")
+})
