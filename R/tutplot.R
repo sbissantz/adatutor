@@ -313,7 +313,7 @@ tutplot_updatefactor <- function(
     xlim = c(-1, 1),
     ylim = ylim,
     xlab = "Classification",
-    ylab = "Weight update factor",
+    ylab = "Weight Update Factor",
     xaxt = "n"
   )
   graphics::grid()
@@ -608,7 +608,7 @@ tutplot_weightone <- function(
     ylim,
     type = "n",
     xaxt = "n",
-    xlab = "Data point",
+    xlab = "Data Point",
     ylab = "Weight"
   )
   # the band goes behind everything: misclassification belongs to the data
@@ -735,7 +735,9 @@ tutplot_lpocv <- function(
   y1 <- 1 - edge[-(k + 1)]
   pal <- viridisLite::viridis(k, end = 0.92)
 
-  op <- graphics::par(mar = c(1.5, 2.0, 1.3, 0.3))
+  # no bottom label: the numbered caption names the figure, and the column
+  # headers already say which iteration is which
+  op <- graphics::par(mar = c(0.4, 2.0, 1.3, 0.3))
   on.exit(graphics::par(op), add = TRUE)
   plot(
     NULL,
@@ -761,7 +763,8 @@ tutplot_lpocv <- function(
   # is what lets the smallest project stay on the figure at all
   fits <- function(i) (y1[i] - y0[i]) > 0.055
 
-  graphics::mtext("Data", side = 2, line = 0.7, cex = 0.72, col = "grey25")
+  graphics::mtext("Dataset", side = 2, line = 0.7, cex = 0.72,
+                  col = "grey25")
   for (i in seq_len(k)) {
     tut_roundrect(
       -0.58,
@@ -829,13 +832,5 @@ tutplot_lpocv <- function(
       cex = 0.62
     )
   }
-  graphics::mtext(
-    "Leave-Project-Out Cross-Validation",
-    side = 1,
-    line = 0.2,
-    cex = 0.76,
-    col = "grey25"
-  )
-
   invisible(list(n = n, k = k, levels = levels, heights = h))
 }
