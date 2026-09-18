@@ -117,6 +117,10 @@ adaboost <- function(
   if (verbose) {
     on.exit(
       {
+        # whatever happens, stop the bar's colour leaking past this call
+        if (!is.null(pb)) {
+          cat("\033[0m", file = stderr())
+        }
         if (!finish) {
           # closing the bar breaks the line; without one, do it directly
           if (!is.null(pb)) close(pb) else message("")
@@ -129,14 +133,14 @@ adaboost <- function(
   if (verbose) {
     color_message(
       "Start the AdaBoost training process:\n",
-      color_code = 1,
+      color_code = ansi_bold,
       newline = TRUE
     )
   }
 
   if (input_checks) {
     if (verbose) {
-      color_message("Run mild input checks", color_code = 30)
+      color_message("Run mild input checks", color_code = ansi_dim)
     }
     check_df(data)
     check_length(data)
@@ -146,7 +150,7 @@ adaboost <- function(
   }
 
   if (verbose) {
-    color_message("Start the initialization process", color_code = 30)
+    color_message("Start the initialization process", color_code = ansi_dim)
   }
 
   # Set fast default control parameters for rpart. cp stays at rpart's own
@@ -186,10 +190,17 @@ adaboost <- function(
     walking_colordots()
     color_message(
       "Steps 1-4: Run through the algorithm steps\n",
-      color_code = 30
+      color_code = ansi_dim
     )
     # stderr, like every other piece of progress here: txtProgressBar writes to
-    # stdout by default, which would put the bar in with the results
+    # stdout by default, which would put the bar in with the results.
+    #
+    # It emits no escape codes of its own, so as *uncoloured* stderr it inherits
+    # whatever the console paints that -- red, in RStudio. Opening a colour
+    # before it and resetting after makes it filler like the dots instead. The
+    # reset is in on.exit() above, so an error mid-loop cannot leave the colour
+    # bleeding into everything that follows.
+    message("\033[", ansi_dim, "m", appendLF = FALSE)
     pb <- utils::txtProgressBar(
       min = 0,
       max = T,
@@ -245,11 +256,11 @@ adaboost <- function(
 
   if (verbose) {
     close(pb)
-    color_message("Create output", color_code = 30)
+    color_message("Create output", color_code = ansi_dim)
     walking_colordots()
     color_message(
       "Training process successfully completed.\n",
-      color_code = 1,
+      color_code = ansi_bold,
       newline = TRUE
     )
   }
@@ -390,11 +401,11 @@ predict.adaboost <- function(
   }
 
   if (verbose) {
-    color_message("Start the AdaBoost test process:\n", color_code = 1)
+    color_message("Start the AdaBoost test process:\n", color_code = ansi_bold)
   }
   if (input_checks) {
     if (verbose) {
-      color_message("Run mild input checks", color_code = 30)
+      color_message("Run mild input checks", color_code = ansi_dim)
     }
     check_list(object)
     check_length(object)
@@ -405,20 +416,20 @@ predict.adaboost <- function(
     walking_colordots()
   }
   if (verbose) {
-    color_message("Extract the trees", color_code = 30)
+    color_message("Extract the trees", color_code = ansi_dim)
     walking_colordots()
   }
   h <- lapply(object, "[[", "h")
   check_length(h)
   if (verbose) {
-    color_message("Extract the model weights", color_code = 30)
+    color_message("Extract the model weights", color_code = ansi_dim)
     walking_colordots()
   }
   a <- vapply(object, "[[", numeric(1), "a")
   check_length(a)
 
   if (verbose) {
-    color_message(paste0("Make ", noun, "\n"), color_code = 30)
+    color_message(paste0("Make ", noun, "\n"), color_code = ansi_dim)
   }
 
   # Define expected N for vapply
@@ -438,7 +449,7 @@ predict.adaboost <- function(
   )
 
   if (verbose) {
-    color_message(paste0("Combine ", noun), color_code = 30)
+    color_message(paste0("Combine ", noun), color_code = ansi_dim)
   }
 
   ypred_stumps <- 2 * y12_stumps - 3
@@ -450,7 +461,10 @@ predict.adaboost <- function(
 
   if (verbose) {
     walking_colordots()
-    color_message("Test process successfully completed.\n", color_code = 1)
+    color_message(
+      "Test process successfully completed.\n",
+      color_code = ansi_bold
+    )
   }
 
   # Last, not first: a transcript scrolls, and nobody reads upwards. At the end
