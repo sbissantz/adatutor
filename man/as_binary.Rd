@@ -39,6 +39,6 @@ bug this package exists to warn about.
 
 This lives here rather than beside any one caller because four files use it:
 \code{\link[adatutor]{assess}}, \code{\link[adatutor]{lpocv}},
-\code{\link[adatutor]{bootCI}} and \code{\link[adatutor]{plot_adabound}}.
+\code{\link[adatutor]{bootCI}} and \code{\link[adatutor]{tutplot_boundary}}.
 }
 \keyword{internal}
