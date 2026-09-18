@@ -24,12 +24,12 @@
 #'
 #'   \strong{One figure sets its own margins.} Every function here shares the
 #'   margins in \code{\link[adatutor]{tutplot_opts}} except
-#'   \code{tutplot_boundary()}, which leaves them to
-#'   \code{\link[adatutor]{plot_adabound}}. That function computes its top
-#'   margin from what it actually draws -- a legend, a sub-title and a title are
-#'   each paid for only if present -- so imposing a fixed \code{mar} would
-#'   either crop the legend or leave a gap above it. It is also the only figure
-#'   at the manuscript's full text width rather than one column.
+#'   \code{\link[adatutor]{tutplot_boundary}}, which computes its top margin
+#'   from what it actually draws -- a legend, a sub-title and a title are each
+#'   paid for only if present -- so imposing a fixed \code{mar} would either
+#'   crop the legend or leave a gap above it. It is also the only figure at the
+#'   manuscript's full text width rather than one column, which is why it is
+#'   documented on a page of its own.
 #'
 #'   \strong{Weights come from the fit.} A fitted \code{rpart} object already
 #'   carries the observation weights it was built with, and neither
@@ -39,9 +39,7 @@
 #'   passing weights alongside it.
 #'
 #' @param fit A fitted model. \code{tutplot_cstump()} draws a tree, so it takes
-#'   an \code{\link[rpart]{rpart}} stump only. \code{tutplot_boundary()} draws
-#'   a decision boundary, which either learner has, so it takes an
-#'   \code{rpart} tree or an ensemble from \code{\link[adatutor]{adaboost}}.
+#'   an \code{\link[rpart]{rpart}} stump only.
 #'
 #' @param extra Node annotation, passed to \code{rpart.plot::rpart.plot()}. The
 #'   manuscript uses \code{102} for \code{fig:cstump} and the simplified
@@ -108,22 +106,6 @@
 #'
 #' @param scaling Bubble size multiplier.
 #'
-#' @param data The data frame behind a decision boundary: it sets the plotting
-#'   range and supplies the points drawn on top. Required, and required for both
-#'   learners -- an ensemble does carry its training data, but an \code{rpart}
-#'   tree carries none, and a default that worked for only one of the two
-#'   figures would be worse than no default.
-#'
-#' @param shade,xlab,ylab,... Passed to
-#'   \code{\link[adatutor]{plot_adabound}}. \code{shade} defaults to
-#'   \code{"margin"} here rather than to that function's own \code{"class"},
-#'   because both printed boundaries are shaded by the score: it is what makes
-#'   the stump's two flat blocks and the ensemble's many-valued surface
-#'   comparable. The axis labels default to \code{NULL}, which draws the
-#'   feature names; the manuscript's wording is passed at the call site rather
-#'   than baked in, so plotting a different pair of features cannot mislabel
-#'   the axes.
-#'
 #' @param group One project label per row of the data, as
 #'   \code{\link[adatutor]{lpocv}} takes it. \code{tutplot_lpocv()} derives
 #'   everything from it: one iteration per project, and the block sizes from
@@ -149,10 +131,7 @@
 #'   cutpoint and the leaf sizes; \code{tutplot_gini()} returns the curve it
 #'   drew and the proportion at which impurity peaks;
 #'   \code{tutplot_lpocv()} returns the project sizes, their count, the order
-#'   drawn and the row heights;
-#'   \code{tutplot_boundary()} passes on \code{plot_adabound()}'s grid -- the
-#'   two axis sequences, the matrix of scores and the feature names -- so the
-#'   surface can be inspected without redrawing it.
+#'   drawn and the row heights.
 #'
 #' @examples
 #' data(altmejd_splits)
@@ -179,10 +158,8 @@
 #' folds <- tutplot_lpocv(altmejd$pid)
 #' folds$n
 #'
-#' # Figure 3: that same stump's decision boundary. `resolution` is passed
-#' # through to plot_adabound(); the printed figure uses its default of 150
-#' grid <- tutplot_boundary(h, train, resolution = 60)
-#' grid$features
+#' @seealso \code{\link[adatutor]{tutplot_boundary}} for Figures 3 and 9, which
+#'   set their own margins and so are documented separately.
 #'
 #' @name tutplot
 #' @keywords internal
@@ -659,12 +636,170 @@ tutplot_weightone <- function(
   invisible(list(d1 = d1, d2 = d2, chi = chi, wrong = wrong, n = n))
 }
 
-#' @rdname tutplot
+#' @title Plot a Two-Feature Decision Boundary
+#'
+#' @description Draws the region each class is assigned to over a grid of two
+#'   features, with the boundary between them and the observed data on top.
+#'   Takes either a single \code{rpart} tree or an ensemble from
+#'   \code{\link[adatutor]{adaboost}} -- the two learners this package builds,
+#'   which is why the name says so rather than promising to plot any model.
+#'   This is the manuscript's Figure 3 and Figure 9: the same call, a stump in
+#'   one and a thousand-round ensemble in the other.
+#'
+#' @details
+#' \strong{The boundary is drawn from a continuous score, not from class
+#' labels.} Both learners are reduced to a signed quantity whose zero \emph{is}
+#' the boundary -- the margin for an ensemble, the fitted probability minus one
+#' half for a tree -- and the line is that quantity's zero contour. Contouring
+#' hard class labels instead gives a staircase whose fineness depends entirely
+#' on the grid, which is the usual reason such plots are drawn at punishing
+#' resolutions. Interpolating a continuous score needs far fewer points for a
+#' smoother line: on the tutorial's own ensemble, \code{resolution = 120} on the
+#' margin beats \code{resolution = 400} on labels.
+#'
+#' That is why the default is 150. Cost grows with the square: a 1000 x 1000
+#' grid is a million predictions, and for 500 trees
+#' \code{\link[=predict.adaboost]{predict()}} would build a 3.7 GB matrix to
+#' hold them.
+#'
+#' \strong{Two ways to shade.} \code{shade = "class"} tints each side in a flat
+#' colour: which class, and nothing more. \code{shade = "margin"} shows what
+#' that discards, because the model computes a continuous score and then throws
+#' away everything but its sign. The whole viridis scale is laid over the score
+#' and centred on zero, so the two classes occupy its ends and its middle falls
+#' exactly where the model has no strong vote: uncertainty reads as a colour of
+#' its own rather than as an absence of one. The studies are drawn at full
+#' strength on top, so they stay the most saturated thing on the panel.
+#'
+#' The default here is \code{"margin"}, because both printed boundaries are
+#' shaded by the score: it is what makes the stump's two flat blocks and the
+#' ensemble's many-valued surface comparable.
+#'
+#' \strong{What the ends of the scale mean.} They depend on how far the score
+#' can reach, and the two model types differ. A tree's score is a probability
+#' offset, bounded to \code{[-0.5, 0.5]}, so the scale is anchored there and a
+#' region's colour has a fixed reading: a stump splitting .26 / .76 shows two
+#' moderate tones, because that is what it is. Stretching such a score to fill
+#' the ramp would paint a hesitant model as a confident one, and would paint it
+#' identically whether it split .26 / .76 or .02 / .98. A boosted margin has no
+#' such bound -- its range depends on \code{T} and \code{eta} -- so there the
+#' scale still takes the observed maximum, and colours are comparable within a
+#' plot but not across two.
+#'
+#' A depth-1 stump has one split, so its score takes exactly two values and the
+#' panel is two flat blocks. That is the model, not a limitation of the plot:
+#' the number of distinct shades is the number of leaves. Set against a boosted
+#' ensemble, whose margin takes hundreds of values over the same grid, the
+#' contrast is the clearest picture of what boosting buys.
+#'
+#' \strong{This figure sets its own margins.} The other six figures share the
+#' margins in \code{\link[adatutor]{tutplot_opts}}; this one computes its top
+#' margin from what it actually draws -- a legend, a sub-title and a title are
+#' each paid for only if present -- so a fixed \code{mar} would either crop the
+#' legend or leave a gap above it. It is also the only figure drawn at the
+#' manuscript's full text width rather than one column.
+#'
+#' @param fit A fitted model: an \code{rpart} object, or the list returned by
+#'   \code{\link[adatutor]{adaboost}}.
+#'
+#' @param data A data frame holding the two features and the outcome. Sets the
+#'   plotting range and supplies the points. Required for both learners -- an
+#'   ensemble does carry its training data, but an \code{rpart} tree carries
+#'   none, and a default that worked for only one of the two figures would be
+#'   worse than no default.
+#'
+#' @param features A character vector naming the two features. The default
+#'   \code{NULL} uses the model's predictors when there are exactly two, and is
+#'   an error otherwise: with three or more there is no way to know which pair
+#'   the reader should see, and the rest would sit at some arbitrary value.
+#'
+#' @param shade Either \code{"margin"} (the default) or \code{"class"}. See
+#'   Details.
+#'
+#' @param resolution Grid points per axis. Defaults to 150.
+#'
+#' @param palette Two colours, for the negative and positive class. Defaults to
+#'   \code{viridisLite::viridis(2)}.
+#'
+#' @param alpha Opacity of the region fill. Defaults to 0.18 for
+#'   \code{shade = "class"}, where a flat tint only has to hint at which side is
+#'   which, and 0.65 for \code{shade = "margin"}, where the ramp has to be read.
+#'
+#' @param show_points Whether to draw the observed data. Defaults to
+#'   \code{TRUE}.
+#'
+#' @param legend_pos Where to put the class legend. The default \code{"top"}
+#'   centres it in the margin \emph{above} the panel, where it cannot cover a
+#'   study; any other keyword accepted by \code{\link[graphics]{legend}} places
+#'   it inside instead. \code{NULL} omits it.
+#'
+#' @param colorbar Whether \code{shade = "margin"} draws the scale strip. It
+#'   takes the legend's place rather than sitting alongside it: the ramp's two
+#'   ends are the two classes, so a separate point legend would repeat it.
+#'   Suppressed along with the legend when \code{legend_pos} is \code{NULL}.
+#'   Defaults to \code{TRUE}.
+#'
+#' @param main,subtitle Optional title and grey sub-title, both left-aligned
+#'   above the panel. Both default to \code{NULL} and draw nothing, since a
+#'   figure in a paper takes its title from the caption.
+#'
+#' @param xlab,ylab Axis labels. Default to \code{NULL}, which draws the feature
+#'   names. The manuscript's wording is passed at the call site rather than
+#'   baked in, so plotting a different pair of features cannot mislabel the
+#'   axes.
+#'
+#' @param file Path to write a PDF to, or \code{NULL} to draw on the current
+#'   device, as in \code{\link[adatutor]{tutplot}}.
+#'
+#' @param width,height,pointsize Passed to \code{grDevices::pdf()}; ignored when
+#'   \code{file} is \code{NULL}. They default to the manuscript's full text
+#'   width.
+#'
+#' @param ... Passed to \code{\link[graphics]{plot}}.
+#'
+#' @return The grid, invisibly: the two axis sequences, the matrix of scores and
+#'   the feature names, so the surface can be inspected or redrawn without
+#'   recomputing it.
+#'
+#' @seealso \code{\link[adatutor]{tutplot}} for the tutorial's other six
+#'   figures.
+#'
+#' @examples
+#' data(altmejd_splits)
+#' train <- altmejd_splits$train
+#'
+#' # Figure 3: the stump of Figure 2, now as the boundary it draws. Two metrics
+#' # only, so the boundary can be drawn in two dimensions
+#' h <- rpart::rpart(
+#'   replicate ~ power.o + n.o,
+#'   data = train,
+#'   method = "class",
+#'   maxdepth = 1
+#' )
+#' grid <- tutplot_boundary(h, train, resolution = 60)
+#' grid$features
+#'
+#' # What the margin shading buys: a stump has one split, so `"class"` and
+#' # `"margin"` differ only in tone here -- run it on Figure 9's ensemble and
+#' # the second becomes a surface
+#' tutplot_boundary(h, train, resolution = 60, shade = "class")
+#'
+#' @keywords internal
+#'
 #' @export
 tutplot_boundary <- function(
   fit,
   data,
+  features = NULL,
   shade = "margin",
+  resolution = 150,
+  palette = NULL,
+  alpha = NULL,
+  show_points = TRUE,
+  legend_pos = "top",
+  colorbar = TRUE,
+  main = NULL,
+  subtitle = NULL,
   xlab = NULL,
   ylab = NULL,
   file = NULL,
@@ -673,22 +808,388 @@ tutplot_boundary <- function(
   pointsize = tutplot_opts$pointsize,
   ...
 ) {
+  # a scalar default, not the usual `c("margin", "class")`: the pair would make
+  # `formals()` report a vector where the documentation promises one string
+  shade <- match.arg(shade, c("class", "margin"))
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
     on.exit(grDevices::dev.off(), add = TRUE)
   }
+  check_df(data)
+  if (resolution < 2L) {
+    stop("`resolution` must be at least 2.", call. = FALSE)
+  }
 
-  # no tut_par() here: plot_adabound() sizes its own top margin from what it
-  # actually draws -- legend, sub-title and title are each paid for or not --
-  # so a fixed `mar` would either crop the legend or leave a gap above it
-  invisible(plot_adabound(
-    fit,
-    data = data,
-    shade = shade,
-    xlab = xlab,
-    ylab = ylab,
+  info <- boundary_terms(fit)
+  preds <- info$predictors
+  if (is.null(features)) {
+    if (length(preds) != 2L) {
+      stop(
+        "`features` must name two columns: this model has ",
+        length(preds),
+        " predictors (",
+        paste(preds, collapse = ", "),
+        "). Pick the two to plot rather than leaving it to be guessed.",
+        call. = FALSE
+      )
+    }
+    features <- preds
+  }
+  if (length(features) != 2L) {
+    stop("`features` must name exactly two columns.", call. = FALSE)
+  }
+  absent <- setdiff(features, names(data))
+  if (length(absent)) {
+    stop(
+      "column(s) not found in `data`: ",
+      paste(absent, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  ax <- function(v) {
+    seq(
+      min(data[[v]], na.rm = TRUE),
+      max(data[[v]], na.rm = TRUE),
+      length.out = resolution
+    )
+  }
+  x1 <- ax(features[1])
+  x2 <- ax(features[2])
+
+  # expand.grid varies its first column fastest, so a matrix with
+  # nrow = length(x1) puts score[i, j] at (x1[i], x2[j]) -- the layout image()
+  # and contour() expect
+  grid <- expand.grid(stats::setNames(list(x1, x2), features))
+  # other predictors, if `features` was given explicitly, sit at their median
+  for (v in setdiff(preds, features)) {
+    grid[[v]] <- stats::median(data[[v]], na.rm = TRUE)
+  }
+  z <- matrix(boundary_score(fit, grid), nrow = resolution)
+
+  if (all(z > 0, na.rm = TRUE) || all(z <= 0, na.rm = TRUE)) {
+    warning(
+      "the model assigns one class over the whole plotting window, so there ",
+      "is no boundary to draw.",
+      call. = FALSE
+    )
+  }
+
+  if (is.null(palette)) {
+    # the two ends of the scale, so the classes are its extremes and nothing
+    # in between is claimed by either
+    palette <- viridisLite::viridis(2)
+  }
+  if (is.null(alpha)) {
+    # a flat tint only has to hint; a ramp has to be read, so it needs weight
+    alpha <- if (shade == "class") 0.18 else 0.65
+  }
+
+  # the legend sits above the panel, with the sub-title and title stacked over
+  # it, so the top margin has to be paid for by whatever is actually drawn
+  top <- 1.0 +
+    (if (!is.null(legend_pos)) 1.9 else 0) +
+    (if (!is.null(subtitle)) 1.2 else 0) +
+    (if (!is.null(main)) 1.4 else 0)
+  old_par <- graphics::par(mar = c(4.4, 4.8, top, 1.4) + 0.1)
+  # ahead of the device close above, so the restore lands on the device whose
+  # margins were changed and not on whatever becomes current after dev.off()
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
+
+  # no box, no default axes: they are drawn below in grey
+  graphics::plot(
+    NULL,
+    xlim = range(x1),
+    ylim = range(x2),
+    axes = FALSE,
+    xlab = "",
+    ylab = "",
     ...
-  ))
+  )
+
+  # useRaster draws one image instead of resolution^2 filled rectangles. Without
+  # it the rasteriser antialiases every shared edge on its own, so wherever an
+  # edge lands mid-pixel a hairline of background shows through -- white seams
+  # across the panel. It also makes the pdf about fourteen times smaller. The
+  # grid from ax() is equally spaced, which is what useRaster requires.
+  if (shade == "class") {
+    graphics::image(
+      x1,
+      x2,
+      (z > 0) * 1,
+      col = grDevices::adjustcolor(palette, alpha.f = alpha),
+      add = TRUE,
+      useRaster = TRUE
+    )
+  } else {
+    # The whole viridis scale, laid over the score and centred on zero. The
+    # classes sit at its two ends, so the middle of the scale is exactly where
+    # the model has no strong vote -- uncertainty is a colour, not an absence
+    # of one.
+    #
+    # how far the ends reach depends on what the score can reach
+    top <- boundary_top(fit, z)
+    nb <- 64L
+    brk <- seq(-top, top, length.out = nb + 1L)
+    ramp <- viridisLite::viridis(nb)
+    # a pure leaf sits exactly on an outer break, which would fall outside the
+    # bins, so nudge the extremes inside
+    eps <- (2 * top) / (2 * nb)
+    zz <- pmin(pmax(z, -top + eps), top - eps)
+    graphics::image(
+      x1,
+      x2,
+      zz,
+      col = grDevices::adjustcolor(ramp, alpha.f = alpha),
+      breaks = brk,
+      add = TRUE,
+      useRaster = TRUE
+    )
+  }
+
+  graphics::contour(
+    x1,
+    x2,
+    z,
+    levels = 0,
+    add = TRUE,
+    drawlabels = FALSE,
+    lwd = 1.6,
+    col = "grey15"
+  )
+
+  graphics::axis(
+    1,
+    col = NA,
+    col.ticks = "grey70",
+    col.axis = "grey30",
+    cex.axis = 0.85
+  )
+  graphics::axis(
+    2,
+    col = NA,
+    col.ticks = "grey70",
+    col.axis = "grey30",
+    cex.axis = 0.85,
+    las = 1
+  )
+  graphics::mtext(
+    if (is.null(xlab)) features[1] else xlab,
+    side = 1,
+    line = 2.7,
+    cex = 0.85,
+    col = "grey30"
+  )
+  graphics::mtext(
+    if (is.null(ylab)) features[2] else ylab,
+    side = 2,
+    line = 3.5,
+    cex = 0.85,
+    col = "grey30"
+  )
+  if (!is.null(main)) {
+    graphics::mtext(
+      main,
+      3,
+      line = top - 1.5,
+      adj = 0,
+      font = 2,
+      cex = 0.95
+    )
+  }
+  if (!is.null(subtitle)) {
+    graphics::mtext(
+      subtitle,
+      3,
+      line = 0.5,
+      adj = 0,
+      cex = 0.78,
+      col = "grey45"
+    )
+  }
+
+  lab <- boundary_labels(data, info$outcome)
+
+  if (show_points && !is.null(lab)) {
+    y <- as_binary(data[[info$outcome]])
+    # full-strength endpoints, ringed for contrast: the studies stay the most
+    # saturated thing on the panel whatever the background is doing
+    stroke <- contrast_stroke(palette)
+    graphics::points(
+      data[[features[1]]],
+      data[[features[2]]],
+      pch = 21,
+      cex = 1.2,
+      lwd = 1.1,
+      col = stroke[y + 1],
+      bg = palette[y + 1]
+    )
+  }
+
+  if (shade == "class" && !is.null(legend_pos) && !is.null(lab)) {
+    args <- list(
+      legend = rev(lab),
+      pch = 21,
+      pt.bg = rev(palette),
+      col = rev(contrast_stroke(palette)),
+      pt.lwd = 1.1,
+      pt.cex = 1.2,
+      bty = "n",
+      cex = 0.8,
+      text.col = "grey25",
+      xpd = NA
+    )
+    if (identical(legend_pos, "top")) {
+      # centred in the margin above the panel, so it never covers a study
+      usr <- graphics::par("usr")
+      args$x <- (usr[1] + usr[2]) / 2
+      args$y <- usr[4] + 0.055 * (usr[4] - usr[3])
+      args$xjust <- 0.5
+      args$yjust <- 0
+      args$horiz <- TRUE
+      # each key takes its own width: `horiz` otherwise pads every column out
+      # to the widest label, which pushes short keys apart for no reason
+      args$text.width <- NA
+      args$x.intersp <- 0.7
+    } else {
+      args$x <- legend_pos
+    }
+    do.call(graphics::legend, args)
+  }
+
+  if (shade == "margin" && isTRUE(colorbar) && !is.null(legend_pos)) {
+    # the ramp's two ends are the two classes, so the bar is the legend --
+    # drawing both would say the same thing twice
+    boundary_colorbar(alpha, lab)
+  }
+
+  invisible(list(x1 = x1, x2 = x2, z = z, features = features))
+}
+
+#' @title Internal Helpers for tutplot_boundary()
+#'
+#' @description Not exported. \code{boundary_terms()} reads predictor and
+#'   outcome names off a fitted model, \code{boundary_score()} reduces either
+#'   supported learner to a signed score whose zero is the boundary,
+#'   \code{boundary_top()} says how far the colour scale should reach, and
+#'   \code{boundary_labels()} recovers the class names for the region labels.
+#'
+#' @param fit,newdata,data,outcome,z Internal arguments; see
+#'   \code{\link[adatutor]{tutplot_boundary}}.
+#'
+#' @return \code{boundary_terms()} returns a list; \code{boundary_score()} a
+#'   numeric vector; \code{boundary_top()} a single number;
+#'   \code{boundary_labels()} a character pair or \code{NULL}.
+#'
+#' @name boundary_helpers
+#'
+#' @keywords internal
+NULL
+
+#' @rdname boundary_helpers
+boundary_terms <- function(fit) {
+  # The formula stored on an ensemble is the one the user typed, so for
+  # `outcome ~ .` it is no help. The fitted trees carry the expanded names.
+  tm <- if (inherits(fit, "rpart")) {
+    fit$terms
+  } else if (is.list(fit) && !is.null(fit[[1]]$h)) {
+    fit[[1]]$h$terms
+  } else {
+    stop(
+      "`fit` must be an rpart object or the output of adaboost().",
+      call. = FALSE
+    )
+  }
+  if (is.null(tm)) {
+    stop(
+      "`fit` carries no model terms to read feature names from.",
+      call. = FALSE
+    )
+  }
+  list(predictors = attr(tm, "term.labels"), outcome = all.vars(tm)[1L])
+}
+
+#' @rdname boundary_helpers
+boundary_score <- function(fit, newdata) {
+  if (inherits(fit, "rpart")) {
+    prob <- stats::predict(fit, newdata = newdata, type = "prob")
+    # distance from the 0.5 cut, so zero is the boundary
+    return(prob[, ncol(prob)] - 0.5)
+  }
+  predict(fit, newdata, type = "margin", verbose = FALSE, input_checks = FALSE)
+}
+
+#' @rdname boundary_helpers
+boundary_top <- function(fit, z) {
+  # A tree's score is a probability offset and cannot leave [-0.5, 0.5], so the
+  # scale is anchored: a region's colour then has a fixed reading, and a stump
+  # splitting .26 / .76 shows as two moderate tones instead of being stretched
+  # to the ends of the ramp. A boosted margin has no such bound -- its range
+  # depends on T and eta -- so it takes the observed maximum.
+  if (inherits(fit, "rpart")) {
+    return(0.5)
+  }
+  max(abs(z), na.rm = TRUE)
+}
+
+#' @rdname boundary_helpers
+boundary_labels <- function(data, outcome) {
+  if (is.null(outcome) || !outcome %in% names(data)) {
+    return(NULL)
+  }
+  v <- data[[outcome]]
+  if (is.factor(v)) levels(v) else c("0", "1")
+}
+
+#' @rdname boundary_helpers
+#'
+#' @param alpha,labels Internal arguments; see
+#'   \code{\link[adatutor]{tutplot_boundary}}.
+boundary_colorbar <- function(alpha, labels) {
+  # Sits where the class legend sits under shade = "class": centred in the
+  # margin above the panel, never over a study. Its ends carry the class names,
+  # so it needs no caption of its own.
+  usr <- graphics::par("usr")
+  w <- usr[2] - usr[1]
+  h <- usr[4] - usr[3]
+  x0 <- (usr[1] + usr[2]) / 2 - 0.18 * w
+  x9 <- (usr[1] + usr[2]) / 2 + 0.18 * w
+  y0 <- usr[4] + 0.045 * h
+  y9 <- y0 + 0.028 * h
+
+  n <- 64L
+  xs <- seq(x0, x9, length.out = n + 1L)
+  graphics::rect(
+    utils::head(xs, -1),
+    y0,
+    utils::tail(xs, -1),
+    y9,
+    col = grDevices::adjustcolor(viridisLite::viridis(n), alpha.f = alpha),
+    border = NA,
+    xpd = NA
+  )
+  graphics::rect(x0, y0, x9, y9, border = "grey65", lwd = 0.6, xpd = NA)
+
+  lo <- if (is.null(labels)) "negative" else labels[1]
+  hi <- if (is.null(labels)) "positive" else labels[2]
+  graphics::text(
+    x0 - 0.015 * w,
+    (y0 + y9) / 2,
+    lo,
+    adj = c(1, 0.5),
+    cex = 0.72,
+    col = "grey25",
+    xpd = NA
+  )
+  graphics::text(
+    x9 + 0.015 * w,
+    (y0 + y9) / 2,
+    hi,
+    adj = c(0, 0.5),
+    cex = 0.72,
+    col = "grey25",
+    xpd = NA
+  )
 }
 
 #' @rdname tutplot
@@ -763,8 +1264,7 @@ tutplot_lpocv <- function(
   # is what lets the smallest project stay on the figure at all
   fits <- function(i) (y1[i] - y0[i]) > 0.055
 
-  graphics::mtext("Dataset", side = 2, line = 0.7, cex = 0.72,
-                  col = "grey25")
+  graphics::mtext("Dataset", side = 2, line = 0.7, cex = 0.72, col = "grey25")
   for (i in seq_len(k)) {
     tut_roundrect(
       -0.58,

@@ -7,7 +7,6 @@
 \alias{tutplot_updatefactor}
 \alias{tutplot_importance}
 \alias{tutplot_weightone}
-\alias{tutplot_boundary}
 \alias{tutplot_lpocv}
 \title{Redraw the Tutorial's Manuscript Figures}
 \usage{
@@ -68,19 +67,6 @@ tutplot_weightone(
   pointsize = tutplot_opts$pointsize
 )
 
-tutplot_boundary(
-  fit,
-  data,
-  shade = "margin",
-  xlab = NULL,
-  ylab = NULL,
-  file = NULL,
-  width = tutplot_opts$full[["width"]],
-  height = tutplot_opts$full[["height"]],
-  pointsize = tutplot_opts$pointsize,
-  ...
-)
-
 tutplot_lpocv(
   group,
   proportional = TRUE,
@@ -93,9 +79,7 @@ tutplot_lpocv(
 }
 \arguments{
 \item{fit}{A fitted model. \code{tutplot_cstump()} draws a tree, so it takes
-an \code{\link[rpart]{rpart}} stump only. \code{tutplot_boundary()} draws
-a decision boundary, which either learner has, so it takes an
-\code{rpart} tree or an ensemble from \code{\link[adatutor]{adaboost}}.}
+an \code{\link[rpart]{rpart}} stump only.}
 
 \item{extra}{Node annotation, passed to \code{rpart.plot::rpart.plot()}. The
 manuscript uses \code{102} for \code{fig:cstump} and the simplified
@@ -147,11 +131,8 @@ performance it is infinite.}
 \item{mark_eta}{Which curve the mark belongs to. Defaults to the first, which
 is the learning rate the tutorial uses.}
 
-\item{data}{The data frame behind a decision boundary: it sets the plotting
-range and supplies the points drawn on top. Required, and required for both
-learners -- an ensemble does carry its training data, but an \code{rpart}
-tree carries none, and a default that worked for only one of the two
-figures would be worse than no default.}
+\item{data}{Training data the first boosting round is computed from when
+\code{d1} and \code{d2} are left \code{NULL}.}
 
 \item{d1, d2}{Observation weights before and after one round of boosting.
 \code{NULL} computes them from \code{data}.}
@@ -167,16 +148,6 @@ not even its size tells the two apart.}
 \item{n}{How many data points to draw. 25 is what fits a column.}
 
 \item{scaling}{Bubble size multiplier.}
-
-\item{shade, xlab, ylab, ...}{Passed to
-\code{\link[adatutor]{plot_adabound}}. \code{shade} defaults to
-\code{"margin"} here rather than to that function's own \code{"class"},
-because both printed boundaries are shaded by the score: it is what makes
-the stump's two flat blocks and the ensemble's many-valued surface
-comparable. The axis labels default to \code{NULL}, which draws the
-feature names; the manuscript's wording is passed at the call site rather
-than baked in, so plotting a different pair of features cannot mislabel
-the axes.}
 
 \item{group}{One project label per row of the data, as
 \code{\link[adatutor]{lpocv}} takes it. \code{tutplot_lpocv()} derives
@@ -201,10 +172,7 @@ assert on the numbers rather than on the existence of a file.
 cutpoint and the leaf sizes; \code{tutplot_gini()} returns the curve it
 drew and the proportion at which impurity peaks;
 \code{tutplot_lpocv()} returns the project sizes, their count, the order
-drawn and the row heights;
-\code{tutplot_boundary()} passes on \code{plot_adabound()}'s grid -- the
-two axis sequences, the matrix of scores and the feature names -- so the
-surface can be inspected without redrawing it.
+drawn and the row heights.
 }
 \description{
 Draws a figure from the AMPPS tutorial. These live in the
@@ -232,12 +200,12 @@ printed sizes are chosen to avoid.
 
 \strong{One figure sets its own margins.} Every function here shares the
 margins in \code{\link[adatutor]{tutplot_opts}} except
-\code{tutplot_boundary()}, which leaves them to
-\code{\link[adatutor]{plot_adabound}}. That function computes its top
-margin from what it actually draws -- a legend, a sub-title and a title are
-each paid for only if present -- so imposing a fixed \code{mar} would
-either crop the legend or leave a gap above it. It is also the only figure
-at the manuscript's full text width rather than one column.
+\code{\link[adatutor]{tutplot_boundary}}, which computes its top margin
+from what it actually draws -- a legend, a sub-title and a title are each
+paid for only if present -- so imposing a fixed \code{mar} would either
+crop the legend or leave a gap above it. It is also the only figure at the
+manuscript's full text width rather than one column, which is why it is
+documented on a page of its own.
 
 \strong{Weights come from the fit.} A fitted \code{rpart} object already
 carries the observation weights it was built with, and neither
@@ -271,10 +239,9 @@ data(altmejd)
 folds <- tutplot_lpocv(altmejd$pid)
 folds$n
 
-# Figure 3: that same stump's decision boundary. `resolution` is passed
-# through to plot_adabound(); the printed figure uses its default of 150
-grid <- tutplot_boundary(h, train, resolution = 60)
-grid$features
-
+}
+\seealso{
+\code{\link[adatutor]{tutplot_boundary}} for Figures 3 and 9, which
+set their own margins and so are documented separately.
 }
 \keyword{internal}
