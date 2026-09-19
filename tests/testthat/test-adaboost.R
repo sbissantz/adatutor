@@ -146,8 +146,9 @@ test_that("an error before the loop starts on its own line", {
   d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
 
   h <- rpart::rpart(replicate ~ ., data = d, maxdepth = 1, model = TRUE)
-  # `eta` is missing, so check_eta() throws inside the input checks -- after
-  # the "Run mild input checks" line is open and before the loop starts
+  # `eta` is missing, so forcing it inside check_eta() raises R's own
+  # missing-argument error -- after the "Run mild input checks" line is open
+  # and before the loop starts, which is the placement under test
   out <- stderr_of(adaboost(h, n_iter = 4))
   expect_false(any(grepl("input checksError", out)))
   expect_true(any(grepl("^Error: ", out)))
@@ -543,4 +544,125 @@ test_that("predict() with no newdata names the fall-back, not \"this\"", {
   expect_match(out, "No `newdata`")
   expect_false(any(grepl("^! this ", strsplit(out, "\n")[[1]])))
   expect_match(out, "retrodiction")
+})
+
+test_that("the splitting rule travels with the learner", {
+  # rpart keeps the splitting rule in `parms`, not in `control`, so it used to
+  # be dropped: an information-gain stump produced a gini ensemble in silence
+  tr <- altmejd_splits$train[, c(
+    "power.o",
+    "n.o",
+    "effect_size.o",
+    "replicate"
+  )]
+
+  info <- rpart::rpart(
+    replicate ~ .,
+    data = tr,
+    method = "class",
+    maxdepth = 2,
+    parms = list(split = "information"),
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 8, eta = 1, verbose = FALSE)
+  # 2 is information gain, 1 is gini
+  expect_true(all(vapply(info, function(z) z$h$parms$split, numeric(1)) == 2))
+
+  gini <- rpart::rpart(
+    replicate ~ .,
+    data = tr,
+    method = "class",
+    maxdepth = 2,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 8, eta = 1, verbose = FALSE)
+  expect_true(all(vapply(gini, function(z) z$h$parms$split, numeric(1)) == 1))
+})
+
+test_that("a learner adaboost() cannot honour is refused, not ignored", {
+  tr <- altmejd_splits$train[, c(
+    "power.o",
+    "n.o",
+    "effect_size.o",
+    "replicate"
+  )]
+
+  # a regression tree: the loop refits with method = "class", so accepting one
+  # would hand back a different kind of model than was passed in
+  num <- tr
+  num$y <- as.numeric(num$replicate) - 1
+  num$replicate <- NULL
+  expect_error(
+    adaboost(
+      rpart::rpart(
+        y ~ .,
+        data = num,
+        method = "anova",
+        maxdepth = 1,
+        model = TRUE
+      ),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "classification tree"
+  )
+
+  # observation weights: AdaBoost sets its own, from 1/n upwards. This also
+  # used to fail deep inside predict.rpart with "Tree has variables not found
+  # in new data", because rpart puts a `(weights)` column in the model frame.
+  w <- ifelse(tr$replicate == levels(tr$replicate)[1], 9, 1)
+  expect_error(
+    adaboost(
+      rpart::rpart(
+        replicate ~ .,
+        data = tr,
+        weights = w,
+        method = "class",
+        maxdepth = 1,
+        model = TRUE
+      ),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "weights"
+  )
+
+  # a hand-set prior cannot survive either: boosting recomputes it from each
+  # round's weights
+  expect_error(
+    adaboost(
+      rpart::rpart(
+        replicate ~ .,
+        data = tr,
+        method = "class",
+        maxdepth = 1,
+        parms = list(prior = c(0.9, 0.1)),
+        model = TRUE
+      ),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "prior"
+  )
+
+  # and a loss matrix is not passed on to the boosted trees
+  expect_error(
+    adaboost(
+      rpart::rpart(
+        replicate ~ .,
+        data = tr,
+        method = "class",
+        maxdepth = 1,
+        parms = list(loss = matrix(c(0, 5, 1, 0), 2)),
+        model = TRUE
+      ),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "loss"
+  )
 })

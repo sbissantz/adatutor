@@ -353,6 +353,10 @@ test_that("the bar's end labels come from the outcome, including 0/1", {
     fit <- rpart::rpart(
       replicate ~ .,
       data = d[, c("replicate", feat)],
+      # a 0/1 integer outcome makes rpart infer anova, so the classification
+      # has to be asked for -- adaboost() refuses a regression learner rather
+      # than quietly refitting it as one
+      method = "class",
       maxdepth = 1,
       model = TRUE
     ) |>
