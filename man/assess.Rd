@@ -132,14 +132,13 @@ prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 train <- altmejd[altmejd$pid != "ssrp", ]
 test <- altmejd[altmejd$pid == "ssrp", ]
 
-fit <- adaboost(
+h <- rpart::rpart(
   replicate ~ .,
   data = train[, c(prednms, "replicate")],
-  T = 10,
-  eta = 1,
-  verbose = FALSE,
-  input_checks = FALSE
+  maxdepth = 1,
+  model = TRUE
 )
+fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
 margin <- predict(
   fit,
   test[, prednms],

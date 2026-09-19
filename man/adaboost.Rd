@@ -2,42 +2,21 @@
 % Please edit documentation in R/adaboost.R
 \name{adaboost}
 \alias{adaboost}
-\title{Train a Set of Classification Trees Using AdaBoost}
+\title{Boost a Weak Learner With AdaBoost}
 \usage{
-adaboost(
-  formula,
-  data,
-  T,
-  eta,
-  maxdepth = 1,
-  treehypar = NULL,
-  keep_data = TRUE,
-  input_checks = TRUE,
-  verbose = TRUE
-)
+adaboost(h, n_iter, eta, keep_data = TRUE, input_checks = TRUE, verbose = TRUE)
 }
 \arguments{
-\item{formula}{A \code{\link[stats]{formula}} specifying the relationship
-between the outcome and the predictors: \code{outcome ~ predictors}. The
-predictors should be included as additive terms (e.g., \code{X1 + X2 + ...}),
-Interactions are not supported (see the \code{formula} argument in
-\code{\link[rpart]{rpart}}).}
+\item{h}{A classification tree fitted with \code{\link[rpart]{rpart}}, and
+fitted with \code{model = TRUE}. It supplies three things: the formula, the
+tree hyperparameters and the training data. \code{rpart} keeps the response
+but discards the predictors unless \code{model = TRUE}, so a tree fitted
+without it cannot be refit, and is rejected rather than guessed at.}
 
-\item{data}{A data frame containing the variables in the model.}
-
-\item{T}{An integer specifying the number of trees.}
+\item{n_iter}{An integer specifying the number of boosting rounds --
+\eqn{T} in the algorithm, one weak learner per round.}
 
 \item{eta}{A numeric value representing the learning rate of the algorithm.}
-
-\item{maxdepth}{An integer specifying the maximum depth of the trees.
-Defaults to 1 (decision stumps).}
-
-\item{treehypar}{An optional list of additional control parameters for decision
-trees (passed to \code{\link[rpart]{rpart.control}}). These will be safely
-merged with the internal AdaBoost speed optimizations. Defaults to \code{NULL}.
-This is also how to switch pruning off, \code{treehypar = list(cp = 0)}, for
-the fixed-size-and-no-pruning form the boosting literature describes; see
-Details for what that costs here.}
 
 \item{keep_data}{Whether to store the training data on the fit. Defaults to
 \code{TRUE}. Keeping it lets \code{predict()} work with no \code{newdata},
@@ -60,26 +39,25 @@ during the training process. Defaults to \code{TRUE}.}
 }
 \value{
 A list containing the trained weak learners (\code{h}) and their
-associated weights (\code{a}). Additional attributes may be included for model
-tracking purposes.
+associated weights (\code{a}). Additional attributes carry the training data, the
+expanded formula, \code{n_iter}, \code{eta} and the \code{control} the trees were grown
+with.
 }
 \description{
-The function trains a set of classification trees using
-AdaBoost. It is built on top of the \code{rpart} package, so the full range
-of tree hyperparameters can be used to fine-tune the trees (see, e.g.,
-\code{\link[rpart]{rpart.control}}). By default, it uses hyperparameter
-settings optimized for boosting (no internal CV, no missing data splits).
-The complexity parameter is left at the \code{rpart} default of 0.01, so
-that \code{maxdepth = d} and
-\code{treehypar = rpart.control(maxdepth = d)} fit the same trees. Users
-can overwrite these or add additional parameters via the \code{treehypar}
-argument.
+Boosts a fitted classification tree. The tree is the weak
+learner: it is refit \code{n_iter} times on reweighted data, and the
+ensemble is the weighted vote of those fits. AdaBoost specifies no base
+learner of its own -- it is defined over any learner whose weighted error
+stays below one half -- so the choice of a tree is the caller's, and it
+arrives already made. Depth, complexity parameter and every other
+\code{\link[rpart]{rpart.control}} setting are read off \code{h} rather
+than set here.
 }
 \details{
 The function implements the AdaBoost algorithm with a specified
-number of iterations (\code{T}). It initializes observation weights, trains
-a sequence of decision trees, and updates the weights at each iteration
-based on prediction errors. A final ensemble of weak learners is produced.
+number of rounds (\code{n_iter}). It initializes observation weights,
+refits \code{h} once per round under those weights, and updates them from
+the round's errors. A final ensemble of weak learners is produced.
 
 Key steps in the algorithm:
 \enumerate{
@@ -89,30 +67,57 @@ Key steps in the algorithm:
 \item Store the weak learner and its associated weight.
 }
 
-\strong{The complexity parameter.} \code{cp} is left at \code{rpart}'s own
-default of 0.01 -- kept rather than chosen, and the one control here that is
-not tuned for boosting. It earns its place by keeping the two ways of setting
-depth equivalent: \code{maxdepth = d} and
-\code{treehypar = rpart.control(maxdepth = d)} fit identical trees only
-because both end up at 0.01.
+\strong{What is read off \code{h}, and what is overridden.} The whole of
+\code{h$control} is carried over -- \code{maxdepth}, \code{cp},
+\code{minsplit}, \code{minbucket} -- except \code{xval} and
+\code{maxsurrogate}, which are forced to zero. Those two are speed, not
+structure: a thousand rounds should neither cross-validate each tree nor hunt
+for surrogate splits, and neither setting changes the tree that results.
+Everything a reader chose, they keep.
 
-It is worth knowing that this departs from the textbook formulation. AdaBoost
-as published specifies no base learner at all -- it is defined over any weak
-learner whose weighted error stays below one half, and its training-error
-bound says nothing about complexity. The guidance that followed (Friedman,
-Hastie & Tibshirani, 2000; Hastie, Tibshirani & Friedman, 2009, on
-right-sized trees for boosting) is to grow each learner to a \emph{fixed
-size} and not prune it, because the regularization belongs to the number of
-rounds and the learning rate rather than to the individual trees. In
-\code{rpart} terms that is \code{cp = 0}, which
-\code{treehypar = list(cp = 0)} gives you.
+\strong{The complexity parameter.} \code{cp} therefore arrives at whatever
+the tree was fitted with, which for a plain \code{rpart()} call is its own
+default of 0.01. That departs from the textbook formulation. The guidance
+after the original algorithm (Friedman, Hastie & Tibshirani, 2000; Hastie,
+Tibshirani & Friedman, 2009, on right-sized trees for boosting) is to grow
+each learner to a \emph{fixed size} and not prune it, because the
+regularization belongs to the number of rounds and the learning rate rather
+than to the individual trees. In \code{rpart} terms that is \code{cp = 0},
+which is now something the caller sets on their own tree.
 
-The default is kept anyway, because on these data it is not the worse choice.
-Both complexity parameters were scored across a 480-setting grid in
+Leaving it at 0.01 is not the worse choice on these data, which is why the
+tutorial does. Both complexity parameters were scored across a 480-setting
+grid in
 \code{\link[adatutor]{hypergrid}}; paired over those settings, \code{cp = 0}
 is behind by .0044 on mean AUROC (95 percent CI .0021 to .0067). The gap is
 entirely at depth 4, where unpruned learners overfit the reweighted data
 (-.0152, 95 percent CI -.0214 to -.0090). At depth 1 -- the stumps this package
 teaches with -- pruning makes no difference at all (+.0001, 95 percent CI
 -.0012 to .0014).
+}
+\examples{
+data(altmejd_splits)
+train <- altmejd_splits$train
+
+# The weak learner is fitted first, because which learner to boost is the
+# caller's choice. `model = TRUE` so the tree carries the data it was grown
+# on -- rpart keeps the response but drops the predictors without it.
+h <- rpart::rpart(
+  replicate ~ power.o + n.o,
+  data = train,
+  maxdepth = 1,
+  model = TRUE
+)
+
+fit <- h |> adaboost(n_iter = 20, eta = 1, verbose = FALSE)
+attr(fit, "n_iter")
+attr(fit, "control")$maxdepth
+
+# A deeper learner is a different tree, not a different argument here
+rpart::rpart(replicate ~ power.o + n.o, data = train, maxdepth = 3,
+             model = TRUE) |>
+  adaboost(n_iter = 20, eta = 1, verbose = FALSE) |>
+  attr("control") |>
+  getElement("maxdepth")
+
 }
