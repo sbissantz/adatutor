@@ -1,37 +1,24 @@
-#' @title Train a Set of Classification Trees Using AdaBoost
+#' @title Boost a Weak Learner With AdaBoost
 #'
-#' @description The function trains a set of classification trees using
-#'   AdaBoost. It is built on top of the \code{rpart} package, so the full range
-#'   of tree hyperparameters can be used to fine-tune the trees (see, e.g.,
-#'   \code{\link[rpart]{rpart.control}}). By default, it uses hyperparameter
-#'   settings optimized for boosting (no internal CV, no missing data splits).
-#'   The complexity parameter is left at the \code{rpart} default of 0.01, so
-#'   that \code{maxdepth = d} and
-#'   \code{treehypar = rpart.control(maxdepth = d)} fit the same trees. Users
-#'   can overwrite these or add additional parameters via the \code{treehypar}
-#'   argument.
+#' @description Boosts a fitted classification tree. The tree is the weak
+#'   learner: it is refit \code{n_iter} times on reweighted data, and the
+#'   ensemble is the weighted vote of those fits. AdaBoost specifies no base
+#'   learner of its own -- it is defined over any learner whose weighted error
+#'   stays below one half -- so the choice of a tree is the caller's, and it
+#'   arrives already made. Depth, complexity parameter and every other
+#'   \code{\link[rpart]{rpart.control}} setting are read off \code{h} rather
+#'   than set here.
 #'
-#' @param formula A \code{\link[stats]{formula}} specifying the relationship
-#'   between the outcome and the predictors: `outcome ~ predictors`. The
-#'   predictors should be included as additive terms (e.g., `X1 + X2 + ...`),
-#'   Interactions are not supported (see the \code{formula} argument in
-#'   \code{\link[rpart]{rpart}}).
+#' @param h A classification tree fitted with \code{\link[rpart]{rpart}}, and
+#'   fitted with \code{model = TRUE}. It supplies three things: the formula, the
+#'   tree hyperparameters and the training data. \code{rpart} keeps the response
+#'   but discards the predictors unless \code{model = TRUE}, so a tree fitted
+#'   without it cannot be refit, and is rejected rather than guessed at.
 #'
-#' @param data A data frame containing the variables in the model.
-#'
-#' @param T An integer specifying the number of trees.
+#' @param n_iter An integer specifying the number of boosting rounds --
+#'   \eqn{T} in the algorithm, one weak learner per round.
 #'
 #' @param eta A numeric value representing the learning rate of the algorithm.
-#'
-#' @param maxdepth An integer specifying the maximum depth of the trees.
-#'   Defaults to 1 (decision stumps).
-#'
-#' @param treehypar An optional list of additional control parameters for decision
-#'   trees (passed to \code{\link[rpart]{rpart.control}}). These will be safely
-#'   merged with the internal AdaBoost speed optimizations. Defaults to \code{NULL}.
-#'   This is also how to switch pruning off, \code{treehypar = list(cp = 0)}, for
-#'   the fixed-size-and-no-pruning form the boosting literature describes; see
-#'   Details for what that costs here.
 #'
 #' @param keep_data Whether to store the training data on the fit. Defaults to
 #'   \code{TRUE}. Keeping it lets \code{predict()} work with no \code{newdata},
@@ -53,9 +40,9 @@
 #'   during the training process. Defaults to `TRUE`.
 #'
 #' @details The function implements the AdaBoost algorithm with a specified
-#'   number of iterations (\code{T}). It initializes observation weights, trains
-#'   a sequence of decision trees, and updates the weights at each iteration
-#'   based on prediction errors. A final ensemble of weak learners is produced.
+#'   number of rounds (\code{n_iter}). It initializes observation weights,
+#'   refits \code{h} once per round under those weights, and updates them from
+#'   the round's errors. A final ensemble of weak learners is produced.
 #'
 #' Key steps in the algorithm:
 #' 1. Initialize observation weights.
@@ -63,26 +50,27 @@
 #' 3. Compute the weighted classification error and update the observation weights.
 #' 4. Store the weak learner and its associated weight.
 #'
-#' \strong{The complexity parameter.} \code{cp} is left at \code{rpart}'s own
-#' default of 0.01 -- kept rather than chosen, and the one control here that is
-#' not tuned for boosting. It earns its place by keeping the two ways of setting
-#' depth equivalent: \code{maxdepth = d} and
-#' \code{treehypar = rpart.control(maxdepth = d)} fit identical trees only
-#' because both end up at 0.01.
+#' \strong{What is read off \code{h}, and what is overridden.} The whole of
+#' \code{h$control} is carried over -- \code{maxdepth}, \code{cp},
+#' \code{minsplit}, \code{minbucket} -- except \code{xval} and
+#' \code{maxsurrogate}, which are forced to zero. Those two are speed, not
+#' structure: a thousand rounds should neither cross-validate each tree nor hunt
+#' for surrogate splits, and neither setting changes the tree that results.
+#' Everything a reader chose, they keep.
 #'
-#' It is worth knowing that this departs from the textbook formulation. AdaBoost
-#' as published specifies no base learner at all -- it is defined over any weak
-#' learner whose weighted error stays below one half, and its training-error
-#' bound says nothing about complexity. The guidance that followed (Friedman,
-#' Hastie & Tibshirani, 2000; Hastie, Tibshirani & Friedman, 2009, on
-#' right-sized trees for boosting) is to grow each learner to a \emph{fixed
-#' size} and not prune it, because the regularization belongs to the number of
-#' rounds and the learning rate rather than to the individual trees. In
-#' \code{rpart} terms that is \code{cp = 0}, which
-#' \code{treehypar = list(cp = 0)} gives you.
+#' \strong{The complexity parameter.} \code{cp} therefore arrives at whatever
+#' the tree was fitted with, which for a plain \code{rpart()} call is its own
+#' default of 0.01. That departs from the textbook formulation. The guidance
+#' after the original algorithm (Friedman, Hastie & Tibshirani, 2000; Hastie,
+#' Tibshirani & Friedman, 2009, on right-sized trees for boosting) is to grow
+#' each learner to a \emph{fixed size} and not prune it, because the
+#' regularization belongs to the number of rounds and the learning rate rather
+#' than to the individual trees. In \code{rpart} terms that is \code{cp = 0},
+#' which is now something the caller sets on their own tree.
 #'
-#' The default is kept anyway, because on these data it is not the worse choice.
-#' Both complexity parameters were scored across a 480-setting grid in
+#' Leaving it at 0.01 is not the worse choice on these data, which is why the
+#' tutorial does. Both complexity parameters were scored across a 480-setting
+#' grid in
 #' \code{\link[adatutor]{hypergrid}}; paired over those settings, \code{cp = 0}
 #' is behind by .0044 on mean AUROC (95 percent CI .0021 to .0067). The gap is
 #' entirely at depth 4, where unpruned learners overfit the reweighted data
@@ -91,21 +79,99 @@
 #' -.0012 to .0014).
 #'
 #' @return A list containing the trained weak learners (`h`) and their
-#' associated weights (`a`). Additional attributes may be included for model
-#' tracking purposes.
+#' associated weights (`a`). Additional attributes carry the training data, the
+#' expanded formula, `n_iter`, `eta` and the `control` the trees were grown
+#' with.
+#'
+#' @examples
+#' data(altmejd_splits)
+#' train <- altmejd_splits$train
+#'
+#' # The weak learner is fitted first, because which learner to boost is the
+#' # caller's choice. `model = TRUE` so the tree carries the data it was grown
+#' # on -- rpart keeps the response but drops the predictors without it.
+#' h <- rpart::rpart(
+#'   replicate ~ power.o + n.o,
+#'   data = train,
+#'   maxdepth = 1,
+#'   model = TRUE
+#' )
+#'
+#' fit <- h |> adaboost(n_iter = 20, eta = 1, verbose = FALSE)
+#' attr(fit, "n_iter")
+#' attr(fit, "control")$maxdepth
+#'
+#' # A deeper learner is a different tree, not a different argument here
+#' rpart::rpart(replicate ~ power.o + n.o, data = train, maxdepth = 3,
+#'              model = TRUE) |>
+#'   adaboost(n_iter = 20, eta = 1, verbose = FALSE) |>
+#'   attr("control") |>
+#'   getElement("maxdepth")
 #'
 #' @export
 adaboost <- function(
-  formula,
-  data,
-  T,
+  h,
+  n_iter,
   eta,
-  maxdepth = 1,
-  treehypar = NULL,
   keep_data = TRUE,
   input_checks = TRUE,
   verbose = TRUE
 ) {
+  # preconditions, not diagnostics: without these there is nothing to boost, so
+  # they run whether or not `input_checks` is on
+  if (!inherits(h, "rpart")) {
+    stop("`h` must be a tree fitted with rpart().", call. = FALSE)
+  }
+  if (is.null(h$model)) {
+    stop(
+      "`h` carries no training data: refit it with `model = TRUE`.",
+      call. = FALSE
+    )
+  }
+
+  # Read the learner apart. `h` supplies the formula, the tree hyperparameters
+  # and the data; boosting adds only n_iter and eta.
+  #
+  # formula(h$terms) is the *expanded* formula, so `outcome ~ .` arrives with
+  # its term labels already resolved.
+  #
+  # The magic bridge: rpart evaluates `weights` in the formula's environment,
+  # so binding it to this frame is what lets `weights = D` below find `D`. Bind
+  # it to globalenv() instead and `D` resolves to stats::D, the derivative
+  # function. A globalenv() copy is stored on the ensemble further down.
+  formula <- stats::formula(h$terms)
+  environment(formula) <- environment()
+
+  # h$model is already the model frame, so there is nothing to build
+  mf <- h$model
+
+  # A model frame holds *evaluated* terms, so `log(power.o)` is a column name
+  # rather than a call and refitting the original formula against it fails on
+  # "object 'power.o' not found". `<response> ~ .` over the frame finds the same
+  # values under the same names; the original terms go back onto each tree
+  # below, so predict() can still evaluate the transformation on raw newdata.
+  fit_formula <- stats::as.formula(
+    paste0("`", names(mf)[attr(h$terms, "response")], "` ~ ."),
+    env = environment()
+  )
+
+  # one terms object for every round, pointing at globalenv() rather than at
+  # this frame -- which holds `mf`, `D` and `H`, and would otherwise ride along
+  # on all n_iter saved trees
+  learner_terms <- h$terms
+  attr(learner_terms, ".Environment") <- globalenv()
+
+  # everything the caller chose is kept. xval and maxsurrogate are speed, not
+  # structure: a thousand rounds should neither cross-validate nor hunt
+  # surrogates, and neither changes the tree that comes out.
+  ctrl <- h$control
+  ctrl$xval <- 0
+  ctrl$maxsurrogate <- 0
+
+  # the literal name of the dataset, read off the tree's own call, for the
+  # tracking attribute at the very end
+  data_name <- h$call[["data"]]
+
   # Progress is written a piece at a time, so a line is usually half finished
   # when something goes wrong: `color_message()` leaves the line open for the
   # " Done" that `walking_colordots()` will add, and the progress bar is only
@@ -142,10 +208,10 @@ adaboost <- function(
     if (verbose) {
       color_message("Run mild input checks", color_code = ansi_dim)
     }
-    check_df(data)
-    check_length(data)
+    check_df(mf)
+    check_length(mf)
     check_eta(eta)
-    check_numeric(T)
+    check_numeric(n_iter)
     if (verbose) walking_colordots()
   }
 
@@ -153,38 +219,12 @@ adaboost <- function(
     color_message("Start the initialization process", color_code = ansi_dim)
   }
 
-  # Set fast default control parameters for rpart. cp stays at rpart's own
-  # 0.01 so that maxdepth = d and treehypar = rpart.control(maxdepth = d)
-  # agree; only xval and maxsurrogate are tuned for speed.
-  def_ctrl <- rpart::rpart.control(
-    maxdepth = maxdepth,
-    xval = 0,
-    maxsurrogate = 0,
-    cp = 0.01
-  )
-
-  # Overwrite defaults with user-specified parameters if provided
-  if (!is.null(treehypar) && is.list(treehypar)) {
-    treehypar <- utils::modifyList(def_ctrl, treehypar)
-  } else {
-    treehypar <- def_ctrl
-  }
-
-  # We still use match.call() ONLY to grab the literal name of the dataset
-  # so we can attach it as a tracking attribute at the very end.
-  data_name <- match.call()[["data"]]
-
-  # The magic bridge: binds the formula to this function's local environment
-  environment(formula) <- environment()
-
-  # Clean, direct extraction of the target variable
-  mf <- stats::model.frame(formula, data)
   y_train <- stats::model.response(mf)
 
   # Setup weights and containers
-  m <- nrow(data)
+  m <- nrow(mf)
   D <- rep(1, m) / m
-  H <- vector("list", T)
+  H <- vector("list", n_iter)
 
   if (verbose) {
     walking_colordots()
@@ -203,26 +243,28 @@ adaboost <- function(
     message("\033[", ansi_dim, "m", appendLF = FALSE)
     pb <- utils::txtProgressBar(
       min = 0,
-      max = T,
+      max = n_iter,
       style = 3,
       file = stderr()
     )
   }
 
-  for (t in seq_len(T)) {
-    # Clean, direct standard evaluation function call
-    h <- rpart::rpart(
-      formula = formula,
-      data = data,
+  for (t in seq_len(n_iter)) {
+    # `h_t`, not `h`: the argument is the prototype and must survive the loop.
+    # model = FALSE keeps the round's tree from carrying its own copy of the
+    # data -- one frame on the ensemble, never n_iter of them.
+    h_t <- rpart::rpart(
+      formula = fit_formula,
+      data = mf,
       weights = D,
       method = "class",
-      control = treehypar,
+      control = ctrl,
       model = FALSE,
       y = FALSE
     )
 
     # Clean, direct prediction
-    y_retro <- stats::predict(h, newdata = data, type = "class")
+    y_retro <- stats::predict(h_t, newdata = mf, type = "class")
 
     # Math and weight updates
     correct <- (y_train == y_retro)
@@ -238,16 +280,18 @@ adaboost <- function(
     D <- D_unorm / sum(D_unorm)
 
     # Memory cleanup before storing
-    h$where <- NULL
-    h$call <- NULL
-    # `terms` carries this function's frame, which holds `data`, `D` and `H`, so
-    # leaving it attached makes every saved fit a copy of the training set. The
-    # frame's parent chain already runs through globalenv(), and that is where
-    # the stored `formula` attribute points too, so nothing a formula can
-    # legitimately resolve is lost -- only the locals we are trying to drop.
-    attr(h$terms, ".Environment") <- globalenv()
+    h_t$where <- NULL
+    h_t$call <- NULL
+    # The learner's own terms, not the frame-name ones this round was fitted
+    # with: predict() evaluates these against raw newdata, so a transformation
+    # has to survive as a call. The split variable names are the same either
+    # way, so the tree still matches what it is told to look up.
+    #
+    # `terms` also carries this function's frame, which holds `mf`, `D` and `H`,
+    # so leaving that attached makes every saved fit a copy of the training set.
+    h_t$terms <- learner_terms
 
-    H[[t]] <- list("h" = h, "a" = a)
+    H[[t]] <- list("h" = h_t, "a" = a)
 
     if (verbose) utils::setTxtProgressBar(pb, t)
   }
@@ -265,16 +309,18 @@ adaboost <- function(
     )
   }
 
-  names(H) <- paste0("t", seq_len(T))
-
-  # Stash the hyperparameters (with a clean formula environment to avoid
-  # capturing the training data) so the model can be refitted later.
-  form_store <- formula
-  environment(form_store) <- globalenv()
+  names(H) <- paste0("t", seq_len(n_iter))
 
   # One copy, on the ensemble -- not one per tree. `mf` is the model frame, so
   # it holds exactly the columns the formula named and nothing else.
   trainset <- if (keep_data) mf else NULL
+
+  # Stash the hyperparameters (with a clean formula environment to avoid
+  # capturing the training data) so the model can be refitted later. `ctrl` is
+  # the whole control list rather than depth alone, so a reader can see every
+  # setting the trees were grown with.
+  form_store <- formula
+  environment(form_store) <- globalenv()
 
   structure(
     H,
@@ -282,9 +328,9 @@ adaboost <- function(
     trainset = trainset,
     train = data_name,
     formula = form_store,
-    T = T,
+    n_iter = n_iter,
     eta = eta,
-    maxdepth = maxdepth
+    control = ctrl
   )
 }
 
