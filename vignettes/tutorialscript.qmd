@@ -846,15 +846,18 @@ Outlook? If we grow deeper trees they can split more than once, and the weight i
 
 version with rpart helper function, general case
 ```{r importance-general}
-fit_deep <- adaboost(
+# Fit the weak learner: a depth-4 tree, not a stump
+h_deep <- rpart::rpart(
   replicate ~ .,
   data = train[, voinms],
-  # Boosting hyperparameter
-  T = 10,
-  eta = 1,
   # Tree hyperparameter
-  maxdepth = 4
+  maxdepth = 4,
+  model = TRUE
 )
+
+# Boost it
+# Note: the boosting hyperparameters are all that is left here
+fit_deep <- adaboost(h_deep, n_iter = 10, eta = 1)
 
 n_preds <- length(prednms)
 voz <- numeric(n_preds)
@@ -956,14 +959,13 @@ Visualization of the decision boundary of 1000 adaptively boosted shallow classi
 
 ```{r figure-9}
 # Refit on the two metrics only, so the boundary is drawable in two dimensions
-ada_int <- adaboost(
+h_ada <- rpart::rpart(
   replicate ~ .,
   data = train[, c("power.o", "n.o", outnme)],
-  T = 1e3,
-  eta = 1,
   maxdepth = 1,
-  verbose = FALSE
+  model = TRUE
 )
+ada_int <- adaboost(h_ada, n_iter = 1e3, eta = 1, verbose = FALSE)
 
 # Visualize
 # Note: the same call as Figure 3, an ensemble in place of the stump
@@ -1043,15 +1045,17 @@ We reduced the number of trees to speed up runtime in the upcoming sections.
 
 ```{r listing-30}
 # Boosted stumps and weights
-fit <- adaboost(
+# Fit the weak learner
+# Note: the tree hyperparameters live here, on the learner itself
+h <- rpart::rpart(
   replicate ~ .,
   data = train[, voinms],
-  # Boosting hyperparameter
-  T = 100,
-  eta = 1,
-  # Tree hyperparameter
-  maxdepth = 1
+  maxdepth = 1,
+  model = TRUE
 )
+
+# Boost it
+fit <- adaboost(h, n_iter = 100, eta = 1)
 
 # Predictions on test set (class labels, for the confusion matrix)
 ypred <- predict(fit, newdata = test[, prednms], type = "class")
@@ -1128,13 +1132,13 @@ runtime <- system.time({
     test <- df_split[[rp]]
     train <- df[!(df$pid %in% rp), ]
     # Fit model to data
-    fit <- adaboost(
+    h <- rpart::rpart(
       replicate ~ .,
       data = train[, voinms],
-      T = 1000,
-      eta = 1,
-      maxdepth = 1
+      maxdepth = 1,
+      model = TRUE
     )
+    fit <- adaboost(h, n_iter = 1000, eta = 1)
     # Predictions (left-out project), on the margin so the AUC sees the ranking
     ypred <- predict(fit, newdata = test[, prednms], type = "margin")
     # Performance evaluation
@@ -1220,12 +1224,16 @@ for (i in seq_len(hgrid_rows)) {
       test <- df_split[[rp]]
       train <- df[!(df$pid %in% rp), ]
       # Fit model to data
-      fit <- adaboost(
+      h <- rpart::rpart(
         replicate ~ .,
         data = train[, voinms],
-        T = hgrid$T[i],
+        maxdepth = hgrid$depth[i],
+        model = TRUE
+      )
+      fit <- adaboost(
+        h,
+        n_iter = hgrid$T[i],
         eta = hgrid$eta[i],
-        treehypar = rpart::rpart.control(maxdepth = hgrid$depth[i]),
         verbose = FALSE
       )
       # Predictions (on the margin, so the AUC sees the ranking)
@@ -1357,20 +1365,21 @@ averages those, and nobody asks which fold's coefficients to keep. They are
 by-products of a procedure being measured, not candidates for shipping.
 
 ::: {.callout-tip}
-## Set the depth with `maxdepth`, not with `treehypar`
+## The depth belongs to the tree, not to the boosting
 
-`rpart.control(maxdepth = 3)` returns *every* `rpart` default, not just the depth
-you named -- including `cp = 0.01`, `xval = 10` and `maxsurrogate = 5`. Passed
-through `treehypar`, those overwrite the settings `adaboost()` chose for
-boosting. `adaboost()` keeps `cp` at `rpart`'s own 0.01 precisely so that the two
-forms fit the *same* trees: we checked, and the trees, the model weights and the
-margins are identical. What still differs is `xval = 10`, ten internal
-cross-validations per weak learner that nothing reads, costing about thirty per
-cent of the runtime.
+`adaboost()` takes a fitted learner, so there is only one place to set depth:
+the `rpart()` call that builds it. Everything in `h$control` is carried into
+every round -- `maxdepth`, `cp`, `minsplit`, `minbucket` -- so the tree you
+looked at is the tree that gets boosted.
 
-So this is a tidiness point, not a correctness one. Use the `maxdepth` argument
-for depth, and reserve `treehypar` for controls you genuinely mean to change --
-`minsplit` and `minbucket` are the ones that actually change how the trees grow.
+Two controls are overridden, and only those two. `xval` and `maxsurrogate` are
+forced to zero: ten internal cross-validations per weak learner that nothing
+reads cost about thirty per cent of the runtime, and neither setting changes
+the tree that comes out. Everything you chose, you keep.
+
+This is why AdaBoost has no `maxdepth` argument. The algorithm is defined over
+*any* weak learner whose weighted error stays below one half; a tree is one
+choice among many, and its settings are yours rather than the algorithm's.
 :::
 
 #### Listing 35
@@ -1422,14 +1431,13 @@ runtime <- system.time({
     selected[[rp]] <- best[, c("depth", "T", "eta")]
 
     # Refit at that setting and score the untouched project
-    fit <- adaboost(
+    h <- rpart::rpart(
       replicate ~ .,
       data = train[, voinms],
-      T = best$T,
-      eta = best$eta,
       maxdepth = best$depth,
-      verbose = FALSE
+      model = TRUE
     )
+    fit <- adaboost(h, n_iter = best$T, eta = best$eta, verbose = FALSE)
     ypred <- predict(
       fit,
       newdata = test[, prednms],
@@ -1476,13 +1484,13 @@ Code to fit the final model to the data.
 
 ```{r listing-36}
 # Fit optimized model
-fit_final <- adaboost(
+h_final <- rpart::rpart(
   replicate ~ .,
   data = df[, voinms],
-  T = 10,
-  eta = 1,
-  treehypar = rpart::rpart.control(maxdepth = 1)
+  maxdepth = 1,
+  model = TRUE
 )
+fit_final <- adaboost(h_final, n_iter = 10, eta = 1)
 ```
 
 # Figure map
