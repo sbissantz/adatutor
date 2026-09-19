@@ -15,6 +15,12 @@
 #'   but discards the predictors unless \code{model = TRUE}, so a tree fitted
 #'   without it cannot be refit, and is rejected rather than guessed at.
 #'
+#'   Four other things are rejected rather than ignored, because boosting a
+#'   different model than the one handed in is the failure a caller has no way
+#'   to notice: a learner that is not \code{method = "class"}, one fitted with
+#'   \code{weights}, and one carrying a \code{prior} or a \code{loss} matrix.
+#'   See Details.
+#'
 #' @param n_iter An integer specifying the number of boosting rounds --
 #'   \eqn{T} in the algorithm, one weak learner per round.
 #'
@@ -56,7 +62,20 @@
 #' \code{maxsurrogate}, which are forced to zero. Those two are speed, not
 #' structure: a thousand rounds should neither cross-validate each tree nor hunt
 #' for surrogate splits, and neither setting changes the tree that results.
-#' Everything a reader chose, they keep.
+#' The splitting rule travels too, although it lives in \code{h$parms} rather
+#' than in \code{h$control}. Everything a reader chose, they keep.
+#'
+#' \strong{What is refused.} \code{prior} cannot be carried: it is not a
+#' setting but a quantity \code{rpart} derives from the observation weights,
+#' and reweighting is exactly what boosting does, so one fixed at fitting time
+#' would have to be wrong from the second round on. A \code{loss} matrix is not
+#' passed on either, a learner fitted with \code{weights} conflicts with
+#' AdaBoost setting its own, and a learner that is not
+#' \code{method = "class"} would come back as a different kind of model, since
+#' every round is refitted as a classification tree. All four are errors. The
+#' alternative -- accepting the learner and quietly boosting something else --
+#' is the one failure a caller cannot detect without inspecting
+#' \code{fit[[1]]$h} by hand.
 #'
 #' \strong{The complexity parameter.} \code{cp} therefore arrives at whatever
 #' the tree was fitted with, which for a plain \code{rpart()} call is its own
@@ -122,6 +141,15 @@ adaboost <- function(
   if (!inherits(h, "rpart")) {
     stop("`h` must be a tree fitted with rpart().", call. = FALSE)
   }
+  if (!identical(h$method, "class")) {
+    stop(
+      "`h` must be a classification tree: every round is refitted with ",
+      "`method = \"class\"`, so a \"",
+      h$method,
+      "\" learner would come back as something other than what was handed in.",
+      call. = FALSE
+    )
+  }
   if (is.null(h$model)) {
     stop(
       "`h` carries no training data: refit it with `model = TRUE`.",
@@ -145,6 +173,51 @@ adaboost <- function(
   # h$model is already the model frame, so there is nothing to build
   mf <- h$model
 
+  # Refuse what cannot be carried, rather than ignoring it. A learner's own
+  # settings are the whole point of taking a fitted tree, so anything
+  # `adaboost()` cannot honour has to be said out loud: silently boosting a
+  # different model than the one handed in is the one failure a reader has no
+  # way to discover.
+  if ("(weights)" %in% names(mf)) {
+    stop(
+      "`h` was fitted with `weights`, which AdaBoost cannot honour: it sets ",
+      "its own observation weights, starting at 1/n and reweighting every ",
+      "round. Refit `h` without `weights`.",
+      call. = FALSE
+    )
+  }
+  y_train <- stats::model.response(mf)
+  # `prior` is recomputed from each round's weights -- that is the algorithm,
+  # not a setting -- so one fixed at fitting time could not survive. `loss` is
+  # not passed on either. Both default to values read off the data, so a
+  # mismatch is the caller having set them by hand.
+  tab <- table(y_train)
+  if (
+    !isTRUE(all.equal(
+      as.numeric(h$parms$prior),
+      as.numeric(tab / sum(tab))
+    ))
+  ) {
+    stop(
+      "`h` carries a `prior` that adaboost() cannot use: boosting recomputes ",
+      "it from each round's observation weights. Refit `h` without `prior` ",
+      "(or without `weights`, which sets one).",
+      call. = FALSE
+    )
+  }
+  if (
+    !isTRUE(all.equal(
+      as.numeric(h$parms$loss),
+      as.numeric(1 - diag(length(tab)))
+    ))
+  ) {
+    stop(
+      "`h` carries a custom `loss` matrix, which adaboost() does not pass on ",
+      "to the boosted trees. Refit `h` without `loss`.",
+      call. = FALSE
+    )
+  }
+
   # A model frame holds *evaluated* terms, so `log(power.o)` is a column name
   # rather than a call and refitting the original formula against it fails on
   # "object 'power.o' not found". `<response> ~ .` over the frame finds the same
@@ -167,6 +240,14 @@ adaboost <- function(
   ctrl <- h$control
   ctrl$xval <- 0
   ctrl$maxsurrogate <- 0
+
+  # rpart stores the splitting rule as a code but takes it back only as a name:
+  # handed the code it stores NA and silently reverts to gini, which is the
+  # quiet substitution this is here to prevent
+  split_rule <- c("gini", "information")[h$parms$split]
+  if (is.na(split_rule)) {
+    split_rule <- "gini"
+  }
 
   # the literal name of the dataset, read off the tree's own call, for the
   # tracking attribute at the very end
@@ -199,8 +280,7 @@ adaboost <- function(
   if (verbose) {
     color_message(
       "Start the AdaBoost training process:\n",
-      color_code = ansi_bold,
-      newline = TRUE
+      color_code = ansi_bold
     )
   }
 
@@ -219,8 +299,6 @@ adaboost <- function(
     color_message("Start the initialization process", color_code = ansi_dim)
   }
 
-  y_train <- stats::model.response(mf)
-
   # Setup weights and containers
   m <- nrow(mf)
   D <- rep(1, m) / m
@@ -229,7 +307,7 @@ adaboost <- function(
   if (verbose) {
     walking_colordots()
     color_message(
-      "Steps 1-4: Run through the algorithm steps\n",
+      "Steps 1-4: Run through the algorithm steps",
       color_code = ansi_dim
     )
     # stderr, like every other piece of progress here: txtProgressBar writes to
@@ -259,6 +337,9 @@ adaboost <- function(
       weights = D,
       method = "class",
       control = ctrl,
+      # the splitting rule travels with the learner; `prior` and `loss` are
+      # left out so rpart keeps deriving them from this round's weights
+      parms = list(split = split_rule),
       model = FALSE,
       y = FALSE
     )
