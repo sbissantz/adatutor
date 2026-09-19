@@ -53,14 +53,13 @@
 #' data(altmejd)
 #' prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 #'
-#' fit <- adaboost(
+#' h <- rpart::rpart(
 #'   replicate ~ .,
 #'   data = altmejd[, c(prednms, "replicate")],
-#'   T = 50,
-#'   eta = 1,
-#'   verbose = FALSE,
-#'   input_checks = FALSE
+#'   maxdepth = 1,
+#'   model = TRUE
 #' )
+#' fit <- adaboost(h, n_iter = 50, eta = 1, verbose = FALSE, input_checks = FALSE)
 #'
 #' imp <- gauge(fit)
 #' imp
