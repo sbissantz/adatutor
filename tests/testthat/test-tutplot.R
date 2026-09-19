@@ -202,7 +202,10 @@ test_that("tutplot_updatefactor() generalizes past three curves", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  four <- tutplot_updatefactor(alpha = c(0.8, 0.6, 0.4, 0.2), ylim = c(0.2, 2.6))
+  four <- tutplot_updatefactor(
+    alpha = c(0.8, 0.6, 0.4, 0.2),
+    ylim = c(0.2, 2.6)
+  )
 
   expect_length(four$alpha, 4)
   expect_length(four$wrong, 4)
@@ -246,7 +249,10 @@ test_that("tutplot_importance() shows what its caption claims", {
   # "eta allows to further attenuate the weight": at any fixed performance the
   # importance is proportional to it
   at <- which(round(imp$performance, 3) == 0.9)
-  expect_equal(imp$importance[at, ] / imp$importance[at, 1], imp$eta / imp$eta[1])
+  expect_equal(
+    imp$importance[at, ] / imp$importance[at, 1],
+    imp$eta / imp$eta[1]
+  )
 })
 
 test_that("tutplot_importance() sizes its panel from every curve", {
@@ -698,8 +704,11 @@ test_that("tutplot_boundary() draws at the manuscript's full text width", {
 
   tutplot_boundary(stump(), data = altmejd_splits$train, file = f)
   # derived from the object rather than hardcoded, so the two cannot disagree
-  expect_equal(round(pts(f)), unname(round(tutplot_opts$full * 72)),
-               tolerance = 1)
+  expect_equal(
+    round(pts(f)),
+    unname(round(tutplot_opts$full * 72)),
+    tolerance = 1
+  )
 
   # `full`, not `col` -- this is the assertion that catches the two being
   # crossed, since both are plausible page sizes on their own
@@ -722,15 +731,13 @@ test_that("tutplot_boundary() takes either learner, and writes no file", {
 
   # an ensemble: the same call, and the margin takes many values. `T` is small
   # because this is about the wrapper, not about boosting
-  ens <- adaboost(
+  ens <- rpart::rpart(
     replicate ~ .,
     data = train[, c("power.o", "n.o", "replicate")],
-    T = 20,
-    eta = 1,
     maxdepth = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 20, eta = 1, verbose = FALSE, input_checks = FALSE)
   many <- tutplot_boundary(ens, data = train, resolution = 40)
   expect_identical(many$features, c("power.o", "n.o"))
   expect_gt(length(unique(as.vector(many$z))), 2L)
@@ -834,8 +841,9 @@ test_that("axis labels are title case, as APA asks", {
   g <- tempfile(fileext = ".pdf")
   on.exit(unlink(c(f, g)), add = TRUE)
 
-  txt <- function(p) paste(system2("pdftotext", c(p, "-"), stdout = TRUE),
-                           collapse = " ")
+  txt <- function(p) {
+    paste(system2("pdftotext", c(p, "-"), stdout = TRUE), collapse = " ")
+  }
 
   # the labels are literals inside the drawing code, not defaults, so
   # `formals()` cannot see them -- assert on what is actually drawn

@@ -2,14 +2,13 @@ feat <- c("power.o", "n.o")
 
 fit_ada <- function(T = 20) {
   data(altmejd)
-  adaboost(
+  rpart::rpart(
     replicate ~ .,
     data = altmejd[, c("replicate", feat)],
-    T = T,
-    eta = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = T, eta = 1, verbose = FALSE, input_checks = FALSE)
 }
 fit_stump <- function() {
   data(altmejd)
@@ -74,7 +73,7 @@ test_that("features are inferred only when the choice is unambiguous", {
   expect_equal(g$features, feat)
 
   # four predictors -> refuses to guess, and says what is available
-  wide <- adaboost(
+  wide <- rpart::rpart(
     replicate ~ .,
     data = altmejd[, c(
       "replicate",
@@ -83,16 +82,20 @@ test_that("features are inferred only when the choice is unambiguous", {
       "n.o",
       "p_value.o"
     )],
-    T = 5,
-    eta = 1,
-    verbose = FALSE,
-    input_checks = FALSE
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
+  expect_error(
+    quietly(tutplot_boundary(wide, altmejd)),
+    "must name two columns"
   )
-  expect_error(quietly(tutplot_boundary(wide, altmejd)), "must name two columns")
   expect_error(quietly(tutplot_boundary(wide, altmejd)), "effect_size.o")
 
   # naming them explicitly works, and the others are held fixed
-  quietly(g2 <- tutplot_boundary(wide, altmejd, features = feat, resolution = 20))
+  quietly(
+    g2 <- tutplot_boundary(wide, altmejd, features = feat, resolution = 20)
+  )
   expect_equal(g2$features, feat)
 })
 
@@ -103,7 +106,11 @@ test_that("tutplot_boundary() rejects malformed input", {
     "exactly two"
   )
   expect_error(
-    quietly(tutplot_boundary(fit_ada(), altmejd, features = c("power.o", "nope"))),
+    quietly(tutplot_boundary(
+      fit_ada(),
+      altmejd,
+      features = c("power.o", "nope")
+    )),
     "not found"
   )
   expect_error(
@@ -161,7 +168,12 @@ test_that("shade = 'margin' varies the fill while class shading does not", {
   expect_equal(a$z, b$z)
   # a stump has too few distinct scores for margin shading to say anything
   quietly(
-    s <- tutplot_boundary(fit_stump(), altmejd, resolution = 40, shade = "margin")
+    s <- tutplot_boundary(
+      fit_stump(),
+      altmejd,
+      resolution = 40,
+      shade = "margin"
+    )
   )
   expect_lte(length(unique(as.vector(s$z))), 2L)
 })
@@ -338,14 +350,13 @@ test_that("the bar's end labels come from the outcome, including 0/1", {
   # a numeric outcome has no levels to borrow, so the bar falls back to 0/1
   expect_equal(boundary_labels(d, "replicate"), c("0", "1"))
   quietly({
-    fit <- adaboost(
+    fit <- rpart::rpart(
       replicate ~ .,
       data = d[, c("replicate", feat)],
-      T = 10,
-      eta = 1,
-      verbose = FALSE,
-      input_checks = FALSE
-    )
+      maxdepth = 1,
+      model = TRUE
+    ) |>
+      adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
     expect_silent(tutplot_boundary(fit, d, resolution = 20, shade = "margin"))
   })
 })
@@ -374,14 +385,13 @@ test_that("a tree's colour scale is anchored, a boosted margin's is not", {
   expect_equal(boundary_top(stump, c(-0.01, 0.01)), 0.5)
 
   # not anchored: follows the observed range
-  fit <- adaboost(
+  fit <- rpart::rpart(
     replicate ~ .,
     data = sub,
-    T = 5,
-    eta = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
   expect_equal(boundary_top(fit, c(-3, 2.2)), 3)
 })
 

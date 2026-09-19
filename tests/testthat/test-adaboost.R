@@ -1,14 +1,13 @@
 test_that("adaboost() and predict() work", {
   # Test 1: Silent and no input checks
   # Notice: No need to pass treehypar; the fast defaults handle it natively
-  fit <- adaboost(
+  fit <- rpart::rpart(
     Species ~ .,
     data = iris,
-    T = 10,
-    eta = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
 
   expect_length(fit, 10)
   expect_equal(round(fit$t1$a, 1), 0.3)
@@ -20,14 +19,13 @@ test_that("adaboost() and predict() work", {
   expect_equal(ypred[1:6], rep(-1, 6))
 
   # Test 2: Verbose and with input checks
-  fit2 <- adaboost(
+  fit2 <- rpart::rpart(
     Species ~ .,
     data = iris,
-    T = 10,
-    eta = 1,
-    verbose = TRUE,
-    input_checks = TRUE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 10, eta = 1, verbose = TRUE, input_checks = TRUE)
 
   expect_length(fit2, 10)
   expect_equal(round(fit2$t1$a, 1), 0.3)
@@ -49,14 +47,13 @@ test_that("predict() handles single-row newdata", {
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
 
-  fit <- adaboost(
+  fit <- rpart::rpart(
     replicate ~ .,
     data = altmejd[1:60, voinms],
-    T = 5,
-    eta = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
 
   for (ty in c("margin", "class")) {
     many <- predict(
@@ -86,19 +83,20 @@ test_that("adaboost() stashes hyperparameters and predict() returns margins", {
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
 
-  fit <- adaboost(
+  fit <- rpart::rpart(
     replicate ~ .,
     data = altmejd[, voinms],
-    T = 20,
-    eta = 0.5,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 20, eta = 0.5, verbose = FALSE, input_checks = FALSE)
 
-  # adaboost() stashes the hyperparameters needed to refit the model later
-  expect_equal(attr(fit, "T"), 20)
+  # adaboost() stashes the hyperparameters needed to refit the model later.
+  # Depth is not one of its own: it arrives on the learner and is stored as the
+  # whole control the trees were grown with.
+  expect_equal(attr(fit, "n_iter"), 20)
   expect_equal(attr(fit, "eta"), 0.5)
-  expect_equal(attr(fit, "maxdepth"), 1)
+  expect_equal(attr(fit, "control")$maxdepth, 1)
   expect_s3_class(attr(fit, "formula"), "formula")
 
   margin <- predict(
@@ -147,7 +145,10 @@ stderr_of <- function(expr) {
 test_that("an error before the loop starts on its own line", {
   d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
 
-  out <- stderr_of(adaboost(replicate ~ ., data = "not a data frame", T = 4))
+  h <- rpart::rpart(replicate ~ ., data = d, maxdepth = 1, model = TRUE)
+  # `eta` is missing, so check_eta() throws inside the input checks -- after
+  # the "Run mild input checks" line is open and before the loop starts
+  out <- stderr_of(adaboost(h, n_iter = 4))
   expect_false(any(grepl("input checksError", out)))
   expect_true(any(grepl("^Error: ", out)))
 
@@ -159,20 +160,35 @@ test_that("an error before the loop starts on its own line", {
 test_that("an error inside the loop closes the progress bar", {
   d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
 
-  # make rpart throw on the third call, which is well inside the loop and so
-  # after the bar has been opened. trace() affects this session only.
-  i <- 0
+  # make rpart throw on the third call: the first builds the learner, so the
+  # third is the second boosting round -- well inside the loop, after the bar
+  # has been opened. trace() affects this session only.
+  #
+  # The counter lives in its own environment, spliced into the tracer by
+  # bquote(): the tracer runs in rpart's frame, so `<<-` would walk rpart's
+  # namespace and never see a local here.
+  counter <- new.env(parent = emptyenv())
+  counter$i <- 0
   suppressMessages(trace(
     rpart::rpart,
-    tracer = quote({
-      i <<- i + 1
-      if (i == 3) stop("forced failure")
+    tracer = bquote({
+      e <- .(counter)
+      e$i <- e$i + 1
+      if (e$i == 3) stop("forced failure")
     }),
     print = FALSE
   ))
   on.exit(suppressMessages(untrace(rpart::rpart)), add = TRUE)
 
-  out <- stderr_of(adaboost(replicate ~ ., data = d, T = 6, eta = 1))
+  out <- stderr_of(
+    rpart::rpart(
+      replicate ~ .,
+      data = d,
+      maxdepth = 1,
+      model = TRUE
+    ) |>
+      adaboost(n_iter = 6, eta = 1)
+  )
 
   # the bar was reached, so this exercises close(pb) rather than the fallback
   expect_true(any(grepl("Steps 1-4", out)))
@@ -185,13 +201,22 @@ test_that("verbose = FALSE prints nothing, even when it fails", {
   d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
 
   quiet <- utils::capture.output(
-    fit <- adaboost(replicate ~ ., data = d, T = 2, eta = 1, verbose = FALSE),
+    fit <- rpart::rpart(
+      replicate ~ .,
+      data = d,
+      maxdepth = 1,
+      model = TRUE
+    ) |>
+      adaboost(n_iter = 2, eta = 1, verbose = FALSE),
     type = "message"
   )
   expect_identical(quiet, character(0))
 
   failed <- stderr_of(
-    adaboost(replicate ~ ., data = "not a data frame", verbose = FALSE)
+    adaboost(
+      rpart::rpart(replicate ~ ., data = d, maxdepth = 1, model = TRUE),
+      verbose = FALSE
+    )
   )
   # only the error itself, no stray newline from the cleanup
   expect_length(failed, 1L)
@@ -208,19 +233,24 @@ test_that("a fit leaks nothing beyond the frame it was asked to keep", {
   data_bytes <- length(serialize(big, NULL))
 
   # keep_data = FALSE is the condition this guards: nothing retained at all
-  lean <- adaboost(
+  lean <- rpart::rpart(
     replicate ~ .,
     data = big,
-    T = 5,
-    eta = 1,
-    keep_data = FALSE,
-    verbose = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, keep_data = FALSE, verbose = FALSE)
   expect_lt(length(serialize(lean, NULL)), data_bytes / 4)
 
   # and with keep_data = TRUE the growth is the stored frame and nothing more,
   # which is what rules out the environment leak coming back alongside it
-  full <- adaboost(replicate ~ ., data = big, T = 5, eta = 1, verbose = FALSE)
+  full <- rpart::rpart(
+    replicate ~ .,
+    data = big,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   grew <- length(serialize(full, NULL)) - length(serialize(lean, NULL))
   frame_bytes <- length(serialize(attr(full, "trainset"), NULL))
   expect_lt(abs(grew - frame_bytes), 0.01 * frame_bytes)
@@ -240,15 +270,21 @@ test_that("scrubbing the terms environment leaves predictions intact", {
   base <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   nd <- base[, c("power.o", "n.o")]
 
-  plain <- adaboost(replicate ~ ., data = base, T = 5, eta = 1, verbose = FALSE)
+  plain <- rpart::rpart(
+    replicate ~ .,
+    data = base,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   # a transformation has to resolve at predict time from the scrubbed terms
-  trans <- adaboost(
+  trans <- rpart::rpart(
     replicate ~ log(power.o) + n.o,
     data = base,
-    T = 5,
-    eta = 1,
-    verbose = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
 
   for (f in list(plain, trans)) {
     m <- predict(f, nd, type = "margin", verbose = FALSE)
@@ -273,7 +309,13 @@ retro_msg <- function(expr) {
 test_that("the retrodiction check compares data, not the variable name", {
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 8, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 8, eta = 1, verbose = FALSE)
 
   expect_true(retro_msg(predict(fit, newdata = train, verbose = FALSE)))
 
@@ -290,7 +332,13 @@ test_that("the retrodiction check compares data, not the variable name", {
 
 test_that("it informs rather than warns", {
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 5, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   # the tutorial retrodicts on purpose (Listing 27), so this must not warn
   expect_message(predict(fit, newdata = train, verbose = FALSE))
   expect_no_warning(suppressMessages(
@@ -300,7 +348,13 @@ test_that("it informs rather than warns", {
 
 test_that("predict() with no newdata returns retrodictions", {
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 8, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 8, eta = 1, verbose = FALSE)
 
   bare <- suppressMessages(predict(fit, type = "margin", verbose = FALSE))
   named <- suppressMessages(
@@ -312,15 +366,20 @@ test_that("predict() with no newdata returns retrodictions", {
 
 test_that("keep_data = FALSE drops the frame and falls back to the name", {
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  lean <- adaboost(
+  lean <- rpart::rpart(
     replicate ~ .,
     data = train,
-    T = 8,
-    eta = 1,
-    keep_data = FALSE,
-    verbose = FALSE
-  )
-  full <- adaboost(replicate ~ ., data = train, T = 8, eta = 1, verbose = FALSE)
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 8, eta = 1, keep_data = FALSE, verbose = FALSE)
+  full <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 8, eta = 1, verbose = FALSE)
 
   expect_null(attr(lean, "trainset"))
   expect_false(is.null(attr(full, "trainset")))
@@ -334,13 +393,13 @@ test_that("keep_data = FALSE drops the frame and falls back to the name", {
 
 test_that("only the formula's columns are stored", {
   train <- altmejd_splits$train
-  fit <- adaboost(
+  fit <- rpart::rpart(
     replicate ~ power.o + n.o,
     data = train,
-    T = 5,
-    eta = 1,
-    verbose = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   expect_setequal(
     names(attr(fit, "trainset")),
     c("replicate", "power.o", "n.o")
@@ -363,7 +422,13 @@ verbose_lines <- function(expr) {
 test_that("progress messages name predictions or retrodictions", {
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 5, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
 
   on_test <- verbose_lines(predict(fit, newdata = test, type = "margin"))
   expect_match(on_test, "Make predictions\n")
@@ -378,14 +443,13 @@ test_that("progress messages name predictions or retrodictions", {
 test_that("the slash wording is kept for the case we cannot tell", {
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
-  lean <- adaboost(
+  lean <- rpart::rpart(
     replicate ~ .,
     data = train,
-    T = 5,
-    eta = 1,
-    keep_data = FALSE,
-    verbose = FALSE
-  )
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, keep_data = FALSE, verbose = FALSE)
   out <- verbose_lines(predict(lean, newdata = test, type = "margin"))
   expect_match(out, "Make predictions/retrodictions")
 })
@@ -394,7 +458,13 @@ test_that("the wording does not depend on input_checks", {
   # the state is computed whenever anything will say it, not only when the
   # checks run -- this is what proves it was lifted out of check_train()
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 5, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   out <- verbose_lines(
     predict(fit, newdata = train, type = "margin", input_checks = FALSE)
   )
@@ -409,7 +479,13 @@ test_that("the notice comes after the transcript, on its own line", {
   # which waits for walking_colordots() to close it. It now lands at the very
   # end: a transcript scrolls, and nobody reads upwards.
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 5, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   # split first: R's `.` matches a newline, so a collapsed string would span
   # lines and the assertion would pass whatever the layout
   lines <- strsplit(
@@ -431,7 +507,13 @@ test_that("a partial overlap is deliberately not reported", {
   # partial overlap would therefore fire on the canonical test set every time.
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 5, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
 
   # the notice is matched by its marker, not its wording -- the sentence is a
   # preference and should be free to change without breaking these
@@ -448,7 +530,13 @@ test_that("predict() with no newdata names the fall-back, not \"this\"", {
   # testnme is NULL when there is no `newdata` argument to deparse, so the
   # message used to name no source at all, reading "this ..."
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  fit <- adaboost(replicate ~ ., data = train, T = 5, eta = 1, verbose = FALSE)
+  fit <- rpart::rpart(
+    replicate ~ .,
+    data = train,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
 
   out <- verbose_lines(predict(fit, type = "margin"))
   # matched loosely: the sentence is a preference, the concept is not

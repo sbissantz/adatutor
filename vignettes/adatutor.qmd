@@ -123,26 +123,49 @@ test <- stratsplit$set2
 ## Adaptive Boosting
 
 The AdaBoost algorithm combines multiple base models into a strong overall model
--- the *ensemble*. We use classification stumps as base learners, which require
-the following hyperparameter setup:
+-- the *ensemble*. Which base model is the analyst's choice, not the
+algorithm's: AdaBoost is defined over any *weak learner* whose weighted error
+stays below one half. That is why `adaboost()` takes a fitted learner rather
+than a formula, and why its own signature mentions no trees at all:
+
+```r
+adaboost(h, n_iter, eta)
+```
+
+### The Weak Learner
+
+Here the weak learner is a classification stump, so that is what we fit first.
+Every tree hyperparameter belongs to this call -- depth, the splitting rule,
+the complexity parameter -- and `adaboost()` carries all of them into every
+boosting round.
+
+`model = TRUE` is the one requirement. `rpart()` keeps the outcome but discards
+the predictors unless you ask for them, and `adaboost()` has to refit this tree
+on reweighted data, so it needs the data the tree was grown on.
 
 ```{r}
-#| label: treehypar
-# Tree hyperparameter setup
-treehypar <- rpart::rpart.control(
+#| label: weak-learner
+# Fit the weak learner: one stump
+h <- rpart::rpart(
+  replicate ~ .,
+  data = train[, voinms],
+  # Classification tree
+  method = "class",
   # Maximum depth
   maxdepth = 1,
   # Gini impurity (default)
-  split = "gini"
+  parms = list(split = "gini"),
+  # Keep the training data, so the stump can be refitted
+  model = TRUE
 )
 ```
 
 ### Training Phase
 
-In addition to the tree hyperparameters, we need to set the boosting
-hyperparameters. The key hyperparameters are:
+What is left for `adaboost()` are the two hyperparameters that are genuinely
+boosting's own:
 
-- `T`: Number of base models
+- `n_iter`: Number of boosting rounds, one base model per round
 - `eta`: Learning rate
 
 Here, we develop an ensemble with 10 stumps and a learning rate of 1:
@@ -152,16 +175,13 @@ Here, we develop an ensemble with 10 stumps and a learning rate of 1:
 #| results: hide
 #| message: false
 # Boosted stumps and weights
-fit <- adaboost(
-  replicate ~ .,
-  data = train[, voinms],
-  # Boosting hyperparameter
-  T = 10,
-  eta = 1,
-  # Tree hyperparameter
-  treehypar = treehypar
-)
+fit <- h |> adaboost(n_iter = 10, eta = 1)
 ```
+
+Swapping the weak learner is now a change to the `rpart()` call above and
+nothing else: a deeper tree, a different splitting rule or a different
+complexity parameter all reach the ensemble without `adaboost()` gaining an
+argument.
 
 ### Test Phase
 
