@@ -813,6 +813,8 @@ As both are weight by weight identical, we will use the package solution in the 
 Box:
 Furthermore, the signature l. 802 also makes explicit what is often taken for granted: the weak learner is a (classification) stump. In fact the algorithm is written to accept any weak learner, with a performance slighly better than guessing (we see this in Eq. xxx). So the weak learner is iself a choice (a free hyperparameter if you will) and in fact you can also boost other models as well, such as deep trees or single-layer perceptrons (if you want to get wild). That said, `adaboost()` only accepts trees as this tutorial introduced them in Module 2. Indeed, stumps are a convenient choice, especially because of their simplicity and thus explainability which we will discuss next.
 
+**TODO**: Prompt to the tidymodels package? "Once to go when graduated"
+
 ## NEW: Feature Importance
 Note: We should describe the package function before module 4 and maybe move the feature importance before hyperparameter optimization. (before we touch performance)
 
@@ -968,10 +970,40 @@ yretro_stumps <- sapply(h, predict, newdata = train[, prednms], type = "vector")
 yretro_stumps <- 2 * yretro_stumps - 3
 
 # Retrodictions from full model
-yretro_ada <- sign(a %*% t(yretro_stumps))
+yretro_diy <- sign(a %*% t(yretro_stumps))
 ```
 
-TODO: Add the case that this is equal to the package functions. Show the message with predictions vs. retrodictions?
+#### The Package Solution [NEW]
+
+Code to generate the same retrodictions with the adatutor package.
+
+```{r listing-25-pkg}
+# Retrodictions from the full model
+yretro_pkg <- predict(fit_pkg, newdata = train[, prednms], type = "class")
+
+# Verification
+identical(as.vector(yretro_diy), yretro_pkg)
+```
+
+Note: `a %*% t(yretro_stumps)` and matrix multiplication returns a matrix, `predict()` hands back a plain vector. Different shape, so the two are `identical()` only once the shape is dropped.
+
+As both are identical we will use the package solution in the following to save some typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function. For instance, read the message the call printed. `predict()` noticed that the data it was asked to score is the data the model was trained on and notes that it is returning retrodictions, not predictions.
+
+**TODO**
+One more thing worth knowing before the next listing. `type = "class"` applies
+`sign()`, exactly as Listing 25 does, which throws away everything but the
+direction of the vote. The quantity *before* the sign is available too:
+
+```{r listing-25-margin}
+# The continuous score, before sign() discards its magnitude
+margin_pkg <- predict(fit, newdata = train[, prednms], type = "margin")
+
+# It is the matrix product from Listing 25, unsigned
+identical(as.vector(a %*% t(yretro_stumps)), margin_pkg)
+```
+
+Keep that in mind for Module 4: a hard label can only ever be right or wrong,
+while the margin carries the ranking that measures like AUC need.
 
 #### Listing 26
 
