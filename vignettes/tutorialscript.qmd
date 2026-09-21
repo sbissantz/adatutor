@@ -381,7 +381,7 @@ cstump <- rpart::rpart(
 
 #### Listing 13
 
-Code to visualize a fitted classification stump. The tree here is not the one in Figure 2, because `cstump` was fitted to all four reviewer metrics and splits on `p_value.o` at 0.0006 into leaves of 72 and 35, whereas Figure 2 uses only `power.o` and `n.o` and splits on `power.o` at 0.9305 into 66 and 41. The two-predictor version is `h_int`, fitted in the Figure 2 chunk above, so `rpart.plot::rpart.plot(h_int)` reproduces the figure.
+Code to visualize a fitted classification stump. `cstump` is the model behind Figure 2: the same two reviewer metrics, splitting on `power.o` at 0.9305 into leaves of 66 and 41. It is `h_int` with the arguments spelled out, so this listing reproduces that figure. The four-metric stump -- which splits on `p_value.o` at 0.0006 into leaves of 72 and 35 -- is `cstump_ada`, fitted in Listing 24.
 
 ```{r listing-13}
 # Color-blind pallette
@@ -505,7 +505,7 @@ m <- nrow(train)
 D <- rep(1, m) / m
 
 # Fit decision stump
-cstump <- rpart::rpart(
+cstump_eq <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train[, voinms],
   method = "class",
@@ -516,7 +516,7 @@ cstump <- rpart::rpart(
 
 # Visualize
 sty <- viridis_tree(cstump)
-cstump |>
+cstump_eq |>
   rpart.plot::rpart.plot(
     extra = 100,
     digits = 4,
@@ -526,7 +526,7 @@ cstump |>
 ```
 
 
-Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the extra argument of the `rpart.plot()` function with a value set to 100.
+Visualization of a classification stump fitted with normalized equal weights. Note that we simplified the visual output shown here by using the extra argument of the `rpart.plot()` function with a value set to 100.
 
 ```{r}
 # Visualize
@@ -700,6 +700,8 @@ D2 <- D2_raw / Z1
 
 Visualization of how the update factor ($e^{-\alpha\chi}$) varies depending on the classification result and the importance of the model ($\alpha_t$). If the classifier classifies an observation correctly, $\chi$ takes the value 1 and the weight or importance of the observation is reduced in the next iteration. In the case of a misclassification, $\chi$ takes the value -1 and the weight of the observation increases. The observation will be more important in the next iteration.
 
+**TODO** I use $a$ as model weight not alpha! Either a or alpha needs fixing. Switch to alpha?
+
 ```{r figure-7}
 # Model weights: yours in the middle, a heavier and a lighter one either
 # side. Taken relative to alpha1, so they follow it if you change eta
@@ -750,7 +752,7 @@ T <- 1000
 eta <- 1
 
 # Lists for models and weights
-fit_diy <- vector("list", T)
+ada_diy <- vector("list", T)
 
 # Initial observation weights
 D <- rep(1, m) / m
@@ -774,12 +776,12 @@ for (t in seq_len(T)) {
   chi <- (yretro == y_train) * 1 + (yretro != y_train) * -1
   D_raw <- (D * exp(-a * chi))
   D <- D_raw / sum(D_raw)
-  fit_diy[[t]] <- list("h" = h, "a" = a)
+  ada_diy[[t]] <- list("h" = h, "a" = a)
 }
-names(fit_diy) <- paste0("t", seq_len(T))
+names(ada_diy) <- paste0("t", seq_len(T))
 
 # Show first model weight
-cat("Model weight 1:", fit_diy$t1$a)
+cat("Model weight 1:", ada_diy$t1$a)
 ```
 
 #### The Package Solution [NEW]
@@ -788,7 +790,7 @@ Code to fit the same ensemble with the adatutor package.
 
 ```{r listing-24-pkg}
 # Fit the weak learner
-cstump <- rpart::rpart(
+h_fit <- rpart::rpart(
   replicate ~ .,
   data = train[, voinms],
   method = "class",
@@ -800,10 +802,10 @@ cstump <- rpart::rpart(
 )
 
 # Take the learner and boost
-fit_pkg <- cstump |> adaboost(n_iter = T, eta = eta)
+ada_fit <- h_fit |> adaboost(n_iter = T, eta = eta)
 
 # Verification
-identical(sapply(fit_diy, "[[", "a"), sapply(fit, "[[", "a"))
+identical(sapply(ada_diy, "[[", "a"), sapply(ada_fit, "[[", "a"))
 ```
 
 Note: Adatutor is a teaching package, hence forces you to be explicit and fails otherwise. `model = TRUE` in the `rpart()` function keeps the training data on the stump (outcome and predictors). Boosting only makes sense for the same (training) dataset used to fit the tree, so `adaboost()` has no slots to tinker with it. It is always the "specify once, resuse many" principle.
@@ -825,7 +827,7 @@ accumulated weight is thus a direct measure of a feature's predictive contributi
 That is the whole idea with nothing borrowed: count up the voting weight of the
 stumps that chose each variable.
 
-Start with initializing a named vector of zeros (to keep the loop readble) gorwing it in Line -- `imp[v] <- imp[v] + fit[[t]]$a` starting from an empty vector. If it does not split the addition step is skipped, so it silently produces nothing.
+Start with initializing a named vector of zeros (to keep the loop readable) growing it in Line -- `imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a` starting from an empty vector. If it does not split the addition step is skipped, so it silently produces nothing.
 
 For stumps we can find the split directly: `frame` is the tree's node table.
 It's first row is our root, so `frame$var[1]` is the variable the stump splits on 
@@ -836,14 +838,14 @@ n_preds <- length(prednms)
 # initialization: vector of zeros
 voz <- numeric(n_preds)
 imp_diy <- setNames(voz, prednms)
-for (t in seq_along(fit)) {
+for (t in seq_along(ada_diy)) {
   # variable at the root (stumps)
-  v <- as.character(fit[[t]]$h$frame$var[1])
+  v <- as.character(ada_diy[[t]]$h$frame$var[1])
   # if it does not split, skip it
   if (v == "<leaf>") {
     next
   }
-  imp_diy[v] <- imp_diy[v] + fit[[t]]$a
+  imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a
 }
 # relative importance: normalize and scale
 imp_diy <- imp_diy / sum(imp_diy) * 100
@@ -855,23 +857,28 @@ Alternative loop with `rpart` internals.
 Note: Keep only loop not the full code.
 
 ```{r importance-byhand}
-#| echo: true
-#| eval: false
+# initialization: its own vector, so the loop above is not added to twice
+imp_alt <- setNames(voz, prednms)
 # walk ensemble, tree by tree
-for (t in seq_along(fit)) {
+for (t in seq_along(ada_diy)) {
   # Shorcut: extract rpart's included measure
-  vi <- fit[[t]][["h"]][["variable.importance"]]
+  vi <- ada_diy[[t]][["h"]][["variable.importance"]]
   # if it does not split, skip it
   if (is.null(vi)) {
     next
   }
   # stumps split (at most once), i.e. whole model weight goes to that variable
-  imp_diy[names(vi)] <- imp_diy[names(vi)] + fit[[t]]$a
+  imp_alt[names(vi)] <- imp_alt[names(vi)] + ada_diy[[t]]$a
 }
+# relative importance: normalize and scale
+imp_alt <- imp_alt / sum(imp_alt) * 100
+
+# Verification: same scores, different route to them
+identical(imp_alt, imp_diy)
 ```
 
-Note to self: Because in rpart cp is 0.01, by default, the trees do not need to split at all. 
-In fact, twelve of the 100 stumps decided not to, which is why `next` exists. 
+Note to self: Because in rpart cp is 0.01, by default, the trees do not need to split at all.
+In fact, 81 of the 1000 stumps decided not to, which is why `next` exists.
 Note to self: cp and pruning maybe as box?
 
 Outlook? If we grow deeper trees they can split more than once, and the weight is shared between those variables. Specifically, the weight is shared in proportion to how much each split improved the overall fit. The difference comes down to a one-line difference:
@@ -889,19 +896,19 @@ h_deep <- rpart::rpart(
 
 # Boost it
 # Note: the boosting hyperparameters are all that is left here
-fit_deep <- adaboost(h_deep, n_iter = 10, eta = 1)
+ada_deep <- adaboost(h_deep, n_iter = 10, eta = 1)
 
 n_preds <- length(prednms)
 voz <- numeric(n_preds)
 imp_deep <- setNames(voz, prednms)
-for (t in seq_along(fit_deep)) {
-  vi <- fit_deep[[t]][["h"]][["variable.importance"]]
+for (t in seq_along(ada_deep)) {
+  vi <- ada_deep[[t]][["h"]][["variable.importance"]]
   if (is.null(vi)) {
     next
   }
   # Split the weight across the variables this tree used, in proportion to
   # each split's improvement
-  share <- fit_deep[[t]]$a * vi / sum(vi)
+  share <- ada_deep[[t]]$a * vi / sum(vi)
   imp_deep[names(share)] <- imp_deep[names(share)] + share
 }
 imp_deep <- 100 * imp_deep / sum(imp_deep)
@@ -915,13 +922,13 @@ That is what `gauge()` does, so the two agree.
 
 ```{r}
 #| label: importance
-important <- gauge(fit)
+important <- gauge(ada_fit)
 head(important, 10)
 
 # `gauge()` reads `variable.importance` too, so it and `imp_diy` agree. It
 # returns its rows sorted, so index the hand-built vector by its names first.
-imp_pkg <- setNames(important$importance, important$variable)
-all.equal(imp_pkg, imp_diy[names(imp_pkg)])
+imp <- setNames(important$importance, important$variable)
+identical(imp, imp_diy[names(imp)])
 ```
 
 We also provide a quick and easy way to visualize the results.
@@ -929,8 +936,7 @@ We also provide a quick and easy way to visualize the results.
 ```{r}
 #| label: importance-plot
 #| fig-alt: "Horizontal bar chart of AdaBoost feature importance"
-fit |> gauge() |> plot()
-plot(important, top_n = 15)
+important |> plot(top_n = 15)
 ```
 
 **Important note** The provided scores are relative (to eachother), so we believe it is more accurate to say, that they describe how the ensemble divided its attention rather than making a satement
@@ -956,21 +962,39 @@ TODO: Here we'll start the new module on prediction and retrodiction.
 
 Code to generate ensemble retrodictions.
 
+**TODO**: Switch from a to alpha also in the tutorial?
+Naming inconsitency call h_fit a_fit?
+
 ```{r listing-25}
 # Boosted classification stumps
-h <- lapply(fit, "[[", "h")
+h_fit <- lapply(ada_fit, "[[", "h")
 
 # Model weights
-a <- sapply(fit, "[[", "a")
+a_fit <- sapply(ada_fit, "[[", "a")
 
 # Retrodictions from stumps
-yretro_stumps <- sapply(h, predict, newdata = train[, prednms], type = "vector")
+yretro_stumps <- sapply(
+  h_fits,
+  predict,
+  newdata = train[, prednms],
+  type = "vector"
+)
 
 # Transform values (-1,1)
 yretro_stumps <- 2 * yretro_stumps - 3
 
 # Retrodictions from full model
-yretro_diy <- sign(a %*% t(yretro_stumps))
+yretro_diy <- sign(a_fits %*% t(yretro_stumps))
+```
+
+#### Listing 26
+
+Code to replace matrix multiplication with a loop.
+
+```{r listing-26}
+#for (m in seq_len(m)) {
+#yretro_diy[m] <- sign(sum(a * yretro_stumps[m, ]))
+#}
 ```
 
 #### The Package Solution [NEW]
@@ -979,55 +1003,44 @@ Code to generate the same retrodictions with the adatutor package.
 
 ```{r listing-25-pkg}
 # Retrodictions from the full model
-yretro_pkg <- predict(fit_pkg, newdata = train[, prednms], type = "class")
+yretro_cls <- predict(ada_fit, newdata = train[, prednms], type = "class")
 
 # Verification
-identical(as.vector(yretro_diy), yretro_pkg)
+identical(as.vector(yretro_diy), yretro_cls)
 ```
 
-Note: `a %*% t(yretro_stumps)` and matrix multiplication returns a matrix, `predict()` hands back a plain vector. Different shape, so the two are `identical()` only once the shape is dropped.
+As both are identical we will use the package solution in the following to save typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function. For instance, read the message the call printed. `predict()` noticed that the data it was asked to score is the data the model was trained on and notes that it is returning retrodictions, not predictions.
 
-As both are identical we will use the package solution in the following to save some typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function. For instance, read the message the call printed. `predict()` noticed that the data it was asked to score is the data the model was trained on and notes that it is returning retrodictions, not predictions.
-
-**TODO**
+**[NEW]**
 One more thing worth knowing before the next listing. `type = "class"` applies
 `sign()`, exactly as Listing 25 does, which throws away everything but the
 direction of the vote. The quantity *before* the sign is available too:
 
 ```{r listing-25-margin}
 # The continuous score, before sign() discards its magnitude
-margin_pkg <- predict(fit, newdata = train[, prednms], type = "margin")
+ypred_mgn <- predict(ada_fit, newdata = train[, prednms], type = "margin")
 
-# It is the matrix product from Listing 25, unsigned
-identical(as.vector(a %*% t(yretro_stumps)), margin_pkg)
+# 'Unsigned' the matrix product from Listing 25
+margin_diy <- as.vector(a_all %*% t(yretro_stumps))
+identical(margin_diy, ypred_mgn)
 ```
 
 Keep that in mind for Module 4: a hard label can only ever be right or wrong,
-while the margin carries the ranking that measures like AUC need.
-
-#### Listing 26
-
-Code to replace matrix multiplication with a loop.
-
-```{r listing-26}
-#for (m in seq_len(m)) {
-#yretro_ada[m] <- sign(sum(a * yretro_stumps[m, ]))
-#}
-```
+while the margin carries the ranking that measures like area under the receiving operating curve need.
 
 #### Figure 9
 
 Visualization of the decision boundary of 1000 adaptively boosted shallow classification trees. The number of trees matches the Listings 24 and 25, but the trees were fitted to the training data using only two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
 
 ```{r figure-9}
-# Refit on the two metrics only, so the boundary is drawable in two dimensions
-h_ada <- rpart::rpart(
+# Refit on two metrics only (comparable to Figure 3)
+h_int <- rpart::rpart(
   replicate ~ .,
   data = train[, c("power.o", "n.o", outnme)],
   maxdepth = 1,
   model = TRUE
 )
-ada_int <- adaboost(h_ada, n_iter = 1e3, eta = 1, verbose = FALSE)
+ada_int <- adaboost(h_int, n_iter = 1e3, eta = 1, verbose = FALSE)
 
 # Visualize
 # Note: the same call as Figure 3, an ensemble in place of the stump
@@ -1039,26 +1052,14 @@ tutplot_boundary(
 )
 ```
 
-Set the two side by side. The stump gave two flat blocks, because a depth-one
-tree has two leaves and so exactly two scores. A thousand of them, each weighted
-by its own alpha, sum to a surface -- and the boundary stops being a vertical
-line.
-
 #### Listing 27
 
 Code to evaluate the retrodictive performance of the ensemble.
 
 ```{r listing-27}
 # Confusion matrix
-table(y_train, yretro_ada) # Perfect retrodictions
+table(y_train, yretro_cls) # Perfect retrodictions
 ```
-
-TODO: Show the package solution 
-TODO: Show that both solutions are equal
-TODO: Show that package solution notes retrodictions vs predictions
-(a) in the output and (b) explicitly
-TODO: Use the aditional sugar as move on to use it 
-yretro <- predict(fit, newdata = train[, prednms], type = "class")
 
 #### Listing 28
 
@@ -1069,18 +1070,26 @@ Code to generate ensemble predictions.
 y_test <- test[, outnme]
 
 # Predictions (test set)
-ypred_stumps <- sapply(h, predict, newdata = test[, prednms], type = "vector")
+ypred_stumps <- sapply(
+  h_all,
+  predict,
+  newdata = test[, prednms],
+  type = "vector"
+)
 # Transform values (-1,1)
 ypred_stumps <- 2 * ypred_stumps - 3
-ypred_ada <- sign(a %*% t(ypred_stumps))
+ypred_diy <- sign(a_all %*% t(ypred_stumps))
 ```
 
-TODO: Show the package solution is equal but warns?
-TODO: Show the package solution 
-TODO: Show that both solutions are equal
-TODO: Show that package solution notes retrodictions vs predictions
-(a) in the output
-TODO: Use the additional sugar as move on to use it 
+**[NEW]**
+
+```{r listing-28-pkg}
+# Predictions from the full model (test set)
+ypred_cls <- predict(ada_fit, newdata = test[, prednms], type = "class")
+
+# Verification
+identical(as.vector(ypred_diy), ypred_cls)
+```
 
 #### Listing 29
 
@@ -1088,12 +1097,12 @@ Code to evaluate the predictive performance of the ensemble.
 
 ```{r listing-29}
 # Confusion matrix
-table(y_test, ypred_ada) # Inperfect predictions
+table(y_test, ypred_cls) # Inperfect predictions
 ```
 
 # Module 4: Leave-Project-Out Cross-Validation and Hyperparameter Optimization
 
-## Two Wrapper Functions
+## Two Wrapper Functions [REMOVE]
 
 TODO: Wrapper function should be introduced earlier after the DIY version?
 
@@ -1109,21 +1118,21 @@ We reduced the number of trees to speed up runtime in the upcoming sections.
 # Boosted stumps and weights
 # Fit the weak learner
 # Note: the tree hyperparameters live here, on the learner itself
-h <- rpart::rpart(
-  replicate ~ .,
-  data = train[, voinms],
-  maxdepth = 1,
-  model = TRUE
-)
-
-# Boost it
-fit <- adaboost(h, n_iter = 100, eta = 1)
-
-# Predictions on test set (class labels, for the confusion matrix)
-ypred <- predict(fit, newdata = test[, prednms], type = "class")
-
-# Predictions on test set (margins, for the AUC)
-ymargin <- predict(fit, newdata = test[, prednms], type = "margin")
+# h <- rpart::rpart(
+#  replicate ~ .,
+#  data = train[, voinms],
+#  maxdepth = 1,
+#  model = TRUE
+#)
+#
+## Boost it
+#fit <- adaboost(h, n_iter = 100, eta = 1)
+#
+## Predictions on test set (class labels, for the confusion matrix)
+#ypred <- predict(fit, newdata = test[, prednms], type = "class")
+#
+## Predictions on test set (margins, for the AUC)
+#ymargin <- predict(fit, newdata = test[, prednms], type = "margin")
 ```
 
 ::: {.callout-important}
@@ -1143,13 +1152,19 @@ ensemble.
 
 ```{r listing-31}
 # Confusion matrix
-confusion <- table(ypred, y_test)
+conf_mat <- table(ypred_cls, y_test)
 
 # Accuracy
-sum(diag(confusion)) / sum(confusion)
+sum(diag(conf_mat)) / sum(conf_mat)
+
+# Balanced Accuracy
+auroc(y_test, ypred_cls)
 
 # Area under the curve (scored on the margin)
-auroc(y_test, ymargin)
+auroc(y_test, ypred_mgn)
+
+# Other metrics
+assess(y_test, score = ypred_mgn)
 
 # Base rates
 df$replicate_01 <- as.integer(df$replicate) - 1
@@ -1158,6 +1173,23 @@ baserates <- aggregate(replicate_01 ~ pid, df, mean)
 # Average base rate
 mean(baserates$replicate_01)
 ```
+
+`assess()` returns fifteen measures in one call -- the four cells of the
+confusion matrix, then `sens`, `spec`, `ppv`, `npv`, `acc`, `bacc`, `f1`,
+`mcc`, `auroc`, `auprc` and `patk` -- so the three computed by hand above are
+there to be checked against.
+
+Compare two of them. `bacc` is 0.775, and so is `auroc(y_test, ypred_cls)`
+above it: not approximately, exactly. That is not a coincidence, and it is the
+reason the second `auroc()` call is scored on `ypred_mgn` instead. Handed hard
+class labels, an ROC curve has a single operating point to work with, and its
+area collapses onto balanced accuracy -- the mean of sensitivity and
+specificity. Handed the margin, it sees the whole ranking, and the area rises
+to 0.85.
+
+A hard label can only ever be right or wrong. The margin says how confidently,
+and every measure that reads a ranking needs that. Keep it in mind for Module
+4, where the cross-validation scores on the margin throughout.
 
 ::: {.callout-important}
 ## Switched to `PRROC` package
