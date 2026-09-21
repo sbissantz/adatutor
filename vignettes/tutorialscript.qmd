@@ -445,6 +445,7 @@ criterion_left <- train$power.o < const
 N_left <- length(train$replicate[criterion_left]) # 66 total
 left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) # 17
 left_failure <- N_left - left_success # 49 failures
+
 # Gini impuritiy (left)
 gini_left <- 1 - ((left_failure / N_left)^2 + (left_success / N_left)^2)
 gini_left # 0.382
@@ -452,6 +453,7 @@ criterion_right <- train$power.o >= const
 N_right <- length(train$replicate[criterion_right]) # 41
 right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) # 31
 right_failure <- N_right - right_success # 10
+
 # Gini impuritiy (right)
 gini_right <- 1 - ((right_failure / N_right)^2 + (right_success / N_right)^2)
 gini_right # 0.3688281
@@ -748,7 +750,7 @@ T <- 1000
 eta <- 1
 
 # Lists for models and weights
-fit <- vector("list", T)
+fit_diy <- vector("list", T)
 
 # Initial observation weights
 D <- rep(1, m) / m
@@ -772,16 +774,44 @@ for (t in seq_len(T)) {
   chi <- (yretro == y_train) * 1 + (yretro != y_train) * -1
   D_raw <- (D * exp(-a * chi))
   D <- D_raw / sum(D_raw)
-  fit[[t]] <- list("h" = h, "a" = a)
+  fit_diy[[t]] <- list("h" = h, "a" = a)
 }
-names(fit) <- paste0("t", seq_len(T))
+names(fit_diy) <- paste0("t", seq_len(T))
 
 # Show first model weight
-cat("Model weight 1:", fit$t1$a)
+cat("Model weight 1:", fit_diy$t1$a)
 ```
 
-TODO: Show that the package solution.
-TODO: Show they are identical? 
+#### The Package Solution [NEW]
+
+Code to fit the same ensemble with the adatutor package.
+
+```{r listing-24-pkg}
+# Fit the weak learner
+cstump <- rpart::rpart(
+  replicate ~ .,
+  data = train[, voinms],
+  method = "class",
+  # Tree hyperparameter
+  maxdepth = 1,
+  # Keep the training data
+  model = TRUE,
+  parms = list(split = "gini")
+)
+
+# Take the learner and boost
+fit_pkg <- cstump |> adaboost(n_iter = T, eta = eta)
+
+# Verification
+identical(sapply(fit_diy, "[[", "a"), sapply(fit, "[[", "a"))
+```
+
+Note: Adatutor is a teaching package, hence forces you to be explicit and fails otherwise. `model = TRUE` in the `rpart()` function keeps the training data on the stump (outcome and predictors). Boosting only makes sense for the same (training) dataset used to fit the tree, so `adaboost()` has no slots to tinker with it. It is always the "specify once, resuse many" principle.
+
+As both are weight by weight identical, we will use the package solution in the following to save some typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function.
+
+Box:
+Furthermore, the signature l. 802 also makes explicit what is often taken for granted: the weak learner is a (classification) stump. In fact the algorithm is written to accept any weak learner, with a performance slighly better than guessing (we see this in Eq. xxx). So the weak learner is iself a choice (a free hyperparameter if you will) and in fact you can also boost other models as well, such as deep trees or single-layer perceptrons (if you want to get wild). That said, `adaboost()` only accepts trees as this tutorial introduced them in Module 2. Indeed, stumps are a convenient choice, especially because of their simplicity and thus explainability which we will discuss next.
 
 ## NEW: Feature Importance
 Note: We should describe the package function before module 4 and maybe move the feature importance before hyperparameter optimization. (before we touch performance)
