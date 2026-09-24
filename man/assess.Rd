@@ -4,6 +4,7 @@
 \alias{assess}
 \alias{assess.default}
 \alias{assess.confusion}
+\alias{print.assessment}
 \title{Assess Classification Performance}
 \usage{
 assess(x, ...)
@@ -11,6 +12,8 @@ assess(x, ...)
 \method{assess}{default}(x, score, threshold = 0, k = NULL, ...)
 
 \method{assess}{confusion}(x, ...)
+
+\method{print}{assessment}(x, digits = 3, ...)
 }
 \arguments{
 \item{x}{What to score. For the default method, the true labels: either a
@@ -30,16 +33,27 @@ details. For \code{\link[=predict.adaboost]{predict()}} use
 classes. Defaults to 0, the boundary for AdaBoost margins. Pass 0.5 when
 \code{score} holds probabilities.}
 
-\item{k}{The budget for \code{patk}. Defaults to the number of positive cases
-in \code{x}, which makes the measure self-scaling across test sets of
-different sizes (also known as R-precision).}
+\item{k}{The budgets for \code{patk}. Defaults to 3, 5 and the number of
+positive cases in \code{x}, reported as \code{patk_3}, \code{patk_5}
+and \code{patk}. The last is R-precision, which scales itself across test
+sets of different sizes; the two small fixed budgets answer \dQuote{how
+good are the model's few favorites?}. A \code{k} above the number of
+positives gives \code{NA} (see \code{\link[adatutor]{patk}}), so the
+names and length never depend on the data. Budgets you pass are reported
+as \code{patk_<k>}.}
+
+\item{digits}{The number of decimals \code{print()} shows for the rates.
+Defaults to 3. Counts always print as integers.}
 }
 \value{
-A named numeric vector. The default method returns fifteen entries,
-always in this order: \code{tp}, \code{tn}, \code{fp}, \code{fn},
-\code{sens}, \code{spec}, \code{ppv}, \code{npv}, \code{acc}, \code{bacc},
-\code{f1}, \code{mcc}, \code{auroc}, \code{auprc}, \code{patk}. The
-\code{confusion} method returns the first twelve of them.
+A named numeric vector of class \code{"assessment"}. With the
+default \code{k}, the default method returns seventeen entries, always in
+this order: \code{tp}, \code{tn}, \code{fp}, \code{fn}, \code{sens},
+\code{spec}, \code{ppv}, \code{npv}, \code{acc}, \code{bacc},
+\code{f1}, \code{mcc}, \code{auroc}, \code{auprc}, \code{patk_3},
+\code{patk_5}, \code{patk}. The \code{confusion} method returns the
+first twelve of them. The threshold and \code{k} travel along
+as attributes, for \code{print()}.
 }
 \description{
 Computes a bundle of performance measures from a vector of true
@@ -65,12 +79,12 @@ in the parameter.
 \strong{How the two methods compose.} \code{assess()} cuts the score once with
 \code{\link[adatutor]{confusion}} and hands the resulting matrix to
 \code{assess()} again, which is where the threshold measures come from; the
-three ranking measures are then appended. So \code{assess(cm)} returns the
+ranking measures are then appended. So \code{assess(cm)} returns the
 first twelve entries of \code{assess(x, score)}, and the two methods
 differ only in what the input can support.
 
-\strong{Why the last three are not matrix measures.} \code{auroc},
-\code{auprc} and \code{patk} need the whole ranking, so no confusion matrix
+\strong{Why the last ones are not matrix measures.} \code{auroc},
+\code{auprc} and the \code{patk} family need the whole ranking, so no confusion matrix
 at any single threshold can produce them -- a matrix has already thrown the
 ordering away. That is not an inconsistency in the interface: it is the same
 distinction that produces the collapse described above, made visible by which
@@ -97,12 +111,43 @@ threshold-based measure, so they are computed once and reused:
 \deqn{\text{mcc} = \frac{TP \cdot TN - FP \cdot FN}
       {\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}}
 
+\strong{Other names for the same quantities.} The names above are the ones
+used in psychology and medicine. Machine learning names several of them
+differently (Fawcett, 2006):
+
+\describe{
+\item{\code{sens}}{True positive rate (TPR), recall, hit rate.}
+\item{\code{spec}}{True negative rate (TNR). Its complement,
+\eqn{1 - \text{spec}}, is the false positive rate (FPR), or false-alarm
+rate.}
+\item{\code{ppv}}{Precision.}
+\item{\code{bacc}}{\eqn{(J + 1) / 2}, where \eqn{J = \text{sens} +
+    \text{spec} - 1} is Youden's J.}
+\item{\code{f1}}{The harmonic mean of \code{ppv} and \code{sens}; the
+same formula as the Dice coefficient.}
+\item{\code{mcc}}{The phi coefficient: the Pearson correlation between
+the true and the predicted 0/1 labels (Chicco & Jurman, 2020).}
+\item{\code{auroc}}{The probability that a randomly chosen positive
+scores higher than a randomly chosen negative, ties counting half. This
+is the Mann-Whitney \eqn{U} divided by \eqn{n_1 n_0}, known as the
+c statistic and as Vargha and Delaney's (2000) \eqn{A}.}
+\item{\code{auprc}}{Not the same estimator as \emph{average precision},
+which sums precision in steps rather than interpolating, so the two can
+differ.}
+\item{\code{patk}}{Precision at \eqn{k}. With \eqn{k} the number of
+positives, it is R-precision, and there precision equals recall.
+\code{patk_3} and \code{patk_5} are the same measure at \eqn{k} = 3
+and 5.}
+}
+
+\code{npv} has no common second name.
+
 \strong{Measures over the whole ranking.} \code{auroc} and \code{auprc} are
 the areas under the ROC and precision-recall curves, both computed with the
 \code{PRROC} package (Grau, Grosse & Keilwagen, 2015). For the
 precision-recall curve we report the estimator of Davis & Goadrich (2006):
 the curve is densified by interpolating non-linearly at the local skew
-\eqn{(FP_B - FP_A) / (TP_B - TP_A)} between neighbouring operating points,
+\eqn{(FP_B - FP_A) / (TP_B - TP_A)} between neighboring operating points,
 and the area is then taken by the composite trapezoidal rule. Interpolating
 \emph{linearly} in precision-recall space instead is incorrect and gives an
 optimistic area, because precision does not change linearly with recall.
@@ -125,6 +170,18 @@ predicted positive but positives exist -- its denominator
 catching none of them; it is \code{NA} only when that denominator vanishes.
 When the \code{mcc} denominator is zero the coefficient is undefined and is
 reported as \code{0}, the usual convention.
+
+\strong{Printing.} The result has class \code{"assessment"}, whose
+\code{print()} method shows the confusion matrix first, then the measures
+grouped by the cut they rest on: at the threshold, among the top \code{k},
+and over all thresholds. Each value is labeled with its name, and each
+\code{patk} with its budget (\code{k=5} is \code{out[["patk_5"]]}).
+Values that are \code{NA} because \code{k} exceeds the number of
+positives are left out. Counts print as integers and the rest to
+\code{digits} decimals. The stored values are never rounded, so
+\code{out[["auroc"]]} is exact; indexing also drops the class. Labels are
+bold teal in a live console only, never in a knitr document or captured
+output.
 }
 \examples{
 data(altmejd)
@@ -147,14 +204,21 @@ margin <- predict(
   input_checks = FALSE
 )
 
-round(assess(test$replicate, margin), 3)
+assess(test$replicate, margin)
+
+# Fewer decimals; the stored values stay exact
+print(assess(test$replicate, margin), digits = 2)
 
 # The same measures from a confusion matrix, without the ranking three
 cm <- confusion(test$replicate, margin)
-round(assess(cm), 3)
+assess(cm)
 
 }
 \references{
+Chicco, D., & Jurman, G. (2020). The advantages of the Matthews correlation
+coefficient (MCC) over F1 score and accuracy in binary classification
+evaluation. \emph{BMC Genomics}, 21, 6.
+
 Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
 and ROC curves. \emph{Proceedings of the 23rd International Conference on
 Machine Learning}, 233-240.
@@ -162,4 +226,11 @@ Machine Learning}, 233-240.
 Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
 visualizing precision-recall and receiver operating characteristic curves in
 R. \emph{Bioinformatics}, 31(15), 2595-2597.
+
+Fawcett, T. (2006). An introduction to ROC analysis. \emph{Pattern
+Recognition Letters}, 27(8), 861-874.
+
+Vargha, A., & Delaney, H. D. (2000). A critique and improvement of the CL
+common language effect size statistics of McGraw and Wong. \emph{Journal of
+Educational and Behavioral Statistics}, 25(2), 101-132.
 }

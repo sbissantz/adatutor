@@ -23,7 +23,7 @@ A white ring separates a dark marker from the panel, but a pale
 marker with a white ring has no edge at all -- viridis's yellow end
 disappears. Deriving the stroke from the fill instead of fixing it means any
 palette works, which is what lets \code{\link[adatutor]{viridis_tree}} and
-\code{\link[adatutor]{plot_adabound}} share one rule.
+\code{\link[adatutor]{tutplot_boundary}} share one rule.
 
 Luminance is the Rec. 709 weighting, \eqn{0.2126 R + 0.7152 G + 0.0722 B} on
 channels scaled to the unit interval. The cut at 0.55 is a shade above the

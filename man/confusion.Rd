@@ -2,9 +2,12 @@
 % Please edit documentation in R/assess.R
 \name{confusion}
 \alias{confusion}
+\alias{print.confusion}
 \title{Confusion Matrix Counts}
 \usage{
 confusion(actual, score, threshold = 0)
+
+\method{print}{confusion}(x, ...)
 }
 \arguments{
 \item{actual}{The true labels. Either a factor with two levels (the second
@@ -19,11 +22,16 @@ boundary for AdaBoost margins; pass 0.5 for probabilities. The default is
 deliberately not inferred from the data: a margin vector can sit inside
 the unit interval as well, so guessing would occasionally change a result without
 saying so. Instead, scoring an evident probability at 0 raises a warning.}
+
+\item{x}{An object of class \code{"confusion"}.}
+
+\item{...}{Ignored.}
 }
 \value{
 A named integer vector of class \code{"confusion"}: \code{tp},
-\code{tn}, \code{fp}, \code{fn}. Ordinary indexing still works, so
-\code{cm[["tp"]]} reads the count as before.
+\code{tn}, \code{fp}, \code{fn}, with the \code{threshold} it was cut at
+as an attribute. Ordinary indexing still works, so \code{cm[["tp"]]}
+reads the count as before.
 }
 \description{
 Cuts \code{score} at \code{threshold} and returns the four

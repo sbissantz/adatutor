@@ -76,7 +76,7 @@ same decision rule.
 \strong{Why these take a table and \code{auroc()} does not.} Everything here
 is a function of four counts, so a confusion matrix is all it can possibly
 need. \code{\link[adatutor]{auroc}} and \code{\link[adatutor]{auprc}} take
-\code{actual} and \code{score} instead, because they summarise the whole
+\code{actual} and \code{score} instead, because they summarize the whole
 \emph{ranking} -- and a confusion matrix has already thrown the ranking away.
 That difference is the reason hard class labels quietly turn an AUC into a
 balanced accuracy: cut the score into two values and the ranking is gone.
@@ -99,7 +99,7 @@ cm <- confusion(c(1, 1, 1, 0, 0, 0), c(2, 1, -1, 1, -1, -2))
 cm
 
 # All of them at once, which is the exported route
-round(assess(cm), 3)
+assess(cm)
 
 # One of them
 assess(cm)[["bacc"]]

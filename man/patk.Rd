@@ -14,11 +14,13 @@ vector. Converted internally, so the caller never has to write
 
 \item{score}{A numeric vector of continuous scores, one per observation.}
 
-\item{k}{The budget. Defaults to the number of positive cases in
-\code{actual}. Values larger than the sample are clamped.}
+\item{k}{One or more budgets. Defaults to the number of positive cases in
+\code{actual}.}
 }
 \value{
-A single number.
+A number for a single \code{k}; for several, a vector named by
+\code{k}. \code{NA} where \code{k} is below 1 or above the number of
+positives.
 }
 \description{
 The share of true positives among the \code{k}
@@ -29,9 +31,30 @@ top of the ranking will be acted on.
 With the default \code{k} this is R-precision, which scales itself
 to each test set. That matters when sets differ in size: a fixed \code{k}
 is not comparable between a fold of 10 and a fold of 90.
+
+\strong{Defined only for \eqn{k \le n_+}}, the number of positives.
+Above it even a perfect ranking cannot reach 1, since there are fewer
+positives than places, so the result is \code{NA} rather than a number
+with a hidden ceiling.
+
+\strong{Ties.} When the cut at \code{k} falls inside a group of tied
+scores, the places left are shared across the group by its share of
+positives: the expected precision under random tie-breaking. Row order
+therefore cannot change the result. This matters for boosted stumps,
+whose margins take few distinct values.
+
+\strong{Why no recall or F1 at \code{k}.} With \eqn{TP_k} the positives
+among the top \code{k}, recall at \code{k} is \eqn{TP_k / n_+} and F1 at
+\code{k} is \eqn{2 TP_k / (k + n_+)}. Both denominators are fixed before
+the model scores anything, so both are rescalings of precision at
+\code{k} and carry no further information. At the default \code{k} all
+three are equal.
 }
 \examples{
 # three positives, so the default budget is the top three
 patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2))
+
+# several budgets at once
+patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2), k = c(1, 2))
 
 }

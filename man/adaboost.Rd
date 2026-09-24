@@ -11,7 +11,13 @@ adaboost(h, n_iter, eta, keep_data = TRUE, input_checks = TRUE, verbose = TRUE)
 fitted with \code{model = TRUE}. It supplies three things: the formula, the
 tree hyperparameters and the training data. \code{rpart} keeps the response
 but discards the predictors unless \code{model = TRUE}, so a tree fitted
-without it cannot be refit, and is rejected rather than guessed at.}
+without it cannot be refit, and is rejected rather than guessed at.
+
+Four other things are rejected rather than ignored, because boosting a
+different model than the one handed in is the failure a caller has no way
+to notice: a learner that is not \code{method = "class"}, one fitted with
+\code{weights}, and one carrying a \code{prior} or a \code{loss} matrix.
+See Details.}
 
 \item{n_iter}{An integer specifying the number of boosting rounds --
 \eqn{T} in the algorithm, one weak learner per round.}
@@ -73,7 +79,20 @@ Key steps in the algorithm:
 \code{maxsurrogate}, which are forced to zero. Those two are speed, not
 structure: a thousand rounds should neither cross-validate each tree nor hunt
 for surrogate splits, and neither setting changes the tree that results.
-Everything a reader chose, they keep.
+The splitting rule travels too, although it lives in \code{h$parms} rather
+than in \code{h$control}. Everything a reader chose, they keep.
+
+\strong{What is refused.} \code{prior} cannot be carried: it is not a
+setting but a quantity \code{rpart} derives from the observation weights,
+and reweighting is exactly what boosting does, so one fixed at fitting time
+would have to be wrong from the second round on. A \code{loss} matrix is not
+passed on either, a learner fitted with \code{weights} conflicts with
+AdaBoost setting its own, and a learner that is not
+\code{method = "class"} would come back as a different kind of model, since
+every round is refitted as a classification tree. All four are errors. The
+alternative -- accepting the learner and quietly boosting something else --
+is the one failure a caller cannot detect without inspecting
+\code{fit[[1]]$h} by hand.
 
 \strong{The complexity parameter.} \code{cp} therefore arrives at whatever
 the tree was fitted with, which for a plain \code{rpart()} call is its own
