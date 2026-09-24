@@ -12,3 +12,4 @@
 ^vignettes/.*_cache$
 ^\.vscode$
 ^[.]?air[.]toml$
+^inst/context$
