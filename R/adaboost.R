@@ -313,11 +313,20 @@ adaboost <- function(
     # stderr, like every other piece of progress here: txtProgressBar writes to
     # stdout by default, which would put the bar in with the results.
     #
-    # It emits no escape codes of its own, so as *uncoloured* stderr it inherits
-    # whatever the console paints that -- red, in RStudio. Opening a colour
-    # before it and resetting after makes it filler like the dots instead. The
-    # reset is in on.exit() above, so an error mid-loop cannot leave the colour
-    # bleeding into everything that follows.
+    # It emits no escape codes of its own, so as *unstyled* stderr it inherits
+    # whatever the console paints that -- red, in RStudio. `ansi_dim` is SGR 2,
+    # faint: an intensity attribute, not a colour, so this dims the inherited
+    # colour rather than replacing it. Teal would be `ansi_teal`, and is not
+    # what is wanted here -- the bar is filler, like the dots.
+    #
+    # Note it is opened once, where each dot re-opens it for itself, and the bar
+    # then redraws over its own line with carriage returns. A console that
+    # re-renders the line per `\r` drops the attribute and falls back to its own
+    # stderr colour, which is why the bar can still look plain red in RStudio
+    # while the dots stay faint.
+    #
+    # The reset is in on.exit() above, so an error mid-loop cannot leave the
+    # attribute bleeding into everything that follows.
     message("\033[", ansi_dim, "m", appendLF = FALSE)
     pb <- utils::txtProgressBar(
       min = 0,
