@@ -23,12 +23,12 @@
 #' \strong{How the two methods compose.} \code{assess()} cuts the score once with
 #' \code{\link[adatutor]{confusion}} and hands the resulting matrix to
 #' \code{assess()} again, which is where the threshold measures come from; the
-#' three ranking measures are then appended. So \code{assess(cm)} returns the
+#' ranking measures are then appended. So \code{assess(cm)} returns the
 #' first twelve entries of \code{assess(x, score)}, and the two methods
 #' differ only in what the input can support.
 #'
-#' \strong{Why the last three are not matrix measures.} \code{auroc},
-#' \code{auprc} and \code{patk} need the whole ranking, so no confusion matrix
+#' \strong{Why the last ones are not matrix measures.} \code{auroc},
+#' \code{auprc} and the \code{patk} family need the whole ranking, so no confusion matrix
 #' at any single threshold can produce them -- a matrix has already thrown the
 #' ordering away. That is not an inconsistency in the interface: it is the same
 #' distinction that produces the collapse described above, made visible by which
@@ -55,12 +55,43 @@
 #' \deqn{\text{mcc} = \frac{TP \cdot TN - FP \cdot FN}
 #'       {\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}}
 #'
+#' \strong{Other names for the same quantities.} The names above are the ones
+#' used in psychology and medicine. Machine learning names several of them
+#' differently (Fawcett, 2006):
+#'
+#' \describe{
+#'   \item{\code{sens}}{True positive rate (TPR), recall, hit rate.}
+#'   \item{\code{spec}}{True negative rate (TNR). Its complement,
+#'     \eqn{1 - \text{spec}}, is the false positive rate (FPR), or false-alarm
+#'     rate.}
+#'   \item{\code{ppv}}{Precision.}
+#'   \item{\code{bacc}}{\eqn{(J + 1) / 2}, where \eqn{J = \text{sens} +
+#'     \text{spec} - 1} is Youden's J.}
+#'   \item{\code{f1}}{The harmonic mean of \code{ppv} and \code{sens}; the
+#'     same formula as the Dice coefficient.}
+#'   \item{\code{mcc}}{The phi coefficient: the Pearson correlation between
+#'     the true and the predicted 0/1 labels (Chicco & Jurman, 2020).}
+#'   \item{\code{auroc}}{The probability that a randomly chosen positive
+#'     scores higher than a randomly chosen negative, ties counting half. This
+#'     is the Mann-Whitney \eqn{U} divided by \eqn{n_1 n_0}, known as the
+#'     c statistic and as Vargha and Delaney's (2000) \eqn{A}.}
+#'   \item{\code{auprc}}{Not the same estimator as \emph{average precision},
+#'     which sums precision in steps rather than interpolating, so the two can
+#'     differ.}
+#'   \item{\code{patk}}{Precision at \eqn{k}. With \eqn{k} the number of
+#'     positives, it is R-precision, and there precision equals recall.
+#'     \code{patk_3} and \code{patk_5} are the same measure at \eqn{k} = 3
+#'     and 5.}
+#' }
+#'
+#' \code{npv} has no common second name.
+#'
 #' \strong{Measures over the whole ranking.} \code{auroc} and \code{auprc} are
 #' the areas under the ROC and precision-recall curves, both computed with the
 #' \code{PRROC} package (Grau, Grosse & Keilwagen, 2015). For the
 #' precision-recall curve we report the estimator of Davis & Goadrich (2006):
 #' the curve is densified by interpolating non-linearly at the local skew
-#' \eqn{(FP_B - FP_A) / (TP_B - TP_A)} between neighbouring operating points,
+#' \eqn{(FP_B - FP_A) / (TP_B - TP_A)} between neighboring operating points,
 #' and the area is then taken by the composite trapezoidal rule. Interpolating
 #' \emph{linearly} in precision-recall space instead is incorrect and gives an
 #' optimistic area, because precision does not change linearly with recall.
@@ -84,6 +115,18 @@
 #' When the \code{mcc} denominator is zero the coefficient is undefined and is
 #' reported as \code{0}, the usual convention.
 #'
+#' \strong{Printing.} The result has class \code{"assessment"}, whose
+#' \code{print()} method shows the confusion matrix first, then the measures
+#' grouped by the cut they rest on: at the threshold, among the top \code{k},
+#' and over all thresholds. Each value is labeled with its name, and each
+#' \code{patk} with its budget (\code{k=5} is \code{out[["patk_5"]]}).
+#' Values that are \code{NA} because \code{k} exceeds the number of
+#' positives are left out. Counts print as integers and the rest to
+#' \code{digits} decimals. The stored values are never rounded, so
+#' \code{out[["auroc"]]} is exact; indexing also drops the class. Labels are
+#' bold teal in a live console only, never in a knitr document or captured
+#' output.
+#'
 #' @param x What to score. For the default method, the true labels: either a
 #'   factor with two levels (the second level is taken as the positive class), a
 #'   numeric vector of 0/1, a numeric vector of -1/1, or a logical vector. For
@@ -101,17 +144,32 @@
 #'   classes. Defaults to 0, the boundary for AdaBoost margins. Pass 0.5 when
 #'   \code{score} holds probabilities.
 #'
-#' @param k The budget for \code{patk}. Defaults to the number of positive cases
-#'   in \code{x}, which makes the measure self-scaling across test sets of
-#'   different sizes (also known as R-precision).
+#' @param k The budgets for \code{patk}. Defaults to 3, 5 and the number of
+#'   positive cases in \code{x}, reported as \code{patk_3}, \code{patk_5}
+#'   and \code{patk}. The last is R-precision, which scales itself across test
+#'   sets of different sizes; the two small fixed budgets answer \dQuote{how
+#'   good are the model's few favorites?}. A \code{k} above the number of
+#'   positives gives \code{NA} (see \code{\link[adatutor]{patk}}), so the
+#'   names and length never depend on the data. Budgets you pass are reported
+#'   as \code{patk_<k>}.
 #'
-#' @return A named numeric vector. The default method returns fifteen entries,
-#'   always in this order: \code{tp}, \code{tn}, \code{fp}, \code{fn},
-#'   \code{sens}, \code{spec}, \code{ppv}, \code{npv}, \code{acc}, \code{bacc},
-#'   \code{f1}, \code{mcc}, \code{auroc}, \code{auprc}, \code{patk}. The
-#'   \code{confusion} method returns the first twelve of them.
+#' @param digits The number of decimals \code{print()} shows for the rates.
+#'   Defaults to 3. Counts always print as integers.
+#'
+#' @return A named numeric vector of class \code{"assessment"}. With the
+#'   default \code{k}, the default method returns seventeen entries, always in
+#'   this order: \code{tp}, \code{tn}, \code{fp}, \code{fn}, \code{sens},
+#'   \code{spec}, \code{ppv}, \code{npv}, \code{acc}, \code{bacc},
+#'   \code{f1}, \code{mcc}, \code{auroc}, \code{auprc}, \code{patk_3},
+#'   \code{patk_5}, \code{patk}. The \code{confusion} method returns the
+#'   first twelve of them. The threshold and \code{k} travel along
+#'   as attributes, for \code{print()}.
 #'
 #' @references
+#' Chicco, D., & Jurman, G. (2020). The advantages of the Matthews correlation
+#' coefficient (MCC) over F1 score and accuracy in binary classification
+#' evaluation. \emph{BMC Genomics}, 21, 6.
+#'
 #' Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
 #' and ROC curves. \emph{Proceedings of the 23rd International Conference on
 #' Machine Learning}, 233-240.
@@ -119,6 +177,13 @@
 #' Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
 #' visualizing precision-recall and receiver operating characteristic curves in
 #' R. \emph{Bioinformatics}, 31(15), 2595-2597.
+#'
+#' Fawcett, T. (2006). An introduction to ROC analysis. \emph{Pattern
+#' Recognition Letters}, 27(8), 861-874.
+#'
+#' Vargha, A., & Delaney, H. D. (2000). A critique and improvement of the CL
+#' common language effect size statistics of McGraw and Wong. \emph{Journal of
+#' Educational and Behavioral Statistics}, 25(2), 101-132.
 #'
 #' @examples
 #' data(altmejd)
@@ -141,11 +206,14 @@
 #'   input_checks = FALSE
 #' )
 #'
-#' round(assess(test$replicate, margin), 3)
+#' assess(test$replicate, margin)
+#'
+#' # Fewer decimals; the stored values stay exact
+#' print(assess(test$replicate, margin), digits = 2)
 #'
 #' # The same measures from a confusion matrix, without the ranking three
 #' cm <- confusion(test$replicate, margin)
-#' round(assess(cm), 3)
+#' assess(cm)
 #'
 #' @export
 assess <- function(x, ...) {
@@ -169,16 +237,22 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
   # can support. The three below it are the ones a matrix cannot.
   cm <- confusion(y, score, threshold)
 
+  # two small fixed budgets, then R-precision, which keeps the name `patk`
   if (is.null(k)) {
-    k <- sum(y == 1)
+    k <- c(3L, 5L, sum(y == 1))
+    k_names <- c("patk_3", "patk_5", "patk")
+  } else {
+    k_names <- paste0("patk_", k)
   }
+  at_k <- stats::setNames(unname(patk(y, score, k)), k_names)
 
-  c(
-    assess(cm),
+  out <- c(
+    unclass(assess(cm)),
     auroc = auroc(y, score),
     auprc = auprc(y, score),
-    patk = patk(y, score, k)
+    at_k
   )
+  structure(out, class = "assessment", threshold = threshold, k = k)
 }
 
 #' @rdname assess
@@ -186,7 +260,7 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
 assess.confusion <- function(x, ...) {
   # Every measure goes through its own function, so each formula is written
   # once and reads the way it does in the details above.
-  c(
+  out <- c(
     tp = x[["tp"]],
     tn = x[["tn"]],
     fp = x[["fp"]],
@@ -199,6 +273,113 @@ assess.confusion <- function(x, ...) {
     bacc = confusion_bacc(x),
     f1 = confusion_f1(x),
     mcc = confusion_mcc(x)
+  )
+  # pass NULL on for a hand-built vector: plain header
+  structure(out, class = "assessment", threshold = attr(x, "threshold"))
+}
+
+#' @rdname assess
+#' @export
+print.assessment <- function(x, digits = 3, ...) {
+  v <- unclass(x)
+  attributes(v) <- list(names = names(x))
+  counts <- c("tp", "tn", "fp", "fn")
+  at_cut <- c("sens", "spec", "ppv", "npv", "acc", "bacc", "f1", "mcc")
+  areas <- c("auroc", "auprc")
+
+  # fall back when arithmetic has changed the names
+  if (!all(c(counts, at_cut) %in% names(v))) {
+    print(v)
+    return(invisible(x))
+  }
+
+  blocks <- list(
+    list(label = threshold_label(attr(x, "threshold")), vals = v[at_cut])
+  )
+  k <- attr(x, "k")
+  at_k <- v[grepl("^patk(_|$)", names(v))]
+  if (length(at_k) && length(at_k) == length(k)) {
+    names(at_k) <- paste0("k=", k)
+    # drop what is out of reach, and a default that repeats 3 or 5
+    at_k <- at_k[!is.na(at_k) & !duplicated(k)]
+    if (length(at_k)) {
+      blocks <- c(blocks, list(list(label = "Among top k", vals = at_k)))
+    }
+  }
+  if (all(areas %in% names(v))) {
+    blocks <- c(blocks, list(list(label = "Over thresholds", vals = v[areas])))
+  }
+
+  # four cells per line; a continued block leaves its label blank
+  rows <- list()
+  for (b in blocks) {
+    chunks <- split(b$vals, ceiling(seq_along(b$vals) / 4))
+    for (i in seq_along(chunks)) {
+      rows[[length(rows) + 1L]] <- list(
+        label = if (i == 1L) b$label else "",
+        vals = chunks[[i]]
+      )
+    }
+  }
+
+  labels <- vapply(rows, `[[`, character(1), "label")
+  width <- max(nchar(c(labels, "predicted 1"))) + 2L
+  cat(confusion_lines(v, width), sep = "\n")
+  cat("\n")
+
+  fmt <- function(z) ifelse(is.na(z), "NA", formatC(z, format = "f", digits = digits))
+  val_width <- max(nchar(fmt(unlist(lapply(rows, `[[`, "vals")))))
+  name_width <- vapply(
+    1:4,
+    function(j) {
+      max(0L, vapply(
+        rows,
+        function(r) if (length(r$vals) >= j) nchar(names(r$vals)[j]) else 0L,
+        integer(1)
+      ))
+    },
+    integer(1)
+  )
+  for (r in rows) {
+    cells <- sprintf(
+      "%-*s %*s",
+      name_width[seq_along(r$vals)],
+      names(r$vals),
+      val_width,
+      fmt(r$vals)
+    )
+    cat(pad_label(r$label, width), paste(cells, collapse = "  "), "\n", sep = "")
+  }
+  invisible(x)
+}
+
+threshold_label <- function(threshold) {
+  if (is.null(threshold)) "At threshold" else paste("At threshold", threshold)
+}
+
+# pad first, then style, so the escape bytes cannot shift the columns
+pad_label <- function(label, width) {
+  padded <- formatC(label, width = -width)
+  if (nzchar(label)) {
+    ansi_style(padded, ansi_note)
+  } else {
+    padded
+  }
+}
+
+confusion_lines <- function(cm, width) {
+  cell <- paste(c("tp", "fp", "fn", "tn"), formatC(cm[c("tp", "fp", "fn", "tn")], format = "d"))
+  cw <- max(nchar(c("actual 1", cell)))
+  head <- formatC(c("actual 1", "actual 0"), width = -cw)
+  c(
+    paste0(
+      strrep(" ", width),
+      ansi_style(head[1], ansi_note),
+      "  ",
+      ansi_style(trimws(head[2]), ansi_note)
+    ),
+    paste0(pad_label("predicted 1", width), formatC(cell[1], width = -cw), "  ", cell[2]),
+    paste0(pad_label("predicted 0", width), formatC(cell[3], width = -cw), "  ", cell[4])
   )
 }
 
@@ -238,8 +419,9 @@ assess.confusion <- function(x, ...) {
 #'   saying so. Instead, scoring an evident probability at 0 raises a warning.
 #'
 #' @return A named integer vector of class \code{"confusion"}: \code{tp},
-#'   \code{tn}, \code{fp}, \code{fn}. Ordinary indexing still works, so
-#'   \code{cm[["tp"]]} reads the count as before.
+#'   \code{tn}, \code{fp}, \code{fn}, with the \code{threshold} it was cut at
+#'   as an attribute. Ordinary indexing still works, so \code{cm[["tp"]]}
+#'   reads the count as before.
 #'
 #' @examples
 #' confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
@@ -271,8 +453,22 @@ confusion <- function(actual, score, threshold = 0) {
       fp = sum(pred & y == 0),
       fn = sum(!pred & y == 1)
     ),
-    class = "confusion"
+    class = "confusion",
+    threshold = threshold
   )
+}
+
+#' @rdname confusion
+#' @param x An object of class \code{"confusion"}.
+#' @param ... Ignored.
+#' @export
+print.confusion <- function(x, ...) {
+  v <- unclass(x)
+  attributes(v) <- list(names = names(x))
+  width <- nchar("predicted 1") + 2L
+  cat(ansi_style(threshold_label(attr(x, "threshold")), ansi_note), "\n", sep = "")
+  cat(confusion_lines(v, width), sep = "\n")
+  invisible(x)
 }
 
 #' @title Divide Without Turning Undefined Into NaN
@@ -378,7 +574,7 @@ auprc <- function(actual, score) {
     return(NA_real_)
   }
   # Davis & Goadrich estimator: the curve is densified by interpolating at the
-  # local skew between neighbouring operating points, then integrated by
+  # local skew between neighboring operating points, then integrated by
   # trapezoid. Operating points are taken at distinct score values, which is
   # what makes this invariant to the order of tied observations.
   out <- PRROC::pr.curve(
@@ -398,6 +594,24 @@ auprc <- function(actual, score) {
 #'   to each test set. That matters when sets differ in size: a fixed \code{k}
 #'   is not comparable between a fold of 10 and a fold of 90.
 #'
+#'   \strong{Defined only for \eqn{k \le n_+}}, the number of positives.
+#'   Above it even a perfect ranking cannot reach 1, since there are fewer
+#'   positives than places, so the result is \code{NA} rather than a number
+#'   with a hidden ceiling.
+#'
+#'   \strong{Ties.} When the cut at \code{k} falls inside a group of tied
+#'   scores, the places left are shared across the group by its share of
+#'   positives: the expected precision under random tie-breaking. Row order
+#'   therefore cannot change the result. This matters for boosted stumps,
+#'   whose margins take few distinct values.
+#'
+#'   \strong{Why no recall or F1 at \code{k}.} With \eqn{TP_k} the positives
+#'   among the top \code{k}, recall at \code{k} is \eqn{TP_k / n_+} and F1 at
+#'   \code{k} is \eqn{2 TP_k / (k + n_+)}. Both denominators are fixed before
+#'   the model scores anything, so both are rescalings of precision at
+#'   \code{k} and carry no further information. At the default \code{k} all
+#'   three are equal.
+#'
 #' @param actual The true labels. Either a factor with two levels (the second
 #'   level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
 #'   vector. Converted internally, so the caller never has to write
@@ -405,28 +619,45 @@ auprc <- function(actual, score) {
 #'
 #' @param score A numeric vector of continuous scores, one per observation.
 #'
-#' @param k The budget. Defaults to the number of positive cases in
-#'   \code{actual}. Values larger than the sample are clamped.
+#' @param k One or more budgets. Defaults to the number of positive cases in
+#'   \code{actual}.
 #'
-#' @return A single number.
+#' @return A number for a single \code{k}; for several, a vector named by
+#'   \code{k}. \code{NA} where \code{k} is below 1 or above the number of
+#'   positives.
 #'
 #' @examples
 #' # three positives, so the default budget is the top three
 #' patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2))
 #'
+#' # several budgets at once
+#' patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2), k = c(1, 2))
+#'
 #' @export
 patk <- function(actual, score, k = NULL) {
   y <- as_binary(actual)
+  n_pos <- sum(y == 1L)
   if (is.null(k)) {
-    k <- sum(y == 1L)
+    k <- n_pos
   }
-  k <- as.integer(k)
-  if (k < 1L || length(y) == 0L) {
-    return(NA_real_)
+  out <- vapply(
+    as.integer(k),
+    function(kk) {
+      # out of reach: fewer positives than places
+      if (is.na(kk) || kk < 1L || kk > n_pos) {
+        return(NA_real_)
+      }
+      v <- sort(score, decreasing = TRUE)[kk]
+      above <- score > v
+      # share the places left across the tie, as random tie-breaking would
+      (sum(y[above]) + (kk - sum(above)) * mean(y[score == v])) / kk
+    },
+    numeric(1)
+  )
+  if (length(k) > 1L) {
+    names(out) <- k
   }
-  k <- min(k, length(y))
-  ord <- order(score, decreasing = TRUE)
-  sum(y[ord][seq_len(k)] == 1) / k
+  out
 }
 
 #' @title Measures Derived From a Confusion Matrix
@@ -471,7 +702,7 @@ patk <- function(actual, score, k = NULL) {
 #' \strong{Why these take a table and \code{auroc()} does not.} Everything here
 #' is a function of four counts, so a confusion matrix is all it can possibly
 #' need. \code{\link[adatutor]{auroc}} and \code{\link[adatutor]{auprc}} take
-#' \code{actual} and \code{score} instead, because they summarise the whole
+#' \code{actual} and \code{score} instead, because they summarize the whole
 #' \emph{ranking} -- and a confusion matrix has already thrown the ranking away.
 #' That difference is the reason hard class labels quietly turn an AUC into a
 #' balanced accuracy: cut the score into two values and the ranking is gone.
@@ -499,7 +730,7 @@ patk <- function(actual, score, k = NULL) {
 #' cm
 #'
 #' # All of them at once, which is the exported route
-#' round(assess(cm), 3)
+#' assess(cm)
 #'
 #' # One of them
 #' assess(cm)[["bacc"]]
