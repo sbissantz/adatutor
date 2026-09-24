@@ -92,11 +92,14 @@ as_binary <- function(actual) {
 #'     replaces \code{30}, plain black, whose worst case was 1.00 -- it
 #'     disappeared completely on a dark theme.}
 #'   \item{\code{ansi_bold} (\code{1})}{The opening and closing lines.}
-#'   \item{\code{ansi_note} (\code{1;38;5;30})}{Bold teal, for the
-#'     retrodiction notice. Distinguished by weight rather than a second hue:
-#'     viridis is a sequential palette with no categorical warning slot, and the
-#'     band that survives both backgrounds is too narrow to carry two hues a
-#'     reader could tell apart.}
+#'   \item{\code{ansi_note} (\code{1;38;5;30})}{Bold teal, for every
+#'     \dQuote{Done} and for the retrodiction notice. The two are identical on
+#'     purpose: the notice is set apart by the bold closing line above it
+#'     (\dQuote{... successfully completed.}), not by a style of its own.
+#'     There is no second hue to give it anyway -- viridis is a sequential
+#'     palette with no categorical warning slot, and the band that survives
+#'     both backgrounds is too narrow to carry two hues a reader could tell
+#'     apart.}
 #' }
 #'
 #'   A terminal that understands none of this prints the escapes literally,
@@ -119,7 +122,8 @@ as_binary <- function(actual) {
 #'
 #' @param color_code An ANSI code, spliced verbatim into the escape
 #'   sequence, so \code{"38;5;30"} and \code{"2"} work as well as a bare
-#'   number. Defaults to \code{ansi_teal}.
+#'   number. Defaults to \code{ansi_teal} for \code{color_message()} and
+#'   \code{ansi_note} for \code{walking_colordots()}.
 #'
 #' @param text The string to print.
 #'
@@ -191,11 +195,37 @@ color_message <- function(text, color_code = ansi_teal, newline = FALSE) {
 #' # Example usage:
 #' \dontrun{walking_colordots(n = 4, delay = 0.15, color_code = ansi_bold)}
 #'
-walking_colordots <- function(n = 3, delay = 0.1, color_code = ansi_teal) {
+walking_colordots <- function(n = 3, delay = 0.1, color_code = ansi_note) {
   for (i in seq_len(n)) {
     # faint, always: the dots are filler and should not compete with "Done"
     color_message(".", color_code = ansi_dim)
     Sys.sleep(delay)
   }
   color_message(" Done", color_code = color_code, newline = TRUE)
+}
+
+#' @rdname feedback
+#'
+#' @description \code{use_ansi()} decides whether printed output may carry
+#'   color, and \code{ansi_style()} applies it. Unlike the progress messages,
+#'   \code{print()} writes to standard output, which ends up in knitr
+#'   documents, \code{capture.output()} and the manuscript's listings, where
+#'   escape codes show as garbage. So color is used only in a live console:
+#'   an interactive session, no knitr render running, and \code{NO_COLOR}
+#'   unset.
+#'
+#' @param use Whether to apply the style. Defaults to \code{use_ansi()}.
+#'
+use_ansi <- function() {
+  interactive() &&
+    !isTRUE(getOption("knitr.in.progress")) &&
+    !nzchar(Sys.getenv("NO_COLOR"))
+}
+
+#' @rdname feedback
+ansi_style <- function(text, color_code, use = use_ansi()) {
+  if (!use) {
+    return(text)
+  }
+  paste0("\033[", color_code, "m", text, "\033[0m")
 }
