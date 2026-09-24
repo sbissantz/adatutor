@@ -12,7 +12,7 @@ test_that("bootCI() returns one row per measure with the observed estimate", {
   observed <- assess(f$y, f$s)
   expect_equal(ci$metric, names(observed))
   # the point estimate comes from the data, never from the resamples
-  expect_equal(ci$estimate, unname(observed))
+  expect_equal(ci$estimate, as.vector(observed))
   expect_true(all(ci$lower <= ci$estimate | is.na(ci$lower)))
   expect_true(all(ci$upper >= ci$estimate | is.na(ci$upper)))
 
@@ -135,14 +135,13 @@ test_that("intervals on the altmejd folds track fold size", {
     function(rp) {
       tr <- altmejd[altmejd$pid != rp, ]
       te <- altmejd[altmejd$pid == rp, ]
-      fit <- adaboost(
+      fit <- rpart::rpart(
         replicate ~ .,
         data = tr[, voinms],
-        T = 10,
-        eta = 1,
-        verbose = FALSE,
-        input_checks = FALSE
-      )
+        maxdepth = 1,
+        model = TRUE
+      ) |>
+        adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
       m <- predict(
         fit,
         te[, prednms],
@@ -160,4 +159,17 @@ test_that("intervals on the altmejd folds track fold size", {
 
   # ml3 holds 10 studies, rpp holds 90
   expect_gt(widths[["ml3"]], widths[["rpp"]])
+})
+
+test_that("bootCI() carries every patk budget, and stratified draws define them all", {
+  set.seed(7)
+  f <- make_fold(12, 9)
+  ci <- suppressWarnings(bootCI(f$y, f$s, n_resample = 200, stratified = TRUE))
+  expect_identical(
+    tail(ci$metric, 3),
+    c("patk_3", "patk_5", "patk")
+  )
+  # a fixed number of positives keeps every budget in reach in every draw
+  draws <- attr(ci, "draws")
+  expect_false(anyNA(draws[, c("patk_3", "patk_5", "patk")]))
 })

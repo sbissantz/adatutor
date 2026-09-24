@@ -77,10 +77,21 @@ test_that("walking_colordots() colors `Done`, not the dots", {
   expect_false(grepl("\033[34m.\033", out, fixed = TRUE))
 })
 
-test_that("walking_colordots() defaults to teal Done", {
+test_that("walking_colordots() defaults to bold teal Done", {
   out <- paste(
     capture.output(walking_colordots(n = 1, delay = 0), type = "message"),
     collapse = ""
   )
-  expect_true(grepl(paste0("\033[", ansi_teal, "m Done"), out, fixed = TRUE))
+  # the same style as the retrodiction notice, on purpose
+  expect_true(grepl(paste0("\033[", ansi_note, "m Done"), out, fixed = TRUE))
+})
+
+test_that("ansi_style() colors only when asked", {
+  expect_identical(
+    ansi_style("abc", ansi_note, use = TRUE),
+    paste0("\033[", ansi_note, "mabc\033[0m")
+  )
+  expect_identical(ansi_style("abc", ansi_note, use = FALSE), "abc")
+  # never under testthat, which is not a live console
+  expect_false(use_ansi())
 })

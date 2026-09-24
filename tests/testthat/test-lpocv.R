@@ -444,14 +444,13 @@ boot_by_project <- function(n_resample = 200) {
   for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
     tr <- altmejd[altmejd$pid != rp, ]
     te <- altmejd[altmejd$pid == rp, ]
-    fit <- adaboost(
+    fit <- rpart::rpart(
       replicate ~ .,
       data = tr[, voinms],
-      T = 5,
-      eta = 1,
-      verbose = FALSE,
-      input_checks = FALSE
-    )
+      maxdepth = 1,
+      model = TRUE
+    ) |>
+      adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
     m <- predict(
       fit,
       te[, prednms],
@@ -567,15 +566,13 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
   train <- altmejd[altmejd$pid != "eerp", voi]
   test <- altmejd[altmejd$pid == "eerp", voi]
 
-  by_hand <- adaboost(
+  by_hand <- rpart::rpart(
     fml,
     data = train,
-    T = 10,
-    eta = 1,
     maxdepth = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
   want <- auroc(
     test$replicate,
     predict(
@@ -592,42 +589,52 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
   expect_equal(got$estimate[got$project == "eerp"], want, tolerance = 1e-12)
 })
 
-test_that("maxdepth and treehypar = rpart.control(maxdepth =) agree", {
-  # the footgun this default was chosen to remove: both forms must produce the
-  # same ensemble, not merely similar numbers
+test_that("the learner's control reaches every boosted tree", {
+  # the point of taking a fitted tree: what the caller set is what gets boosted,
+  # and only the two speed controls are overridden
   data(altmejd)
   voi <- c("replicate", "power.o", "effect_size.o", "n.o", "p_value.o")
   d <- altmejd[, voi]
 
-  a <- adaboost(
+  h <- rpart::rpart(
     fml,
-    d,
-    T = 50,
-    eta = 0.55,
+    data = d,
     maxdepth = 2,
-    verbose = FALSE,
-    input_checks = FALSE
+    minsplit = 40,
+    cp = 0,
+    model = TRUE
   )
-  b <- adaboost(
-    fml,
-    d,
-    T = 50,
+  fit <- adaboost(
+    h,
+    n_iter = 20,
     eta = 0.55,
-    treehypar = rpart::rpart.control(maxdepth = 2),
     verbose = FALSE,
     input_checks = FALSE
   )
 
-  expect_equal(
-    vapply(a, function(z) z$a, numeric(1)),
-    vapply(b, function(z) z$a, numeric(1)),
-    tolerance = 0
-  )
-  expect_equal(
-    predict(a, d[, -1], type = "margin", verbose = FALSE, input_checks = FALSE),
-    predict(b, d[, -1], type = "margin", verbose = FALSE, input_checks = FALSE),
-    tolerance = 0
-  )
+  ctrl <- attr(fit, "control")
+  expect_equal(ctrl$maxdepth, 2)
+  expect_equal(ctrl$minsplit, 40)
+  expect_equal(ctrl$cp, 0)
+  # speed, not structure: the only two adaboost() overrides
+  expect_equal(ctrl$xval, 0)
+  expect_equal(ctrl$maxsurrogate, 0)
+
+  # and it reaches the trees themselves, not only the attribute
+  expect_true(all(
+    vapply(fit, function(z) z$h$control$maxdepth, numeric(1)) == 2
+  ))
+  expect_true(all(
+    vapply(fit, function(z) z$h$control$minsplit, numeric(1)) == 40
+  ))
+
+  # a different learner is a different ensemble, so the control is not ignored
+  stumps <- rpart::rpart(fml, data = d, maxdepth = 1, cp = 0, model = TRUE) |>
+    adaboost(n_iter = 20, eta = 0.55, verbose = FALSE, input_checks = FALSE)
+  expect_false(isTRUE(all.equal(
+    vapply(fit, function(z) z$a, numeric(1)),
+    vapply(stumps, function(z) z$a, numeric(1))
+  )))
 })
 
 test_that("model weights stay finite when a base learner refuses to split", {
@@ -635,15 +642,13 @@ test_that("model weights stay finite when a base learner refuses to split", {
   # concentrate. That is allowed; an infinite or negative alpha is not.
   data(altmejd)
   voi <- c("replicate", "power.o", "effect_size.o", "n.o", "p_value.o")
-  fit <- adaboost(
+  fit <- rpart::rpart(
     fml,
-    altmejd[, voi],
-    T = 300,
-    eta = 0.55,
+    data = altmejd[, voi],
     maxdepth = 1,
-    verbose = FALSE,
-    input_checks = FALSE
-  )
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 300, eta = 0.55, verbose = FALSE, input_checks = FALSE)
   alphas <- vapply(fit, function(z) z$a, numeric(1))
   rootonly <- vapply(fit, function(z) nrow(z$h$frame) == 1L, logical(1))
 

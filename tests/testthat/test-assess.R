@@ -43,12 +43,14 @@ test_that("assess() returns a stable named vector", {
     "mcc",
     "auroc",
     "auprc",
+    "patk_3",
+    "patk_5",
     "patk"
   )
   # lpocv()/bootCI() will vapply() over this, so length and order must not drift
   expect_named(out, nms)
   expect_type(out, "double")
-  expect_length(out, 15L)
+  expect_length(out, 17L)
 })
 
 test_that("hard class labels make auroc collapse to balanced accuracy", {
@@ -145,19 +147,23 @@ test_that("auprc does not depend on the order of tied observations", {
   }
 })
 
-test_that("patk defaults to R-precision and honours an explicit k", {
+test_that("assess() reports patk at 3, 5 and R-precision, and honors an explicit k", {
   y <- c(rep(1, 4), rep(0, 6))
   s <- c(10:7, 6:1) # perfectly separating
 
-  # k defaults to the number of positives (4 here)
-  expect_equal(unname(assess(y, s)["patk"]), 1)
+  # the default: two small budgets, then k = number of positives (4 here)
+  out <- assess(y, s)
+  expect_equal(out[["patk_3"]], 1)
+  expect_equal(out[["patk"]], 1)
+  expect_equal(attr(out, "k"), c(3, 5, 4))
+  # five places but only four positives: out of reach, not a capped 4 / 5
+  expect_true(is.na(out[["patk_5"]]))
 
-  # top 2 are both positive; top 8 contains only the 4 positives
-  expect_equal(unname(assess(y, s, k = 2)["patk"]), 1)
-  expect_equal(unname(assess(y, s, k = 8)["patk"]), 4 / 8)
-
-  # k larger than n is clamped
-  expect_equal(unname(assess(y, s, k = 99)["patk"]), 4 / 10)
+  # an explicit k replaces the default and names each budget
+  out <- assess(y, s, k = c(1, 2))
+  expect_equal(unname(out[c("patk_1", "patk_2")]), c(1, 1))
+  expect_false("patk" %in% names(out))
+  expect_true(is.na(assess(y, s, k = 8)[["patk_8"]]))
 })
 
 test_that("label encodings are interchangeable", {
@@ -224,7 +230,7 @@ test_that("the threshold argument moves the decision boundary", {
   expect_equal(unname(at_half["acc"]), 1)
 
   # at 0 every case is predicted positive, so specificity collapses -- and
-  # confusion() says so, which is the behaviour tested below
+  # confusion() says so, which is the behavior tested below
   expect_warning(at_zero <- assess(y, p, threshold = 0), "threshold = 0.5")
   expect_equal(unname(at_zero["spec"]), 0)
 
@@ -247,7 +253,7 @@ test_that("the exported measures agree with the assess() bundle", {
   expect_equal(auprc(y, s), unname(g[["auprc"]]))
   expect_equal(patk(y, s), unname(g[["patk"]]))
   expect_equal(
-    confusion(y, s),
+    c(confusion(y, s)),
     c(tp = g[["tp"]], tn = g[["tn"]], fp = g[["fp"]], fn = g[["fn"]])
   )
 })
@@ -271,13 +277,40 @@ test_that("they accept any label encoding, so callers need no `- 1`", {
   )
 })
 
-test_that("patk defaults to R-precision and clamps an oversized budget", {
+test_that("patk defaults to R-precision and refuses a budget out of reach", {
   y <- c(1, 1, 1, 0, 0)
   s <- c(5, 4, 1, 3, 2)
   # three positives -> the default budget is the top three
   expect_equal(patk(y, s), 2 / 3)
   expect_equal(patk(y, s, k = 2), 1)
-  expect_equal(patk(y, s, k = 99), 3 / 5)
+  # more places than positives: even a perfect ranking could not reach 1
+  expect_true(is.na(patk(y, s, k = 4)))
+  expect_true(is.na(patk(y, s, k = 99)))
+  expect_true(is.na(patk(y, s, k = 0)))
+})
+
+test_that("patk takes several budgets and names them", {
+  y <- c(1, 1, 1, 0, 0)
+  s <- c(5, 4, 1, 3, 2)
+  out <- patk(y, s, k = c(1, 2, 3))
+  expect_named(out, c("1", "2", "3"))
+  expect_equal(unname(out), c(patk(y, s, 1), patk(y, s, 2), patk(y, s, 3)))
+  # a single budget stays an unnamed number
+  expect_null(names(patk(y, s, k = 2)))
+})
+
+test_that("patk shares a tied cut by the tie's positives, whatever the row order", {
+  # one place, two tied candidates, one of them positive: expected 1/2
+  expect_equal(patk(c(1, 0, 1), c(1, 1, 0), k = 1), 0.5)
+  expect_equal(patk(c(0, 1, 1), c(1, 1, 0), k = 1), 0.5)
+
+  # stumps give few distinct margins, so ties are the rule, not the exception
+  set.seed(51)
+  y <- rbinom(40, 1, 0.5)
+  s <- round(rnorm(40), 1)
+  perm <- sample(40)
+  k <- c(1, 3, 5, sum(y))
+  expect_equal(patk(y, s, k), patk(y[perm], s[perm], k))
 })
 
 test_that("auroc and auprc are NA on a single-class vector", {
@@ -293,13 +326,13 @@ test_that("auroc collapses onto balanced accuracy for hard labels", {
   expect_equal(auroc(y, sign(m)), unname(assess(y, sign(m))[["bacc"]]))
 })
 
-test_that("confusion() honours the threshold", {
+test_that("confusion() honors the threshold", {
   y <- c(1, 1, 0, 0)
   p <- c(0.9, 0.6, 0.4, 0.1)
-  expect_equal(unname(confusion(y, p, threshold = 0.5)), c(2, 2, 0, 0))
+  expect_equal(as.vector(confusion(y, p, threshold = 0.5)), c(2, 2, 0, 0))
   # at 0 everything is predicted positive, and the mismatch is flagged
   expect_warning(cm0 <- confusion(y, p, threshold = 0), "threshold = 0.5")
-  expect_equal(unname(cm0), c(2, 0, 2, 0))
+  expect_equal(as.vector(cm0), c(2, 0, 2, 0))
 })
 
 # ---- the confusion-matrix measures -----------------------------------------
@@ -372,7 +405,7 @@ test_that("confusion() warns when a probability is scored at the margin cutoff",
 
   expect_warning(cm <- confusion(y, p), "use `threshold = 0.5`")
   # and the warning is earned: everything lands in the positive class
-  expect_equal(unname(cm), c(2, 0, 2, 0))
+  expect_equal(as.vector(cm), c(2, 0, 2, 0))
 
   # no warning once the cutoff matches the scale
   expect_silent(confusion(y, p, threshold = 0.5))
@@ -398,4 +431,107 @@ test_that("the threshold reaches every derived measure from one place", {
   # the ranking measures cannot move, having no cutoff to move
   expect_equal(auroc(y, s), auroc(y, s))
   expect_false(isTRUE(all.equal(confusion_bacc(low), confusion_bacc(high))))
+})
+
+# ---- the synonyms in the documentation --------------------------------------
+
+test_that("the documented synonyms hold as identities", {
+  # each line here is a claim in ?assess, so the docs cannot drift from the code
+  set.seed(31)
+  y <- rbinom(90, 1, 0.4)
+  s <- rnorm(90) + y
+  g <- assess(y, s)
+
+  # mcc is the phi coefficient: Pearson's r of true and predicted 0/1
+  expect_equal(g[["mcc"]], cor(y, as.integer(s > 0)))
+  # f1 is the harmonic mean of precision and recall
+  expect_equal(g[["f1"]], 2 * g[["ppv"]] * g[["sens"]] / (g[["ppv"]] + g[["sens"]]))
+  # bacc is (J + 1) / 2 with Youden's J
+  j <- g[["sens"]] + g[["spec"]] - 1
+  expect_equal(g[["bacc"]], (j + 1) / 2)
+  # at the default k, precision among the top k equals recall among them
+  top <- order(s, decreasing = TRUE)[seq_len(sum(y))]
+  expect_equal(g[["patk"]], sum(y[top]) / sum(y))
+})
+
+# ---- printing ----------------------------------------------------------------
+
+test_that("assess() keeps full precision and carries its cut for print()", {
+  set.seed(41)
+  y <- rbinom(30, 1, 0.4)
+  s <- rnorm(30) + y
+  out <- assess(y, s)
+
+  expect_s3_class(out, "assessment")
+  expect_equal(attr(out, "threshold"), 0)
+  expect_equal(attr(out, "k"), c(3, 5, sum(y)))
+  # indexing drops the class and returns the exact value
+  expect_equal(out[["auroc"]], auroc(y, s))
+  expect_false(inherits(out["auroc"], "assessment"))
+})
+
+test_that("print.assessment() shows the matrix, then one line per cut", {
+  y <- c(rep(1, 12), rep(0, 9))
+  set.seed(41)
+  s <- rnorm(21) + y
+  out <- capture.output(print(assess(y, s)))
+
+  expect_match(out[1], "^ +actual 1  actual 0$")
+  expect_match(out[2], "^predicted 1 +tp \\d+ +fp \\d+$")
+  expect_match(out[3], "^predicted 0 +fn \\d+ +tn \\d+$")
+  expect_identical(out[4], "")
+  expect_length(out, 8L)
+  expect_identical(
+    trimws(substr(out[5:8], 1, 16)),
+    c("At threshold 0", "", "Among top k", "Over thresholds")
+  )
+  expect_match(out[7], "k=3 .*k=5 .*k=12 ")
+  expect_false(any(grepl("attr(", out, fixed = TRUE)))
+  # nothing colored outside a live console
+  expect_false(any(grepl("\033[", out, fixed = TRUE)))
+  # every rate has three decimals
+  rates <- regmatches(out[5:8], gregexpr("\\d+\\.\\d+", out[5:8]))
+  expect_true(all(grepl("^\\d\\.\\d{3}$", unlist(rates))))
+
+  two <- capture.output(print(assess(y, s), digits = 2))
+  rates <- regmatches(two[5:8], gregexpr("\\d+\\.\\d+", two[5:8]))
+  expect_true(all(grepl("^\\d\\.\\d{2}$", unlist(rates))))
+})
+
+test_that("print.assessment() drops a budget out of reach and a repeated k", {
+  # three positives: patk_5 is NA and the default k repeats k = 3
+  y <- c(1, 1, 1, 0, 0, 0, 0)
+  s <- c(3, 2, -1, 1, -2, -3, -4)
+  out <- capture.output(print(assess(y, s)))
+  line <- grep("^Among top k", out, value = TRUE)
+  expect_match(line, "^Among top k +k=3 +0\\.667$")
+})
+
+test_that("print.assessment() wraps a long list of budgets after four", {
+  y <- c(rep(1, 8), rep(0, 4))
+  s <- seq(12, 1)
+  out <- capture.output(print(assess(y, s, k = 1:6)))
+  i <- grep("^Among top k", out)
+  expect_match(out[i], "k=4 +1\\.000$")
+  expect_match(out[i + 1], "^ +k=5 +1\\.000 +k=6 +1\\.000$")
+})
+
+test_that("assess(cm) prints no ranking lines, and print() returns invisibly", {
+  cm <- confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
+  out <- capture.output(res <- withVisible(print(assess(cm))))
+
+  expect_length(out, 6L)
+  expect_match(out[5], "^At threshold 0 ")
+  expect_false(res$visible)
+
+  # a hand-built table carries no threshold, so the label stays plain
+  hand <- structure(c(tp = 4, tn = 3, fp = 2, fn = 1), class = "confusion")
+  expect_match(capture.output(print(assess(hand)))[5], "^At threshold  ")
+})
+
+test_that("print.confusion() names its threshold above the matrix", {
+  out <- capture.output(print(confusion(c(1, 1, 0, 0), c(2, -1, 1, -2), 0.5)))
+  expect_identical(out[1], "At threshold 0.5")
+  expect_match(out[3], "^predicted 1 +tp 1 +fp 1$")
+  expect_length(out, 4L)
 })

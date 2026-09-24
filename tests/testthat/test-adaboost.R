@@ -494,7 +494,13 @@ test_that("the notice comes after the transcript, on its own line", {
     "\n"
   )[[1]]
   expect_false(any(grepl("input checks.*^! ", lines)))
-  expect_true(any(grepl("^! `train`", lines)))
+  # the reason, quiet and indented; then the conclusion, carrying the `!`
+  expect_true(any(grepl("^  `train` was also used for training", lines)))
+  expect_true(any(grepl("^! Outputs are retrodictions", lines)))
+  expect_gt(
+    grep("^! Outputs are retrodictions", lines)[1],
+    grep("^  `train` was also used", lines)[1]
+  )
 
   # last, where the cursor lands -- not inside the run and not above it
   notice <- grep("^! ", lines)
@@ -542,7 +548,8 @@ test_that("predict() with no newdata names the fall-back, not \"this\"", {
   out <- verbose_lines(predict(fit, type = "margin"))
   # matched loosely: the sentence is a preference, the concept is not
   expect_match(out, "No `newdata`")
-  expect_false(any(grepl("^! this ", strsplit(out, "\n")[[1]])))
+  # the reason line is indented, not bulleted, so that is where "this" would show
+  expect_false(any(grepl("^  this ", strsplit(out, "\n")[[1]])))
   expect_match(out, "retrodiction")
 })
 
