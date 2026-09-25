@@ -354,7 +354,7 @@ print.confusion <- function(x, ...) {
 #' Divide, returning NA for a zero denominator
 #'
 #' `NA`, not `NaN`: the measure has no value for this data, rather than a
-#' failed calculation. lpocv() stores such cells as undefined.
+#' failed calculation. logo_cv() stores such cells as undefined.
 #'
 #' @noRd
 divide_safely <- function(num, den) {
