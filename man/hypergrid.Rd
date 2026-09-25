@@ -3,9 +3,9 @@
 \docType{data}
 \name{hypergrid}
 \alias{hypergrid}
-\title{AdaBoost grid search by leave-project-out cross-validation}
+\title{AdaBoost grid search by leave-one-group-out cross-validation}
 \format{
-An object of class \code{lpocv} (see \code{\link[=lpocv]{lpocv()}}):
+An object of class \code{logo_cv} (see \code{\link[=logo_cv]{logo_cv()}}):
 \itemize{
 \item \code{estimates}: An array of 960 settings x 5 projects x 15 measures. \code{NA}
 marks an undefined measure, such as \code{ppv} when a model predicts no
@@ -18,14 +18,14 @@ positives. \code{auroc} is never \code{NA}.
 }
 \description{
 Every setting of a 480-row AdaBoost grid, scored on every replication
-project by leave-project-out cross-validation, under two values of the tree
-complexity parameter \code{cp}. Made by \code{data-raw/hypergrid.R}.
+project by leave-one-group-out cross-validation (the projects are the
+groups), under two values of the tree complexity parameter \code{cp}. Made by \code{data-raw/hypergrid.R}.
 }
 \details{
 The search is plain, not nested: the best average is chosen and graded on
 the same five projects, which is optimistic on a grid this size. Quote
 \link{hypernested} instead. The mean over projects is fine for ranking settings,
-but it is not a performance estimate (see \code{\link[=lpocv]{lpocv()}}).
+but it is not a performance estimate (see \code{\link[=logo_cv]{logo_cv()}}).
 
 Paired over the settings, \code{cp = 0} trails \code{cp = 0.01} by .0044 in mean
 AUROC (95 percent CI .0021 to .0067). The whole gap is at depth 4 (-.0152,

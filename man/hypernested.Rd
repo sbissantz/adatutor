@@ -3,9 +3,9 @@
 \docType{data}
 \name{hypernested}
 \alias{hypernested}
-\title{Nested leave-project-out search for AdaBoost}
+\title{Nested leave-one-group-out search for AdaBoost}
 \format{
-An object of class \code{lpocv} with \code{nested = TRUE}:
+An object of class \code{logo_cv} with \code{nested = TRUE}:
 \itemize{
 \item \code{estimates}: An array of 5 projects x 15 measures.
 \item \code{selected}: The \code{depth}, \code{T} and \code{eta} each outer fold chose. Its

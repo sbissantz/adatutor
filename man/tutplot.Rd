@@ -7,7 +7,8 @@
 \alias{tutplot_updatefactor}
 \alias{tutplot_importance}
 \alias{tutplot_weightone}
-\alias{tutplot_lpocv}
+\alias{tutplot_logocv}
+\alias{tutplot_logoscheme}
 \title{Redraw the tutorial's manuscript figures}
 \usage{
 tutplot_cstump(
@@ -67,7 +68,20 @@ tutplot_weightone(
   pointsize = tutplot_opts$pointsize
 )
 
-tutplot_lpocv(
+tutplot_logocv(
+  res,
+  bootstrap = TRUE,
+  n_resample = 1000,
+  metric = "auroc",
+  bands = c(0.5, 0.8, 0.95),
+  ylab = toupper(metric),
+  file = NULL,
+  width = tutplot_opts$col[["width"]],
+  height = tutplot_opts$col[["height"]],
+  pointsize = tutplot_opts$pointsize
+)
+
+tutplot_logoscheme(
   group,
   proportional = TRUE,
   levels = NULL,
@@ -125,7 +139,25 @@ the weights alone cannot show which points were missed.}
 
 \item{scaling}{The bubble size multiplier.}
 
-\item{group}{One project label per row, as \code{\link[=lpocv]{lpocv()}} takes it.}
+\item{res}{A result of \code{\link[=logo_cv]{logo_cv()}}.}
+
+\item{bootstrap}{Whether to draw bootstrap intervals. \code{FALSE} draws the
+estimates only, without resampling. \code{TRUE} (the default) uses the
+intervals attached by \code{\link[=bootstrap]{bootstrap()}}, or resamples when there are none;
+set the seed first. These are percentile intervals within each project,
+not standard errors.}
+
+\item{n_resample}{The number of resamples per project, when \code{bootstrap}
+has to resample. Defaults to 1000.}
+
+\item{metric}{The measure to draw. Defaults to \code{"auroc"}.}
+
+\item{bands}{The interval widths, widest last. Defaults to 0.50, 0.80 and
+0.95.}
+
+\item{ylab}{The axis label. Defaults to \code{metric} in capitals.}
+
+\item{group}{One project label per row, as \code{\link[=logo_cv]{logo_cv()}} takes it.}
 
 \item{proportional}{Whether to size the rows by project. \code{TRUE} (the
 default) shows the imbalance: one project holds 59 percent of the rows.
@@ -138,8 +170,9 @@ levels or the order of first appearance.}
 Invisibly, the facts the figure's caption states, so tests can
 check them. \code{tutplot_cstump()} returns the fit, the split variable, the
 cutpoint and the leaf sizes; \code{tutplot_gini()} the curve and its peak;
-\code{tutplot_lpocv()} the project sizes, their count, the order and the row
-heights.
+\code{tutplot_logoscheme()} the project sizes, their count, the order and the
+row heights; \code{tutplot_logocv()} one row per project with its estimate,
+the widest interval, and whether too many resamples were rejected.
 }
 \description{
 Draws a figure from the AMPPS tutorial. The code lives in the package, not
@@ -154,7 +187,9 @@ observation's weight.
 \item \code{tutplot_importance()}: the model weight a stump earns, by its
 performance.
 \item \code{tutplot_weightone()}: observation weights before and after one round.
-\item \code{tutplot_lpocv()}: the leave-project-out cross-validation scheme.
+\item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.
+\item \code{tutplot_logocv()}: the leave-one-group-out estimates per project, with
+or without bootstrap intervals.
 }
 }
 \section{Output}{
@@ -189,9 +224,9 @@ facts$leaves
 gini <- tutplot_gini()
 gini$peak
 
-# Figure 1: the LPO-CV scheme, drawn from the grouping itself
+# Figure 1: the LOGO-CV scheme, drawn from the grouping itself
 data(altmejd)
-folds <- tutplot_lpocv(altmejd$pid)
+folds <- tutplot_logoscheme(altmejd$pid)
 folds$n
 
 }
