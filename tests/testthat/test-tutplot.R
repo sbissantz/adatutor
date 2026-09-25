@@ -758,12 +758,12 @@ test_that("tutplot_boundary() shades by the score, not by the class", {
   expect_null(eval(formals(tutplot_boundary)$ylab))
 })
 
-test_that("tutplot_lpocv() builds one fold per project, test on the diagonal", {
+test_that("tutplot_logoscheme() builds one fold per project, test on the diagonal", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
   g <- altmejd$pid
-  f <- tutplot_lpocv(g)
+  f <- tutplot_logoscheme(g)
 
   # one iteration per project, and every row accounted for
   expect_identical(f$k, length(unique(g)))
@@ -776,31 +776,31 @@ test_that("tutplot_lpocv() builds one fold per project, test on the diagonal", {
   expect_equal(round(max(f$heights), 3), 0.592)
 })
 
-test_that("tutplot_lpocv() draws the order it is given, not table()'s", {
+test_that("tutplot_logoscheme() draws the order it is given, not table()'s", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
   # `table()` sorts, which would silently rearrange the manuscript's figure
   paper <- c("ml1", "rpp", "ml3", "eerp", "ssrp")
-  f <- tutplot_lpocv(altmejd$pid, levels = paper)
+  f <- tutplot_logoscheme(altmejd$pid, levels = paper)
   expect_identical(f$levels, paper)
   expect_identical(names(f$n), paper)
   expect_false(identical(names(f$n), sort(paper)))
 
   # a factor brings its own order
   g <- factor(altmejd$pid, levels = paper)
-  expect_identical(tutplot_lpocv(g)$levels, paper)
+  expect_identical(tutplot_logoscheme(g)$levels, paper)
 
   # and a level that is not in the data is refused rather than drawn empty
-  expect_error(tutplot_lpocv(altmejd$pid, levels = c(paper, "nope")), "nope")
+  expect_error(tutplot_logoscheme(altmejd$pid, levels = c(paper, "nope")), "nope")
 })
 
-test_that("tutplot_lpocv() equal blocks hide what proportional ones show", {
+test_that("tutplot_logoscheme() equal blocks hide what proportional ones show", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  prop <- tutplot_lpocv(altmejd$pid, proportional = TRUE)
-  flat <- tutplot_lpocv(altmejd$pid, proportional = FALSE)
+  prop <- tutplot_logoscheme(altmejd$pid, proportional = TRUE)
+  flat <- tutplot_logoscheme(altmejd$pid, proportional = FALSE)
 
   expect_equal(flat$heights, rep(1 / flat$k, flat$k))
   expect_false(isTRUE(all.equal(prop$heights, flat$heights)))
@@ -856,12 +856,12 @@ test_that("axis labels are title case, as APA asks", {
   expect_no_match(txt(g), "Data point")
 })
 
-test_that("tutplot_lpocv() leaves the figure's title to the caption", {
+test_that("tutplot_logoscheme() leaves the figure's title to the caption", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   f <- tempfile(fileext = ".pdf")
   on.exit(unlink(f), add = TRUE)
 
-  tutplot_lpocv(altmejd$pid, file = f)
+  tutplot_logoscheme(altmejd$pid, file = f)
   out <- paste(system2("pdftotext", c(f, "-"), stdout = TRUE), collapse = " ")
 
   # the axis label and the column headers stay
@@ -869,4 +869,74 @@ test_that("tutplot_lpocv() leaves the figure's title to the caption", {
   expect_match(out, "Iteration 1")
   # the in-panel title does not: it duplicated the numbered caption
   expect_no_match(out, "Leave-Project-Out Cross-Validation")
+})
+
+# ---- tutplot_logocv ---------------------------------------------------------
+
+logocv_res <- function() {
+  data(altmejd)
+  logo_cv(
+    replicate ~ power.o + effect_size.o + n.o + p_value.o,
+    data = altmejd,
+    group = "pid",
+    T = 5,
+    eta = 1
+  )
+}
+
+test_that("tutplot_logocv(bootstrap = FALSE) draws estimates without resampling", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  res <- logocv_res()
+
+  set.seed(1)
+  before <- .Random.seed
+  facts <- tutplot_logocv(res, bootstrap = FALSE)
+  expect_identical(.Random.seed, before)
+
+  expect_equal(
+    facts$estimate,
+    unname(res$estimates[1, facts$project, "auroc"])
+  )
+  expect_true(all(is.na(facts$lower) & is.na(facts$upper)))
+})
+
+test_that("tutplot_logocv(bootstrap = TRUE) brackets every estimate", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  set.seed(1)
+  facts <- suppressWarnings(tutplot_logocv(logocv_res(), n_resample = 100))
+  expect_true(all(facts$lower <= facts$estimate & facts$estimate <= facts$upper))
+  expect_type(facts$flagged, "logical")
+})
+
+test_that("tutplot_logocv() reuses attached intervals instead of resampling", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  set.seed(1)
+  boot <- suppressWarnings(bootstrap(logocv_res(), n_resample = 100))
+
+  before <- .Random.seed
+  facts <- tutplot_logocv(boot)
+  expect_identical(.Random.seed, before)
+
+  ssrp <- attr(boot$ci$ssrp, "draws")[, "auroc"]
+  expect_equal(
+    facts$upper[facts$project == "ssrp"],
+    unname(stats::quantile(ssrp, 0.975, na.rm = TRUE))
+  )
+})
+
+test_that("tutplot_logocv() restores par() and writes a file", {
+  res <- logocv_res()
+  grDevices::pdf(NULL)
+  before <- graphics::par(c("mar", "mgp", "tcl", "cex.axis"))
+  tutplot_logocv(res, bootstrap = FALSE)
+  expect_identical(graphics::par(c("mar", "mgp", "tcl", "cex.axis")), before)
+  grDevices::dev.off()
+
+  f <- tempfile(fileext = ".pdf")
+  tutplot_logocv(res, bootstrap = FALSE, file = f)
+  expect_gt(file.size(f), 0)
+  expect_error(tutplot_logocv(list()), "result of logo_cv")
 })

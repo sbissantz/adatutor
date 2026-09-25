@@ -47,7 +47,7 @@ test_that("assess() returns a stable named vector", {
     "patk_5",
     "patk"
   )
-  # lpocv()/bootCI() will vapply() over this, so length and order must not drift
+  # logo_cv()/bootstrap() will vapply() over this, so length and order must not drift
   expect_named(out, nms)
   expect_type(out, "double")
   expect_length(out, 17L)

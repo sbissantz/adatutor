@@ -1,16 +1,17 @@
 fml <- replicate ~ power.o + effect_size.o + n.o + p_value.o
 
-test_that("lpocv() returns a setting x project x metric cube", {
+test_that("logo_cv() returns a setting x project x metric cube", {
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
 
-  expect_s3_class(res, "lpocv")
+  expect_s3_class(res, "logo_cv")
   expect_named(
     res,
     c(
       "estimates",
       "grid",
       "projects",
+      "scores",
       "model",
       "nested",
       "criterion",
@@ -35,7 +36,7 @@ test_that("lpocv() returns a setting x project x metric cube", {
 test_that("as.data.frame() flattens the cube without losing a cell", {
   data(altmejd)
   grid <- expand.grid(T = c(5, 10), eta = c(1, 0.5))
-  res <- lpocv(fml, data = altmejd, group = "pid", grid = grid)
+  res <- logo_cv(fml, data = altmejd, group = "pid", grid = grid)
 
   d <- as.data.frame(res)
   expect_equal(nrow(d), length(res$estimates))
@@ -64,13 +65,13 @@ test_that("as.data.frame() flattens the cube without losing a cell", {
   expect_equal(d$estimate, res$estimates[cell])
 })
 
-test_that("lpocv() reproduces the published leave-project-out figures", {
+test_that("logo_cv() reproduces the published leave-project-out figures", {
   # Pins the fold logic against notes 2: AdaBoost stumps, T = 10, eta = 1.
   # A mismatch here means the folds are wrong, not that the table is.
   # eerp is 0.734 rather than the 0.714 of notes 2 because the base learners
   # now carry rpart's cp = 0.01; the other four folds are unmoved.
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 10, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 10, eta = 1)
   got <- summary(res, metric = "auroc")
 
   want <- c(eerp = 0.734, ml1 = 0.818, ml3 = 0.619, rpp = 0.620, ssrp = 0.676)
@@ -83,9 +84,9 @@ test_that("lpocv() reproduces the published leave-project-out figures", {
 
 test_that("AdaBoost is scored on the margin, not on class labels", {
   # The submitted manuscript's bug: hard labels make auroc collapse onto
-  # balanced accuracy. lpocv() must never reintroduce it.
+  # balanced accuracy. logo_cv() must never reintroduce it.
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 10, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 10, eta = 1)
   d <- as.data.frame(res)
 
   auroc <- d$estimate[d$metric == "auroc"]
@@ -96,7 +97,7 @@ test_that("AdaBoost is scored on the margin, not on class labels", {
 test_that("a grid is crossed with every fold", {
   data(altmejd)
   grid <- expand.grid(T = c(5, 10), eta = c(1, 0.5))
-  res <- lpocv(fml, data = altmejd, group = "pid", grid = grid)
+  res <- logo_cv(fml, data = altmejd, group = "pid", grid = grid)
 
   n_measures <- length(assess(c(1, 0), c(1, -1)))
   expect_equal(dim(res$estimates), c(nrow(grid), 5L, n_measures))
@@ -109,7 +110,7 @@ test_that("a grid is crossed with every fold", {
 
 test_that("a grid may omit columns, which fall back to the arguments", {
   data(altmejd)
-  res <- lpocv(
+  res <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -127,7 +128,7 @@ test_that("a grid column may set an rpart control, per row", {
   # one call with cp in the grid has to mean exactly what two calls with cp in
   # treehypar mean. Nothing else can catch a wrong merge order: the cached
   # search results predate the change.
-  both <- lpocv(
+  both <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -139,7 +140,7 @@ test_that("a grid column may set an rpart control, per row", {
   d <- as.data.frame(both)
   key <- function(x) paste(x$depth, x$T, x$eta, x$project, x$metric)
   for (cpv in c(0, 0.01)) {
-    arm <- lpocv(
+    arm <- logo_cv(
       fml,
       data = altmejd,
       group = "pid",
@@ -152,14 +153,14 @@ test_that("a grid column may set an rpart control, per row", {
   }
 
   # the row is the more specific statement, so it overrides the call
-  clash <- lpocv(
+  clash <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
     grid = cbind(small, cp = 0),
     treehypar = list(cp = 0.5)
   )
-  only_row <- lpocv(
+  only_row <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -174,11 +175,11 @@ test_that("a grid column that sets nothing warns and names itself", {
   # silence there would hide a column meant to tune something
   noisy <- data.frame(T = 5, eta = 1, depth = 1, auc.mean = NA, runtime = NA)
   expect_warning(
-    lpocv(fml, data = altmejd, group = "pid", grid = noisy),
+    logo_cv(fml, data = altmejd, group = "pid", grid = noisy),
     "auc\\.mean, runtime"
   )
   expect_silent(
-    suppressMessages(lpocv(
+    suppressMessages(logo_cv(
       fml,
       data = altmejd,
       group = "pid",
@@ -192,7 +193,7 @@ test_that("the other learners run and report NA for hyperparameters they lack", 
 
   # the hyperparameters live in the grid now, so that is where a learner that
   # has no use for one records it as NA
-  logit <- lpocv(fml, data = altmejd, group = "pid", model = "logit")
+  logit <- logo_cv(fml, data = altmejd, group = "pid", model = "logit")
   expect_true(all(is.na(logit$grid$T)))
   expect_true(all(is.na(logit$grid$eta)))
   expect_true(all(is.na(logit$grid$depth)))
@@ -200,11 +201,11 @@ test_that("the other learners run and report NA for hyperparameters they lack", 
   # and the flattened view still shows them, since it reads the grid
   expect_true(all(is.na(as.data.frame(logit)$T)))
 
-  stump <- lpocv(fml, data = altmejd, group = "pid", model = "stump")
+  stump <- logo_cv(fml, data = altmejd, group = "pid", model = "stump")
   expect_true(all(is.na(stump$grid$T)))
   expect_equal(unique(stump$grid$depth), 1)
 
-  tree <- lpocv(fml, data = altmejd, group = "pid", model = "tree", depth = 4)
+  tree <- logo_cv(fml, data = altmejd, group = "pid", model = "tree", depth = 4)
   expect_equal(unique(tree$grid$depth), 4)
 
   # probability models are thresholded at 0.5, so a fitted logit must not
@@ -216,30 +217,30 @@ test_that("random forest runs when the suggested package is available", {
   skip_if_not_installed("randomForest")
   data(altmejd)
   set.seed(1)
-  rf <- lpocv(fml, data = altmejd, group = "pid", model = "rf")
+  rf <- logo_cv(fml, data = altmejd, group = "pid", model = "rf")
   expect_true(all(is.finite(summary(rf)$estimate)))
 })
 
-test_that("lpocv() rejects malformed input", {
+test_that("logo_cv() rejects malformed input", {
   data(altmejd)
-  expect_error(lpocv(fml, data = altmejd, group = "nope"), "not found")
+  expect_error(logo_cv(fml, data = altmejd, group = "nope"), "not found")
   expect_error(
-    lpocv(fml, data = altmejd, group = c("pid", "eid")),
+    logo_cv(fml, data = altmejd, group = c("pid", "eid")),
     "single column"
   )
   expect_error(
-    lpocv(fml, data = altmejd[altmejd$pid == "rpp", ], group = "pid"),
+    logo_cv(fml, data = altmejd[altmejd$pid == "rpp", ], group = "pid"),
     "at least two levels"
   )
   expect_error(
-    lpocv(fml, data = altmejd, group = "pid", grid = data.frame()),
+    logo_cv(fml, data = altmejd, group = "pid", grid = data.frame()),
     "no rows"
   )
 })
 
 test_that("the methods behave", {
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
 
   expect_true(is.array(res$estimates))
   expect_s3_class(as.data.frame(res), "data.frame")
@@ -249,7 +250,7 @@ test_that("the methods behave", {
   expect_true(all(s$metric == "auprc"))
 
   out <- capture.output(print(res))
-  expect_true(any(grepl("Leave-project-out", out)))
+  expect_true(any(grepl("Leave-one-group-out", out)))
   expect_true(any(grepl("adaboost", out)))
   # the spread is shown, never a mean or standard error across folds
   expect_true(any(grepl("spread", out)))
@@ -265,13 +266,13 @@ test_that("the methods behave", {
   )))
 })
 
-# ---- nested LPO-CV ---------------------------------------------------------
+# ---- nested LOGO-CV --------------------------------------------------------
 
 small_grid <- expand.grid(depth = 1:2, T = c(5, 10), eta = 1)
 
-test_that("nested lpocv() reports the setting each outer fold chose", {
+test_that("nested logo_cv() reports the setting each outer fold chose", {
   data(altmejd)
-  res <- lpocv(
+  res <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -279,7 +280,7 @@ test_that("nested lpocv() reports the setting each outer fold chose", {
     nested = TRUE
   )
 
-  expect_s3_class(res, "lpocv")
+  expect_s3_class(res, "logo_cv")
   expect_true(res$nested)
   expect_equal(res$criterion, "auroc")
   expect_equal(nrow(res$selected), 5L)
@@ -302,7 +303,7 @@ test_that("the inner search never sees the held-out project", {
   # the argmax of a grid search run on the remaining projects only. Recomputing
   # that independently is the real check that no leakage occurs.
   data(altmejd)
-  res <- lpocv(
+  res <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -312,7 +313,7 @@ test_that("the inner search never sees the held-out project", {
 
   for (p in res$selected$project) {
     train <- altmejd[altmejd$pid != p, ]
-    inner <- lpocv(fml, data = train, group = "pid", grid = small_grid)
+    inner <- logo_cv(fml, data = train, group = "pid", grid = small_grid)
     s <- summary(inner, metric = "auroc")
     per <- aggregate(estimate ~ setting, data = s, FUN = mean)
     expect_equal(
@@ -335,11 +336,11 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
   data(altmejd)
   grid <- expand.grid(depth = 1:3, T = c(10, 30), eta = c(1, 0.1))
 
-  plain <- lpocv(fml, data = altmejd, group = "pid", grid = grid)
+  plain <- logo_cv(fml, data = altmejd, group = "pid", grid = grid)
   s <- summary(plain, metric = "auroc")
   naive <- max(aggregate(estimate ~ setting, data = s, FUN = mean)$estimate)
 
-  nst <- lpocv(fml, data = altmejd, group = "pid", grid = grid, nested = TRUE)
+  nst <- logo_cv(fml, data = altmejd, group = "pid", grid = grid, nested = TRUE)
   nested <- mean(summary(nst, metric = "auroc")$estimate)
 
   # the naive best-average was selected and graded on the same five projects
@@ -354,7 +355,7 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
 
 test_that("the criterion decides what the inner search maximizes", {
   data(altmejd)
-  by_auroc <- lpocv(
+  by_auroc <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -362,7 +363,7 @@ test_that("the criterion decides what the inner search maximizes", {
     nested = TRUE,
     criterion = "auroc"
   )
-  by_bacc <- lpocv(
+  by_bacc <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -378,14 +379,14 @@ test_that("the criterion decides what the inner search maximizes", {
   expect_equal(nrow(by_bacc$selected), 5L)
 })
 
-test_that("nested lpocv() rejects input it cannot honour", {
+test_that("nested logo_cv() rejects input it cannot honour", {
   data(altmejd)
   expect_error(
-    lpocv(fml, data = altmejd, group = "pid", nested = TRUE),
+    logo_cv(fml, data = altmejd, group = "pid", nested = TRUE),
     "needs a `grid`"
   )
   expect_error(
-    lpocv(
+    logo_cv(
       fml,
       data = altmejd[altmejd$pid %in% c("ml1", "ml3"), ],
       group = "pid",
@@ -395,7 +396,7 @@ test_that("nested lpocv() rejects input it cannot honour", {
     "at least three groups"
   )
   expect_error(
-    lpocv(
+    logo_cv(
       fml,
       data = altmejd,
       group = "pid",
@@ -409,7 +410,7 @@ test_that("nested lpocv() rejects input it cannot honour", {
 
 test_that("print() surfaces the selection instability", {
   data(altmejd)
-  res <- lpocv(
+  res <- logo_cv(
     fml,
     data = altmejd,
     group = "pid",
@@ -418,7 +419,7 @@ test_that("print() surfaces the selection instability", {
   )
   out <- capture.output(print(res))
 
-  expect_true(any(grepl("Nested leave-project-out", out)))
+  expect_true(any(grepl("Nested leave-one-group-out", out)))
   expect_true(any(grepl("selected on: auroc", out)))
   expect_true(any(grepl("inner searches selected", out)))
   expect_true(any(grepl("diagnostic, not a selection rule", out)))
@@ -428,13 +429,13 @@ test_that("print() surfaces the selection instability", {
 
 test_that("a plain run records that it was not nested", {
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
   expect_false(res$nested)
   expect_null(res$selected)
   expect_false(any(grepl("Nested", capture.output(print(res)))))
 })
 
-# ---- plot.lpocv ------------------------------------------------------------
+# ---- plot.logo_cv ------------------------------------------------------------
 
 boot_by_project <- function(n_resample = 200) {
   data(altmejd)
@@ -459,7 +460,7 @@ boot_by_project <- function(n_resample = 200) {
       input_checks = FALSE
     )
     set.seed(112)
-    out[[rp]] <- suppressWarnings(bootCI(
+    out[[rp]] <- suppressWarnings(bootstrap(
       te$replicate,
       m,
       n_resample = n_resample
@@ -468,10 +469,10 @@ boot_by_project <- function(n_resample = 200) {
   out
 }
 
-test_that("bootCI() keeps the draws so any level can be asked for later", {
+test_that("bootstrap() keeps the draws so any level can be asked for later", {
   f <- c(rep(1L, 20), rep(0L, 20))
   set.seed(1)
-  ci <- bootCI(f, rnorm(40) + f, n_resample = 150)
+  ci <- bootstrap(f, rnorm(40) + f, n_resample = 150)
   d <- attr(ci, "draws")
 
   expect_true(is.matrix(d))
@@ -483,9 +484,9 @@ test_that("bootCI() keeps the draws so any level can be asked for later", {
   expect_equal(unname(ci$upper[ci$metric == "auroc"]), q[2])
 })
 
-test_that("plot.lpocv() draws with and without intervals", {
+test_that("plot.logo_cv() draws with and without intervals", {
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
 
   pf <- tempfile(fileext = ".png")
   png(pf)
@@ -493,21 +494,32 @@ test_that("plot.lpocv() draws with and without intervals", {
   dev.off()
   expect_gt(file.size(pf), 0)
 
-  ci <- boot_by_project()
+  boot <- res
+  boot$ci <- boot_by_project()
   png(pf)
-  expect_silent(plot(res, ci = ci))
-  expect_silent(plot(res, ci = ci, metric = "auprc"))
-  expect_silent(plot(res, ci = ci, levels = c(0.5, 0.9)))
-  expect_silent(plot(res, ci = ci, baseline = NA))
-  expect_silent(plot(res, ci = ci, baseline = 0.6))
+  expect_silent(plot(boot))
+  expect_silent(plot(boot, metric = "auprc"))
+  expect_silent(plot(boot, levels = c(0.5, 0.9)))
+  expect_silent(plot(boot, baseline = NA))
+  expect_silent(plot(boot, baseline = 0.6))
   dev.off()
+
+  # attached intervals add bands: more drawing calls than the bare plot
+  calls <- function(x) {
+    pdf(NULL)
+    on.exit(dev.off())
+    dev.control("enable")
+    plot(x)
+    length(recordPlot()[[1]])
+  }
+  expect_gt(calls(boot), calls(res))
 
   expect_error(plot(res, metric = "not_a_measure"), "no estimates")
 })
 
-test_that("plot.lpocv() returns its input invisibly", {
+test_that("plot.logo_cv() returns its input invisibly", {
   data(altmejd)
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
   png(tempfile(fileext = ".png"))
   out <- withVisible(plot(res))
   dev.off()
@@ -523,7 +535,7 @@ test_that("treehypar reaches every tree-based learner", {
   loose <- list(minsplit = 5, minbucket = 2)
 
   au <- function(...) {
-    r <- lpocv(fml, data = altmejd, group = "pid", ...)
+    r <- logo_cv(fml, data = altmejd, group = "pid", ...)
     mean(summary(r, metric = "auroc")$estimate)
   }
 
@@ -540,7 +552,7 @@ test_that("treehypar reaches every tree-based learner", {
 test_that("treehypar$maxdepth is refused so the grid keeps control of depth", {
   data(altmejd)
   expect_warning(
-    res <- lpocv(
+    res <- logo_cv(
       fml,
       data = altmejd,
       group = "pid",
@@ -551,7 +563,7 @@ test_that("treehypar$maxdepth is refused so the grid keeps control of depth", {
     "maxdepth.*ignored"
   )
   # depth came from `depth`, not from treehypar
-  plain <- lpocv(fml, data = altmejd, group = "pid", model = "tree", depth = 1)
+  plain <- logo_cv(fml, data = altmejd, group = "pid", model = "tree", depth = 1)
   expect_equal(
     summary(res, metric = "auroc")$estimate,
     summary(plain, metric = "auroc")$estimate
@@ -559,7 +571,7 @@ test_that("treehypar$maxdepth is refused so the grid keeps control of depth", {
 })
 
 test_that("adaboost's base learners match a direct adaboost() fit", {
-  # the default control is shared, so going through lpocv() and calling
+  # the default control is shared, so going through logo_cv() and calling
   # adaboost() by hand must fit the same trees on the same fold
   data(altmejd)
   voi <- c("replicate", "power.o", "effect_size.o", "n.o", "p_value.o")
@@ -584,7 +596,7 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
     )
   )
 
-  res <- lpocv(fml, data = altmejd, group = "pid", T = 10, eta = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 10, eta = 1)
   got <- summary(res, metric = "auroc")
   expect_equal(got$estimate[got$project == "eerp"], want, tolerance = 1e-12)
 })
@@ -655,4 +667,184 @@ test_that("model weights stay finite when a base learner refuses to split", {
   expect_true(any(rootonly))
   expect_true(all(is.finite(alphas)))
   expect_true(all(alphas > 0))
+})
+
+# ---- the pipeline: h |> adaboost() |> logo_cv() |> bootstrap() |> plot() ----
+
+test_that("logo_cv() on an adaboost fit equals the formula interface", {
+  data(altmejd)
+  prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+  h <- rpart::rpart(
+    replicate ~ .,
+    data = altmejd[, c(prednms, "replicate")],
+    maxdepth = 1,
+    model = TRUE
+  )
+  fit <- adaboost(h, n_iter = 5, eta = 0.5, verbose = FALSE)
+
+  from_fit <- logo_cv(fit, data = altmejd, group = "pid")
+  from_fml <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 0.5)
+
+  expect_identical(from_fit$estimates, from_fml$estimates)
+  expect_identical(from_fit$scores, from_fml$scores)
+  expect_equal(from_fit$grid[, c("T", "eta", "depth")], data.frame(T = 5, eta = 0.5, depth = 1))
+})
+
+test_that("logo_cv() refits the fit's split rule, not the default", {
+  data(altmejd)
+  prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+  fit_split <- function(rule) {
+    rpart::rpart(
+      replicate ~ .,
+      data = altmejd[, c(prednms, "replicate")],
+      maxdepth = 2,
+      parms = list(split = rule),
+      model = TRUE
+    ) |>
+      adaboost(n_iter = 5, eta = 1, verbose = FALSE)
+  }
+  info <- logo_cv(fit_split("information"), data = altmejd, group = "pid")
+  gini <- logo_cv(fit_split("gini"), data = altmejd, group = "pid")
+  expect_identical(attr(fit_split("information"), "split"), "information")
+  expect_false(identical(info$scores$score, gini$scores$score))
+})
+
+test_that("logo_cv() keeps the held-out scores of every fold", {
+  data(altmejd)
+  prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+
+  expect_equal(nrow(res$scores), nrow(altmejd))
+  expect_setequal(unique(res$scores$project), res$projects$project)
+
+  # the ssrp scores are what a manual refit on the other projects predicts
+  tr <- altmejd[altmejd$pid != "ssrp", ]
+  te <- altmejd[altmejd$pid == "ssrp", ]
+  manual <- rpart::rpart(
+    replicate ~ .,
+    data = tr[, c(prednms, "replicate")],
+    maxdepth = 1,
+    cp = 0.01,
+    xval = 0,
+    maxsurrogate = 0,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE) |>
+    predict(te[, prednms], type = "margin", verbose = FALSE)
+  expect_equal(res$scores$score[res$scores$project == "ssrp"], unname(manual))
+})
+
+test_that("bootstrap() on logo_cv equals the per-project loop", {
+  data(altmejd)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+
+  set.seed(3)
+  boot <- suppressWarnings(bootstrap(res, n_resample = 50))
+
+  set.seed(3)
+  manual <- lapply(res$projects$project, function(p) {
+    rows <- res$scores$project == p
+    suppressWarnings(bootstrap(
+      res$scores$actual[rows],
+      res$scores$score[rows],
+      n_resample = 50
+    ))
+  })
+  names(manual) <- res$projects$project
+
+  expect_s3_class(boot, "logo_cv")
+  expect_identical(boot$ci, manual)
+  expect_identical(boot$estimates, res$estimates)
+})
+
+test_that("bootstrap() names the project in its warnings", {
+  data(altmejd)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  set.seed(3)
+  expect_warning(
+    bootstrap(res, n_resample = 50, stratified = TRUE),
+    "^project eerp: stratified"
+  )
+})
+
+test_that("bootstrap() on logo_cv needs one setting and stored scores", {
+  data(altmejd)
+  grid <- expand.grid(T = c(3, 5), eta = 1, depth = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", grid = grid)
+
+  expect_error(bootstrap(res, n_resample = 20), "Choose one with `setting`")
+  expect_error(bootstrap(res, n_resample = 20, setting = 3), "one row number")
+
+  set.seed(3)
+  one <- suppressWarnings(bootstrap(res, n_resample = 20, setting = 2))
+  expect_equal(dim(one$estimates)[1], 1L)
+  expect_identical(one$estimates[1, , ], res$estimates[2, , ])
+  expect_equal(one$grid$T, 5)
+
+  data(hypergrid)
+  expect_error(bootstrap(hypergrid), "Rerun logo_cv")
+})
+
+test_that("nested logo_cv keeps the chosen setting's scores and bootstraps", {
+  data(altmejd)
+  grid <- expand.grid(T = c(3, 5), eta = 1, depth = 1)
+  res <- logo_cv(fml, data = altmejd, group = "pid", grid = grid, nested = TRUE)
+  expect_equal(nrow(res$scores), nrow(altmejd))
+  set.seed(3)
+  boot <- suppressWarnings(bootstrap(res, n_resample = 20))
+  expect_named(boot$ci, res$projects$project)
+})
+
+test_that("the stored hypergrid prints and plots under the logo_cv class", {
+  data(hypergrid)
+  expect_s3_class(hypergrid, "logo_cv")
+  expect_output(print(hypergrid), "Leave-one-group-out cross-validation")
+  one <- hypergrid
+  one$estimates <- one$estimates[1, , , drop = FALSE]
+  one$grid <- one$grid[1, , drop = FALSE]
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_silent(plot(one))
+})
+
+test_that("every patk budget gets the base-rate floor, not only the default", {
+  data(altmejd)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
+  calls <- function(...) {
+    pdf(NULL)
+    on.exit(dev.off())
+    dev.control("enable")
+    plot(res, ...)
+    length(recordPlot()[[1]])
+  }
+  for (m in c("patk_3", "patk_5", "patk", "auprc")) {
+    expect_gt(calls(metric = m), calls(metric = m, baseline = NA))
+  }
+})
+
+test_that("the y-axis keeps its tick at 1 and draws none above", {
+  data(altmejd)
+  res <- logo_cv(fml, data = altmejd, group = "pid", T = 50, eta = 1)
+  y_ticks <- function(metric) {
+    pdf(NULL)
+    on.exit(dev.off())
+    dev.control("enable")
+    plot(res, metric = metric)
+    items <- recordPlot()[[1]]
+    fn <- vapply(
+      items,
+      function(e) {
+        x <- e[[2]][[1]]
+        if (is.list(x) && !is.null(x$name)) x$name else ""
+      },
+      character(1)
+    )
+    # the last side-2 axis: plot() records its own suppressed one first
+    left <- Filter(function(e) isTRUE(e[[2]][[2]] == 2), items[fn == "C_axis"])
+    left[[length(left)]][[2]][[3]]
+  }
+  # three projects score 1 at the top 3, so the axis must reach 1
+  ticks <- y_ticks("patk_3")
+  expect_true(1 %in% ticks)
+  expect_true(all(ticks <= 1))
 })
