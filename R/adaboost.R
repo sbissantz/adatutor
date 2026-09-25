@@ -136,8 +136,7 @@ adaboost <- function(
   input_checks = TRUE,
   verbose = TRUE
 ) {
-  # preconditions, not diagnostics: without these there is nothing to boost, so
-  # they run whether or not `input_checks` is on
+  # preconditions, not checks: run whatever `input_checks` says
   if (!inherits(h, "rpart")) {
     stop("`h` must be a tree fitted with rpart().", call. = FALSE)
   }
@@ -157,27 +156,15 @@ adaboost <- function(
     )
   }
 
-  # Read the learner apart. `h` supplies the formula, the tree hyperparameters
-  # and the data; boosting adds only n_iter and eta.
-  #
-  # formula(h$terms) is the *expanded* formula, so `outcome ~ .` arrives with
-  # its term labels already resolved.
-  #
-  # The magic bridge: rpart evaluates `weights` in the formula's environment,
-  # so binding it to this frame is what lets `weights = D` below find `D`. Bind
-  # it to globalenv() instead and `D` resolves to stats::D, the derivative
-  # function. A globalenv() copy is stored on the ensemble further down.
+  # expanded formula: `outcome ~ .` arrives with its terms resolved; the
+  # environment lets rpart find `D` (in globalenv() it finds stats::D)
   formula <- stats::formula(h$terms)
   environment(formula) <- environment()
 
-  # h$model is already the model frame, so there is nothing to build
   mf <- h$model
 
-  # Refuse what cannot be carried, rather than ignoring it. A learner's own
-  # settings are the whole point of taking a fitted tree, so anything
-  # `adaboost()` cannot honour has to be said out loud: silently boosting a
-  # different model than the one handed in is the one failure a reader has no
-  # way to discover.
+  # refuse what cannot be carried: boosting a different model than the one
+  # handed in would go unnoticed
   if ("(weights)" %in% names(mf)) {
     stop(
       "`h` was fitted with `weights`, which AdaBoost cannot honour: it sets ",
@@ -187,10 +174,8 @@ adaboost <- function(
     )
   }
   y_train <- stats::model.response(mf)
-  # `prior` is recomputed from each round's weights -- that is the algorithm,
-  # not a setting -- so one fixed at fitting time could not survive. `loss` is
-  # not passed on either. Both default to values read off the data, so a
-  # mismatch is the caller having set them by hand.
+  # prior is recomputed from each round's weights and loss is not passed on,
+  # so a value that differs from the data's default was set by hand
   tab <- table(y_train)
   if (
     !isTRUE(all.equal(
@@ -218,58 +203,47 @@ adaboost <- function(
     )
   }
 
-  # A model frame holds *evaluated* terms, so `log(power.o)` is a column name
-  # rather than a call and refitting the original formula against it fails on
-  # "object 'power.o' not found". `<response> ~ .` over the frame finds the same
-  # values under the same names; the original terms go back onto each tree
-  # below, so predict() can still evaluate the transformation on raw newdata.
+  # the model frame holds evaluated terms (`log(power.o)` as a column), so fit
+  # `<response> ~ .` over it; the original terms go back onto each tree below
   fit_formula <- stats::as.formula(
     paste0("`", names(mf)[attr(h$terms, "response")], "` ~ ."),
     env = environment()
   )
 
-  # one terms object for every round, pointing at globalenv() rather than at
-  # this frame -- which holds `mf`, `D` and `H`, and would otherwise ride along
-  # on all n_iter saved trees
+  # point the terms at globalenv(), or this frame (`mf`, `D`, `H`) rides on
+  # every saved tree
   learner_terms <- h$terms
   attr(learner_terms, ".Environment") <- globalenv()
 
-  # everything the caller chose is kept. xval and maxsurrogate are speed, not
-  # structure: a thousand rounds should neither cross-validate nor hunt
-  # surrogates, and neither changes the tree that comes out.
+  # keep the caller's controls; drop xval and surrogates, which cost time and
+  # leave the tree unchanged
   ctrl <- h$control
   ctrl$xval <- 0
   ctrl$maxsurrogate <- 0
 
-  # rpart stores the splitting rule as a code but takes it back only as a name:
-  # handed the code it stores NA and silently reverts to gini, which is the
-  # quiet substitution this is here to prevent
+  # map rpart's split code back to its name: given the code, rpart stores NA
+  # and silently falls back to gini
   split_rule <- c("gini", "information")[h$parms$split]
   if (is.na(split_rule)) {
     split_rule <- "gini"
   }
 
-  # the literal name of the dataset, read off the tree's own call, for the
-  # tracking attribute at the very end
+  # dataset name from the tree's call, for the `train` attribute
   data_name <- h$call[["data"]]
 
-  # Progress is written a piece at a time, so a line is usually half finished
-  # when something goes wrong: `color_message()` leaves the line open for the
-  # " Done" that `walking_colordots()` will add, and the progress bar is only
-  # closed after the loop. Either way an error would print onto the same line.
-  # `on.exit()` closes whichever is open, and unlike `tryCatch()` it also runs
-  # on a user interrupt -- which is how a thousand-round fit usually ends early.
+  # close a half-finished progress line on error; unlike tryCatch(), on.exit()
+  # also runs on a user interrupt
   pb <- NULL
   finish <- FALSE
   if (verbose) {
     on.exit(
       {
-        # whatever happens, stop the bar's colour leaking past this call
+        # stop the bar's color leaking past this call
         if (!is.null(pb)) {
           cat("\033[0m", file = stderr())
         }
         if (!finish) {
-          # closing the bar breaks the line; without one, do it directly
+          # closing the bar breaks the line; without one, break it directly
           if (!is.null(pb)) close(pb) else message("")
         }
       },
@@ -299,7 +273,6 @@ adaboost <- function(
     color_message("Start the initialization process", color_code = ansi_dim)
   }
 
-  # Setup weights and containers
   m <- nrow(mf)
   D <- rep(1, m) / m
   H <- vector("list", n_iter)
@@ -310,23 +283,8 @@ adaboost <- function(
       "Steps 1-4: Run through the algorithm steps",
       color_code = ansi_dim
     )
-    # stderr, like every other piece of progress here: txtProgressBar writes to
-    # stdout by default, which would put the bar in with the results.
-    #
-    # It emits no escape codes of its own, so as *unstyled* stderr it inherits
-    # whatever the console paints that -- red, in RStudio. `ansi_dim` is SGR 2,
-    # faint: an intensity attribute, not a colour, so this dims the inherited
-    # colour rather than replacing it. Teal would be `ansi_teal`, and is not
-    # what is wanted here -- the bar is filler, like the dots.
-    #
-    # Note it is opened once, where each dot re-opens it for itself, and the bar
-    # then redraws over its own line with carriage returns. A console that
-    # re-renders the line per `\r` drops the attribute and falls back to its own
-    # stderr colour, which is why the bar can still look plain red in RStudio
-    # while the dots stay faint.
-    #
-    # The reset is in on.exit() above, so an error mid-loop cannot leave the
-    # attribute bleeding into everything that follows.
+    # faint, on stderr: stdout would mix the bar into the results, and plain
+    # stderr is red in RStudio; on.exit() above resets the attribute
     message("\033[", ansi_dim, "m", appendLF = FALSE)
     pb <- utils::txtProgressBar(
       min = 0,
@@ -337,30 +295,25 @@ adaboost <- function(
   }
 
   for (t in seq_len(n_iter)) {
-    # `h_t`, not `h`: the argument is the prototype and must survive the loop.
-    # model = FALSE keeps the round's tree from carrying its own copy of the
-    # data -- one frame on the ensemble, never n_iter of them.
+    # h_t, not h: the prototype must survive the loop; model = FALSE keeps one
+    # data copy on the ensemble instead of one per tree
     h_t <- rpart::rpart(
       formula = fit_formula,
       data = mf,
       weights = D,
       method = "class",
       control = ctrl,
-      # the splitting rule travels with the learner; `prior` and `loss` are
-      # left out so rpart keeps deriving them from this round's weights
+      # keep the split rule; let rpart derive prior and loss from the weights
       parms = list(split = split_rule),
       model = FALSE,
       y = FALSE
     )
 
-    # Clean, direct prediction
     y_retro <- stats::predict(h_t, newdata = mf, type = "class")
 
-    # Math and weight updates
     correct <- (y_train == y_retro)
-    # Weighted error, clamped away from 0 and 1 so the model weight stays finite
-    # (e -> 0 or 1 would otherwise send `a` to +/-Inf). A stump worse than chance
-    # (e > 0.5) legitimately yields a negative `a` and is handled by the update below.
+    # clamp so a perfect or useless learner keeps a finite weight; e > 0.5
+    # gives a negative `a`, which the update handles
     e <- min(max(sum(D[!correct]), 1e-10), 1 - 1e-10)
     a <- 0.5 * log((1 - e) / e) * eta
 
@@ -369,16 +322,11 @@ adaboost <- function(
     D_unorm[!correct] <- D[!correct] * exp(a)
     D <- D_unorm / sum(D_unorm)
 
-    # Memory cleanup before storing
+    # drop what predict() does not need
     h_t$where <- NULL
     h_t$call <- NULL
-    # The learner's own terms, not the frame-name ones this round was fitted
-    # with: predict() evaluates these against raw newdata, so a transformation
-    # has to survive as a call. The split variable names are the same either
-    # way, so the tree still matches what it is told to look up.
-    #
-    # `terms` also carries this function's frame, which holds `mf`, `D` and `H`,
-    # so leaving that attached makes every saved fit a copy of the training set.
+    # restore the learner's terms: predict() evaluates transformations on raw
+    # newdata, and the fitted terms would carry this frame and its data
     h_t$terms <- learner_terms
 
     H[[t]] <- list("h" = h_t, "a" = a)
@@ -401,14 +349,11 @@ adaboost <- function(
 
   names(H) <- paste0("t", seq_len(n_iter))
 
-  # One copy, on the ensemble -- not one per tree. `mf` is the model frame, so
-  # it holds exactly the columns the formula named and nothing else.
+  # one data copy, on the ensemble
   trainset <- if (keep_data) mf else NULL
 
-  # Stash the hyperparameters (with a clean formula environment to avoid
-  # capturing the training data) so the model can be refitted later. `ctrl` is
-  # the whole control list rather than depth alone, so a reader can see every
-  # setting the trees were grown with.
+  # store the formula without this frame, so the fit holds no training data;
+  # keep the whole control list so every setting stays visible
   form_store <- formula
   environment(form_store) <- globalenv()
 
@@ -487,11 +432,10 @@ predict.adaboost <- function(
   verbose = TRUE,
   ...
 ) {
-  # Match the requested type (defaults to "class")
   type <- match.arg(type)
 
-  # No newdata: fall back to the training data, the way predict() does for lm().
-  # What comes back is a retrodiction, and `check_train()` below says so.
+  # no newdata: fall back to the training data, as predict.lm() does;
+  # check_train() below reports the retrodiction
   trainset <- attr(object, "trainset")
   fell_back <- missing(newdata)
   if (missing(newdata)) {
@@ -507,17 +451,13 @@ predict.adaboost <- function(
     newdata <- trainset
   }
 
-  # `color_message()` leaves its line open for the " Done" that
-  # `walking_colordots()` adds, so an error in between would print onto the same
-  # line. Break it on the way out. See adaboost(), which also has a progress bar
-  # to close.
+  # break a line left open for " Done" if an error hits in between
   finish <- FALSE
   if (verbose) {
     on.exit(if (!finish) message(""), add = TRUE)
   }
 
-  # Which of the two this is decides the wording below, so it is worked out
-  # whenever anything will say it -- not only when the checks run.
+  # work this out whenever anything reports it, not only with the checks
   fcl <- match.call()
   test_pos <- match("newdata", names(fcl), nomatch = 0L)
   testnme <- if (test_pos) fcl[[test_pos]] else NULL
@@ -526,8 +466,7 @@ predict.adaboost <- function(
   } else {
     NA_character_
   }
-  # "all" retrodictions, "none" predictions, and the slash form when we cannot
-  # tell -- which is the honest label, not a vague one.
+  # "all" retrodictions, "none" predictions, the slash form when unknown
   noun <- if (is.na(state)) {
     "predictions/retrodictions"
   } else if (state == "all") {
@@ -568,11 +507,9 @@ predict.adaboost <- function(
     color_message(paste0("Make ", noun, "\n"), color_code = ansi_dim)
   }
 
-  # Define expected N for vapply
   N <- nrow(newdata)
-  # Use vapply instead of sapply (faster). Wrap in matrix() because vapply
-  # simplifies to a plain vector when N == 1, which would turn the matrix
-  # product below into a T x T outer product.
+  # matrix(): vapply returns a vector when N == 1, which would turn the
+  # product below into a T x T outer product
   y12_stumps <- matrix(
     vapply(
       h,
@@ -590,7 +527,6 @@ predict.adaboost <- function(
 
   ypred_stumps <- 2 * y12_stumps - 3
 
-  # Calculate the continuous raw margin
   raw_margin <- as.vector(a %*% t(ypred_stumps))
 
   finish <- TRUE
@@ -603,13 +539,11 @@ predict.adaboost <- function(
     )
   }
 
-  # Last, not first: a transcript scrolls, and nobody reads upwards. At the end
-  # it sits where the cursor lands, next to the values it is about.
+  # last: a transcript scrolls, so the note sits next to its values
   if (input_checks) {
     check_train(state, testnme, verbose = verbose, fell_back = fell_back)
   }
 
-  # Return based on requested type
   if (type == "class") {
     sign(raw_margin)
   } else {

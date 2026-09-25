@@ -179,7 +179,7 @@ tutplot_cstump <- function(
     stop("`fit` must be an rpart object.", call. = FALSE)
   }
 
-  # Color-blind palette, taken from the fit's own class proportions
+  # color-blind palette from the fit's own class proportions
   sty <- viridis_tree(fit)
 
   if (!is.null(file)) {
@@ -195,8 +195,8 @@ tutplot_cstump <- function(
     col = sty$text
   )
 
-  # What the caption claims, so a test can check it. A stump that never split
-  # has no `splits` matrix at all, hence the guard.
+  # what the caption claims, for tests; a stump that never split has no
+  # `splits` matrix
   leaf <- fit$frame$var == "<leaf>"
   split <- if (is.null(fit$splits)) NULL else fit$splits[1, "index"]
 
@@ -218,7 +218,7 @@ tutplot_gini <- function(
   height = tutplot_opts$col[["height"]],
   pointsize = tutplot_opts$pointsize
 ) {
-  # a proportion of one class, so the same range check the splitters use
+  # a proportion of one class: the same range check the splitters use
   check_numeric(x_seq)
   check_prop(x_seq)
 
@@ -233,12 +233,11 @@ tutplot_gini <- function(
   # a single curve, so one color rather than a scale
   col <- viridisLite::viridis(1, end = tutplot_opts$viridis_end)
 
-  # Gini impurity for a two-class problem
+  # two-class gini impurity
   x <- x_seq
   y <- 1 - (x^2) - (1 - x)^2
 
-  # empty frame, grid, then the curve -- the shape the other figures use, so
-  # the grid lies under what it is there to help read
+  # empty frame, grid, then curve, so the grid lies under the curve
   plot(
     NULL,
     xlim = range(x),
@@ -283,8 +282,7 @@ tutplot_updatefactor <- function(
   # the update factor: chi is +1 where the learner was right, -1 where wrong
   feat <- function(at, x) exp(-at * x)
 
-  # empty frame first, so the grid lies under every curve rather than under all
-  # but the one that happened to draw the axes
+  # empty frame first, so the grid lies under every curve
   plot(
     NULL,
     xlim = c(-1, 1),
@@ -356,8 +354,7 @@ tutplot_importance <- function(
   check_numeric(eta)
   if (!is.null(mark_perf)) {
     check_numeric(mark_perf)
-    # below `from` the importance is negative and off the panel; at 1 it is
-    # infinite. Refuse rather than draw a mark the reader cannot see.
+    # refuse an invisible mark: below `from` it is off the panel, at 1 infinite
     if (length(mark_perf) != 1L || mark_perf < from || mark_perf >= 1) {
       msg <- paste0("`mark_perf` must be one value in [", from, ", 1). ")
       sug <- paste0("Got ", paste(format(mark_perf), collapse = ", "), ".")
@@ -380,13 +377,11 @@ tutplot_importance <- function(
   # a stump's importance as a function of its performance
   fat <- function(x, eta) 1 / 2 * log(x / (1 - x)) * eta
 
-  # `to = 1` is the asymptote: log(x / (1 - x)) is infinite there, and R drops
-  # that single non-finite value, so each curve ends just short of it
+  # stop short of the asymptote at 1: R drops the one infinite value
   xs <- seq(from, 1, length.out = 101)
   ys <- vapply(eta, function(e) fat(xs, e), numeric(length(xs)))
 
-  # size the panel from every curve, not just the first one drawn. Sizing from
-  # the first works only while the rates descend; ascending ones would clip
+  # size the panel from every curve; the first alone clips ascending rates
   plot(
     NULL,
     xlim = c(from, 1),
@@ -396,9 +391,8 @@ tutplot_importance <- function(
   )
   graphics::grid()
 
-  # the reader's own learner, before the curves so they stay on top. Segments
-  # rather than full rules: they reach the crosshair and stop, instead of
-  # cutting across all three curves
+  # the reader's own learner, drawn first so the curves stay on top; segments
+  # stop at the crosshair instead of crossing every curve
   mark_alpha <- NULL
   if (!is.null(mark_perf)) {
     mark_alpha <- fat(mark_perf, mark_eta)
@@ -425,12 +419,8 @@ tutplot_importance <- function(
     graphics::lines(xs, ys[, i], col = pal[i], lty = lty[i], lwd = lwd)
   }
 
-  # Legend sits in the margin above the panel (where `main` is), so it never
-  # covers a curve. `xpd = NA` is what lets it draw outside the plotting
-  # region; the default top margin already reserves the room. `text.width = NA`
-  # gives each entry its own width -- without it `horiz` pads every column out
-  # to the widest label, which strings short entries across the whole panel.
-  # built from `eta`, so a label cannot outlive the curve it names
+  # legend in the top margin (`xpd = NA`), so it never covers a curve, built
+  # from `eta`; `text.width = NA` stops `horiz` padding entries to the widest
   tut_legend(
     as.expression(lapply(
       eta,
@@ -450,22 +440,20 @@ tutplot_importance <- function(
   ))
 }
 
-# One round of AdaBoost on `data`: the weights it starts from, and the weights
-# it leaves behind. Repeats Listings 17--22 of the code-along script, so
-# `tutplot_weightone()` needs nothing from the reader's session.
+# one round of AdaBoost on `data`, repeating Listings 17--22, so
+# tutplot_weightone() needs nothing from the reader's session
 tut_round_one <- function(
   data,
   predictors = c("power.o", "effect_size.o", "n.o", "p_value.o")
 ) {
-  # the reviewer metrics only. `replicate ~ .` on the whole frame would hand
-  # `eid` to the learner, which identifies every row, so the error would be
-  # zero, alpha infinite and every weight NaN
+  # reviewer metrics only: `eid` identifies every row, so it would give zero
+  # error, infinite alpha and NaN weights
   data <- data[, c(predictors, "replicate")]
 
   y <- data[["replicate"]]
   m <- nrow(data)
 
-  # every observation equally important, to begin with
+  # equal weights to begin with
   d1 <- rep(1, m) / m
 
   h1 <- rpart::rpart(
@@ -478,7 +466,7 @@ tut_round_one <- function(
   )
   yretro <- stats::predict(h1, newdata = data, type = "class")
 
-  # the learner's weighted error, and the say it earns because of it
+  # the learner's weighted error, and the say it earns
   e1 <- sum(d1 * (yretro != y))
   alpha1 <- 0.5 * log((1 - e1) / e1)
 
@@ -518,8 +506,7 @@ tutplot_weightone <- function(
     if (is.null(d2)) {
       d2 <- round_one$d2
     }
-    # only when the caller supplied no weights of their own: a `chi` from this
-    # round would not describe someone else's
+    # only without caller weights: this round's `chi` would not describe theirs
     if (
       is.null(chi) && identical(d1, round_one$d1) && identical(d2, round_one$d2)
     ) {
@@ -531,10 +518,8 @@ tutplot_weightone <- function(
   if (length(d1) != length(d2)) {
     stop("`d1` and `d2` must be the same length.", call. = FALSE)
   }
-  # Weights alone cannot say which points were missed. A round grows the
-  # misclassified ones when alpha is positive and the correctly classified ones
-  # when it is negative, and the grown set is the minority either way -- so its
-  # size gives nothing away. Supply weights, supply `chi` with them.
+  # weights alone cannot say which points were missed (the grown set is the
+  # minority either way), so weights need a `chi`
   if (is.null(chi)) {
     msg <- "`chi` is required when `d1` or `d2` is supplied. "
     sug <- paste0(
@@ -571,13 +556,11 @@ tutplot_weightone <- function(
   op <- tut_par(legend = TRUE)
   on.exit(graphics::par(op), add = TRUE)
 
-  # d1 and d2 keep a color each. `end = 0.5` leaves d2 teal rather than
-  # yellow-green, which would go muddy against the yellow band below
+  # `end = 0.5` keeps d2 teal, not a yellow-green that muddies on the band
   pal <- viridisLite::viridis(2, end = 0.5)
   band <- grDevices::adjustcolor(viridisLite::viridis(1, begin = 1), 0.35)
 
-  # area, not diameter: cex scales the width of the point, so the eye reads a
-  # doubled weight as four times the ink unless we take the square root
+  # scale by area, not diameter: sqrt keeps a doubled weight at double the ink
   bubble <- function(w) sqrt(w / mean(d1)) * scaling
 
   plot(
@@ -588,8 +571,7 @@ tutplot_weightone <- function(
     xlab = "Data Point",
     ylab = "Weight"
   )
-  # the band goes behind everything: misclassification belongs to the data
-  # point, not to either of its two weights
+  # band behind everything: a miss belongs to the point, not to a weight
   graphics::rect(
     wrong - 0.42,
     ylim[1],
@@ -808,8 +790,7 @@ tutplot_boundary <- function(
   pointsize = tutplot_opts$pointsize,
   ...
 ) {
-  # a scalar default, not the usual `c("margin", "class")`: the pair would make
-  # `formals()` report a vector where the documentation promises one string
+  # scalar default: a vector would make formals() contradict the docs
   shade <- match.arg(shade, c("class", "margin"))
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
@@ -857,11 +838,10 @@ tutplot_boundary <- function(
   x1 <- ax(features[1])
   x2 <- ax(features[2])
 
-  # expand.grid varies its first column fastest, so a matrix with
-  # nrow = length(x1) puts score[i, j] at (x1[i], x2[j]) -- the layout image()
-  # and contour() expect
+  # expand.grid varies x1 fastest, so nrow = length(x1) gives the layout
+  # image() and contour() expect
   grid <- expand.grid(stats::setNames(list(x1, x2), features))
-  # other predictors, if `features` was given explicitly, sit at their median
+  # other predictors, if `features` was given, sit at their median
   for (v in setdiff(preds, features)) {
     grid[[v]] <- stats::median(data[[v]], na.rm = TRUE)
   }
@@ -876,8 +856,7 @@ tutplot_boundary <- function(
   }
 
   if (is.null(palette)) {
-    # the two ends of the scale, so the classes are its extremes and nothing
-    # in between is claimed by either
+    # the scale's two ends are the classes; nothing in between is claimed
     palette <- viridisLite::viridis(2)
   }
   if (is.null(alpha)) {
@@ -885,18 +864,16 @@ tutplot_boundary <- function(
     alpha <- if (shade == "class") 0.18 else 0.65
   }
 
-  # the legend sits above the panel, with the sub-title and title stacked over
-  # it, so the top margin has to be paid for by whatever is actually drawn
+  # size the top margin from what is drawn: legend, sub-title and title
   top <- 1.0 +
     (if (!is.null(legend_pos)) 1.9 else 0) +
     (if (!is.null(subtitle)) 1.2 else 0) +
     (if (!is.null(main)) 1.4 else 0)
   old_par <- graphics::par(mar = c(4.4, 4.8, top, 1.4) + 0.1)
-  # ahead of the device close above, so the restore lands on the device whose
-  # margins were changed and not on whatever becomes current after dev.off()
+  # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
-  # no box, no default axes: they are drawn below in grey
+  # no box, no default axes: they are drawn below in gray
   graphics::plot(
     NULL,
     xlim = range(x1),
@@ -907,11 +884,8 @@ tutplot_boundary <- function(
     ...
   )
 
-  # useRaster draws one image instead of resolution^2 filled rectangles. Without
-  # it the rasteriser antialiases every shared edge on its own, so wherever an
-  # edge lands mid-pixel a hairline of background shows through -- white seams
-  # across the panel. It also makes the pdf about fourteen times smaller. The
-  # grid from ax() is equally spaced, which is what useRaster requires.
+  # useRaster: one image instead of resolution^2 rectangles, so no white
+  # seams and a pdf about 14 times smaller; needs the equal grid from ax()
   if (shade == "class") {
     graphics::image(
       x1,
@@ -922,18 +896,13 @@ tutplot_boundary <- function(
       useRaster = TRUE
     )
   } else {
-    # The whole viridis scale, laid over the score and centred on zero. The
-    # classes sit at its two ends, so the middle of the scale is exactly where
-    # the model has no strong vote -- uncertainty is a colour, not an absence
-    # of one.
-    #
-    # how far the ends reach depends on what the score can reach
+    # the whole viridis scale, centered on zero: the classes sit at its ends,
+    # uncertainty in the middle; the ends reach as far as the score can
     top <- boundary_top(fit, z)
     nb <- 64L
     brk <- seq(-top, top, length.out = nb + 1L)
     ramp <- viridisLite::viridis(nb)
-    # a pure leaf sits exactly on an outer break, which would fall outside the
-    # bins, so nudge the extremes inside
+    # nudge the extremes inside: a pure leaf sits exactly on an outer break
     eps <- (2 * top) / (2 * nb)
     zz <- pmin(pmax(z, -top + eps), top - eps)
     graphics::image(
@@ -1012,8 +981,7 @@ tutplot_boundary <- function(
 
   if (show_points && !is.null(lab)) {
     y <- as_binary(data[[info$outcome]])
-    # full-strength endpoints, ringed for contrast: the studies stay the most
-    # saturated thing on the panel whatever the background is doing
+    # full-strength, ringed endpoints keep the studies the most saturated marks
     stroke <- contrast_stroke(palette)
     graphics::points(
       data[[features[1]]],
@@ -1040,15 +1008,14 @@ tutplot_boundary <- function(
       xpd = NA
     )
     if (identical(legend_pos, "top")) {
-      # centred in the margin above the panel, so it never covers a study
+      # centered in the margin above the panel, so it never covers a study
       usr <- graphics::par("usr")
       args$x <- (usr[1] + usr[2]) / 2
       args$y <- usr[4] + 0.055 * (usr[4] - usr[3])
       args$xjust <- 0.5
       args$yjust <- 0
       args$horiz <- TRUE
-      # each key takes its own width: `horiz` otherwise pads every column out
-      # to the widest label, which pushes short keys apart for no reason
+      # each key its own width; `horiz` otherwise pads all to the widest label
       args$text.width <- NA
       args$x.intersp <- 0.7
     } else {
@@ -1058,8 +1025,7 @@ tutplot_boundary <- function(
   }
 
   if (shade == "margin" && isTRUE(colorbar) && !is.null(legend_pos)) {
-    # the ramp's two ends are the two classes, so the bar is the legend --
-    # drawing both would say the same thing twice
+    # the ramp's ends are the classes, so the bar is the legend
     boundary_colorbar(alpha, lab)
   }
 
@@ -1088,8 +1054,7 @@ NULL
 
 #' @rdname boundary_helpers
 boundary_terms <- function(fit) {
-  # The formula stored on an ensemble is the one the user typed, so for
-  # `outcome ~ .` it is no help. The fitted trees carry the expanded names.
+  # the stored formula may be `outcome ~ .`; the fitted trees carry the names
   tm <- if (inherits(fit, "rpart")) {
     fit$terms
   } else if (is.list(fit) && !is.null(fit[[1]]$h)) {
@@ -1121,11 +1086,8 @@ boundary_score <- function(fit, newdata) {
 
 #' @rdname boundary_helpers
 boundary_top <- function(fit, z) {
-  # A tree's score is a probability offset and cannot leave [-0.5, 0.5], so the
-  # scale is anchored: a region's colour then has a fixed reading, and a stump
-  # splitting .26 / .76 shows as two moderate tones instead of being stretched
-  # to the ends of the ramp. A boosted margin has no such bound -- its range
-  # depends on T and eta -- so it takes the observed maximum.
+  # a tree's score lies in [-0.5, 0.5], so anchor the scale for a fixed
+  # reading; a boosted margin depends on T and eta, so use its observed maximum
   if (inherits(fit, "rpart")) {
     return(0.5)
   }
@@ -1146,9 +1108,8 @@ boundary_labels <- function(data, outcome) {
 #' @param alpha,labels Internal arguments; see
 #'   \code{\link[adatutor]{tutplot_boundary}}.
 boundary_colorbar <- function(alpha, labels) {
-  # Sits where the class legend sits under shade = "class": centred in the
-  # margin above the panel, never over a study. Its ends carry the class names,
-  # so it needs no caption of its own.
+  # centered in the margin above the panel like the class legend; its ends
+  # carry the class names, so no caption
   usr <- graphics::par("usr")
   w <- usr[2] - usr[1]
   h <- usr[4] - usr[3]
@@ -1206,8 +1167,7 @@ tutplot_lpocv <- function(
   if (length(group) < 1L) {
     stop("`group` must name the project each row belongs to.", call. = FALSE)
   }
-  # order is the caller's, not `table()`'s: sorting alphabetically would
-  # silently reorder the manuscript's figure
+  # keep the caller's order: table() would reorder the manuscript's figure
   if (is.null(levels)) {
     levels <- if (is.factor(group)) base::levels(group) else unique(group)
   }
@@ -1228,16 +1188,14 @@ tutplot_lpocv <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  # row heights carry the project sizes, which is the whole point of the
-  # proportional variant -- equal blocks imply five comparable folds
+  # row heights carry project sizes; equal blocks would imply comparable folds
   h <- if (proportional) as.numeric(n) / sum(n) else rep(1 / k, k)
   edge <- cumsum(c(0, h))
   y0 <- 1 - edge[-1]
   y1 <- 1 - edge[-(k + 1)]
   pal <- viridisLite::viridis(k, end = 0.92)
 
-  # no bottom label: the numbered caption names the figure, and the column
-  # headers already say which iteration is which
+  # no bottom label: the caption and column headers say it
   op <- graphics::par(mar = c(0.4, 2.0, 1.3, 0.3))
   on.exit(graphics::par(op), add = TRUE)
   plot(
@@ -1251,8 +1209,7 @@ tutplot_lpocv <- function(
     yaxs = "i"
   )
 
-  # x and y user units are not comparable on a non-square panel, so carry the
-  # horizontal gap through inches to get a vertical one that looks identical
+  # carry the horizontal gap through inches, so it looks the same vertically
   usr <- graphics::par("usr")
   pin <- graphics::par("pin")
   pad <- 0.09
@@ -1260,8 +1217,7 @@ tutplot_lpocv <- function(
   gx <- 0.03
   gy <- 0.006
 
-  # a label is dropped rather than overflowed when its band is too thin, which
-  # is what lets the smallest project stay on the figure at all
+  # drop a label whose band is too thin, so the smallest project still fits
   fits <- function(i) (y1[i] - y0[i]) > 0.055
 
   graphics::mtext("Dataset", side = 2, line = 0.7, cex = 0.72, col = "grey25")
@@ -1294,7 +1250,7 @@ tutplot_lpocv <- function(
   for (j in seq_len(k)) {
     for (i in seq_len(k)) {
       test <- i == j
-      # colour says which project, opacity says whether it is held out
+      # color says which project, opacity whether it is held out
       fill <- if (test) {
         pal[i]
       } else {

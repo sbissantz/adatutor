@@ -57,12 +57,8 @@ tutplot_opts <- list(
   viridis_end = 0.85
 )
 
-# The shared `par()` block. Returns the previous settings, so a caller can
-# restore them with `on.exit()` -- the whole document runs in one session and
-# these would otherwise leak into every later figure.
-#
-# `legend = TRUE` reserves the top margin for a legend drawn above the panel.
-# That third margin element is the only thing that differs between the figures.
+# shared par() block; returns the old settings for on.exit(), since one
+# session renders every figure; `legend = TRUE` reserves the top margin
 tut_par <- function(legend = TRUE) {
   graphics::par(
     mar = if (legend) tutplot_opts$mar_legend else tutplot_opts$mar_plain,
@@ -72,11 +68,8 @@ tut_par <- function(legend = TRUE) {
   )
 }
 
-# The legend, centered in the margin above the panel where `main` would go, so
-# it never covers a curve. `xpd = NA` is what lets it draw outside the plotting
-# region; `tut_par(legend = TRUE)` reserves the room. `text.width = NA` gives
-# each entry its own width -- without it `horiz` pads every column out to the
-# widest label, which strings short entries across the whole panel.
+# legend centered in the top margin (`xpd = NA`), so it never covers a
+# curve; `text.width = NA` stops `horiz` padding entries to the widest
 tut_legend <- function(labels, cex = 1, ...) {
   usr <- graphics::par("usr")
   graphics::legend(
@@ -96,12 +89,8 @@ tut_legend <- function(labels, cex = 1, ...) {
   )
 }
 
-# A rounded rectangle, which base graphics has no primitive for. `r` is the
-# corner radius in INCHES, converted separately for x and y from the current
-# panel, so the corners stay circular whatever the aspect ratio -- a radius
-# given in user units goes oval the moment the figure is resized. Clamped to
-# half the box, so a very thin block degrades to a stadium rather than folding
-# its corners through each other.
+# rounded rectangle; `r` is in inches, converted per axis so corners stay
+# circular, and clamped to half the box so thin blocks become stadiums
 tut_roundrect <- function(x0, y0, x1, y1, col, r = 0.04, border = NA) {
   usr <- graphics::par("usr")
   pin <- graphics::par("pin")
@@ -118,12 +107,10 @@ tut_roundrect <- function(x0, y0, x1, y1, col, r = 0.04, border = NA) {
   )
 }
 
-# Ink that the fill can carry. Relative luminance, so a label stays readable at
-# both ends of viridis -- white on the dark purple, near-black on the yellow.
+# label ink by relative luminance: white on dark purple, near-black on yellow
 tut_ink <- function(col) {
   v <- grDevices::col2rgb(col) / 255
-  # `col2rgb()` names its rows, and the names ride through into the result --
-  # strip them, or a caller gets a colour called "red" that is not red
+  # unname(): col2rgb() row names would ride into the result
   lum <- unname(0.2126 * v[1, ] + 0.7152 * v[2, ] + 0.0722 * v[3, ])
   ifelse(lum > 0.55, "grey15", "white")
 }

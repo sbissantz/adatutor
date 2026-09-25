@@ -44,8 +44,7 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
     stop("`fit` must be an rpart object.", call. = FALSE)
   }
   yv <- fit$frame$yval2
-  # a classification fit stores yval, the class counts, the class probabilities
-  # and the node probability, so the width is 2 + 2 * nclass
+  # yval, class counts, class probabilities, node probability: 2 + 2 * nclass
   if (is.null(dim(yv)) || ncol(yv) < 6L || ncol(yv) %% 2L != 0L) {
     stop(
       "`fit` must be a classification tree, fitted with method = \"class\".",
@@ -57,8 +56,7 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
   prob <- yv[, ncol(yv) - 1L]
 
   ramp <- palette(n)
-  # an absolute cut of [0, 1], never quantiles of the fitted values, so the same
-  # probability is the same color in every tree
+  # cut [0, 1] absolutely, not by quantiles, so a probability keeps its color
   idx <- pmin(n, pmax(1L, ceiling(prob * n)))
   box <- ramp[idx]
 
@@ -92,8 +90,7 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
 #' @keywords internal
 contrast_stroke <- function(cols) {
   rgb <- grDevices::col2rgb(cols) / 255
-  # unname(): a single colour drops to a scalar carrying the channel's own
-  # rowname, which would otherwise ride along into the caller's `col`
+  # unname(): a single color would carry the channel's rowname into `col`
   lum <- unname(0.2126 * rgb[1, ] + 0.7152 * rgb[2, ] + 0.0722 * rgb[3, ])
   ifelse(lum > 0.55, "grey15", "white")
 }

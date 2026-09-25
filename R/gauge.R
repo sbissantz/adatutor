@@ -71,26 +71,20 @@
 gauge <- function(fit) {
   check_ada_fit(fit)
 
-  # Initialize an empty list to store our weight tallies
   var_wght <- list()
 
-  # Loop through every single tree in the model
   for (t in seq_along(fit)) {
     tree <- fit[[t]]$h
     wght <- fit[[t]]$a
 
-    # rpart records an improvement-based importance for every variable the tree
-    # splits on. It is NULL for a tree that never split (a bare leaf) and has a
-    # single entry for a stump.
+    # improvement-based importance: NULL for a bare leaf, one entry for a stump
     imp <- tree$variable.importance
 
-    # Safety check: ensure the tree actually made a split
     if (is.null(imp) || sum(imp) == 0) {
       next
     }
 
-    # Distribute this tree's model weight across the variables it split on. A
-    # stump has one entry, so it receives the full weight.
+    # split the tree's model weight across its variables; a stump gets it all
     share <- wght * imp / sum(imp)
 
     for (v in names(share)) {
@@ -102,7 +96,7 @@ gauge <- function(fit) {
     }
   }
 
-  # No tree in the ensemble split on anything
+  # no tree in the ensemble split on anything
   if (length(var_wght) == 0) {
     return(structure(
       data.frame(
@@ -114,17 +108,15 @@ gauge <- function(fit) {
     ))
   }
 
-  # Convert tallied list into 'clean' data frame
   imp_df <- data.frame(
     variable = names(var_wght),
     importance = unlist(var_wght),
     stringsAsFactors = FALSE
   )
 
-  # normalize to [0,1] and scale to 100%: easier to read
+  # percent of the total: easier to read
   imp_df$importance <- (imp_df$importance / sum(imp_df$importance)) * 100
 
-  # sort from most important to least important
   imp_df <- imp_df[order(-imp_df$importance), ]
   rownames(imp_df) <- NULL
 
@@ -142,42 +134,34 @@ plot.gauge <- function(x, top_n = 15, ...) {
     )
   }
 
-  # Limit to top N features so chart isn't crowded
+  # top_n features only, so the chart stays readable
   n_plot <- min(top_n, nrow(x))
   top_imp <- utils::head(x, n_plot)
 
-  # Reverse order so highest value plots at top
+  # ascending, so the highest bar plots at the top
   top_imp <- top_imp[order(top_imp$importance, decreasing = FALSE), ]
 
-  # Size the palette by the bars actually drawn, i.e. the smaller of `top_n` and
-  # the number of features available. The gradient then spans its full range
-  # either way: when the plot is truncated to `top_n`, and when the ensemble
-  # split on fewer variables than requested.
+  # size the palette by the bars drawn, so the gradient spans its full range
   pal <- viridisLite::viridis(n_plot)
 
-  # viridis runs dark purple -> yellow, so pal[1] is the darkest. The bars are
-  # sorted ascending for the horizontal layout, so reversing hands pal[1] to the
-  # last (highest) bar and the lighter end to the least important ones.
+  # reverse viridis so the darkest color goes to the most important bar
   bar_cols <- rev(pal)
 
-  # Expand left margin (side 2) so long variable names don't get cut off
+  # wide left margin for long variable names
   old_par <- graphics::par(mar = c(5, 10, 4, 2) + 0.1)
   on.exit(graphics::par(old_par), add = TRUE)
 
-  # Give the axis headroom past the longest bar, so its tick marks actually
-  # reach the bar instead of stopping short (pretty()'s default ticks can
-  # land well below the true max, e.g. ticks at 0/10/20/30 for a 39% bar)
+  # headroom past the longest bar: pretty() ticks can stop well below it
   xmax <- min(max(top_imp$importance) + 5, 100)
 
-  # Generate the plot
   graphics::barplot(
     top_imp$importance,
     names.arg = top_imp$variable,
-    horiz = TRUE, # horizontal bars
-    las = 1, # text horizontal
-    xlim = c(0, xmax), # headroom past the longest bar
-    col = bar_cols, # viridis, darkest purple = most important
-    border = NA, # remove black borders from bars
+    horiz = TRUE,
+    las = 1, # horizontal labels
+    xlim = c(0, xmax),
+    col = bar_cols,
+    border = NA,
     xlab = "Relative Importance (%)",
     main = "Feature Importance"
   )

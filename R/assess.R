@@ -233,8 +233,7 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
     )
   }
 
-  # Cut the score once, then let the confusion method do every measure a matrix
-  # can support. The three below it are the ones a matrix cannot.
+  # cut once; the confusion method does every measure a matrix supports
   cm <- confusion(y, score, threshold)
 
   # two small fixed budgets, then R-precision, which keeps the name `patk`
@@ -258,8 +257,7 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
 #' @rdname assess
 #' @export
 assess.confusion <- function(x, ...) {
-  # Every measure goes through its own function, so each formula is written
-  # once and reads the way it does in the details above.
+  # one function per measure, so each formula is written once
   out <- c(
     tp = x[["tp"]],
     tn = x[["tn"]],
@@ -429,11 +427,8 @@ confusion_lines <- function(cm, width) {
 #' @export
 confusion <- function(actual, score, threshold = 0) {
   y <- as_binary(actual)
-  # A probability scored at the margin cutoff puts every case in the positive
-  # class, which is a real mistake and an easy one. Warn rather than guess:
-  # switching the cutoff silently would be worse than the error it prevents,
-  # since a margin vector can legitimately sit inside [0, 1] too. Values of
-  # exactly 0/1 are excluded -- those are class labels, for which 0 is right.
+  # warn on probabilities cut at 0 (every case positive) rather than guess:
+  # margins can lie in [0, 1] too, and exact 0/1 are labels, where 0 is right
   if (
     threshold == 0 &&
       all(score >= 0 & score <= 1, na.rm = TRUE) &&
@@ -573,10 +568,8 @@ auprc <- function(actual, score) {
   if (length(unique(y)) < 2L) {
     return(NA_real_)
   }
-  # Davis & Goadrich estimator: the curve is densified by interpolating at the
-  # local skew between neighboring operating points, then integrated by
-  # trapezoid. Operating points are taken at distinct score values, which is
-  # what makes this invariant to the order of tied observations.
+  # Davis & Goadrich: interpolate at the local skew, integrate by trapezoid;
+  # operating points at distinct scores make ties order-invariant
   out <- PRROC::pr.curve(
     scores.class0 = score,
     weights.class0 = y
@@ -803,8 +796,7 @@ confusion_mcc <- function(cm) {
   tn <- cm[["tn"]]
   fp <- cm[["fp"]]
   fn <- cm[["fn"]]
-  # as.double() first: the counts are integers and their four-way product
-  # overflows the integer range from roughly n > 430 onwards.
+  # as.double(): the integer product overflows from roughly n > 430
   denom <- sqrt(
     as.double(tp + fp) *
       as.double(tp + fn) *

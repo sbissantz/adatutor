@@ -90,8 +90,7 @@ partition <- function(data, prop = 0.7, strata = NULL) {
   check_df(data)
   data <- as.data.frame(data)
 
-  # One number is shorthand for two: `prop` and the rest. From here on there is
-  # only the general case, k proportions giving k sets.
+  # one proportion is shorthand for two: `prop` and the rest
   if (length(prop) == 1L) {
     prop <- c(prop, 1 - prop)
   } else if (!isTRUE(all.equal(sum(prop), 1))) {
@@ -122,8 +121,7 @@ partition <- function(data, prop = 0.7, strata = NULL) {
     }
   }
 
-  # No strata means one stratum holding everything, so the ungrouped split is
-  # the general case rather than a branch of its own.
+  # no strata means one stratum holding everything
   key <- if (is.null(strata)) rep(1L, nrow(data)) else data[[strata]]
   rows <- split(seq_len(nrow(data)), key, drop = TRUE)
   sizes <- vapply(rows, length, integer(1))
@@ -131,23 +129,20 @@ partition <- function(data, prop = 0.7, strata = NULL) {
   set_of <- integer(nrow(data))
   left <- rows
 
-  # Use split-major: every stratum's first draw, then second.
+  # split-major: every stratum's first draw, then its second
   for (j in seq_len(length(prop) - 1L)) {
     for (g in seq_along(left)) {
-      # counts come from the stratum's original size, so the proportions are of
-      # the whole rather than of what happens to be left
+      # count from the stratum's original size: proportions of the whole
       k <- min(round(sizes[g] * prop[j]), length(left[[g]]))
       if (k > 0L) {
-        # sample.int on the count, then index: sample(rows, k) would read a
-        # one-row stratum as 1:n and draw a row that does not exist
+        # sample.int, then index: sample(rows, k) reads a one-row stratum as 1:n
         take <- sample.int(length(left[[g]]), k)
         set_of[left[[g]][take]] <- j
         left[[g]] <- left[[g]][-take]
       }
     }
   }
-  # the last set is whatever nobody drew, which is what keeps every row landing
-  # exactly once however the rounding falls
+  # the last set takes what nobody drew, so every row lands exactly once
   set_of[unlist(left, use.names = FALSE)] <- length(prop)
 
   # drop = FALSE: a one-column data frame would otherwise come back a vector
