@@ -1,39 +1,12 @@
-#' @title Map Outcome Labels Onto 0/1
+#' Map outcome labels onto 0/1
 #'
-#' @description Not exported. Converts any of the label encodings the package
-#'   accepts into a 0/1 integer vector, so every function that needs a binary
-#'   outcome can take whatever form the caller happens to have.
+#' Accepts a two-level factor (the second level is positive), logical, 0/1,
+#' or -1/1, which is what `predict(type = "class")` returns. Anything else is
+#' an error: silent coercion would turn a 1/2 vector into a wrong answer.
 #'
-#' @details Four encodings are recognized:
-#'
-#' \describe{
-#'   \item{factor}{Exactly two levels. The \emph{second} level is the positive
-#'     class, which is R's own convention and makes
-#'     \code{factor(c("failure", "success"))} come out the way a reader expects.
-#'     A factor with any other number of levels is an error rather than a guess.}
-#'   \item{logical}{\code{TRUE} is positive.}
-#'   \item{0/1}{Returned as is.}
-#'   \item{-1/1}{Mapped by \eqn{(y + 1) / 2}. This is what
-#'     \code{\link[=predict.adaboost]{predict()}} returns for
-#'     \code{type = "class"}, so a retrodiction can be handed straight back
-#'     in.}
-#' }
-#'
-#' Anything else errors. Silently coercing an unrecognized encoding is how a 1/2
-#' vector becomes a wrong answer without complaint, which is exactly the class of
-#' bug this package exists to warn about.
-#'
-#' This lives here rather than beside any one caller because four files use it:
-#' \code{\link[adatutor]{assess}}, \code{\link[adatutor]{lpocv}},
-#' \code{\link[adatutor]{bootCI}} and \code{\link[adatutor]{tutplot_boundary}}.
-#'
-#' @param actual The labels, in any of the encodings above.
-#'
-#' @return An integer vector of 0 and 1, the same length as \code{actual}.
-#'
-#' @name as_binary
-#'
-#' @keywords internal
+#' @param actual The labels.
+#' @return An integer vector of 0 and 1.
+#' @noRd
 as_binary <- function(actual) {
   if (is.factor(actual)) {
     if (nlevels(actual) != 2L) {
@@ -59,109 +32,24 @@ as_binary <- function(actual) {
   )
 }
 
-#' @title Console Feedback While a Fit Runs
+#' Console feedback while a fit runs
 #'
-#' @description Not exported. Progress feedback for the long-running fitters:
-#'   animated dots, colored text, and the two combined.
-#'   \code{\link[adatutor]{adaboost}} and
-#'   \code{\link[=predict.adaboost]{predict()}} call them when
-#'   \code{verbose = TRUE}.
+#' Dots, styled text and both combined. They write to stderr, so progress
+#' stays out of results, and adaboost() and predict() call them when
+#' `verbose = TRUE`.
 #'
-#' @details All three write to the \emph{message} stream, not to standard
-#'   output. Progress is diagnostic rather than a result, so it belongs on
-#'   \code{stderr} where R puts \code{message()} and \code{warning()}: that keeps
-#'   it out of \code{capture.output()}, out of a shell redirect, and out of
-#'   anything downstream that reads a fit's printed value. It also means a
-#'   knitr chunk hides it with \code{message: false} rather than
-#'   \code{results: hide}.
-#'
-#'   Color is set with raw ANSI escape codes rather than a dependency. The
-#'   palette has to stay legible on a light \emph{and} a dark terminal, which
-#'   rules out most of it: measured as contrast against white and black and
-#'   taking the worse of the two, viridis's dark purple manages 1.38 on black
-#'   and its yellow 1.26 on white. Only the middle of the scale survives, so:
-#'
-#' \describe{
-#'   \item{\code{ansi_teal} (\code{38;5;30})}{Viridis teal, for a completed
-#'     step. xterm-256 index 30 is where viridis 0.4 and 0.5 both quantize, and
-#'     it scores 4.36 against the worse background -- better than either exact
-#'     colour, and 256-colour carries much further than truecolor.}
-#'   \item{\code{ansi_dim} (\code{2})}{Faint, for the running commentary and
-#'     the dots. It dims the terminal's \emph{own} foreground rather than
-#'     naming a colour, so it cannot be invisible on either background. This
-#'     replaces \code{30}, plain black, whose worst case was 1.00 -- it
-#'     disappeared completely on a dark theme.}
-#'   \item{\code{ansi_bold} (\code{1})}{The opening and closing lines.}
-#'   \item{\code{ansi_note} (\code{1;38;5;30})}{Bold teal, for every
-#'     \dQuote{Done} and for the retrodiction notice. The two are identical on
-#'     purpose: the notice is set apart by the bold closing line above it
-#'     (\dQuote{... successfully completed.}), not by a style of its own.
-#'     There is no second hue to give it anyway -- viridis is a sequential
-#'     palette with no categorical warning slot, and the band that survives
-#'     both backgrounds is too narrow to carry two hues a reader could tell
-#'     apart.}
-#' }
-#'
-#'   A terminal that understands none of this prints the escapes literally,
-#'   which is why all of it is behind \code{verbose}. One that ignores
-#'   \code{2} renders normal weight, which is harmless.
-#'
-#'   The dots in \code{walking_colordots()} are always dim. That is deliberate:
-#'   the eye should follow the \dQuote{Done} markers down the transcript, not
-#'   the filler between them, so \code{color_code} sets the color of
-#'   \dQuote{Done} and leaves the dots faint.
-#'
-#'   \code{delay} exists to make the animation legible, so these functions are
-#'   slower than the work they report on when \code{n} is large. They are not on
-#'   any path that runs per boosting round.
-#'
-#' @param n The number of dots. Defaults to 3.
-#'
-#' @param delay Seconds between dots. Defaults to 0.2 for
-#'   \code{walking_dots()} and 0.1 for \code{walking_colordots()}.
-#'
-#' @param color_code An ANSI code, spliced verbatim into the escape
-#'   sequence, so \code{"38;5;30"} and \code{"2"} work as well as a bare
-#'   number. Defaults to \code{ansi_teal} for \code{color_message()} and
-#'   \code{ansi_note} for \code{walking_colordots()}.
-#'
-#' @param text The string to print.
-#'
-#' @param newline Whether to append a newline after the message. Defaults to
-#'   \code{FALSE}.
-#'
-#' @return All three are called for their side effect and return \code{NULL}
-#'   invisibly.
-#'
-#' @name feedback
-#'
-#' @keywords internal
+#' @noRd
 NULL
 
-#' @rdname feedback
-#'
-#' @description The palette lives here rather than as literals at the call
-#'   sites, so the transcript can be re-themed in one place.
-#'
-#' @format Character strings, spliced verbatim into \code{\\033[<code>m}.
-#'
+# one place to re-theme the transcript; only mid-viridis is legible on both
+# light and dark terminals, and faint (2) replaces black, which vanished on dark
 ansi_bold <- "1"
-#' @rdname feedback
 ansi_dim <- "2"
-#' @rdname feedback
 ansi_teal <- "38;5;30"
-#' @rdname feedback
 ansi_note <- "1;38;5;30"
 
-#' @rdname feedback
-#'
-#' @description \code{walking_dots()} prints \code{n} dots with a pause between
-#'   them, then \dQuote{Done}. Uncolored, and written to the message stream.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{walking_dots(n = 5, delay = 0.1)}
-#'
+#' Print dots with a pause, then "Done"
+#' @noRd
 walking_dots <- function(n = 3, delay = 0.2) {
   for (i in seq_len(n)) {
     message(".", appendLF = FALSE)
@@ -170,31 +58,18 @@ walking_dots <- function(n = 3, delay = 0.2) {
   message(" Done\n", appendLF = FALSE)
 }
 
-#' @rdname feedback
-#'
-#' @description \code{color_message()} prints \code{text} wrapped in an ANSI
-#'   color code, resetting the color afterwards so nothing leaks into the next
-#'   line.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{color_message("A teal message", color_code = ansi_teal)}
-#'
+#' Print text in an ANSI style, then reset it
+#' @noRd
 color_message <- function(text, color_code = ansi_teal, newline = FALSE) {
   msg <- paste0("\033[", color_code, "m", text, "\033[0m")
   message(msg, appendLF = newline)
   invisible(NULL)
 }
 
-#' @rdname feedback
+#' Print faint dots, then "Done" in `color_code`
 #'
-#' @description \code{walking_colordots()} is \code{walking_dots()} in color:
-#'   grey dots, then \dQuote{Done} in \code{color_code}.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{walking_colordots(n = 4, delay = 0.15, color_code = ansi_bold)}
-#'
+#' The dots stay faint so the eye follows the "Done" markers.
+#' @noRd
 walking_colordots <- function(n = 3, delay = 0.1, color_code = ansi_note) {
   for (i in seq_len(n)) {
     # faint, always: the dots are filler and should not compete with "Done"
@@ -204,25 +79,20 @@ walking_colordots <- function(n = 3, delay = 0.1, color_code = ansi_note) {
   color_message(" Done", color_code = color_code, newline = TRUE)
 }
 
-#' @rdname feedback
+#' Whether printed output may carry color
 #'
-#' @description \code{use_ansi()} decides whether printed output may carry
-#'   color, and \code{ansi_style()} applies it. Unlike the progress messages,
-#'   \code{print()} writes to standard output, which ends up in knitr
-#'   documents, \code{capture.output()} and the manuscript's listings, where
-#'   escape codes show as garbage. So color is used only in a live console:
-#'   an interactive session, no knitr render running, and \code{NO_COLOR}
-#'   unset.
-#'
-#' @param use Whether to apply the style. Defaults to \code{use_ansi()}.
-#'
+#' Only in a live console: print() output also lands in knitr documents and
+#' captured output, where escape codes show as garbage. `NO_COLOR` turns it
+#' off.
+#' @noRd
 use_ansi <- function() {
   interactive() &&
     !isTRUE(getOption("knitr.in.progress")) &&
     !nzchar(Sys.getenv("NO_COLOR"))
 }
 
-#' @rdname feedback
+#' Wrap text in an ANSI style when `use` is `TRUE`
+#' @noRd
 ansi_style <- function(text, color_code, use = use_ansi()) {
   if (!use) {
     return(text)

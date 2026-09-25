@@ -1,53 +1,26 @@
-#' @title Gauge the Importance of Each Predictor
+#' Gauge the importance of each predictor
 #'
-#' @description Extracts the relative importance of the predictor variables from
-#'   an ensemble fitted with \code{\link[adatutor]{adaboost}}. Each tree
-#'   contributes its model weight \eqn{a_t}, distributed across the variables it
-#'   splits on in proportion to the improvement each split achieves. A decision
-#'   stump splits once, so it passes its whole weight \eqn{a_t} to that single
-#'   variable; deeper trees spread it over every splitting variable rather than
-#'   only the one at the root.
+#' Sums, for each predictor, the model weights of the trees that split on it,
+#' and scales the sums to 100. A stump gives its whole weight a_t to its one
+#' variable. A deeper tree splits its weight across its variables by rpart's
+#' improvement measure. A tree that never split adds nothing.
 #'
-#' @details A boosted ensemble is not one tree but hundreds, so no single split
-#'   explains it. What can be read off it is how much of the ensemble's total
-#'   weight each variable was responsible for, which is what this returns.
+#' @section What it does not tell you:
+#' The numbers are relative: they show how the ensemble divided its weight,
+#' not what a variable is worth on its own. They have no sign, correlated
+#' predictors share their weight, and the ranking changes with the
+#' hyperparameters and the training data.
 #'
-#'   The tally is built in two steps. \code{rpart} records an
-#'   improvement-based importance for every variable a tree splits on, so within
-#'   tree \eqn{t} the shares are \eqn{a_t \cdot imp_v / \sum_v imp_v}. Summing
-#'   those shares over all \eqn{T} trees and normalizing to 100 gives the result.
-#'   A tree that never split -- a bare root, which happens at small \code{eta}
-#'   where the weights barely move -- contributes nothing rather than
-#'   contributing zero to everything.
-#'
-#'   \strong{What it does not tell you.} The numbers are relative and sum to
-#'   100, so they say how the ensemble divided its attention, not how much any
-#'   variable is worth on its own. They carry no sign: a variable can be
-#'   important because high values predict success or because they predict
-#'   failure, and this does not distinguish the two. Correlated predictors split
-#'   their share rather than each showing the full effect. And the ranking is a
-#'   property of \emph{this} fit on \emph{this} training data, so it moves with
-#'   the hyperparameters -- deeper trees spread weight across more variables by
-#'   construction.
-#'
-#' @param fit A trained AdaBoost model from \code{\link[adatutor]{adaboost}}:
-#'   a list of trees and their corresponding model weights.
-#'
-#' @param x A \code{"gauge"} object, as returned by \code{gauge()}.
-#'
-#' @param top_n The maximum number of variables to display (defaults to 15). If
-#'   the ensemble split on fewer variables, all of them are shown. The viridis
-#'   gradient is stretched across however many bars are drawn, running from the
-#'   darkest purple for the most important variable to yellow for the least.
-#'
+#' @param fit A fit from [adaboost()].
+#' @param x A `gauge` object from `gauge()`.
+#' @param top_n The largest number of predictors to plot. Defaults to 15.
 #' @param ... Ignored.
 #'
-#' @return \code{gauge()} returns a data frame of class \code{"gauge"}, sorted
-#'   from most to least important, with columns \code{variable} and
-#'   \code{importance} (a percentage). \code{plot()} is called for its side
-#'   effect and returns \code{NULL} invisibly.
+#' @return `gauge()` returns a data frame of class `gauge` with the columns
+#'   `variable` and `importance` (a percentage), sorted from most to least
+#'   important. `plot()` draws a bar chart and returns `NULL` invisibly.
 #'
-#' @seealso \code{\link[adatutor]{adaboost}}, \code{\link[adatutor]{assess}}
+#' @family tutorial plots
 #'
 #' @examples
 #' data(altmejd)

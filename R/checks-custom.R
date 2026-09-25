@@ -1,41 +1,13 @@
-#' @title Miscellaneous Functions for Input Validation
+#' Input checks
 #'
-#' @description A set of input validation functions for internal use that ensure
-#'   the passed arguments meet the expected criteria (e.g., type, length, and
-#'   value ranges). These functions catch common input errors, provide
-#'   meaningful error messages and guidance for correction.
+#' Internal checks that stop with a message saying what is wrong and how to
+#' fix it.
 #'
-#' @return All functions are called for their side effects. If the input is
-#' invalid, an error, or warning is generated with helpful suggestions for
-#' troubleshooting.
-#'
-#' @param fit A fitted AdaBoost ensemble from \code{\link[adatutor]{adaboost}}.
-#'
-#' @param cm A confusion matrix from \code{\link[adatutor]{confusion}}, or any
-#'   named vector carrying \code{tp}, \code{tn}, \code{fp} and \code{fn}.
-#'
-#' @param x A generic input to be validated. The expected type depends on the
-#'   specific function.
-#'
-#' @param trainnme A character string representing the name of the training
-#'   set.
-#'
-#' @param testnme A character string representing the name of the test
-#'   set.
-#'
-#' @name checks
-#'
+#' @noRd
 NULL
 
-#' @rdname checks
-#'
-#' @description \code{check_df()} ensures that \code{x} is a data frame. If it
-#'   is not, an error is thrown with a message indicating the issue.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_df(5)}  # Fails with an error message
-#'
+#' Stop unless `x` is a data frame
+#' @noRd
 check_df <- function(x) {
   if (!is.data.frame(x)) {
     x_inp <- substitute(x)
@@ -45,16 +17,8 @@ check_df <- function(x) {
   }
 }
 
-#' @rdname checks
-#'
-#' @description \code{check_eta()} validates that the input is a numeric value
-#'   and, if it is greater than 1, provides a warning about potential
-#'   overfitting.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_eta("a")}  # Fails with an error
-#'
+#' Stop unless `eta` is numeric; note when it is above 1
+#' @noRd
 check_eta <- function(x) {
   x_inp <- substitute(x)
   if (!is.numeric(x)) {
@@ -70,18 +34,8 @@ check_eta <- function(x) {
   }
 }
 
-#' @rdname checks
-#'
-#' @description \code{check_length()} ensures that \code{x} contains at least
-#'   one element.
-#'
-#' @details Ensures that the input is not empty. If the input has a length of 0,
-#' an error message is raised with a suggestion to check the input.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_length(character(0))}  # Fails with an error
-#'
+#' Stop when `x` is empty
+#' @noRd
 check_length <- function(x) {
   if (length(x) == 0) {
     x_inp <- substitute(x)
@@ -91,17 +45,8 @@ check_length <- function(x) {
   }
 }
 
-#' @rdname checks
-#'
-#' @description \code{check_list()} validates that the input is a list.
-#'
-#' @details
-#' Ensures that the input is a valid list. If not, an error message is raised.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_list(5)}  # Fails with an error
-#'
+#' Stop unless `x` is a list
+#' @noRd
 check_list <- function(x) {
   if (!is.list(x)) {
     x_inp <- substitute(x)
@@ -111,19 +56,8 @@ check_list <- function(x) {
   }
 }
 
-#' @rdname checks
-#'
-#' @description \code{check_numeric()} validates that the input is a numeric
-#'   value.
-#'
-#' @details
-#' Ensures that the input is numeric. If not, an error message is raised with a
-#' suggestion to validate the input.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_numeric("a")}  # Fails with an error
-#'
+#' Stop unless `x` is numeric
+#' @noRd
 check_numeric <- function(x) {
   if (!is.numeric(x)) {
     x_inp <- substitute(x)
@@ -133,15 +67,10 @@ check_numeric <- function(x) {
   }
 }
 
-#' @rdname checks
+#' How much of `newdata` was also used for training
 #'
-#' @description \code{check_train()} ensures that the training and test
-#'   set names are not the same.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_train("train", "train")}  # Fails with an error
-#'
+#' Returns "all", "some", "none", or `NA` when it cannot tell.
+#' @noRd
 overlap_state <- function(trainnme, testnme, trainset = NULL, newdata = NULL) {
   # compare rows when the fit kept its frame (catches renames and subsets),
   # else the deparsed name (all or nothing); NA means unknown, not no overlap
@@ -170,6 +99,10 @@ overlap_state <- function(trainnme, testnme, trainset = NULL, newdata = NULL) {
   NA_character_
 }
 
+#' Report retrodictions when the scored data were used for training
+#'
+#' A message, not a warning: retrodicting on purpose is normal.
+#' @noRd
 check_train <- function(
   state,
   testnme = NULL,
@@ -208,15 +141,8 @@ check_train <- function(
   }
 }
 
-#' @rdname checks
-#'
-#' @description \code{check_prop()} validates that the input is a proportion (a
-#'   numeric value between 0 and 1).
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_prop(0)}  # Issues a warning
-#'
+#' Stop unless every proportion is between 0 and 1; warn on a single 0 or 1
+#' @noRd
 check_prop <- function(x) {
   # vectorized: partition() passes one proportion per set
   if (any(x < 0 | x > 1)) {
@@ -241,17 +167,10 @@ check_prop <- function(x) {
   }
 }
 
-#' @rdname checks
+#' Stop unless `cm` names the four counts
 #'
-#' @description \code{check_confusion()} ensures that \code{cm} carries the four
-#'   counts \code{\link[adatutor]{confusion}} produces. It checks the names
-#'   rather than the class, so a plain named vector assembled by hand still
-#'   passes -- the measures need the counts, not the wrapper.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_confusion(c(tp = 1, tn = 2))}  # Fails: fp and fn are missing
-#'
+#' Checks names, not class, so a hand-built named vector passes.
+#' @noRd
 check_confusion <- function(cm) {
   needed <- c("tp", "tn", "fp", "fn")
   if (is.null(names(cm)) || !all(needed %in% names(cm))) {
@@ -261,17 +180,8 @@ check_confusion <- function(cm) {
   }
 }
 
-#' @rdname checks
-#'
-#' @description \code{check_ada_fit()} ensures that \code{fit} is an ensemble
-#'   from \code{\link[adatutor]{adaboost}}: a non-empty list whose elements each
-#'   carry a tree in \code{h} and its model weight in \code{a}. It checks the
-#'   shape rather than the class, since \code{adaboost()} returns a plain list.
-#'
-#' @examples
-#' # Example usage:
-#' \dontrun{check_ada_fit(list())}  # Fails: the ensemble is empty
-#'
+#' Stop unless `fit` looks like an adaboost() ensemble
+#' @noRd
 check_ada_fit <- function(fit) {
   if (!is.list(fit) || length(fit) == 0L) {
     msg <- "`fit` is not a fitted ensemble. "

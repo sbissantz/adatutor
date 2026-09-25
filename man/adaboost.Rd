@@ -2,125 +2,74 @@
 % Please edit documentation in R/adaboost.R
 \name{adaboost}
 \alias{adaboost}
-\title{Boost a Weak Learner With AdaBoost}
+\title{Boost a classification tree with AdaBoost}
 \usage{
 adaboost(h, n_iter, eta, keep_data = TRUE, input_checks = TRUE, verbose = TRUE)
 }
 \arguments{
-\item{h}{A classification tree fitted with \code{\link[rpart]{rpart}}, and
-fitted with \code{model = TRUE}. It supplies three things: the formula, the
-tree hyperparameters and the training data. \code{rpart} keeps the response
-but discards the predictors unless \code{model = TRUE}, so a tree fitted
-without it cannot be refit, and is rejected rather than guessed at.
+\item{h}{A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}, fitted with
+\code{model = TRUE}. Without it, rpart drops the predictors and the tree
+cannot be refit.}
 
-Four other things are rejected rather than ignored, because boosting a
-different model than the one handed in is the failure a caller has no way
-to notice: a learner that is not \code{method = "class"}, one fitted with
-\code{weights}, and one carrying a \code{prior} or a \code{loss} matrix.
-See Details.}
+\item{n_iter}{The number of boosting rounds, T in the algorithm.}
 
-\item{n_iter}{An integer specifying the number of boosting rounds --
-\eqn{T} in the algorithm, one weak learner per round.}
-
-\item{eta}{A numeric value representing the learning rate of the algorithm.}
+\item{eta}{The learning rate.}
 
 \item{keep_data}{Whether to store the training data on the fit. Defaults to
-\code{TRUE}. Keeping it lets \code{predict()} work with no \code{newdata},
-returning retrodictions, and lets the retrodiction check compare the data
-itself rather than guess from the variable's name -- so a renamed variable
-or a subset of the training rows is still caught.
+\code{TRUE}. This lets \code{predict()} run without \code{newdata} and makes the
+retrodiction check exact. It costs no memory, but a saved file grows by
+the size of the data; set \code{FALSE} when you save many fits.}
 
-The cost is asymmetric and worth knowing. In memory it is nothing: R stores
-a reference, so the fit points at the same frame already in your session.
-It is only on \code{\link[base]{saveRDS}} that the file grows, by the size
-of the data -- once for the whole ensemble, not once per tree. Set
-\code{FALSE} when saving many fits, or when the data is large next to the
-model.}
+\item{input_checks}{Whether to check the inputs. Defaults to \code{TRUE}.}
 
-\item{input_checks}{A logical value indicating whether to perform input
-validation checks. Defaults to \code{TRUE}.}
-
-\item{verbose}{A logical value indicating whether to display verbose output
-during the training process. Defaults to \code{TRUE}.}
+\item{verbose}{Whether to show progress. Defaults to \code{TRUE}.}
 }
 \value{
-A list containing the trained weak learners (\code{h}) and their
-associated weights (\code{a}). Additional attributes carry the training data, the
-expanded formula, \code{n_iter}, \code{eta} and the \code{control} the trees were grown
-with.
+An object of class \code{adaboost}: a list with one element per round,
+each holding the tree (\code{h}) and its model weight (\code{a}). Attributes store
+the training data, the formula, \code{n_iter}, \code{eta} and the tree control.
 }
 \description{
-Boosts a fitted classification tree. The tree is the weak
-learner: it is refit \code{n_iter} times on reweighted data, and the
-ensemble is the weighted vote of those fits. AdaBoost specifies no base
-learner of its own -- it is defined over any learner whose weighted error
-stays below one half -- so the choice of a tree is the caller's, and it
-arrives already made. Depth, complexity parameter and every other
-\code{\link[rpart]{rpart.control}} setting are read off \code{h} rather
-than set here.
+Boosts a fitted classification tree. The tree is the weak learner: it is
+refit \code{n_iter} times on reweighted data, and the ensemble is the weighted
+vote of those fits. The tree's depth, \code{cp} and other
+\code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings come from \code{h}, not from this function.
 }
-\details{
-The function implements the AdaBoost algorithm with a specified
-number of rounds (\code{n_iter}). It initializes observation weights,
-refits \code{h} once per round under those weights, and updates them from
-the round's errors. A final ensemble of weak learners is produced.
+\section{Algorithm}{
 
-Key steps in the algorithm:
 \enumerate{
-\item Initialize observation weights.
-\item Train a decision tree using the current weights.
-\item Compute the weighted classification error and update the observation weights.
-\item Store the weak learner and its associated weight.
+\item Give every observation the same weight.
+\item Fit the tree under the current weights.
+\item Compute the weighted error and the tree's model weight, then give more
+weight to the observations it got wrong.
+\item Store the tree and its model weight, and repeat.
+}
 }
 
-\strong{What is read off \code{h}, and what is overridden.} The whole of
-\code{h$control} is carried over -- \code{maxdepth}, \code{cp},
-\code{minsplit}, \code{minbucket} -- except \code{xval} and
-\code{maxsurrogate}, which are forced to zero. Those two are speed, not
-structure: a thousand rounds should neither cross-validate each tree nor hunt
-for surrogate splits, and neither setting changes the tree that results.
-The splitting rule travels too, although it lives in \code{h$parms} rather
-than in \code{h$control}. Everything a reader chose, they keep.
+\section{What comes from \code{h}}{
 
-\strong{What is refused.} \code{prior} cannot be carried: it is not a
-setting but a quantity \code{rpart} derives from the observation weights,
-and reweighting is exactly what boosting does, so one fixed at fitting time
-would have to be wrong from the second round on. A \code{loss} matrix is not
-passed on either, a learner fitted with \code{weights} conflicts with
-AdaBoost setting its own, and a learner that is not
-\code{method = "class"} would come back as a different kind of model, since
-every round is refitted as a classification tree. All four are errors. The
-alternative -- accepting the learner and quietly boosting something else --
-is the one failure a caller cannot detect without inspecting
-\code{fit[[1]]$h} by hand.
+All of \code{h$control} is kept (\code{maxdepth}, \code{cp}, \code{minsplit}, \code{minbucket}),
+except \code{xval} and \code{maxsurrogate}. These are set to 0 to save time; they do
+not change the tree. The splitting rule is kept too.
 
-\strong{The complexity parameter.} \code{cp} therefore arrives at whatever
-the tree was fitted with, which for a plain \code{rpart()} call is its own
-default of 0.01. That departs from the textbook formulation. The guidance
-after the original algorithm (Friedman, Hastie & Tibshirani, 2000; Hastie,
-Tibshirani & Friedman, 2009, on right-sized trees for boosting) is to grow
-each learner to a \emph{fixed size} and not prune it, because the
-regularization belongs to the number of rounds and the learning rate rather
-than to the individual trees. In \code{rpart} terms that is \code{cp = 0},
-which is now something the caller sets on their own tree.
-
-Leaving it at 0.01 is not the worse choice on these data, which is why the
-tutorial does. Both complexity parameters were scored across a 480-setting
-grid in
-\code{\link[adatutor]{hypergrid}}; paired over those settings, \code{cp = 0}
-is behind by .0044 on mean AUROC (95 percent CI .0021 to .0067). The gap is
-entirely at depth 4, where unpruned learners overfit the reweighted data
-(-.0152, 95 percent CI -.0214 to -.0090). At depth 1 -- the stumps this package
-teaches with -- pruning makes no difference at all (+.0001, 95 percent CI
--.0012 to .0014).
+\code{cp} is whatever \code{h} was fitted with: 0.01 for a plain \code{rpart()} call. The
+textbook advice is unpruned trees, \code{cp = 0} (Hastie, Tibshirani & Friedman,
+2009). On these data that makes no difference for stumps, and \code{cp = 0} does
+slightly worse at depth 4 (see \link{hypergrid}).
 }
+
+\section{What is refused}{
+
+\code{adaboost()} stops with an error rather than boost a different model than
+the one you passed. It refuses a tree that is not \code{method = "class"}, one
+fitted with \code{weights}, and one with a \code{prior} or a \code{loss} matrix.
+}
+
 \examples{
 data(altmejd_splits)
 train <- altmejd_splits$train
 
-# The weak learner is fitted first, because which learner to boost is the
-# caller's choice. `model = TRUE` so the tree carries the data it was grown
-# on -- rpart keeps the response but drops the predictors without it.
+# fit the weak learner first; model = TRUE keeps its data
 h <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train,
@@ -132,11 +81,14 @@ fit <- h |> adaboost(n_iter = 20, eta = 1, verbose = FALSE)
 attr(fit, "n_iter")
 attr(fit, "control")$maxdepth
 
-# A deeper learner is a different tree, not a different argument here
+# a deeper learner is a different tree, not a different argument
 rpart::rpart(replicate ~ power.o + n.o, data = train, maxdepth = 3,
              model = TRUE) |>
   adaboost(n_iter = 20, eta = 1, verbose = FALSE) |>
   attr("control") |>
   getElement("maxdepth")
 
+}
+\seealso{
+\code{\link[=predict.adaboost]{predict.adaboost()}} to score new data.
 }
