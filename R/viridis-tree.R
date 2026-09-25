@@ -1,32 +1,19 @@
-#' @title Viridis Colors for an rpart Tree
+#' Viridis colors for an rpart tree
 #'
-#' @description Builds the two color vectors \code{\link[rpart.plot]{rpart.plot}}
-#'   needs to draw a classification tree on the viridis scale: one fill per node,
-#'   taken from the node's fitted probability, and one text color per node,
-#'   chosen so the label stays legible on that fill.
+#' Builds the node fill and text colors that [rpart.plot::rpart.plot()] needs
+#' to draw a classification tree on the viridis scale. Each fill comes from
+#' the node's fitted probability, and the text turns white on dark fills so it
+#' stays readable. The same probability gets the same color in every tree.
 #'
-#' @details Passing viridis to \code{rpart.plot}'s own \code{box.palette} does
-#'   not work. Roughly half the scale is too dark for the black node text, so the
-#'   labels in the darkest boxes disappear. \code{box.col} and \code{col} both
-#'   accept one value per node, which is what this function supplies: the full
-#'   scale is available for the boxes because the text turns white wherever the
-#'   box is dark.
+#' @param fit A classification tree from [rpart::rpart()].
+#' @param palette A function that takes a count and returns that many colors.
+#'   Defaults to [viridisLite::viridis()].
+#' @param n The number of steps in the color scale. Defaults to 100.
 #'
-#'   The mapping is also absolute rather than relative. \code{box.palette} splits
-#'   the fitted values at their quantiles, so the same probability draws a
-#'   different color in different trees. Here a node at .65 is the same color in
-#'   every tree.
+#' @return A list with `box` and `text`, each with one color per node of
+#'   `fit`, in rpart's node order.
 #'
-#' @param fit An \code{\link[rpart]{rpart}} object fitted with
-#'   \code{method = "class"}.
-#'
-#' @param palette A palette function taking a count and returning that many
-#'   colors. Defaults to \code{\link[viridisLite]{viridis}}.
-#'
-#' @param n The number of steps to cut the scale into. Defaults to 100.
-#'
-#' @return A list with \code{box} and \code{text}, both character vectors with
-#'   one entry per node of \code{fit}, in the order \code{rpart} stores them.
+#' @family tutorial plots
 #'
 #' @examples
 #' data(altmejd)
@@ -63,31 +50,10 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
   list(box = box, text = contrast_stroke(box))
 }
 
-#' @title Pick a Readable Stroke From a Fill Color
+#' Pick black or white to draw on a fill color
 #'
-#' @description Not exported. Chooses black or white for whatever sits on top of
-#'   a filled marker or box, from the fill's own relative luminance.
-#'
-#' @details A white ring separates a dark marker from the panel, but a pale
-#'   marker with a white ring has no edge at all -- viridis's yellow end
-#'   disappears. Deriving the stroke from the fill instead of fixing it means any
-#'   palette works, which is what lets \code{\link[adatutor]{viridis_tree}} and
-#'   \code{\link[adatutor]{tutplot_boundary}} share one rule.
-#'
-#'   Luminance is the Rec. 709 weighting, \eqn{0.2126 R + 0.7152 G + 0.0722 B} on
-#'   channels scaled to the unit interval. The cut at 0.55 is a shade above the
-#'   midpoint because green dominates the weighting, so a mid-viridis teal reads
-#'   brighter than its position on the scale suggests.
-#'
-#' @param cols One or more colors, in any form
-#'   \code{\link[grDevices]{col2rgb}} accepts.
-#'
-#' @return A character vector the same length as \code{cols}, each element
-#'   \code{"grey15"} or \code{"white"}.
-#'
-#' @name contrast_stroke
-#'
-#' @keywords internal
+#' Uses Rec. 709 luminance with a cut at 0.55, so any palette works.
+#' @noRd
 contrast_stroke <- function(cols) {
   rgb <- grDevices::col2rgb(cols) / 255
   # unname(): a single color would carry the channel's rowname into `col`

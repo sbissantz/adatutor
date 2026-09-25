@@ -35,17 +35,6 @@ refit \code{n_iter} times on reweighted data, and the ensemble is the weighted
 vote of those fits. The tree's depth, \code{cp} and other
 \code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings come from \code{h}, not from this function.
 }
-\section{Algorithm}{
-
-\enumerate{
-\item Give every observation the same weight.
-\item Fit the tree under the current weights.
-\item Compute the weighted error and the tree's model weight, then give more
-weight to the observations it got wrong.
-\item Store the tree and its model weight, and repeat.
-}
-}
-
 \section{What comes from \code{h}}{
 
 All of \code{h$control} is kept (\code{maxdepth}, \code{cp}, \code{minsplit}, \code{minbucket}),

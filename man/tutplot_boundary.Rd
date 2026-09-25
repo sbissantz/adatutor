@@ -2,7 +2,7 @@
 % Please edit documentation in R/tutplot.R
 \name{tutplot_boundary}
 \alias{tutplot_boundary}
-\title{Plot a Two-Feature Decision Boundary}
+\title{Plot a two-feature decision boundary}
 \usage{
 tutplot_boundary(
   fit,
@@ -27,137 +27,79 @@ tutplot_boundary(
 )
 }
 \arguments{
-\item{fit}{A fitted model: an \code{rpart} object, or the list returned by
-\code{\link[adatutor]{adaboost}}.}
+\item{fit}{An rpart tree or an \code{\link[=adaboost]{adaboost()}} fit.}
 
-\item{data}{A data frame holding the two features and the outcome. Sets the
-plotting range and supplies the points. Required for both learners -- an
-ensemble does carry its training data, but an \code{rpart} tree carries
-none, and a default that worked for only one of the two figures would be
-worse than no default.}
+\item{data}{A data frame with the two features and the outcome. It sets the
+plotting range and supplies the points.}
 
-\item{features}{A character vector naming the two features. The default
-\code{NULL} uses the model's predictors when there are exactly two, and is
-an error otherwise: with three or more there is no way to know which pair
-the reader should see, and the rest would sit at some arbitrary value.}
+\item{features}{The names of the two features. The default, \code{NULL}, works
+when the model has exactly two predictors and stops otherwise.}
 
-\item{shade}{Either \code{"margin"} (the default) or \code{"class"}. See
-Details.}
+\item{shade}{\code{"margin"} (the default) or \code{"class"}. See the section on
+shading.}
 
-\item{resolution}{Grid points per axis. Defaults to 150.}
+\item{resolution}{Grid points per axis. Defaults to 150. The cost grows
+with its square.}
 
-\item{palette}{Two colours, for the negative and positive class. Defaults to
-\code{viridisLite::viridis(2)}.}
+\item{palette}{Two colors, for the negative and the positive class.
+Defaults to \code{viridisLite::viridis(2)}.}
 
-\item{alpha}{Opacity of the region fill. Defaults to 0.18 for
-\code{shade = "class"}, where a flat tint only has to hint at which side is
-which, and 0.65 for \code{shade = "margin"}, where the ramp has to be read.}
+\item{alpha}{The opacity of the fill. Defaults to 0.18 for \code{"class"} and
+0.65 for \code{"margin"}.}
 
-\item{show_points}{Whether to draw the observed data. Defaults to
-\code{TRUE}.}
+\item{show_points}{Whether to draw the data. Defaults to \code{TRUE}.}
 
-\item{legend_pos}{Where to put the class legend. The default \code{"top"}
-centres it in the margin \emph{above} the panel, where it cannot cover a
-study; any other keyword accepted by \code{\link[graphics]{legend}} places
-it inside instead. \code{NULL} omits it.}
+\item{legend_pos}{Where to put the legend. The default, \code{"top"}, puts it
+above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
+\code{NULL} leaves it out.}
 
-\item{colorbar}{Whether \code{shade = "margin"} draws the scale strip. It
-takes the legend's place rather than sitting alongside it: the ramp's two
-ends are the two classes, so a separate point legend would repeat it.
-Suppressed along with the legend when \code{legend_pos} is \code{NULL}.
-Defaults to \code{TRUE}.}
+\item{colorbar}{Whether \code{shade = "margin"} draws a color bar in place of the
+legend. Defaults to \code{TRUE}.}
 
-\item{main, subtitle}{Optional title and grey sub-title, both left-aligned
-above the panel. Both default to \code{NULL} and draw nothing, since a
-figure in a paper takes its title from the caption.}
+\item{main, subtitle}{An optional title and gray subtitle above the panel.}
 
-\item{xlab, ylab}{Axis labels. Default to \code{NULL}, which draws the feature
-names. The manuscript's wording is passed at the call site rather than
-baked in, so plotting a different pair of features cannot mislabel the
-axes.}
+\item{xlab, ylab}{Axis labels. \code{NULL} (the default) uses the feature names.}
 
-\item{file}{Path to write a PDF to, or \code{NULL} to draw on the current
-device, as in \code{\link[adatutor]{tutplot}}.}
+\item{file}{A path to write a PDF to, or \code{NULL} to draw on the current
+device.}
 
-\item{width, height, pointsize}{Passed to \code{grDevices::pdf()}; ignored when
-\code{file} is \code{NULL}. They default to the manuscript's full text
-width.}
+\item{width, height, pointsize}{Passed to \code{\link[grDevices:pdf]{grDevices::pdf()}}; ignored when
+\code{file} is \code{NULL}. They default to the full text width.}
 
-\item{...}{Passed to \code{\link[graphics]{plot}}.}
+\item{...}{Passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
 \value{
-The grid, invisibly: the two axis sequences, the matrix of scores and
-the feature names, so the surface can be inspected or redrawn without
-recomputing it.
+Invisibly, the grid: the two axis sequences, the matrix of scores
+and the feature names.
 }
 \description{
-Draws the region each class is assigned to over a grid of two
-features, with the boundary between them and the observed data on top.
-Takes either a single \code{rpart} tree or an ensemble from
-\code{\link[adatutor]{adaboost}} -- the two learners this package builds,
-which is why the name says so rather than promising to plot any model.
-This is the manuscript's Figure 3 and Figure 9: the same call, a stump in
-one and a thousand-round ensemble in the other.
+Draws the region each class is assigned to over a grid of two features,
+with the boundary between them and the data on top. Takes a single rpart
+tree or an \code{\link[=adaboost]{adaboost()}} ensemble. This is the manuscript's Figures 3 and 9:
+the same call, with a stump in one and a 1000-round ensemble in the other.
 }
-\details{
-\strong{The boundary is drawn from a continuous score, not from class
-labels.} Both learners are reduced to a signed quantity whose zero \emph{is}
-the boundary -- the margin for an ensemble, the fitted probability minus one
-half for a tree -- and the line is that quantity's zero contour. Contouring
-hard class labels instead gives a staircase whose fineness depends entirely
-on the grid, which is the usual reason such plots are drawn at punishing
-resolutions. Interpolating a continuous score needs far fewer points for a
-smoother line: on the tutorial's own ensemble, \code{resolution = 120} on the
-margin beats \code{resolution = 400} on labels.
+\section{Shading}{
 
-That is why the default is 150. Cost grows with the square: a 1000 x 1000
-grid is a million predictions, and for 500 trees
-\code{\link[=predict.adaboost]{predict()}} would build a 3.7 GB matrix to
-hold them.
+The boundary is the zero line of a continuous score: the margin for an
+ensemble, and the fitted probability minus 0.5 for a tree. That gives a
+smooth line at a modest \code{resolution}.
 
-\strong{Two ways to shade.} \code{shade = "class"} tints each side in a flat
-colour: which class, and nothing more. \code{shade = "margin"} shows what
-that discards, because the model computes a continuous score and then throws
-away everything but its sign. The whole viridis scale is laid over the score
-and centred on zero, so the two classes occupy its ends and its middle falls
-exactly where the model has no strong vote: uncertainty reads as a colour of
-its own rather than as an absence of one. The studies are drawn at full
-strength on top, so they stay the most saturated thing on the panel.
+\code{shade = "class"} tints each side in a flat color. \code{shade = "margin"} (the
+default) lays the viridis scale over the score, centered on zero, so the
+classes sit at its ends and uncertainty sits in the middle. For a tree, the
+scale is fixed at -0.5 to 0.5, so a color always means the same
+probability. For an ensemble, it runs to the largest margin, so colors
+compare within a plot but not across plots.
 
-The default here is \code{"margin"}, because both printed boundaries are
-shaded by the score: it is what makes the stump's two flat blocks and the
-ensemble's many-valued surface comparable.
-
-\strong{What the ends of the scale mean.} They depend on how far the score
-can reach, and the two model types differ. A tree's score is a probability
-offset, bounded to \code{[-0.5, 0.5]}, so the scale is anchored there and a
-region's colour has a fixed reading: a stump splitting .26 / .76 shows two
-moderate tones, because that is what it is. Stretching such a score to fill
-the ramp would paint a hesitant model as a confident one, and would paint it
-identically whether it split .26 / .76 or .02 / .98. A boosted margin has no
-such bound -- its range depends on \code{T} and \code{eta} -- so there the
-scale still takes the observed maximum, and colours are comparable within a
-plot but not across two.
-
-A depth-1 stump has one split, so its score takes exactly two values and the
-panel is two flat blocks. That is the model, not a limitation of the plot:
-the number of distinct shades is the number of leaves. Set against a boosted
-ensemble, whose margin takes hundreds of values over the same grid, the
-contrast is the clearest picture of what boosting buys.
-
-\strong{This figure sets its own margins.} The other six figures share the
-margins in \code{\link[adatutor]{tutplot_opts}}; this one computes its top
-margin from what it actually draws -- a legend, a sub-title and a title are
-each paid for only if present -- so a fixed \code{mar} would either crop the
-legend or leave a gap above it. It is also the only figure drawn at the
-manuscript's full text width rather than one column.
+A stump has one split, so it shows two flat blocks; an ensemble shows a
+surface. That contrast is what boosting buys.
 }
+
 \examples{
 data(altmejd_splits)
 train <- altmejd_splits$train
 
-# Figure 3: the stump of Figure 2, now as the boundary it draws. Two metrics
-# only, so the boundary can be drawn in two dimensions
+# Figure 3: the stump of Figure 2, drawn as the boundary it makes
 h <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train,
@@ -167,14 +109,18 @@ h <- rpart::rpart(
 grid <- tutplot_boundary(h, train, resolution = 60)
 grid$features
 
-# What the margin shading buys: a stump has one split, so `"class"` and
-# `"margin"` differ only in tone here -- run it on Figure 9's ensemble and
-# the second becomes a surface
+# flat tints instead of the margin scale
 tutplot_boundary(h, train, resolution = 60, shade = "class")
 
 }
 \seealso{
-\code{\link[adatutor]{tutplot}} for the tutorial's other six
-figures.
+\link{tutplot} for the other figures.
+
+Other tutorial plots:
+\code{\link[=gauge]{gauge()}},
+\code{\link{tutplot}},
+\code{\link{tutplot_opts}},
+\code{\link[=viridis_tree]{viridis_tree()}}
 }
+\concept{tutorial plots}
 \keyword{internal}

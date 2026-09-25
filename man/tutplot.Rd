@@ -8,7 +8,7 @@
 \alias{tutplot_importance}
 \alias{tutplot_weightone}
 \alias{tutplot_lpocv}
-\title{Redraw the Tutorial's Manuscript Figures}
+\title{Redraw the tutorial's manuscript figures}
 \usage{
 tutplot_cstump(
   fit,
@@ -78,148 +78,103 @@ tutplot_lpocv(
 )
 }
 \arguments{
-\item{fit}{A fitted model. \code{tutplot_cstump()} draws a tree, so it takes
-an \code{\link[rpart]{rpart}} stump only.}
+\item{fit}{A classification stump from \code{\link[rpart:rpart]{rpart::rpart()}}.}
 
-\item{extra}{Node annotation, passed to \code{rpart.plot::rpart.plot()}. The
-manuscript uses \code{102} for \code{fig:cstump} and the simplified
-\code{100} for \code{fig:cstumpwght}.}
+\item{extra}{Node labels, passed to \code{rpart.plot::rpart.plot()}. The
+manuscript uses 102, and 100 for the weighted stump.}
 
-\item{file}{Path to write a PDF to, or \code{NULL} to draw on the current
-device. A full path rather than a directory, because one function draws
-more than one of the manuscript's figures.}
+\item{file}{A path to write a PDF to, or \code{NULL} to draw on the current
+device.}
 
-\item{width, height, pointsize}{Passed to \code{grDevices::pdf()}; ignored when
+\item{width, height, pointsize}{Passed to \code{\link[grDevices:pdf]{grDevices::pdf()}}; ignored when
 \code{file} is \code{NULL}.}
 
-\item{x_seq}{The proportions the Gini curve is evaluated at. Must lie in
-\eqn{[0, 1]}, since it is a proportion of one class. The default steps by
-0.01, which is smooth at print size; coarsen it to show the curve as a
-series of evaluated points rather than a line.}
+\item{x_seq}{The class proportions at which to evaluate the Gini curve,
+between 0 and 1.}
 
-\item{lwd}{Line width of the curve, passed to \code{plot()}.}
+\item{lwd}{The line width.}
 
-\item{alpha}{One model weight per curve. \code{tutplot_updatefactor()} draws
-a curve and its two end points from each, so a marker cannot sit off the
-line it belongs to.}
+\item{alpha}{The model weights, one curve each.}
 
-\item{pch}{Plotting characters for the end points, recycled across
-\code{alpha}.}
+\item{pch}{The plotting symbols for the end points, recycled over \code{alpha}.}
 
-\item{lty}{Line type of the curves. The legend keys inherit it, along with
-\code{lwd}, so the two cannot disagree. Recycled across the curves, which
-is why \code{tutplot_importance()} carries a fourth entry: a reader who
-splices their own learning rate into the three reference ones gets four
-curves, and three line types would give the first and the fourth the same
-one.}
+\item{lty}{The line types, recycled over the curves.}
 
-\item{ylim}{Vertical range. Defaults to the manuscript's, so the default call
-reproduces the printed figure; a different \code{alpha} may want another.}
+\item{ylim}{The vertical range. Defaults to the manuscript's.}
 
-\item{eta}{One learning rate per curve. \code{tutplot_importance()} sizes its
-panel from every curve rather than from the first, so the order they are
-given in cannot clip one of them.}
+\item{eta}{The learning rates, one curve each.}
 
-\item{from}{Where performance starts. The default 0.5 is chance, where a
-stump earns no importance at all.}
+\item{from}{Where performance starts. The default, 0.5, is chance.}
 
-\item{mark_perf}{A learner's performance, marked on the figure so a reader
-can find their own stump in it. \code{NULL} draws no mark. Must lie in
-\eqn{[from, 1)}: at chance the importance is zero, and at perfect
-performance it is infinite.}
+\item{mark_perf}{A performance to mark on the figure, so you can find your
+own stump. \code{NULL} draws no mark. Must be at least \code{from} and below 1.}
 
-\item{mark_eta}{Which curve the mark belongs to. Defaults to the first, which
-is the learning rate the tutorial uses.}
+\item{mark_eta}{The curve the mark belongs to. Defaults to the first.}
 
-\item{data}{Training data the first boosting round is computed from when
-\code{d1} and \code{d2} are left \code{NULL}.}
+\item{data}{The training data for the first boosting round, used when \code{d1}
+and \code{d2} are \code{NULL}.}
 
-\item{d1, d2}{Observation weights before and after one round of boosting.
-\code{NULL} computes them from \code{data}.}
+\item{d1, d2}{The observation weights before and after one round. \code{NULL}
+computes them from \code{data}.}
 
-\item{chi}{Which points the learner got right: \code{+1} where it was
-correct, \code{-1} where it was not, as the tutorial's \code{chi1}.
-\strong{Required whenever \code{d1} or \code{d2} is supplied.} Weights
-alone cannot say which points were missed: a round grows the misclassified
-ones only while the learner beats chance, and grows the correctly
-classified ones below that. The grown set is the minority either way, so
-not even its size tells the two apart.}
+\item{chi}{\code{+1} where the learner was right and \code{-1} where it was wrong,
+like the tutorial's \code{chi1}. Required when you pass \code{d1} or \code{d2}, because
+the weights alone cannot show which points were missed.}
 
-\item{n}{How many data points to draw. 25 is what fits a column.}
+\item{n}{The number of data points to draw. 25 fits a column.}
 
-\item{scaling}{Bubble size multiplier.}
+\item{scaling}{The bubble size multiplier.}
 
-\item{group}{One project label per row of the data, as
-\code{\link[adatutor]{lpocv}} takes it. \code{tutplot_lpocv()} derives
-everything from it: one iteration per project, and the block sizes from
-how much data each project holds.}
+\item{group}{One project label per row, as \code{\link[=lpocv]{lpocv()}} takes it.}
 
-\item{proportional}{Whether the rows are sized by project. \code{TRUE}, the
-default, makes the imbalance visible -- in the tutorial's own data one
-project is 59\\% of the rows, so its fold trains on 62 studies and tests on
-90. \code{FALSE} draws the equal blocks the manuscript prints, which imply
-five comparable folds.}
+\item{proportional}{Whether to size the rows by project. \code{TRUE} (the
+default) shows the imbalance: one project holds 59 percent of the rows.
+\code{FALSE} draws the equal blocks the manuscript prints.}
 
-\item{levels}{The project order, top to bottom. \code{NULL} takes a factor's
-own levels, or a character vector's order of appearance. Given explicitly
-it fixes the order, which is what the manuscript's figure needs:
-\code{table()} would sort alphabetically and silently rearrange it.}
+\item{levels}{The project order, top to bottom. \code{NULL} uses a factor's
+levels or the order of first appearance.}
 }
 \value{
-Invisibly, the facts the figure's caption states, so a caller can
-assert on the numbers rather than on the existence of a file.
-\code{tutplot_cstump()} returns the fit, the variable split on, its
-cutpoint and the leaf sizes; \code{tutplot_gini()} returns the curve it
-drew and the proportion at which impurity peaks;
-\code{tutplot_lpocv()} returns the project sizes, their count, the order
-drawn and the row heights.
+Invisibly, the facts the figure's caption states, so tests can
+check them. \code{tutplot_cstump()} returns the fit, the split variable, the
+cutpoint and the leaf sizes; \code{tutplot_gini()} the curve and its peak;
+\code{tutplot_lpocv()} the project sizes, their count, the order and the row
+heights.
 }
 \description{
-Draws a figure from the AMPPS tutorial. These live in the
-package, rather than in a vignette that never executes, so that the code
-behind every printed figure is documented and under test.
+Draws a figure from the AMPPS tutorial. The code lives in the package, not
+in a vignette, so every printed figure is documented and tested.
 }
 \details{
-\strong{Where the output goes.} With the default \code{file = NULL}
-nothing opens a device and the figure is drawn on the current one, which is
-what an interactive session and the vignette want. Give a path and a
-\code{pdf()} device is opened at the size below and closed again on exit.
-
-Note that a headless session (\code{Rscript}, \code{R CMD build},
-\code{testthat}) has no current device, so R opens its default one and
-writes \code{Rplots.pdf} into the working directory. That is ordinary R
-behavior rather than anything these functions do, but it is why the tests
-wrap their calls in \code{pdf(NULL)}.
-
-\strong{Size applies only when a file is written.} On the current device
-the device decides. \code{width}, \code{height} and \code{pointsize} are
-\code{grDevices::pdf()}'s arguments unchanged, defaulting to the
-manuscript's own geometry. Enlarging \code{width} without raising
-\code{pointsize} leaves the type at 9 point, which is the mistake the
-printed sizes are chosen to avoid.
-
-\strong{One figure sets its own margins.} Every function here shares the
-margins in \code{\link[adatutor]{tutplot_opts}} except
-\code{\link[adatutor]{tutplot_boundary}}, which computes its top margin
-from what it actually draws -- a legend, a sub-title and a title are each
-paid for only if present -- so imposing a fixed \code{mar} would either
-crop the legend or leave a gap above it. It is also the only figure at the
-manuscript's full text width rather than one column, which is why it is
-documented on a page of its own.
-
-\strong{Weights come from the fit.} A fitted \code{rpart} object already
-carries the observation weights it was built with, and neither
-\code{\link[adatutor]{viridis_tree}} nor \code{rpart.plot::rpart.plot()}
-consults them separately. So the weighted stump of the manuscript's
-\code{fig:cstumpwght} is drawn by handing this function that fit, not by
-passing weights alongside it.
+\itemize{
+\item \code{tutplot_cstump()}: a classification stump.
+\item \code{tutplot_gini()}: Gini impurity by class proportion.
+\item \code{tutplot_updatefactor()}: the factor by which one round multiplies an
+observation's weight.
+\item \code{tutplot_importance()}: the model weight a stump earns, by its
+performance.
+\item \code{tutplot_weightone()}: observation weights before and after one round.
+\item \code{tutplot_lpocv()}: the leave-project-out cross-validation scheme.
 }
+}
+\section{Output}{
+
+With \code{file = NULL} (the default), the figure is drawn on the current
+device. With a path, a PDF is written at the manuscript's size. \code{width},
+\code{height} and \code{pointsize} apply only then; raise \code{pointsize} when you
+enlarge \code{width}. A session without a device, such as \code{Rscript}, writes
+\code{Rplots.pdf}, which is ordinary R behavior.
+
+To draw a weighted stump, pass the fit that was grown with the weights; the
+weights travel with the fit.
+}
+
 \examples{
 data(altmejd_splits)
 train <- altmejd_splits$train
 
-# The stump behind Figure 2: two reviewer metrics, so the decision boundary
-# of Figure 3 can be drawn in two dimensions
+# the stump behind Figure 2, on two reviewer metrics so Figure 3 can draw
+# its boundary in two dimensions
 h <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train,
@@ -230,7 +185,7 @@ facts <- tutplot_cstump(h)
 facts$variable
 facts$leaves
 
-# Figure 4 needs nothing at all -- it is arithmetic, not a model
+# Figure 4 needs no model: it is arithmetic
 gini <- tutplot_gini()
 gini$peak
 
@@ -241,7 +196,13 @@ folds$n
 
 }
 \seealso{
-\code{\link[adatutor]{tutplot_boundary}} for Figures 3 and 9, which
-set their own margins and so are documented separately.
+\code{\link[=tutplot_boundary]{tutplot_boundary()}} for Figures 3 and 9.
+
+Other tutorial plots:
+\code{\link[=gauge]{gauge()}},
+\code{\link[=tutplot_boundary]{tutplot_boundary()}},
+\code{\link{tutplot_opts}},
+\code{\link[=viridis_tree]{viridis_tree()}}
 }
+\concept{tutorial plots}
 \keyword{internal}

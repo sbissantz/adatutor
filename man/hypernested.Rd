@@ -5,43 +5,30 @@
 \alias{hypernested}
 \title{Nested leave-project-out search for AdaBoost}
 \format{
-An object of class \code{"lpocv"} with \code{nested = TRUE}. Nesting
-drops the setting dimension rather than filling it, because each outer fold
-picked its own: \code{estimates} is a 5 x 15 array of \code{project} x
-\code{metric}, and \code{selected} names the \code{depth}, \code{T} and
-\code{eta} each fold chose. \code{projects} and \code{model} are as in
-\code{\link[adatutor]{hypergrid}}.
-
-\code{selected$inner_criterion} is \code{NA}: the run predates the object
-carrying it, and recovering it would mean repeating the three-hour search
-for a diagnostic. A cold rerun of \code{data-raw/hypergrid.R} fills it in.
+An object of class \code{lpocv} with \code{nested = TRUE}:
+\itemize{
+\item \code{estimates}: An array of 5 projects x 15 measures.
+\item \code{selected}: The \code{depth}, \code{T} and \code{eta} each outer fold chose. Its
+\code{inner_criterion} is \code{NA} because the run predates it; rerunning
+\code{data-raw/hypergrid.R} fills it in.
+\item \code{projects}, \code{model}: As in \link{hypergrid}.
+}
 }
 \description{
-The same 480-row grid as \code{\link[adatutor]{hypergrid}}, run
-nested: each project is held out in turn, the whole grid search is repeated
-on the remaining four, and the setting it picks is refit and scored on the
-held-out project. Produced by \code{data-raw/hypergrid.R}.
+The grid of \link{hypergrid}, run nested: each project is held out in turn, the
+grid search is repeated on the other four, and the chosen setting is refit
+and scored on the held-out project. Made by \code{data-raw/hypergrid.R}.
 }
 \details{
-This is the figure to quote for AdaBoost, and
-\code{\link[adatutor]{hypergrid}} is not. There the best average was
-selected and graded on the same five projects; here the held-out project
-took no part in choosing. The gap between the two grows with the size of
-the grid, so on 480 settings it is not small.
-
-Read it as an estimate of the \emph{procedure} -- "search this grid, fit
-the winner" -- rather than of any one setting. \code{depth}, \code{T} and
-\code{eta} record what each outer fold happened to choose; they are a
-diagnostic, not a shortlist, and they will disagree with each other.
-
-Only \code{cp = 0.01} is nested, the value \code{\link[adatutor]{adaboost}}
-ships. Whether \code{cp} matters at all is answered by the two plain arms
-in \code{\link[adatutor]{hypergrid}}.
+This is the figure to quote for AdaBoost. It estimates the procedure
+"search the grid, fit the winner", not any one setting. The settings the
+outer folds chose are a diagnostic, and they disagree with each other. Only
+\code{cp = 0.01} is nested.
 }
 \examples{
 data(hypernested)
 
-# The five honest estimates, each with the setting its own outer fold chose
+# the five estimates, each with the setting its outer fold chose
 au <- hypernested$estimates[, "auroc"]
 cbind(
   hypernested$projects,
@@ -49,12 +36,17 @@ cbind(
   auroc = round(au, 3)
 )
 
-# How much the summary depends on the summary chosen: the folds hold 10 to 90
-# studies, so the unweighted mean and the weighted one are not close.
+# the folds hold 10 to 90 studies, so the plain and weighted means differ
 mean(au)
 weighted.mean(au, hypernested$projects$n)
 
 }
 \seealso{
-\code{\link[adatutor]{hypergrid}}, \code{\link[adatutor]{lpocv}}
+Other datasets:
+\code{\link{altmejd}},
+\code{\link{altmejd723}},
+\code{\link{altmejd_splits}},
+\code{\link{hypergrid}},
+\code{\link{ssrp723}}
 }
+\concept{datasets}

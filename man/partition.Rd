@@ -58,6 +58,8 @@ vapply(three, nrow, integer(1))
 \link{altmejd_splits}, the split used in the tutorial.
 
 Other cross-validation:
-\code{\link[=bootCI]{bootCI()}}
+\code{\link[=bootCI]{bootCI()}},
+\code{\link[=lpocv]{lpocv()}},
+\code{\link{lpocv_methods}}
 }
 \concept{cross-validation}

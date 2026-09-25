@@ -2,7 +2,7 @@
 % Please edit documentation in R/adaboost.R
 \name{predict.adaboost}
 \alias{predict.adaboost}
-\title{Predict From a Boosted Ensemble}
+\title{Predict from a boosted ensemble}
 \usage{
 \method{predict}{adaboost}(
   object,
@@ -14,59 +14,37 @@
 )
 }
 \arguments{
-\item{object}{A model fitted with \code{\link[adatutor]{adaboost}}. This is
-a list of boosted trees and their weights: each element holds a weak
-learner (e.g., a decision stump) and its corresponding weight.}
+\item{object}{A fit from \code{\link[=adaboost]{adaboost()}}.}
 
-\item{newdata}{A data frame containing the set to predict. Its columns should
-match the predictors the model was trained on.}
+\item{newdata}{A data frame with the predictors the model was trained on.}
 
-\item{type}{A character string indicating the type of prediction to return.
-Options are \code{"class"} for hard class labels (-1, 1) or \code{"margin"}
-for the raw continuous boosting score. Defaults to \code{"class"}. Use
-\code{"margin"} for rank-based measures such as the ROC AUC: the margin
-carries the ranking that hard class labels throw away.}
+\item{type}{\code{"class"} for class labels (-1 or 1), or \code{"margin"} for the
+continuous score. Use \code{"margin"} for ranking measures such as \code{\link[=auroc]{auroc()}}.}
 
-\item{input_checks}{A logical value indicating whether to perform input
-validation checks. Defaults to \code{TRUE}.}
+\item{input_checks}{Whether to check the inputs. Defaults to \code{TRUE}.}
 
-\item{verbose}{A logical value specifying whether to display progress
-messages and animations. Defaults to \code{TRUE}.}
+\item{verbose}{Whether to show progress. Defaults to \code{TRUE}.}
 
 \item{...}{Ignored.}
 }
 \value{
-A numeric vector containing the final predictions from the AdaBoost
-model. Depending on the \code{type} argument, this will be class labels or
-margins.
+A numeric vector of class labels or margins, depending on \code{type}.
 }
 \description{
-This function implements the testing phase of the AdaBoost
-algorithm. It extracts the adaptively boosted weak learners (e.g.
-classification stumps) and their corresponding weights to combine them into
-the weighted sum \deqn{H(\mathbf{x}) = \sum_{i=1}^Ta_th_t(\mathbf x),}
-which yields AdaBoost's predictions or retrodictions on a given set.
+Combines the boosted trees into the weighted vote
+\deqn{H(x) = \sum_{t=1}^T a_t h_t(x)}{H(x) = sum over t of a_t h_t(x)}
+and returns class labels or the vote itself, the margin.
 }
-\details{
-\strong{Prediction or retrodiction?} The same call does both, and
-which one you get depends entirely on the data you hand it. Scoring the
-frame the model was trained on is a \emph{retrodiction}: it measures how
-well the model fits data it has already seen, which is not a measure of
-predictive performance. Scoring data held out from training is a
-prediction.
+\section{Prediction or retrodiction}{
 
-Nothing in the syntax distinguishes them, which is exactly why the mistake
-is easy, so this reports it. When the fit kept its training data (see
-\code{keep_data} in \code{\link[adatutor]{adaboost}}) the comparison is
-exact and catches a renamed variable or a subset of the training rows;
-otherwise it falls back to comparing the variable's name. Calling
-\code{predict()} with no \code{newdata} deliberately returns
-retrodictions, the way \code{predict()} does for \code{\link[stats]{lm}}.
-
-It is a message rather than a warning: retrodicting on purpose is a normal
-thing to do -- the tutorial does it to show that training performance is
-near-perfect and therefore uninformative.
+Scoring the data the model was trained on is a \emph{retrodiction}: it shows how
+well the model fits data it has already seen, not how well it predicts.
+Scoring held-out data is a prediction. The call looks the same either way,
+so \code{predict()} tells you when the data were also used for training. With no
+\code{newdata}, it scores the training data on purpose, like \code{predict()} for
+\code{\link[stats:lm]{stats::lm()}}.
 }
+
 \seealso{
-\code{\link[adatutor]{adaboost}}
+\code{\link[=adaboost]{adaboost()}} to fit the ensemble.
 }

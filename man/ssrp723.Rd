@@ -3,37 +3,34 @@
 \docType{data}
 \name{ssrp723}
 \alias{ssrp723}
-\title{An even shorter version of Altmejd et al.'s replication database}
+\title{Replication database, SSRP only}
 \format{
-A data frame with 21 study effects (i.e., rows); 2 identifiers, and
-5 predictors (i.e., 7 columns):
-
-\describe{
-\item{eid}{Effect identifier}
-\item{pid}{Project identifier:  Social Science Replication Project (SSRP)}
-\item{effect_size.o}{Standardized effect size of the original study}
-\item{n.o}{Number of observations in the original study}
-\item{p_value.o}{P value of the original study}
-\item{power.o}{Power of the original study}
-\item{replicate}{Replication success indicator}
-}
+A data frame with 21 rows (study effects) and the 7 columns of
+\link{altmejd}.
 }
 \source{
 Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
 Predicting the replicability of social science lab experiments. PLOS ONE
 14(12): e0225826. \url{https://doi.org/10.1371/journal.pone.0225826}
 
-The data and additional information on the data set can be downloaded from
-their OSF repository. \url{https://osf.io/4fn73/}
+The data and more information are in their OSF repository:
+\url{https://osf.io/4fn73/}.
 }
 \usage{
 ssrp723
 }
 \description{
-A subset of Altmejd et al.'s (2018) replication database. Note
-that this dataset is only used internally, to build the full database (see
-\code{\link[adatutor]{altmejd}}). It includes replication projects of
-social science lab experiments for just one of the five large-scale
-replication projects: the Social Science Replication Project (SSRP).
+A subset of the replication database of Altmejd et al. (2019), used only
+to build \link{altmejd}. It holds one project: the Social Science Replication
+Project (SSRP).
 }
+\seealso{
+Other datasets:
+\code{\link{altmejd}},
+\code{\link{altmejd723}},
+\code{\link{altmejd_splits}},
+\code{\link{hypergrid}},
+\code{\link{hypernested}}
+}
+\concept{datasets}
 \keyword{datasets}

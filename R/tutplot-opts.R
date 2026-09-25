@@ -1,49 +1,28 @@
-#' @title Shared Settings Behind the Tutorial's Figures
+#' Shared settings for the tutorial's figures
 #'
-#' @description The geometry, margins and palette anchor that every
-#'   \code{\link[adatutor]{tutplot}} function draws with, kept in one place so
-#'   the figures cannot drift apart.
+#' The size, margins and palette end that every `tutplot_*()` function draws
+#' with, kept in one place so the figures match.
 #'
-#' @details \strong{This is a reference, not a switch.} R resolves a function's
-#'   default arguments inside the package, not in your session, so assigning to
-#'   a copy of \code{tutplot_opts} changes nothing:
+#' This list is for reference only. Changing a copy has no effect, because a
+#' function's defaults are looked up inside the package. Pass the value you
+#' want instead:
 #'
-#'   \preformatted{
-#'   opts <- tutplot_opts
-#'   opts$pointsize <- 12
-#'   tutplot_gini()                          # still 9 point
-#'   tutplot_gini(pointsize = opts$pointsize) # 12 point
-#'   }
+#' ```
+#' tutplot_gini(pointsize = 12)
+#' ```
 #'
-#'   Look the values up here, then pass the ones you want to change.
+#' @format A list of nine settings:
+#' * `col`: 4.30 x 3.06 inches, one column of the paper's two-column layout.
+#' * `full`: 5.55 x 3.95 inches, the full text width. Not used yet.
+#' * `pointsize`: 9. Raise it when you enlarge a figure, or the text stays
+#'   small.
+#' * `mar_plain`, `mar_legend`: Margins. The legend version has more room on
+#'   top.
+#' * `mgp`, `tcl`, `cex_axis`: Axis placement, tick length and label size.
+#' * `viridis_end`: 0.85. Stops before viridis's yellow, which vanishes as a
+#'   line on white.
 #'
-#'   \strong{The values.} Two float widths, measured from the typeset
-#'   manuscript, in inches:
-#'
-#'   \describe{
-#'     \item{\code{col}}{4.30 wide by 3.06 high -- one column of the paper's
-#'       two-column layout. Every figure extracted so far uses it.}
-#'     \item{\code{full}}{5.55 wide by 3.95 high -- the full text width, for the
-#'       two decision-boundary plots the manuscript sets as \code{figure*}.
-#'       \strong{Unused for now}: those two figures are the ones still to be
-#'       extracted.}
-#'     \item{\code{pointsize}}{9. Drawing at print size is what keeps the labels
-#'       legible; enlarging a figure without raising this leaves the type
-#'       behind.}
-#'     \item{\code{mar_plain}, \code{mar_legend}}{Margins. They differ only in
-#'       the third element, 1.9 against 3.0: a figure whose legend sits above
-#'       the panel needs the extra room up top.}
-#'     \item{\code{mgp}, \code{tcl}, \code{cex_axis}}{Axis placement, tick
-#'       length and axis type size. R's defaults would leave almost no room to
-#'       plot in at this size.}
-#'     \item{\code{viridis_end}}{0.85. Stops short of viridis's yellow, which is
-#'       invisible as a line on white.}
-#'   }
-#'
-#' @format A list of nine settings, described above.
-#'
-#' @seealso \code{\link[adatutor]{tutplot}}, the functions that use them.
-#'
+#' @family tutorial plots
 #' @export
 tutplot_opts <- list(
   col = c(width = 3.44 * 1.25, height = 2.45 * 1.25),

@@ -2,41 +2,27 @@
 % Please edit documentation in R/viridis-tree.R
 \name{viridis_tree}
 \alias{viridis_tree}
-\title{Viridis Colors for an rpart Tree}
+\title{Viridis colors for an rpart tree}
 \usage{
 viridis_tree(fit, palette = viridisLite::viridis, n = 100)
 }
 \arguments{
-\item{fit}{An \code{\link[rpart]{rpart}} object fitted with
-\code{method = "class"}.}
+\item{fit}{A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}.}
 
-\item{palette}{A palette function taking a count and returning that many
-colors. Defaults to \code{\link[viridisLite]{viridis}}.}
+\item{palette}{A function that takes a count and returns that many colors.
+Defaults to \code{\link[viridisLite:viridis]{viridisLite::viridis()}}.}
 
-\item{n}{The number of steps to cut the scale into. Defaults to 100.}
+\item{n}{The number of steps in the color scale. Defaults to 100.}
 }
 \value{
-A list with \code{box} and \code{text}, both character vectors with
-one entry per node of \code{fit}, in the order \code{rpart} stores them.
+A list with \code{box} and \code{text}, each with one color per node of
+\code{fit}, in rpart's node order.
 }
 \description{
-Builds the two color vectors \code{\link[rpart.plot]{rpart.plot}}
-needs to draw a classification tree on the viridis scale: one fill per node,
-taken from the node's fitted probability, and one text color per node,
-chosen so the label stays legible on that fill.
-}
-\details{
-Passing viridis to \code{rpart.plot}'s own \code{box.palette} does
-not work. Roughly half the scale is too dark for the black node text, so the
-labels in the darkest boxes disappear. \code{box.col} and \code{col} both
-accept one value per node, which is what this function supplies: the full
-scale is available for the boxes because the text turns white wherever the
-box is dark.
-
-The mapping is also absolute rather than relative. \code{box.palette} splits
-the fitted values at their quantiles, so the same probability draws a
-different color in different trees. Here a node at .65 is the same color in
-every tree.
+Builds the node fill and text colors that \code{\link[rpart.plot:rpart.plot]{rpart.plot::rpart.plot()}} needs
+to draw a classification tree on the viridis scale. Each fill comes from
+the node's fitted probability, and the text turns white on dark fills so it
+stays readable. The same probability gets the same color in every tree.
 }
 \examples{
 data(altmejd)
@@ -49,3 +35,11 @@ sty <- viridis_tree(cstump)
 rpart.plot::rpart.plot(cstump, box.col = sty$box, col = sty$text)
 
 }
+\seealso{
+Other tutorial plots:
+\code{\link[=gauge]{gauge()}},
+\code{\link{tutplot}},
+\code{\link[=tutplot_boundary]{tutplot_boundary()}},
+\code{\link{tutplot_opts}}
+}
+\concept{tutorial plots}

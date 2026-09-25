@@ -3,77 +3,64 @@
 \docType{data}
 \name{hypergrid}
 \alias{hypergrid}
-\title{AdaBoost hyperparameter search by leave-project-out cross-validation}
+\title{AdaBoost grid search by leave-project-out cross-validation}
 \format{
-An object of class \code{"lpocv"}; see
-\code{\link[adatutor]{lpocv}} for the full structure.
-
-\describe{
-\item{estimates}{A numeric array of 960 x 5 x 15 -- 72,000 estimates,
-dimensions \code{setting}, \code{project} and \code{metric}. \code{NA}
-marks a measure that is undefined rather than missing: \code{ppv} has no
-value when a model predicts no positives at all, which happens on the
-smallest projects at \code{T = 10}. Four cells are \code{NA} and
-\code{auroc} is always present.}
-\item{grid}{The 960 settings: \code{depth} 1 to 4, \code{T} 10 to 1000,
-\code{eta} 0.02 to 1, and \code{cp} 0 or 0.01 -- the base learners'
-complexity parameter, tuned as a grid column rather than fixed per run.}
-\item{projects}{Each held-out project with its \code{n} study effects and
-its \code{base_rate}, the share of replication successes.}
-\item{model}{The learner, always \code{"adaboost"} here.}
+An object of class \code{lpocv} (see \code{\link[=lpocv]{lpocv()}}):
+\itemize{
+\item \code{estimates}: An array of 960 settings x 5 projects x 15 measures. \code{NA}
+marks an undefined measure, such as \code{ppv} when a model predicts no
+positives. \code{auroc} is never \code{NA}.
+\item \code{grid}: The 960 settings: \code{depth} 1 to 4, \code{T} 10 to 1000, \code{eta} 0.02 to
+1, and \code{cp} 0 or 0.01.
+\item \code{projects}: Each project's \code{n} and \code{base_rate}.
+\item \code{model}: Always \code{"adaboost"}.
 }
-
-Call \code{\link[base]{as.data.frame}} on it for the same 72,000 values as
-one long table, one row per setting, project and measure.
 }
 \description{
-Every setting of a 480-row AdaBoost grid, scored on every
-replication project by leave-project-out cross-validation, under each of
-two tree complexity parameters. Produced by \code{data-raw/hypergrid.R}.
+Every setting of a 480-row AdaBoost grid, scored on every replication
+project by leave-project-out cross-validation, under two values of the tree
+complexity parameter \code{cp}. Made by \code{data-raw/hypergrid.R}.
 }
 \details{
-The estimates are deliberately stored per project and per measure
-rather than summarised. Averaging them across projects is a ranking device,
-not a performance estimate: the folds hold 10, 13, 18, 21 and 90
-studies and
-share most of their training data, so a mean over them hides both the
-imbalance and the dependence. See \code{\link[adatutor]{lpocv}}.
+The search is plain, not nested: the best average is chosen and graded on
+the same five projects, which is optimistic on a grid this size. Quote
+\link{hypernested} instead. The mean over projects is fine for ranking settings,
+but it is not a performance estimate (see \code{\link[=lpocv]{lpocv()}}).
 
-The search is \emph{plain}, not nested, so the best average over the grid
-is selected and graded on the same five projects. On a grid this size that
-optimism is large; \code{\link[adatutor]{hypernested}} is the honest
-figure.
-
-\code{cp} is the only tree control that varies. It is the reason a base
-learner can come back as a bare root that never splits, which happens most
-in the low-\code{eta} corner: at \code{eta = 0.02} and \code{depth = 1},
-135 of 300 learners do nothing, against 41 at \code{eta = 1}.
+Paired over the settings, \code{cp = 0} trails \code{cp = 0.01} by .0044 in mean
+AUROC (95 percent CI .0021 to .0067). The whole gap is at depth 4 (-.0152,
+95 percent CI -.0214 to -.0090). At depth 1 there is no difference
+(+.0001, 95 percent CI -.0012 to .0014).
 }
 \examples{
 data(hypergrid)
 
-# One measure across every setting and project: a 960 x 5 matrix
+# one measure across every setting and project: a 960 x 5 matrix
 au <- hypergrid$estimates[, , "auroc"]
 dim(au)
 
-# `grid` says what each row of that matrix is, so the two travel together
+# `grid` says what each row of that matrix is
 g <- hypergrid$grid
 head(cbind(g, round(au, 3)), 3)
 
-# One setting, sorted across projects
+# one setting, sorted across projects
 i <- which(g$depth == 1 & g$T == 1000 & g$eta == 0.15 & g$cp == 0.01)
 sort(au[i, ], decreasing = TRUE)
 
-# The mean over projects ranks settings; it does not estimate performance,
-# because the folds hold 10 to 90 studies and share most of their training
-# data. `hypernested` is the figure to quote.
+# the mean over projects ranks settings; it does not estimate performance
 m <- rowMeans(au)
 g[which.max(m), ]
 
-# The whole long table, if an idiom wants one row per estimate
+# the whole long table, one row per estimate
 str(as.data.frame(hypergrid))
 
 }
 \seealso{
-\code{\link[adatutor]{lpocv}}, \code{\link[adatutor]{assess}}
+Other datasets:
+\code{\link{altmejd}},
+\code{\link{altmejd723}},
+\code{\link{altmejd_splits}},
+\code{\link{hypernested}},
+\code{\link{ssrp723}}
 }
+\concept{datasets}

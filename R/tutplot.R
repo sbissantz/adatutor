@@ -1,144 +1,77 @@
-#' @title Redraw the Tutorial's Manuscript Figures
+#' Redraw the tutorial's manuscript figures
 #'
-#' @description Draws a figure from the AMPPS tutorial. These live in the
-#'   package, rather than in a vignette that never executes, so that the code
-#'   behind every printed figure is documented and under test.
+#' Draws a figure from the AMPPS tutorial. The code lives in the package, not
+#' in a vignette, so every printed figure is documented and tested.
 #'
-#' @details \strong{Where the output goes.} With the default \code{file = NULL}
-#'   nothing opens a device and the figure is drawn on the current one, which is
-#'   what an interactive session and the vignette want. Give a path and a
-#'   \code{pdf()} device is opened at the size below and closed again on exit.
+#' * `tutplot_cstump()`: a classification stump.
+#' * `tutplot_gini()`: Gini impurity by class proportion.
+#' * `tutplot_updatefactor()`: the factor by which one round multiplies an
+#'   observation's weight.
+#' * `tutplot_importance()`: the model weight a stump earns, by its
+#'   performance.
+#' * `tutplot_weightone()`: observation weights before and after one round.
+#' * `tutplot_lpocv()`: the leave-project-out cross-validation scheme.
 #'
-#'   Note that a headless session (\code{Rscript}, \code{R CMD build},
-#'   \code{testthat}) has no current device, so R opens its default one and
-#'   writes \code{Rplots.pdf} into the working directory. That is ordinary R
-#'   behavior rather than anything these functions do, but it is why the tests
-#'   wrap their calls in \code{pdf(NULL)}.
+#' @section Output:
+#' With `file = NULL` (the default), the figure is drawn on the current
+#' device. With a path, a PDF is written at the manuscript's size. `width`,
+#' `height` and `pointsize` apply only then; raise `pointsize` when you
+#' enlarge `width`. A session without a device, such as `Rscript`, writes
+#' `Rplots.pdf`, which is ordinary R behavior.
 #'
-#'   \strong{Size applies only when a file is written.} On the current device
-#'   the device decides. \code{width}, \code{height} and \code{pointsize} are
-#'   \code{grDevices::pdf()}'s arguments unchanged, defaulting to the
-#'   manuscript's own geometry. Enlarging \code{width} without raising
-#'   \code{pointsize} leaves the type at 9 point, which is the mistake the
-#'   printed sizes are chosen to avoid.
+#' To draw a weighted stump, pass the fit that was grown with the weights; the
+#' weights travel with the fit.
 #'
-#'   \strong{One figure sets its own margins.} Every function here shares the
-#'   margins in \code{\link[adatutor]{tutplot_opts}} except
-#'   \code{\link[adatutor]{tutplot_boundary}}, which computes its top margin
-#'   from what it actually draws -- a legend, a sub-title and a title are each
-#'   paid for only if present -- so imposing a fixed \code{mar} would either
-#'   crop the legend or leave a gap above it. It is also the only figure at the
-#'   manuscript's full text width rather than one column, which is why it is
-#'   documented on a page of its own.
+#' @param fit A classification stump from [rpart::rpart()].
+#' @param extra Node labels, passed to `rpart.plot::rpart.plot()`. The
+#'   manuscript uses 102, and 100 for the weighted stump.
+#' @param file A path to write a PDF to, or `NULL` to draw on the current
+#'   device.
+#' @param x_seq The class proportions at which to evaluate the Gini curve,
+#'   between 0 and 1.
+#' @param lwd The line width.
+#' @param alpha The model weights, one curve each.
+#' @param pch The plotting symbols for the end points, recycled over `alpha`.
+#' @param lty The line types, recycled over the curves.
+#' @param ylim The vertical range. Defaults to the manuscript's.
+#' @param eta The learning rates, one curve each.
+#' @param from Where performance starts. The default, 0.5, is chance.
+#' @param mark_perf A performance to mark on the figure, so you can find your
+#'   own stump. `NULL` draws no mark. Must be at least `from` and below 1.
+#' @param mark_eta The curve the mark belongs to. Defaults to the first.
+#' @param data The training data for the first boosting round, used when `d1`
+#'   and `d2` are `NULL`.
+#' @param d1,d2 The observation weights before and after one round. `NULL`
+#'   computes them from `data`.
+#' @param chi `+1` where the learner was right and `-1` where it was wrong,
+#'   like the tutorial's `chi1`. Required when you pass `d1` or `d2`, because
+#'   the weights alone cannot show which points were missed.
+#' @param n The number of data points to draw. 25 fits a column.
+#' @param scaling The bubble size multiplier.
+#' @param group One project label per row, as [lpocv()] takes it.
+#' @param proportional Whether to size the rows by project. `TRUE` (the
+#'   default) shows the imbalance: one project holds 59 percent of the rows.
+#'   `FALSE` draws the equal blocks the manuscript prints.
+#' @param levels The project order, top to bottom. `NULL` uses a factor's
+#'   levels or the order of first appearance.
+#' @param width,height,pointsize Passed to [grDevices::pdf()]; ignored when
+#'   `file` is `NULL`.
 #'
-#'   \strong{Weights come from the fit.} A fitted \code{rpart} object already
-#'   carries the observation weights it was built with, and neither
-#'   \code{\link[adatutor]{viridis_tree}} nor \code{rpart.plot::rpart.plot()}
-#'   consults them separately. So the weighted stump of the manuscript's
-#'   \code{fig:cstumpwght} is drawn by handing this function that fit, not by
-#'   passing weights alongside it.
+#' @return Invisibly, the facts the figure's caption states, so tests can
+#'   check them. `tutplot_cstump()` returns the fit, the split variable, the
+#'   cutpoint and the leaf sizes; `tutplot_gini()` the curve and its peak;
+#'   `tutplot_lpocv()` the project sizes, their count, the order and the row
+#'   heights.
 #'
-#' @param fit A fitted model. \code{tutplot_cstump()} draws a tree, so it takes
-#'   an \code{\link[rpart]{rpart}} stump only.
-#'
-#' @param extra Node annotation, passed to \code{rpart.plot::rpart.plot()}. The
-#'   manuscript uses \code{102} for \code{fig:cstump} and the simplified
-#'   \code{100} for \code{fig:cstumpwght}.
-#'
-#' @param file Path to write a PDF to, or \code{NULL} to draw on the current
-#'   device. A full path rather than a directory, because one function draws
-#'   more than one of the manuscript's figures.
-#'
-#' @param x_seq The proportions the Gini curve is evaluated at. Must lie in
-#'   \eqn{[0, 1]}, since it is a proportion of one class. The default steps by
-#'   0.01, which is smooth at print size; coarsen it to show the curve as a
-#'   series of evaluated points rather than a line.
-#'
-#' @param lwd Line width of the curve, passed to \code{plot()}.
-#'
-#' @param alpha One model weight per curve. \code{tutplot_updatefactor()} draws
-#'   a curve and its two end points from each, so a marker cannot sit off the
-#'   line it belongs to.
-#'
-#' @param pch Plotting characters for the end points, recycled across
-#'   \code{alpha}.
-#'
-#' @param lty Line type of the curves. The legend keys inherit it, along with
-#'   \code{lwd}, so the two cannot disagree. Recycled across the curves, which
-#'   is why \code{tutplot_importance()} carries a fourth entry: a reader who
-#'   splices their own learning rate into the three reference ones gets four
-#'   curves, and three line types would give the first and the fourth the same
-#'   one.
-#'
-#' @param ylim Vertical range. Defaults to the manuscript's, so the default call
-#'   reproduces the printed figure; a different \code{alpha} may want another.
-#'
-#' @param eta One learning rate per curve. \code{tutplot_importance()} sizes its
-#'   panel from every curve rather than from the first, so the order they are
-#'   given in cannot clip one of them.
-#'
-#' @param from Where performance starts. The default 0.5 is chance, where a
-#'   stump earns no importance at all.
-#'
-#' @param mark_perf A learner's performance, marked on the figure so a reader
-#'   can find their own stump in it. \code{NULL} draws no mark. Must lie in
-#'   \eqn{[from, 1)}: at chance the importance is zero, and at perfect
-#'   performance it is infinite.
-#'
-#' @param mark_eta Which curve the mark belongs to. Defaults to the first, which
-#'   is the learning rate the tutorial uses.
-#'
-#' @param data Training data the first boosting round is computed from when
-#'   \code{d1} and \code{d2} are left \code{NULL}.
-#'
-#' @param d1,d2 Observation weights before and after one round of boosting.
-#'   \code{NULL} computes them from \code{data}.
-#'
-#' @param chi Which points the learner got right: \code{+1} where it was
-#'   correct, \code{-1} where it was not, as the tutorial's \code{chi1}.
-#'   \strong{Required whenever \code{d1} or \code{d2} is supplied.} Weights
-#'   alone cannot say which points were missed: a round grows the misclassified
-#'   ones only while the learner beats chance, and grows the correctly
-#'   classified ones below that. The grown set is the minority either way, so
-#'   not even its size tells the two apart.
-#'
-#' @param n How many data points to draw. 25 is what fits a column.
-#'
-#' @param scaling Bubble size multiplier.
-#'
-#' @param group One project label per row of the data, as
-#'   \code{\link[adatutor]{lpocv}} takes it. \code{tutplot_lpocv()} derives
-#'   everything from it: one iteration per project, and the block sizes from
-#'   how much data each project holds.
-#'
-#' @param proportional Whether the rows are sized by project. \code{TRUE}, the
-#'   default, makes the imbalance visible -- in the tutorial's own data one
-#'   project is 59\% of the rows, so its fold trains on 62 studies and tests on
-#'   90. \code{FALSE} draws the equal blocks the manuscript prints, which imply
-#'   five comparable folds.
-#'
-#' @param levels The project order, top to bottom. \code{NULL} takes a factor's
-#'   own levels, or a character vector's order of appearance. Given explicitly
-#'   it fixes the order, which is what the manuscript's figure needs:
-#'   \code{table()} would sort alphabetically and silently rearrange it.
-#'
-#' @param width,height,pointsize Passed to \code{grDevices::pdf()}; ignored when
-#'   \code{file} is \code{NULL}.
-#'
-#' @return Invisibly, the facts the figure's caption states, so a caller can
-#'   assert on the numbers rather than on the existence of a file.
-#'   \code{tutplot_cstump()} returns the fit, the variable split on, its
-#'   cutpoint and the leaf sizes; \code{tutplot_gini()} returns the curve it
-#'   drew and the proportion at which impurity peaks;
-#'   \code{tutplot_lpocv()} returns the project sizes, their count, the order
-#'   drawn and the row heights.
+#' @family tutorial plots
+#' @seealso [tutplot_boundary()] for Figures 3 and 9.
 #'
 #' @examples
 #' data(altmejd_splits)
 #' train <- altmejd_splits$train
 #'
-#' # The stump behind Figure 2: two reviewer metrics, so the decision boundary
-#' # of Figure 3 can be drawn in two dimensions
+#' # the stump behind Figure 2, on two reviewer metrics so Figure 3 can draw
+#' # its boundary in two dimensions
 #' h <- rpart::rpart(
 #'   replicate ~ power.o + n.o,
 #'   data = train,
@@ -149,7 +82,7 @@
 #' facts$variable
 #' facts$leaves
 #'
-#' # Figure 4 needs nothing at all -- it is arithmetic, not a model
+#' # Figure 4 needs no model: it is arithmetic
 #' gini <- tutplot_gini()
 #' gini$peak
 #'
@@ -157,9 +90,6 @@
 #' data(altmejd)
 #' folds <- tutplot_lpocv(altmejd$pid)
 #' folds$n
-#'
-#' @seealso \code{\link[adatutor]{tutplot_boundary}} for Figures 3 and 9, which
-#'   set their own margins and so are documented separately.
 #'
 #' @name tutplot
 #' @keywords internal
@@ -618,140 +548,66 @@ tutplot_weightone <- function(
   invisible(list(d1 = d1, d2 = d2, chi = chi, wrong = wrong, n = n))
 }
 
-#' @title Plot a Two-Feature Decision Boundary
+#' Plot a two-feature decision boundary
 #'
-#' @description Draws the region each class is assigned to over a grid of two
-#'   features, with the boundary between them and the observed data on top.
-#'   Takes either a single \code{rpart} tree or an ensemble from
-#'   \code{\link[adatutor]{adaboost}} -- the two learners this package builds,
-#'   which is why the name says so rather than promising to plot any model.
-#'   This is the manuscript's Figure 3 and Figure 9: the same call, a stump in
-#'   one and a thousand-round ensemble in the other.
+#' Draws the region each class is assigned to over a grid of two features,
+#' with the boundary between them and the data on top. Takes a single rpart
+#' tree or an [adaboost()] ensemble. This is the manuscript's Figures 3 and 9:
+#' the same call, with a stump in one and a 1000-round ensemble in the other.
 #'
-#' @details
-#' \strong{The boundary is drawn from a continuous score, not from class
-#' labels.} Both learners are reduced to a signed quantity whose zero \emph{is}
-#' the boundary -- the margin for an ensemble, the fitted probability minus one
-#' half for a tree -- and the line is that quantity's zero contour. Contouring
-#' hard class labels instead gives a staircase whose fineness depends entirely
-#' on the grid, which is the usual reason such plots are drawn at punishing
-#' resolutions. Interpolating a continuous score needs far fewer points for a
-#' smoother line: on the tutorial's own ensemble, \code{resolution = 120} on the
-#' margin beats \code{resolution = 400} on labels.
+#' @section Shading:
+#' The boundary is the zero line of a continuous score: the margin for an
+#' ensemble, and the fitted probability minus 0.5 for a tree. That gives a
+#' smooth line at a modest `resolution`.
 #'
-#' That is why the default is 150. Cost grows with the square: a 1000 x 1000
-#' grid is a million predictions, and for 500 trees
-#' \code{\link[=predict.adaboost]{predict()}} would build a 3.7 GB matrix to
-#' hold them.
+#' `shade = "class"` tints each side in a flat color. `shade = "margin"` (the
+#' default) lays the viridis scale over the score, centered on zero, so the
+#' classes sit at its ends and uncertainty sits in the middle. For a tree, the
+#' scale is fixed at -0.5 to 0.5, so a color always means the same
+#' probability. For an ensemble, it runs to the largest margin, so colors
+#' compare within a plot but not across plots.
 #'
-#' \strong{Two ways to shade.} \code{shade = "class"} tints each side in a flat
-#' colour: which class, and nothing more. \code{shade = "margin"} shows what
-#' that discards, because the model computes a continuous score and then throws
-#' away everything but its sign. The whole viridis scale is laid over the score
-#' and centred on zero, so the two classes occupy its ends and its middle falls
-#' exactly where the model has no strong vote: uncertainty reads as a colour of
-#' its own rather than as an absence of one. The studies are drawn at full
-#' strength on top, so they stay the most saturated thing on the panel.
+#' A stump has one split, so it shows two flat blocks; an ensemble shows a
+#' surface. That contrast is what boosting buys.
 #'
-#' The default here is \code{"margin"}, because both printed boundaries are
-#' shaded by the score: it is what makes the stump's two flat blocks and the
-#' ensemble's many-valued surface comparable.
+#' @param fit An rpart tree or an [adaboost()] fit.
+#' @param data A data frame with the two features and the outcome. It sets the
+#'   plotting range and supplies the points.
+#' @param features The names of the two features. The default, `NULL`, works
+#'   when the model has exactly two predictors and stops otherwise.
+#' @param shade `"margin"` (the default) or `"class"`. See the section on
+#'   shading.
+#' @param resolution Grid points per axis. Defaults to 150. The cost grows
+#'   with its square.
+#' @param palette Two colors, for the negative and the positive class.
+#'   Defaults to `viridisLite::viridis(2)`.
+#' @param alpha The opacity of the fill. Defaults to 0.18 for `"class"` and
+#'   0.65 for `"margin"`.
+#' @param show_points Whether to draw the data. Defaults to `TRUE`.
+#' @param legend_pos Where to put the legend. The default, `"top"`, puts it
+#'   above the panel; any other [graphics::legend()] keyword puts it inside.
+#'   `NULL` leaves it out.
+#' @param colorbar Whether `shade = "margin"` draws a color bar in place of the
+#'   legend. Defaults to `TRUE`.
+#' @param main,subtitle An optional title and gray subtitle above the panel.
+#' @param xlab,ylab Axis labels. `NULL` (the default) uses the feature names.
+#' @param file A path to write a PDF to, or `NULL` to draw on the current
+#'   device.
+#' @param width,height,pointsize Passed to [grDevices::pdf()]; ignored when
+#'   `file` is `NULL`. They default to the full text width.
+#' @param ... Passed to [graphics::plot()].
 #'
-#' \strong{What the ends of the scale mean.} They depend on how far the score
-#' can reach, and the two model types differ. A tree's score is a probability
-#' offset, bounded to \code{[-0.5, 0.5]}, so the scale is anchored there and a
-#' region's colour has a fixed reading: a stump splitting .26 / .76 shows two
-#' moderate tones, because that is what it is. Stretching such a score to fill
-#' the ramp would paint a hesitant model as a confident one, and would paint it
-#' identically whether it split .26 / .76 or .02 / .98. A boosted margin has no
-#' such bound -- its range depends on \code{T} and \code{eta} -- so there the
-#' scale still takes the observed maximum, and colours are comparable within a
-#' plot but not across two.
+#' @return Invisibly, the grid: the two axis sequences, the matrix of scores
+#'   and the feature names.
 #'
-#' A depth-1 stump has one split, so its score takes exactly two values and the
-#' panel is two flat blocks. That is the model, not a limitation of the plot:
-#' the number of distinct shades is the number of leaves. Set against a boosted
-#' ensemble, whose margin takes hundreds of values over the same grid, the
-#' contrast is the clearest picture of what boosting buys.
-#'
-#' \strong{This figure sets its own margins.} The other six figures share the
-#' margins in \code{\link[adatutor]{tutplot_opts}}; this one computes its top
-#' margin from what it actually draws -- a legend, a sub-title and a title are
-#' each paid for only if present -- so a fixed \code{mar} would either crop the
-#' legend or leave a gap above it. It is also the only figure drawn at the
-#' manuscript's full text width rather than one column.
-#'
-#' @param fit A fitted model: an \code{rpart} object, or the list returned by
-#'   \code{\link[adatutor]{adaboost}}.
-#'
-#' @param data A data frame holding the two features and the outcome. Sets the
-#'   plotting range and supplies the points. Required for both learners -- an
-#'   ensemble does carry its training data, but an \code{rpart} tree carries
-#'   none, and a default that worked for only one of the two figures would be
-#'   worse than no default.
-#'
-#' @param features A character vector naming the two features. The default
-#'   \code{NULL} uses the model's predictors when there are exactly two, and is
-#'   an error otherwise: with three or more there is no way to know which pair
-#'   the reader should see, and the rest would sit at some arbitrary value.
-#'
-#' @param shade Either \code{"margin"} (the default) or \code{"class"}. See
-#'   Details.
-#'
-#' @param resolution Grid points per axis. Defaults to 150.
-#'
-#' @param palette Two colours, for the negative and positive class. Defaults to
-#'   \code{viridisLite::viridis(2)}.
-#'
-#' @param alpha Opacity of the region fill. Defaults to 0.18 for
-#'   \code{shade = "class"}, where a flat tint only has to hint at which side is
-#'   which, and 0.65 for \code{shade = "margin"}, where the ramp has to be read.
-#'
-#' @param show_points Whether to draw the observed data. Defaults to
-#'   \code{TRUE}.
-#'
-#' @param legend_pos Where to put the class legend. The default \code{"top"}
-#'   centres it in the margin \emph{above} the panel, where it cannot cover a
-#'   study; any other keyword accepted by \code{\link[graphics]{legend}} places
-#'   it inside instead. \code{NULL} omits it.
-#'
-#' @param colorbar Whether \code{shade = "margin"} draws the scale strip. It
-#'   takes the legend's place rather than sitting alongside it: the ramp's two
-#'   ends are the two classes, so a separate point legend would repeat it.
-#'   Suppressed along with the legend when \code{legend_pos} is \code{NULL}.
-#'   Defaults to \code{TRUE}.
-#'
-#' @param main,subtitle Optional title and grey sub-title, both left-aligned
-#'   above the panel. Both default to \code{NULL} and draw nothing, since a
-#'   figure in a paper takes its title from the caption.
-#'
-#' @param xlab,ylab Axis labels. Default to \code{NULL}, which draws the feature
-#'   names. The manuscript's wording is passed at the call site rather than
-#'   baked in, so plotting a different pair of features cannot mislabel the
-#'   axes.
-#'
-#' @param file Path to write a PDF to, or \code{NULL} to draw on the current
-#'   device, as in \code{\link[adatutor]{tutplot}}.
-#'
-#' @param width,height,pointsize Passed to \code{grDevices::pdf()}; ignored when
-#'   \code{file} is \code{NULL}. They default to the manuscript's full text
-#'   width.
-#'
-#' @param ... Passed to \code{\link[graphics]{plot}}.
-#'
-#' @return The grid, invisibly: the two axis sequences, the matrix of scores and
-#'   the feature names, so the surface can be inspected or redrawn without
-#'   recomputing it.
-#'
-#' @seealso \code{\link[adatutor]{tutplot}} for the tutorial's other six
-#'   figures.
+#' @family tutorial plots
+#' @seealso [tutplot] for the other figures.
 #'
 #' @examples
 #' data(altmejd_splits)
 #' train <- altmejd_splits$train
 #'
-#' # Figure 3: the stump of Figure 2, now as the boundary it draws. Two metrics
-#' # only, so the boundary can be drawn in two dimensions
+#' # Figure 3: the stump of Figure 2, drawn as the boundary it makes
 #' h <- rpart::rpart(
 #'   replicate ~ power.o + n.o,
 #'   data = train,
@@ -761,13 +617,10 @@ tutplot_weightone <- function(
 #' grid <- tutplot_boundary(h, train, resolution = 60)
 #' grid$features
 #'
-#' # What the margin shading buys: a stump has one split, so `"class"` and
-#' # `"margin"` differ only in tone here -- run it on Figure 9's ensemble and
-#' # the second becomes a surface
+#' # flat tints instead of the margin scale
 #' tutplot_boundary(h, train, resolution = 60, shade = "class")
 #'
 #' @keywords internal
-#'
 #' @export
 tutplot_boundary <- function(
   fit,
@@ -1032,27 +885,12 @@ tutplot_boundary <- function(
   invisible(list(x1 = x1, x2 = x2, z = z, features = features))
 }
 
-#' @title Internal Helpers for tutplot_boundary()
-#'
-#' @description Not exported. \code{boundary_terms()} reads predictor and
-#'   outcome names off a fitted model, \code{boundary_score()} reduces either
-#'   supported learner to a signed score whose zero is the boundary,
-#'   \code{boundary_top()} says how far the colour scale should reach, and
-#'   \code{boundary_labels()} recovers the class names for the region labels.
-#'
-#' @param fit,newdata,data,outcome,z Internal arguments; see
-#'   \code{\link[adatutor]{tutplot_boundary}}.
-#'
-#' @return \code{boundary_terms()} returns a list; \code{boundary_score()} a
-#'   numeric vector; \code{boundary_top()} a single number;
-#'   \code{boundary_labels()} a character pair or \code{NULL}.
-#'
-#' @name boundary_helpers
-#'
-#' @keywords internal
+#' Internal helpers for tutplot_boundary()
+#' @noRd
 NULL
 
-#' @rdname boundary_helpers
+#' Read predictor and outcome names off a fitted model
+#' @noRd
 boundary_terms <- function(fit) {
   # the stored formula may be `outcome ~ .`; the fitted trees carry the names
   tm <- if (inherits(fit, "rpart")) {
@@ -1074,7 +912,8 @@ boundary_terms <- function(fit) {
   list(predictors = attr(tm, "term.labels"), outcome = all.vars(tm)[1L])
 }
 
-#' @rdname boundary_helpers
+#' Reduce a tree or an ensemble to a signed score whose zero is the boundary
+#' @noRd
 boundary_score <- function(fit, newdata) {
   if (inherits(fit, "rpart")) {
     prob <- stats::predict(fit, newdata = newdata, type = "prob")
@@ -1084,7 +923,8 @@ boundary_score <- function(fit, newdata) {
   predict(fit, newdata, type = "margin", verbose = FALSE, input_checks = FALSE)
 }
 
-#' @rdname boundary_helpers
+#' How far the color scale should reach
+#' @noRd
 boundary_top <- function(fit, z) {
   # a tree's score lies in [-0.5, 0.5], so anchor the scale for a fixed
   # reading; a boosted margin depends on T and eta, so use its observed maximum
@@ -1094,7 +934,8 @@ boundary_top <- function(fit, z) {
   max(abs(z), na.rm = TRUE)
 }
 
-#' @rdname boundary_helpers
+#' Recover the class names for the region labels
+#' @noRd
 boundary_labels <- function(data, outcome) {
   if (is.null(outcome) || !outcome %in% names(data)) {
     return(NULL)
@@ -1103,10 +944,8 @@ boundary_labels <- function(data, outcome) {
   if (is.factor(v)) levels(v) else c("0", "1")
 }
 
-#' @rdname boundary_helpers
-#'
-#' @param alpha,labels Internal arguments; see
-#'   \code{\link[adatutor]{tutplot_boundary}}.
+#' Draw the margin color bar above the panel
+#' @noRd
 boundary_colorbar <- function(alpha, labels) {
   # centered in the margin above the panel like the class legend; its ends
   # carry the class names, so no caption

@@ -55,4 +55,11 @@ imp
 plot(imp)
 
 }
+\seealso{
+Other tutorial plots:
+\code{\link{tutplot}},
+\code{\link[=tutplot_boundary]{tutplot_boundary()}},
+\code{\link{tutplot_opts}},
+\code{\link[=viridis_tree]{viridis_tree()}}
+}
 \concept{tutorial plots}
