@@ -1,189 +1,94 @@
-#' @title Assess Classification Performance
+#' Assess classification performance
 #'
-#' @description Computes a bundle of performance measures from a vector of true
-#'   labels and a vector of continuous scores. Most measures are read off a
-#'   single confusion matrix, obtained by cutting the score at
-#'   \code{threshold}; three summarize the score's whole ranking instead.
+#' Computes performance measures from true labels and continuous scores. Most
+#' measures come from one confusion matrix, made by cutting the scores at
+#' `threshold`. The rest (`auroc`, `auprc` and the `patk` family) use the
+#' whole ranking of the scores, so a confusion matrix cannot give them.
 #'
-#' @details
-#' \strong{\code{score} must be continuous, never class labels.} This is the
-#' easiest mistake to make here and the most expensive. Hard labels take only
-#' two values, which collapses the ROC curve to a single interior point whose
-#' area is exactly \eqn{(\text{sens} + \text{spec}) / 2} -- so \code{auroc}
-#' comes back as balanced accuracy, silently and without an error. With
-#' \code{\link[=predict.adaboost]{predict()}}, that means
-#' \code{type = "margin"} rather than \code{type = "class"}.
+#' @section Use scores, not class labels:
+#' `score` must be continuous. Class labels have only two values, so the ROC
+#' curve shrinks to a single point and `auroc` quietly becomes balanced
+#' accuracy. With [predict.adaboost()], use `type = "margin"`.
 #'
-#' \strong{Why \code{score} and not \code{predicted}.} A margin computed on
-#' training data and one computed on test data are both scores, so the argument
-#' is deliberately neutral between prediction and retrodiction. That distinction
-#' belongs in the variable you pass -- \code{yretro} against \code{ypred} -- not
-#' in the parameter.
+#' @section Measures:
+#' At the threshold, from the counts `tp`, `tn`, `fp` and `fn`:
+#' * `sens`: TP / (TP + FN). Also called true positive rate, recall or hit
+#'   rate.
+#' * `spec`: TN / (TN + FP). Also called true negative rate. 1 - `spec` is the
+#'   false positive rate, or false-alarm rate.
+#' * `ppv`: TP / (TP + FP). Also called precision.
+#' * `npv`: TN / (TN + FN).
+#' * `acc`: (TP + TN) / (TP + TN + FP + FN).
+#' * `bacc`: (`sens` + `spec`) / 2, the same as (J + 1) / 2 with Youden's J.
+#' * `f1`: 2TP / (2TP + FP + FN), the harmonic mean of `ppv` and `sens`. The
+#'   same formula as the Dice coefficient.
+#' * `mcc`: \eqn{(TP \cdot TN - FP \cdot FN) /
+#'   \sqrt{(TP + FP)(TP + FN)(TN + FP)(TN + FN)}}{(TP x TN - FP x FN) /
+#'   sqrt((TP + FP)(TP + FN)(TN + FP)(TN + FN))}. This is the phi coefficient,
+#'   the correlation between true and predicted labels (Chicco & Jurman, 2020).
 #'
-#' \strong{How the two methods compose.} \code{assess()} cuts the score once with
-#' \code{\link[adatutor]{confusion}} and hands the resulting matrix to
-#' \code{assess()} again, which is where the threshold measures come from; the
-#' ranking measures are then appended. So \code{assess(cm)} returns the
-#' first twelve entries of \code{assess(x, score)}, and the two methods
-#' differ only in what the input can support.
+#' Over the ranking:
+#' * `auroc`: the chance that a random positive scores higher than a random
+#'   negative, with ties counting half. Also called the c statistic, or
+#'   Vargha and Delaney's (2000) A.
+#' * `auprc`: the area under the precision-recall curve, estimated as in Davis
+#'   and Goadrich (2006). This is not the same as average precision.
+#' * `patk_3`, `patk_5`, `patk`: the share of positives among the top 3, the
+#'   top 5 and the top n+ scores, where n+ is the number of positives. See
+#'   [patk()].
 #'
-#' \strong{Why the last ones are not matrix measures.} \code{auroc},
-#' \code{auprc} and the \code{patk} family need the whole ranking, so no confusion matrix
-#' at any single threshold can produce them -- a matrix has already thrown the
-#' ordering away. That is not an inconsistency in the interface: it is the same
-#' distinction that produces the collapse described above, made visible by which
-#' method is able to compute what.
+#' The synonyms follow Fawcett (2006).
 #'
-#' The four cells of the confusion matrix are a sufficient statistic for every
-#' threshold-based measure, so they are computed once and reused:
+#' @section Baselines:
+#' A random score gets an `auroc` of 0.5, but an `auprc` near the base rate,
+#' not 0.5. `auroc` and `bacc` ignore the base rate; `ppv` and `mcc` do not.
 #'
-#' \tabular{lll}{
-#'   \tab \strong{actual = 1} \tab \strong{actual = 0} \cr
-#'   \strong{predicted = 1} \tab TP \tab FP \cr
-#'   \strong{predicted = 0} \tab FN \tab TN
-#' }
+#' @section Missing values:
+#' A measure is `NA` when the data cannot support it. That happens to `auroc`
+#' and `auprc` when only one class is present, to `ppv` when nothing is
+#' predicted positive, to `npv` when nothing is predicted negative, and to
+#' `patk` when `k` is larger than the number of positives. `f1` is 0 when
+#' nothing is predicted positive but positives exist. `mcc` is 0 when its
+#' denominator is 0.
 #'
-#' \strong{Measures at the threshold.}
-#'
-#' \deqn{\text{sens} = \frac{TP}{TP + FN} \qquad
-#'       \text{spec} = \frac{TN}{TN + FP}}
-#' \deqn{\text{ppv} = \frac{TP}{TP + FP} \qquad
-#'       \text{npv} = \frac{TN}{TN + FN}}
-#' \deqn{\text{acc} = \frac{TP + TN}{TP + TN + FP + FN} \qquad
-#'       \text{bacc} = \frac{\text{sens} + \text{spec}}{2}}
-#' \deqn{\text{f1} = \frac{2TP}{2TP + FP + FN}}
-#' \deqn{\text{mcc} = \frac{TP \cdot TN - FP \cdot FN}
-#'       {\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}}
-#'
-#' \strong{Other names for the same quantities.} The names above are the ones
-#' used in psychology and medicine. Machine learning names several of them
-#' differently (Fawcett, 2006):
-#'
-#' \describe{
-#'   \item{\code{sens}}{True positive rate (TPR), recall, hit rate.}
-#'   \item{\code{spec}}{True negative rate (TNR). Its complement,
-#'     \eqn{1 - \text{spec}}, is the false positive rate (FPR), or false-alarm
-#'     rate.}
-#'   \item{\code{ppv}}{Precision.}
-#'   \item{\code{bacc}}{\eqn{(J + 1) / 2}, where \eqn{J = \text{sens} +
-#'     \text{spec} - 1} is Youden's J.}
-#'   \item{\code{f1}}{The harmonic mean of \code{ppv} and \code{sens}; the
-#'     same formula as the Dice coefficient.}
-#'   \item{\code{mcc}}{The phi coefficient: the Pearson correlation between
-#'     the true and the predicted 0/1 labels (Chicco & Jurman, 2020).}
-#'   \item{\code{auroc}}{The probability that a randomly chosen positive
-#'     scores higher than a randomly chosen negative, ties counting half. This
-#'     is the Mann-Whitney \eqn{U} divided by \eqn{n_1 n_0}, known as the
-#'     c statistic and as Vargha and Delaney's (2000) \eqn{A}.}
-#'   \item{\code{auprc}}{Not the same estimator as \emph{average precision},
-#'     which sums precision in steps rather than interpolating, so the two can
-#'     differ.}
-#'   \item{\code{patk}}{Precision at \eqn{k}. With \eqn{k} the number of
-#'     positives, it is R-precision, and there precision equals recall.
-#'     \code{patk_3} and \code{patk_5} are the same measure at \eqn{k} = 3
-#'     and 5.}
-#' }
-#'
-#' \code{npv} has no common second name.
-#'
-#' \strong{Measures over the whole ranking.} \code{auroc} and \code{auprc} are
-#' the areas under the ROC and precision-recall curves, both computed with the
-#' \code{PRROC} package (Grau, Grosse & Keilwagen, 2015). For the
-#' precision-recall curve we report the estimator of Davis & Goadrich (2006):
-#' the curve is densified by interpolating non-linearly at the local skew
-#' \eqn{(FP_B - FP_A) / (TP_B - TP_A)} between neighboring operating points,
-#' and the area is then taken by the composite trapezoidal rule. Interpolating
-#' \emph{linearly} in precision-recall space instead is incorrect and gives an
-#' optimistic area, because precision does not change linearly with recall.
-#' \code{patk} is the precision among the \code{k} highest-scoring
-#' observations.
-#'
-#' \strong{Two baselines worth remembering.} A random score gives
-#' \code{auroc} = 0.5, but \code{auprc} approximately equal to the
-#' \emph{prevalence}, not 0.5 (slightly above it in small samples). And both
-#' \code{auroc} and \code{bacc} are insensitive to the base rate, so neither
-#' reveals a shift in prevalence between training and test data; \code{mcc} and
-#' \code{ppv} do respond to it.
-#'
-#' \strong{Degenerate cases.} If \code{x} contains a single class,
-#' \code{auroc} and \code{auprc} are \code{NA}. If no observation is predicted
-#' positive, \code{ppv} is \code{NA}; if none is predicted negative, \code{npv}
-#' is \code{NA}. \code{f1} is \code{0} rather than \code{NA} when nothing is
-#' predicted positive but positives exist -- its denominator
-#' \eqn{2TP + FP + FN} is still non-zero, and zero is the right score for
-#' catching none of them; it is \code{NA} only when that denominator vanishes.
-#' When the \code{mcc} denominator is zero the coefficient is undefined and is
-#' reported as \code{0}, the usual convention.
-#'
-#' \strong{Printing.} The result has class \code{"assessment"}, whose
-#' \code{print()} method shows the confusion matrix first, then the measures
-#' grouped by the cut they rest on: at the threshold, among the top \code{k},
-#' and over all thresholds. Each value is labeled with its name, and each
-#' \code{patk} with its budget (\code{k=5} is \code{out[["patk_5"]]}).
-#' Values that are \code{NA} because \code{k} exceeds the number of
-#' positives are left out. Counts print as integers and the rest to
-#' \code{digits} decimals. The stored values are never rounded, so
-#' \code{out[["auroc"]]} is exact; indexing also drops the class. Labels are
-#' bold teal in a live console only, never in a knitr document or captured
-#' output.
-#'
-#' @param x What to score. For the default method, the true labels: either a
-#'   factor with two levels (the second level is taken as the positive class), a
-#'   numeric vector of 0/1, a numeric vector of -1/1, or a logical vector. For
-#'   the \code{confusion} method, an object from
-#'   \code{\link[adatutor]{confusion}}.
-#'
-#' @param score A numeric vector of continuous scores, one per observation --
-#'   an AdaBoost margin or a predicted probability, not a class label. See the
-#'   details. For \code{\link[=predict.adaboost]{predict()}} use
-#'   \code{type = "margin"}.
-#'
+#' @param x For the default method, the true labels: a two-level factor (the
+#'   second level is the positive class), 0/1, -1/1, or logical. For the
+#'   `confusion` method, the result of [confusion()].
+#' @param score Continuous scores, one per observation, such as an AdaBoost
+#'   margin or a predicted probability.
+#' @param threshold The cutoff for `score`. Use 0 for margins (the default)
+#'   and 0.5 for probabilities.
+#' @param k The budgets for `patk`. By default 3, 5 and the number of
+#'   positives. Budgets you pass are named by their value, e.g. `patk_10`.
+#' @param digits The number of decimals `print()` shows.
 #' @param ... Ignored.
 #'
-#' @param threshold The cutoff applied to \code{score} to obtain predicted
-#'   classes. Defaults to 0, the boundary for AdaBoost margins. Pass 0.5 when
-#'   \code{score} holds probabilities.
+#' @return A named numeric vector of class `assessment`. By default it has 17
+#'   measures, in the order listed above; the `confusion` method returns the
+#'   first 12. `print()` shows them grouped by cut and rounds only the
+#'   display.
 #'
-#' @param k The budgets for \code{patk}. Defaults to 3, 5 and the number of
-#'   positive cases in \code{x}, reported as \code{patk_3}, \code{patk_5}
-#'   and \code{patk}. The last is R-precision, which scales itself across test
-#'   sets of different sizes; the two small fixed budgets answer \dQuote{how
-#'   good are the model's few favorites?}. A \code{k} above the number of
-#'   positives gives \code{NA} (see \code{\link[adatutor]{patk}}), so the
-#'   names and length never depend on the data. Budgets you pass are reported
-#'   as \code{patk_<k>}.
-#'
-#' @param digits The number of decimals \code{print()} shows for the rates.
-#'   Defaults to 3. Counts always print as integers.
-#'
-#' @return A named numeric vector of class \code{"assessment"}. With the
-#'   default \code{k}, the default method returns seventeen entries, always in
-#'   this order: \code{tp}, \code{tn}, \code{fp}, \code{fn}, \code{sens},
-#'   \code{spec}, \code{ppv}, \code{npv}, \code{acc}, \code{bacc},
-#'   \code{f1}, \code{mcc}, \code{auroc}, \code{auprc}, \code{patk_3},
-#'   \code{patk_5}, \code{patk}. The \code{confusion} method returns the
-#'   first twelve of them. The threshold and \code{k} travel along
-#'   as attributes, for \code{print()}.
+#' @family performance measures
 #'
 #' @references
 #' Chicco, D., & Jurman, G. (2020). The advantages of the Matthews correlation
 #' coefficient (MCC) over F1 score and accuracy in binary classification
-#' evaluation. \emph{BMC Genomics}, 21, 6.
+#' evaluation. *BMC Genomics*, 21, 6.
 #'
 #' Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
-#' and ROC curves. \emph{Proceedings of the 23rd International Conference on
-#' Machine Learning}, 233-240.
+#' and ROC curves. *Proceedings of the 23rd International Conference on
+#' Machine Learning*, 233-240.
+#'
+#' Fawcett, T. (2006). An introduction to ROC analysis. *Pattern Recognition
+#' Letters*, 27(8), 861-874.
 #'
 #' Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
 #' visualizing precision-recall and receiver operating characteristic curves in
-#' R. \emph{Bioinformatics}, 31(15), 2595-2597.
-#'
-#' Fawcett, T. (2006). An introduction to ROC analysis. \emph{Pattern
-#' Recognition Letters}, 27(8), 861-874.
+#' R. *Bioinformatics*, 31(15), 2595-2597.
 #'
 #' Vargha, A., & Delaney, H. D. (2000). A critique and improvement of the CL
-#' common language effect size statistics of McGraw and Wong. \emph{Journal of
-#' Educational and Behavioral Statistics}, 25(2), 101-132.
+#' common language effect size statistics of McGraw and Wong. *Journal of
+#' Educational and Behavioral Statistics*, 25(2), 101-132.
 #'
 #' @examples
 #' data(altmejd)
@@ -208,10 +113,10 @@
 #'
 #' assess(test$replicate, margin)
 #'
-#' # Fewer decimals; the stored values stay exact
+#' # fewer decimals; the stored values stay exact
 #' print(assess(test$replicate, margin), digits = 2)
 #'
-#' # The same measures from a confusion matrix, without the ranking three
+#' # the same measures from a confusion matrix, without the ranking ones
 #' cm <- confusion(test$replicate, margin)
 #' assess(cm)
 #'
@@ -223,6 +128,7 @@ assess <- function(x, ...) {
 #' @rdname assess
 #' @export
 assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
+  # `score`, not `predicted`: neutral between prediction and retrodiction
   y <- as_binary(x)
   score <- as.numeric(score)
 
@@ -381,45 +287,25 @@ confusion_lines <- function(cm, width) {
   )
 }
 
-#' @title Confusion Matrix Counts
+#' Count a confusion matrix
 #'
-#' @description Cuts \code{score} at \code{threshold} and returns the four
-#'   counts of the 2x2 table. Those counts are a sufficient statistic for every
-#'   threshold-based measure in \code{\link[adatutor]{assess}}, which is why it
-#'   builds them once and derives the rest by arithmetic.
+#' Cuts `score` at `threshold` and counts the four cells of the 2x2 table:
+#' true positives, true negatives, false positives and false negatives.
+#' [assess()] computes every threshold measure from these counts.
 #'
-#' @details The result carries the class \code{"confusion"}, which is what lets
-#'   \code{assess(cm)} dispatch to the method that reads a matrix. Without the
-#'   class it would be a bare named vector and the sub-interface would not
-#'   exist: scoring is the umbrella, and a confusion matrix is one of the two
-#'   things that can be scored.
+#' @param actual The true labels: a two-level factor (the second level is the
+#'   positive class), 0/1, -1/1, or logical.
+#' @param score Continuous scores, one per observation.
+#' @param threshold The cutoff for `score`. Use 0 for margins (the default)
+#'   and 0.5 for probabilities. Probabilities cut at 0 would all count as
+#'   positive, so this case gives a warning.
+#' @param x An object of class `confusion`.
+#' @param ... Ignored.
 #'
-#'   \strong{The threshold trap.} A vector of probabilities cut at 0 -- the
-#'   AdaBoost default -- puts every case in the positive class, since
-#'   probabilities are never negative. The result is a confusion matrix with no
-#'   predicted negatives at all, and an \code{npv} of \code{NA} downstream. The
-#'   default is deliberately not inferred from the data, because a margin vector
-#'   can sit inside the unit interval too and guessing would occasionally change
-#'   a result without saying so. Passing an evident probability at
-#'   \code{threshold = 0} raises a warning instead.
+#' @return A named integer vector of class `confusion` with `tp`, `tn`, `fp`
+#'   and `fn`. The threshold is stored as an attribute.
 #'
-#' @param actual The true labels. Either a factor with two levels (the second
-#'   level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-#'   vector. Converted internally, so the caller never has to write
-#'   \code{as.integer(y) - 1}.
-#'
-#' @param score A numeric vector of continuous scores, one per observation.
-#'
-#' @param threshold The cutoff applied to \code{score}. Defaults to 0, the
-#'   boundary for AdaBoost margins; pass 0.5 for probabilities. The default is
-#'   deliberately not inferred from the data: a margin vector can sit inside
-#'   the unit interval as well, so guessing would occasionally change a result without
-#'   saying so. Instead, scoring an evident probability at 0 raises a warning.
-#'
-#' @return A named integer vector of class \code{"confusion"}: \code{tp},
-#'   \code{tn}, \code{fp}, \code{fn}, with the \code{threshold} it was cut at
-#'   as an attribute. Ordinary indexing still works, so \code{cm[["tp"]]}
-#'   reads the count as before.
+#' @family performance measures
 #'
 #' @examples
 #' confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
@@ -441,6 +327,7 @@ confusion <- function(actual, score, threshold = 0) {
     )
   }
   pred <- score > threshold
+  # the class lets assess(cm) dispatch to the matrix method
   structure(
     c(
       tp = sum(pred & y == 1),
@@ -454,8 +341,6 @@ confusion <- function(actual, score, threshold = 0) {
 }
 
 #' @rdname confusion
-#' @param x An object of class \code{"confusion"}.
-#' @param ... Ignored.
 #' @export
 print.confusion <- function(x, ...) {
   v <- unclass(x)
@@ -466,54 +351,34 @@ print.confusion <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Divide Without Turning Undefined Into NaN
+#' Divide, returning NA for a zero denominator
 #'
-#' @description Not exported. Returns \code{NA} rather than \code{NaN} when the
-#'   denominator is zero, which is what every measure in
-#'   \code{\link[adatutor]{confusion_measures}} uses to guard its ratio.
+#' `NA`, not `NaN`: the measure has no value for this data, rather than a
+#' failed calculation. lpocv() stores such cells as undefined.
 #'
-#' @details The distinction is the point. \code{NaN} says a calculation went
-#'   wrong; \code{NA} says the quantity has no value for this data. A \code{ppv}
-#'   computed where nothing was predicted positive is undefined, not broken, and
-#'   the two should not look alike to whatever reads the result afterwards --
-#'   \code{\link[adatutor]{lpocv}} stores those cells and reports them as
-#'   undefined rather than as failures.
-#'
-#' @param num,den The numerator and denominator.
-#'
-#' @return A single number, or \code{NA_real_} when \code{den} is zero.
-#'
-#' @name divide_safely
-#'
-#' @keywords internal
+#' @noRd
 divide_safely <- function(num, den) {
   if (den == 0) NA_real_ else num / den
 }
 
-#' @title Area Under the ROC Curve
+#' Area under the ROC curve
 #'
-#' @description The area under the receiver operating characteristic curve,
-#'   computed with the \code{PRROC} package. Scores a \emph{ranking}: it is
-#'   unchanged by any monotone transform of \code{score}, and it does not depend
-#'   on the base rate.
+#' Computes the area under the receiver operating characteristic curve with
+#' the PRROC package. It measures the ranking only, so it ignores the base
+#' rate and any monotone transformation of `score`.
 #'
-#' @details Feed this hard class labels and it silently becomes balanced
-#'   accuracy -- a two-valued score gives a curve with one interior point, whose
-#'   area is exactly \eqn{(\mathrm{sens} + \mathrm{spec})/2}. Use
-#'   \code{predict(type = "margin")}, not \code{"class"}.
+#' Use continuous scores. Class labels turn this into balanced accuracy,
+#' (`sens` + `spec`) / 2. With [predict.adaboost()], use `type = "margin"`.
 #'
-#' @param actual The true labels. Either a factor with two levels (the second
-#'   level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-#'   vector. Converted internally, so the caller never has to write
-#'   \code{as.integer(y) - 1}.
+#' @inheritParams confusion
 #'
-#' @param score A numeric vector of continuous scores, one per observation.
+#' @return A number, or `NA` if `actual` has only one class.
 #'
-#' @return A single number, or \code{NA} if \code{actual} has only one class.
+#' @family performance measures
 #'
-#' @references Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: Computing
+#' @references Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing
 #'   and visualizing precision-recall and receiver operating characteristic
-#'   curves in R. \emph{Bioinformatics}.
+#'   curves in R. *Bioinformatics*, 31(15), 2595-2597.
 #'
 #' @examples
 #' auroc(c(1, 1, 0, 0), c(2, 1, -1, -2))
@@ -528,36 +393,28 @@ auroc <- function(actual, score) {
   if (is.nan(out)) NA_real_ else out
 }
 
-#' @title Area Under the Precision-Recall Curve
+#' Area under the precision-recall curve
 #'
-#' @description The area under the precision-recall curve, computed with the
-#'   \code{PRROC} package using the Davis & Goadrich estimator.
+#' Computes the area under the precision-recall curve with the PRROC package,
+#' using the Davis and Goadrich (2006) estimator.
 #'
-#' @details Unlike \code{\link[adatutor]{auroc}}, whose baseline is always 0.5,
-#'   a worthless model scores approximately the \emph{prevalence} here. Compare
-#'   values against the base rate of the set they were computed on, never against
-#'   0.5, and be careful comparing across sets whose base rates differ.
+#' A useless model scores about the base rate here, not 0.5 as for [auroc()].
+#' Compare each value with the base rate of its own data set.
 #'
-#'   The curve is interpolated non-linearly between operating points rather than
-#'   joined by straight lines, which would overstate the area (Davis & Goadrich,
-#'   2006).
+#' @inheritParams confusion
 #'
-#' @param actual The true labels. Either a factor with two levels (the second
-#'   level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-#'   vector. Converted internally, so the caller never has to write
-#'   \code{as.integer(y) - 1}.
+#' @return A number, or `NA` if `actual` has only one class.
 #'
-#' @param score A numeric vector of continuous scores, one per observation.
+#' @family performance measures
 #'
-#' @return A single number, or \code{NA} if \code{actual} has only one class.
+#' @references
+#' Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
+#' and ROC curves. *Proceedings of the 23rd International Conference on
+#' Machine Learning*, 233-240.
 #'
-#' @references Davis, J., & Goadrich, M. (2006). The relationship between
-#'   precision-recall and ROC curves. \emph{Proceedings of the 23rd
-#'   International Conference on Machine Learning}, 233-240.
-#'
-#' @references Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: Computing
-#'   and visualizing precision-recall and receiver operating characteristic
-#'   curves in R. \emph{Bioinformatics}.
+#' Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
+#' visualizing precision-recall and receiver operating characteristic curves in
+#' R. *Bioinformatics*, 31(15), 2595-2597.
 #'
 #' @examples
 #' auprc(c(1, 1, 0, 0), c(2, 1, -1, -2))
@@ -577,47 +434,32 @@ auprc <- function(actual, score) {
   if (is.nan(out)) NA_real_ else out
 }
 
-#' @title Precision Among the Top-Ranked Cases
+#' Precision among the top-ranked cases
 #'
-#' @description The share of true positives among the \code{k}
-#'   highest-scoring observations -- precision under a budget, for when only the
-#'   top of the ranking will be acted on.
+#' Computes the share of positives among the `k` highest scores: precision
+#' under a budget, when you can act on only the top of the ranking.
 #'
-#' @details With the default \code{k} this is R-precision, which scales itself
-#'   to each test set. That matters when sets differ in size: a fixed \code{k}
-#'   is not comparable between a fold of 10 and a fold of 90.
+#' By default `k` is the number of positives (R-precision), which scales with
+#' each data set. A fixed `k` means something different in a set of 10 than in
+#' a set of 90.
 #'
-#'   \strong{Defined only for \eqn{k \le n_+}}, the number of positives.
-#'   Above it even a perfect ranking cannot reach 1, since there are fewer
-#'   positives than places, so the result is \code{NA} rather than a number
-#'   with a hidden ceiling.
+#' @section Rules:
+#' * `k` larger than the number of positives gives `NA`. There are fewer
+#'   positives than places, so even a perfect ranking could not reach 1.
+#' * When the cut falls inside a group of tied scores, the group counts by its
+#'   share of positives. The result is the expected precision under random
+#'   tie-breaking, so row order cannot change it.
+#' * Recall and F1 at `k` are not reported. With TP_k positives among the top
+#'   `k`, they are TP_k / n+ and 2 TP_k / (k + n+): rescalings of precision at
+#'   `k`. At the default `k` all three are equal.
 #'
-#'   \strong{Ties.} When the cut at \code{k} falls inside a group of tied
-#'   scores, the places left are shared across the group by its share of
-#'   positives: the expected precision under random tie-breaking. Row order
-#'   therefore cannot change the result. This matters for boosted stumps,
-#'   whose margins take few distinct values.
+#' @inheritParams confusion
+#' @param k One or more budgets. Defaults to the number of positives in
+#'   `actual`.
 #'
-#'   \strong{Why no recall or F1 at \code{k}.} With \eqn{TP_k} the positives
-#'   among the top \code{k}, recall at \code{k} is \eqn{TP_k / n_+} and F1 at
-#'   \code{k} is \eqn{2 TP_k / (k + n_+)}. Both denominators are fixed before
-#'   the model scores anything, so both are rescalings of precision at
-#'   \code{k} and carry no further information. At the default \code{k} all
-#'   three are equal.
+#' @return A number for a single `k`. For several, a vector named by `k`.
 #'
-#' @param actual The true labels. Either a factor with two levels (the second
-#'   level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-#'   vector. Converted internally, so the caller never has to write
-#'   \code{as.integer(y) - 1}.
-#'
-#' @param score A numeric vector of continuous scores, one per observation.
-#'
-#' @param k One or more budgets. Defaults to the number of positive cases in
-#'   \code{actual}.
-#'
-#' @return A number for a single \code{k}; for several, a vector named by
-#'   \code{k}. \code{NA} where \code{k} is below 1 or above the number of
-#'   positives.
+#' @family performance measures
 #'
 #' @examples
 #' # three positives, so the default budget is the top three
@@ -653,117 +495,35 @@ patk <- function(actual, score, k = NULL) {
   out
 }
 
-#' @title Measures Derived From a Confusion Matrix
+#' Measures from a confusion matrix
 #'
-#' @description Each of these takes the four counts produced by
-#'   \code{\link[adatutor]{confusion}} and returns a single number. They are
-#'   documented together because they are the same object seen from different
-#'   angles: once you have TP, TN, FP and FN, nothing else about the data is
-#'   needed.
+#' Each takes the counts from confusion() and returns one number; the formulas
+#' are listed in ?assess. They take the table, not raw data, so every measure
+#' in a report shares one cutoff. Not exported: assess(cm) returns them all.
 #'
-#' @details
-#' \deqn{\text{sensitivity} = \frac{TP}{TP + FN} \qquad
-#'       \text{specificity} = \frac{TN}{TN + FP}}
-#' \deqn{\text{ppv} = \frac{TP}{TP + FP} \qquad
-#'       \text{npv} = \frac{TN}{TN + FN}}
-#' \deqn{\text{accuracy} = \frac{TP + TN}{TP + TN + FP + FN} \qquad
-#'       \text{balanced\_accuracy} = \frac{\text{sensitivity} +
-#'       \text{specificity}}{2}}
-#' \deqn{\text{f1} = \frac{2TP}{2TP + FP + FN}}
-#' \deqn{\text{mcc} = \frac{TP \cdot TN - FP \cdot FN}
-#'       {\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}}
-#'
-#' \strong{Every one of these is conditional on a threshold.} The cut is chosen
-#' once, in the call to \code{\link[adatutor]{confusion}}, and every measure
-#' derived from that table inherits it. Move the cut and they all move together:
-#'
-#' \tabular{lrrrr}{
-#'   \strong{threshold} \tab \strong{sens} \tab \strong{spec} \tab
-#'     \strong{bacc} \tab \strong{auroc} \cr
-#'   -0.5 \tab 0.583 \tab 0.556 \tab 0.569 \tab 0.676 \cr
-#'   0.0 \tab 0.500 \tab 0.889 \tab 0.694 \tab 0.676 \cr
-#'   0.5 \tab 0.083 \tab 0.889 \tab 0.486 \tab 0.676
-#' }
-#'
-#' Passing the table rather than the raw data is what makes that visible, and it
-#' also makes one mistake impossible: with a \code{(actual, score, threshold)}
-#' signature nothing would stop you computing sensitivity at one cut and
-#' specificity at another and reporting them side by side -- a table describing
-#' no single classifier. Here every measure in a report necessarily describes the
-#' same decision rule.
-#'
-#' \strong{Why these take a table and \code{auroc()} does not.} Everything here
-#' is a function of four counts, so a confusion matrix is all it can possibly
-#' need. \code{\link[adatutor]{auroc}} and \code{\link[adatutor]{auprc}} take
-#' \code{actual} and \code{score} instead, because they summarize the whole
-#' \emph{ranking} -- and a confusion matrix has already thrown the ranking away.
-#' That difference is the reason hard class labels quietly turn an AUC into a
-#' balanced accuracy: cut the score into two values and the ranking is gone.
-#'
-#' \strong{Names, and why these are internal.} Each function is named for what
-#' it consumes rather than what it returns: \code{confusion_acc()} takes a
-#' confusion matrix, as every function in this family does, and gives the value
-#' \code{\link[adatutor]{assess}} labels \code{acc}. They are not exported,
-#' because \code{assess(cm)} already returns all of them at once and
-#' \code{assess(cm)[["acc"]]} is the one-measure form -- a family of eight
-#' one-line exports would compete with the verb rather than support it. They are
-#' documented here for the formulas, and reachable as
-#' \code{adatutor:::confusion_acc()} for anyone who wants the function itself.
-#'
-#' \strong{Undefined cases} return \code{NA} rather than \code{NaN}, except
-#' \code{mcc}, which is 0 by convention when its denominator vanishes.
-#'
-#' @param cm A named vector of counts from \code{\link[adatutor]{confusion}},
-#'   containing \code{tp}, \code{tn}, \code{fp} and \code{fn}.
-#'
-#' @return A single number.
-#'
-#' @examples
-#' cm <- confusion(c(1, 1, 1, 0, 0, 0), c(2, 1, -1, 1, -1, -2))
-#' cm
-#'
-#' # All of them at once, which is the exported route
-#' assess(cm)
-#'
-#' # One of them
-#' assess(cm)[["bacc"]]
-#'
-#' # The function itself, for anyone reading the formula off the source
-#' adatutor:::confusion_mcc(cm)
-#'
-#' @name confusion_measures
+#' @noRd
 NULL
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_sens <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tp"]], cm[["tp"]] + cm[["fn"]])
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_spec <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tn"]], cm[["tn"]] + cm[["fp"]])
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_ppv <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tp"]], cm[["tp"]] + cm[["fp"]])
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_npv <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tn"]], cm[["tn"]] + cm[["fn"]])
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_acc <- function(cm) {
   check_confusion(cm)
   divide_safely(
@@ -772,14 +532,10 @@ confusion_acc <- function(cm) {
   )
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_bacc <- function(cm) {
   (confusion_sens(cm) + confusion_spec(cm)) / 2
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_f1 <- function(cm) {
   check_confusion(cm)
   divide_safely(
@@ -788,8 +544,6 @@ confusion_f1 <- function(cm) {
   )
 }
 
-#' @rdname confusion_measures
-#' @keywords internal
 confusion_mcc <- function(cm) {
   check_confusion(cm)
   tp <- cm[["tp"]]

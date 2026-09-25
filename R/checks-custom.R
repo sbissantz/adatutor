@@ -143,11 +143,8 @@ check_numeric <- function(x) {
 #' \dontrun{check_train("train", "train")}  # Fails with an error
 #'
 overlap_state <- function(trainnme, testnme, trainset = NULL, newdata = NULL) {
-  # Exact when the fit kept its training frame: compares the rows themselves, so
-  # a renamed variable or a subset is still seen. Falls back to the deparsed
-  # name when `keep_data = FALSE`, which can only ever answer all-or-nothing --
-  # and answers NA when even that is unavailable, because "we cannot tell" is a
-  # different statement from "no overlap".
+  # compare rows when the fit kept its frame (catches renames and subsets),
+  # else the deparsed name (all or nothing); NA means unknown, not no overlap
   if (!is.null(trainset) && !is.null(newdata)) {
     shared <- intersect(names(trainset), names(newdata))
     if (length(shared)) {
@@ -179,48 +176,35 @@ check_train <- function(
   verbose = FALSE,
   fell_back = FALSE
 ) {
-  # Only "all" is reported. A partial match is not evidence: `altmejd` contains
-  # genuinely duplicated rows, so two of the 23 rows in the shipped test set
-  # match a training row on all four predictors and the outcome by coincidence.
-  # Reporting "some" therefore fires on the package's own canonical test set
-  # every time. "all" is sound -- every row matching means it really is the
-  # training data -- which still catches a renamed variable and a subset, since
-  # every row of a subset matches.
+  # report only "all": `altmejd` has duplicated rows, so 2 of the 23 shipped
+  # test rows match training by chance; "all" still catches renames and subsets
   if (is.na(state) || state != "all") {
     return(invisible(NULL))
   }
 
-  # Two ways to end up here, and they deserve different first sentences: you
-  # handed over the training frame, or you handed over nothing and predict()
-  # fell back to it.
-  lead <- if (fell_back) {
-    "! No `newdata` specified. The model scored its training data."
+  # two routes here: the training frame was passed, or predict() fell back to it
+  reason <- if (fell_back) {
+    "  No `newdata` specified. The model scored its training data."
   } else {
     what <- if (!is.null(testnme)) {
       paste0("`", deparse(testnme), "`")
     } else {
       "that data"
     }
-    paste0("! ", what, " was also used for training.")
+    paste0("  ", what, " was also used for training.")
   }
 
-  # Wrapped by hand rather than left to the terminal: a long line broken
-  # mid-word is exactly what a reader skims past.
-  body <- c(
-    lead,
-    "  Outputs are retrodictions, not predictions."
-  )
+  # the conclusion carries the `!`; two lines, since a terminal-wrapped line
+  # gets skimmed
+  conclusion <- "! Outputs are retrodictions, not predictions."
 
   if (verbose) {
-    # 33 is yellow. The transcript above this is bold, grey and green, so a
-    # plain message would read as one more step rather than a caveat on all of
-    # them. The leading blank line separates it from the run it follows.
-    color_message(
-      paste0(body, "\n"),
-      color_code = ansi_note
-    )
+    # faint reason, bold teal conclusion; unstyled, RStudio would paint the
+    # reason red
+    color_message(paste0(reason, "\n"), color_code = ansi_dim)
+    color_message(paste0(conclusion, "\n"), color_code = ansi_note)
   } else {
-    message(paste(body, collapse = "\n"))
+    message(paste(c(reason, conclusion), collapse = "\n"))
   }
 }
 
@@ -234,9 +218,7 @@ check_train <- function(
 #' \dontrun{check_prop(0)}  # Issues a warning
 #'
 check_prop <- function(x) {
-  # Vectorised: `partition()` takes one proportion per set, so a length-one
-  # test would error with "the condition has length > 1" rather than saying
-  # what is wrong.
+  # vectorized: partition() passes one proportion per set
   if (any(x < 0 | x > 1)) {
     msg <- paste0(
       "Specified proportion ",
@@ -246,8 +228,7 @@ check_prop <- function(x) {
     )
     stop(msg, call. = FALSE)
   }
-  # Only for a single proportion. With several, a zero is a deliberate empty
-  # set and stays silent -- see `partition()`.
+  # single proportion only: with several, a zero is a deliberate empty set
   if (length(x) == 1L && (x == 0 | x == 1)) {
     msg <- paste0(
       "Specified proportion ",

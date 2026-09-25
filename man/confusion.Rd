@@ -3,59 +3,44 @@
 \name{confusion}
 \alias{confusion}
 \alias{print.confusion}
-\title{Confusion Matrix Counts}
+\title{Count a confusion matrix}
 \usage{
 confusion(actual, score, threshold = 0)
 
 \method{print}{confusion}(x, ...)
 }
 \arguments{
-\item{actual}{The true labels. Either a factor with two levels (the second
-level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-vector. Converted internally, so the caller never has to write
-\code{as.integer(y) - 1}.}
+\item{actual}{The true labels: a two-level factor (the second level is the
+positive class), 0/1, -1/1, or logical.}
 
-\item{score}{A numeric vector of continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation.}
 
-\item{threshold}{The cutoff applied to \code{score}. Defaults to 0, the
-boundary for AdaBoost margins; pass 0.5 for probabilities. The default is
-deliberately not inferred from the data: a margin vector can sit inside
-the unit interval as well, so guessing would occasionally change a result without
-saying so. Instead, scoring an evident probability at 0 raises a warning.}
+\item{threshold}{The cutoff for \code{score}. Use 0 for margins (the default)
+and 0.5 for probabilities. Probabilities cut at 0 would all count as
+positive, so this case gives a warning.}
 
-\item{x}{An object of class \code{"confusion"}.}
+\item{x}{An object of class \code{confusion}.}
 
 \item{...}{Ignored.}
 }
 \value{
-A named integer vector of class \code{"confusion"}: \code{tp},
-\code{tn}, \code{fp}, \code{fn}, with the \code{threshold} it was cut at
-as an attribute. Ordinary indexing still works, so \code{cm[["tp"]]}
-reads the count as before.
+A named integer vector of class \code{confusion} with \code{tp}, \code{tn}, \code{fp}
+and \code{fn}. The threshold is stored as an attribute.
 }
 \description{
-Cuts \code{score} at \code{threshold} and returns the four
-counts of the 2x2 table. Those counts are a sufficient statistic for every
-threshold-based measure in \code{\link[adatutor]{assess}}, which is why it
-builds them once and derives the rest by arithmetic.
-}
-\details{
-The result carries the class \code{"confusion"}, which is what lets
-\code{assess(cm)} dispatch to the method that reads a matrix. Without the
-class it would be a bare named vector and the sub-interface would not
-exist: scoring is the umbrella, and a confusion matrix is one of the two
-things that can be scored.
-
-\strong{The threshold trap.} A vector of probabilities cut at 0 -- the
-AdaBoost default -- puts every case in the positive class, since
-probabilities are never negative. The result is a confusion matrix with no
-predicted negatives at all, and an \code{npv} of \code{NA} downstream. The
-default is deliberately not inferred from the data, because a margin vector
-can sit inside the unit interval too and guessing would occasionally change
-a result without saying so. Passing an evident probability at
-\code{threshold = 0} raises a warning instead.
+Cuts \code{score} at \code{threshold} and counts the four cells of the 2x2 table:
+true positives, true negatives, false positives and false negatives.
+\code{\link[=assess]{assess()}} computes every threshold measure from these counts.
 }
 \examples{
 confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
 
 }
+\seealso{
+Other performance measures:
+\code{\link[=assess]{assess()}},
+\code{\link[=auprc]{auprc()}},
+\code{\link[=auroc]{auroc()}},
+\code{\link[=patk]{patk()}}
+}
+\concept{performance measures}

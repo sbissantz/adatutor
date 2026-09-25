@@ -2,39 +2,42 @@
 % Please edit documentation in R/assess.R
 \name{auroc}
 \alias{auroc}
-\title{Area Under the ROC Curve}
+\title{Area under the ROC curve}
 \usage{
 auroc(actual, score)
 }
 \arguments{
-\item{actual}{The true labels. Either a factor with two levels (the second
-level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-vector. Converted internally, so the caller never has to write
-\code{as.integer(y) - 1}.}
+\item{actual}{The true labels: a two-level factor (the second level is the
+positive class), 0/1, -1/1, or logical.}
 
-\item{score}{A numeric vector of continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation.}
 }
 \value{
-A single number, or \code{NA} if \code{actual} has only one class.
+A number, or \code{NA} if \code{actual} has only one class.
 }
 \description{
-The area under the receiver operating characteristic curve,
-computed with the \code{PRROC} package. Scores a \emph{ranking}: it is
-unchanged by any monotone transform of \code{score}, and it does not depend
-on the base rate.
+Computes the area under the receiver operating characteristic curve with
+the PRROC package. It measures the ranking only, so it ignores the base
+rate and any monotone transformation of \code{score}.
 }
 \details{
-Feed this hard class labels and it silently becomes balanced
-accuracy -- a two-valued score gives a curve with one interior point, whose
-area is exactly \eqn{(\mathrm{sens} + \mathrm{spec})/2}. Use
-\code{predict(type = "margin")}, not \code{"class"}.
+Use continuous scores. Class labels turn this into balanced accuracy,
+(\code{sens} + \code{spec}) / 2. With \code{\link[=predict.adaboost]{predict.adaboost()}}, use \code{type = "margin"}.
 }
 \examples{
 auroc(c(1, 1, 0, 0), c(2, 1, -1, -2))
 
 }
 \references{
-Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: Computing
+Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing
 and visualizing precision-recall and receiver operating characteristic
-curves in R. \emph{Bioinformatics}.
+curves in R. \emph{Bioinformatics}, 31(15), 2595-2597.
 }
+\seealso{
+Other performance measures:
+\code{\link[=assess]{assess()}},
+\code{\link[=auprc]{auprc()}},
+\code{\link[=confusion]{confusion()}},
+\code{\link[=patk]{patk()}}
+}
+\concept{performance measures}

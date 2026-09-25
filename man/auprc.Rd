@@ -2,45 +2,45 @@
 % Please edit documentation in R/assess.R
 \name{auprc}
 \alias{auprc}
-\title{Area Under the Precision-Recall Curve}
+\title{Area under the precision-recall curve}
 \usage{
 auprc(actual, score)
 }
 \arguments{
-\item{actual}{The true labels. Either a factor with two levels (the second
-level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-vector. Converted internally, so the caller never has to write
-\code{as.integer(y) - 1}.}
+\item{actual}{The true labels: a two-level factor (the second level is the
+positive class), 0/1, -1/1, or logical.}
 
-\item{score}{A numeric vector of continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation.}
 }
 \value{
-A single number, or \code{NA} if \code{actual} has only one class.
+A number, or \code{NA} if \code{actual} has only one class.
 }
 \description{
-The area under the precision-recall curve, computed with the
-\code{PRROC} package using the Davis & Goadrich estimator.
+Computes the area under the precision-recall curve with the PRROC package,
+using the Davis and Goadrich (2006) estimator.
 }
 \details{
-Unlike \code{\link[adatutor]{auroc}}, whose baseline is always 0.5,
-a worthless model scores approximately the \emph{prevalence} here. Compare
-values against the base rate of the set they were computed on, never against
-0.5, and be careful comparing across sets whose base rates differ.
-
-The curve is interpolated non-linearly between operating points rather than
-joined by straight lines, which would overstate the area (Davis & Goadrich,
-2006).
+A useless model scores about the base rate here, not 0.5 as for \code{\link[=auroc]{auroc()}}.
+Compare each value with the base rate of its own data set.
 }
 \examples{
 auprc(c(1, 1, 0, 0), c(2, 1, -1, -2))
 
 }
 \references{
-Davis, J., & Goadrich, M. (2006). The relationship between
-precision-recall and ROC curves. \emph{Proceedings of the 23rd
-International Conference on Machine Learning}, 233-240.
+Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
+and ROC curves. \emph{Proceedings of the 23rd International Conference on
+Machine Learning}, 233-240.
 
-Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: Computing
-and visualizing precision-recall and receiver operating characteristic
-curves in R. \emph{Bioinformatics}.
+Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
+visualizing precision-recall and receiver operating characteristic curves in
+R. \emph{Bioinformatics}, 31(15), 2595-2597.
 }
+\seealso{
+Other performance measures:
+\code{\link[=assess]{assess()}},
+\code{\link[=auroc]{auroc()}},
+\code{\link[=confusion]{confusion()}},
+\code{\link[=patk]{patk()}}
+}
+\concept{performance measures}

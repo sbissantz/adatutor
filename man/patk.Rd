@@ -2,54 +2,45 @@
 % Please edit documentation in R/assess.R
 \name{patk}
 \alias{patk}
-\title{Precision Among the Top-Ranked Cases}
+\title{Precision among the top-ranked cases}
 \usage{
 patk(actual, score, k = NULL)
 }
 \arguments{
-\item{actual}{The true labels. Either a factor with two levels (the second
-level is the positive class), a numeric vector of 0/1 or -1/1, or a logical
-vector. Converted internally, so the caller never has to write
-\code{as.integer(y) - 1}.}
+\item{actual}{The true labels: a two-level factor (the second level is the
+positive class), 0/1, -1/1, or logical.}
 
-\item{score}{A numeric vector of continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation.}
 
-\item{k}{One or more budgets. Defaults to the number of positive cases in
+\item{k}{One or more budgets. Defaults to the number of positives in
 \code{actual}.}
 }
 \value{
-A number for a single \code{k}; for several, a vector named by
-\code{k}. \code{NA} where \code{k} is below 1 or above the number of
-positives.
+A number for a single \code{k}. For several, a vector named by \code{k}.
 }
 \description{
-The share of true positives among the \code{k}
-highest-scoring observations -- precision under a budget, for when only the
-top of the ranking will be acted on.
+Computes the share of positives among the \code{k} highest scores: precision
+under a budget, when you can act on only the top of the ranking.
 }
 \details{
-With the default \code{k} this is R-precision, which scales itself
-to each test set. That matters when sets differ in size: a fixed \code{k}
-is not comparable between a fold of 10 and a fold of 90.
-
-\strong{Defined only for \eqn{k \le n_+}}, the number of positives.
-Above it even a perfect ranking cannot reach 1, since there are fewer
-positives than places, so the result is \code{NA} rather than a number
-with a hidden ceiling.
-
-\strong{Ties.} When the cut at \code{k} falls inside a group of tied
-scores, the places left are shared across the group by its share of
-positives: the expected precision under random tie-breaking. Row order
-therefore cannot change the result. This matters for boosted stumps,
-whose margins take few distinct values.
-
-\strong{Why no recall or F1 at \code{k}.} With \eqn{TP_k} the positives
-among the top \code{k}, recall at \code{k} is \eqn{TP_k / n_+} and F1 at
-\code{k} is \eqn{2 TP_k / (k + n_+)}. Both denominators are fixed before
-the model scores anything, so both are rescalings of precision at
-\code{k} and carry no further information. At the default \code{k} all
-three are equal.
+By default \code{k} is the number of positives (R-precision), which scales with
+each data set. A fixed \code{k} means something different in a set of 10 than in
+a set of 90.
 }
+\section{Rules}{
+
+\itemize{
+\item \code{k} larger than the number of positives gives \code{NA}. There are fewer
+positives than places, so even a perfect ranking could not reach 1.
+\item When the cut falls inside a group of tied scores, the group counts by its
+share of positives. The result is the expected precision under random
+tie-breaking, so row order cannot change it.
+\item Recall and F1 at \code{k} are not reported. With TP_k positives among the top
+\code{k}, they are TP_k / n+ and 2 TP_k / (k + n+): rescalings of precision at
+\code{k}. At the default \code{k} all three are equal.
+}
+}
+
 \examples{
 # three positives, so the default budget is the top three
 patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2))
@@ -58,3 +49,11 @@ patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2))
 patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2), k = c(1, 2))
 
 }
+\seealso{
+Other performance measures:
+\code{\link[=assess]{assess()}},
+\code{\link[=auprc]{auprc()}},
+\code{\link[=auroc]{auroc()}},
+\code{\link[=confusion]{confusion()}}
+}
+\concept{performance measures}
