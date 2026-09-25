@@ -11,7 +11,7 @@ adaboost(h, n_iter, eta, keep_data = TRUE, input_checks = TRUE, verbose = TRUE)
 \code{model = TRUE}. Without it, rpart drops the predictors and the tree
 cannot be refit.}
 
-\item{n_iter}{The number of boosting rounds, T in the algorithm.}
+\item{n_iter}{The number of boosting rounds.}
 
 \item{eta}{The learning rate.}
 
@@ -27,7 +27,8 @@ the size of the data; set \code{FALSE} when you save many fits.}
 \value{
 An object of class \code{adaboost}: a list with one element per round,
 each holding the tree (\code{h}) and its model weight (\code{a}). Attributes store
-the training data, the formula, \code{n_iter}, \code{eta} and the tree control.
+the training data, the formula, \code{n_iter}, \code{eta}, the tree control and the
+splitting rule, so \code{\link[=lpocv]{lpocv()}} can refit the same recipe.
 }
 \description{
 Boosts a fitted classification tree. The tree is the weak learner: it is
