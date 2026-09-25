@@ -23,7 +23,7 @@
 #' @param h A classification tree from [rpart::rpart()], fitted with
 #'   `model = TRUE`. Without it, rpart drops the predictors and the tree
 #'   cannot be refit.
-#' @param n_iter The number of boosting rounds, T in the algorithm.
+#' @param n_iter The number of boosting rounds.
 #' @param eta The learning rate.
 #' @param keep_data Whether to store the training data on the fit. Defaults to
 #'   `TRUE`. This lets `predict()` run without `newdata` and makes the
@@ -34,7 +34,8 @@
 #'
 #' @return An object of class `adaboost`: a list with one element per round,
 #'   each holding the tree (`h`) and its model weight (`a`). Attributes store
-#'   the training data, the formula, `n_iter`, `eta` and the tree control.
+#'   the training data, the formula, `n_iter`, `eta`, the tree control and the
+#'   splitting rule, so [logo_cv()] can refit the same recipe.
 #'
 #' @seealso [predict.adaboost()] to score new data.
 #'
@@ -299,7 +300,8 @@ adaboost <- function(
     formula = form_store,
     n_iter = n_iter,
     eta = eta,
-    control = ctrl
+    control = ctrl,
+    split = split_rule
   )
 }
 
