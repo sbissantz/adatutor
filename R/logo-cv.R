@@ -586,7 +586,7 @@ fold_score <- function(
       # each fit is thrown away, so keep no data for retrodictions
       keep_data = FALSE,
       verbose = FALSE,
-      input_checks = FALSE
+      check_inputs = FALSE
     )
     # the margin, not labels: labels collapse auroc onto balanced accuracy
     return(predict(
@@ -594,7 +594,7 @@ fold_score <- function(
       test[, prednms, drop = FALSE],
       type = "margin",
       verbose = FALSE,
-      input_checks = FALSE
+      check_inputs = FALSE
     ))
   }
 
