@@ -48,16 +48,6 @@ ansi_dim <- "2"
 ansi_teal <- "38;5;30"
 ansi_note <- "1;38;5;30"
 
-#' Print dots with a pause, then "Done"
-#' @noRd
-walking_dots <- function(n = 3, delay = 0.2) {
-  for (i in seq_len(n)) {
-    message(".", appendLF = FALSE)
-    Sys.sleep(delay)
-  }
-  message(" Done\n", appendLF = FALSE)
-}
-
 #' Print text in an ANSI style, then reset it
 #' @noRd
 color_message <- function(text, color_code = ansi_teal, newline = FALSE) {
@@ -70,7 +60,7 @@ color_message <- function(text, color_code = ansi_teal, newline = FALSE) {
 #'
 #' The dots stay faint so the eye follows the "Done" markers.
 #' @noRd
-walking_colordots <- function(n = 3, delay = 0.1, color_code = ansi_note) {
+mark_done <- function(n = 3, delay = 0.1, color_code = ansi_note) {
   for (i in seq_len(n)) {
     # faint, always: the dots are filler and should not compete with "Done"
     color_message(".", color_code = ansi_dim)
