@@ -19,7 +19,7 @@
   metric = "auroc",
   levels = c(0.5, 0.8, 0.95),
   baseline = "auto",
-  drop_flag = 0.05,
+  max_rejected = 0.05,
   ...
 )
 }
@@ -37,8 +37,8 @@
 would score: 0.5 for \code{auroc} and \code{bacc}, 0 for \code{mcc}, and each project's
 base rate for the others. A number sets it; \code{NA} leaves it out.}
 
-\item{drop_flag}{Projects whose bootstrap rejected more than this share of
-draws get a star and a footnote. Defaults to 0.05.}
+\item{max_rejected}{Projects whose bootstrap rejected more than this share
+of draws get a star and a footnote. Defaults to 0.05.}
 }
 \value{
 \code{print()} and \code{plot()} return \code{x} invisibly; \code{summary()} and

@@ -4,7 +4,7 @@
 \alias{adaboost}
 \title{Boost a classification tree with AdaBoost}
 \usage{
-adaboost(h, n_iter, eta, keep_data = TRUE, input_checks = TRUE, verbose = TRUE)
+adaboost(h, n_iter, eta, keep_data = TRUE, check_inputs = TRUE, verbose = TRUE)
 }
 \arguments{
 \item{h}{A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}, fitted with
@@ -20,7 +20,7 @@ cannot be refit.}
 retrodiction check exact. It costs no memory, but a saved file grows by
 the size of the data; set \code{FALSE} when you save many fits.}
 
-\item{input_checks}{Whether to check the inputs. Defaults to \code{TRUE}.}
+\item{check_inputs}{Whether to check the inputs. Defaults to \code{TRUE}.}
 
 \item{verbose}{Whether to show progress. Defaults to \code{TRUE}.}
 }

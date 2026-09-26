@@ -8,7 +8,7 @@
   object,
   newdata,
   type = c("class", "margin"),
-  input_checks = TRUE,
+  check_inputs = TRUE,
   verbose = TRUE,
   ...
 )
@@ -21,7 +21,7 @@
 \item{type}{\code{"class"} for class labels (-1 or 1), or \code{"margin"} for the
 continuous score. Use \code{"margin"} for ranking measures such as \code{\link[=auroc]{auroc()}}.}
 
-\item{input_checks}{Whether to check the inputs. Defaults to \code{TRUE}.}
+\item{check_inputs}{Whether to check the inputs. Defaults to \code{TRUE}.}
 
 \item{verbose}{Whether to show progress. Defaults to \code{TRUE}.}
 

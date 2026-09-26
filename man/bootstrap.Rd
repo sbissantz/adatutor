@@ -99,13 +99,13 @@ h <- rpart::rpart(
   maxdepth = 1,
   model = TRUE
 )
-fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
+fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
 margin <- predict(
   fit,
   test[, prednms],
   type = "margin",
   verbose = FALSE,
-  input_checks = FALSE
+  check_inputs = FALSE
 )
 
 # one set of labels and scores
