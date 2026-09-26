@@ -29,7 +29,7 @@
 #'   `TRUE`. This lets `predict()` run without `newdata` and makes the
 #'   retrodiction check exact. It costs no memory, but a saved file grows by
 #'   the size of the data; set `FALSE` when you save many fits.
-#' @param input_checks Whether to check the inputs. Defaults to `TRUE`.
+#' @param check_inputs Whether to check the inputs. Defaults to `TRUE`.
 #' @param verbose Whether to show progress. Defaults to `TRUE`.
 #'
 #' @return An object of class `adaboost`: a list with one element per round,
@@ -68,10 +68,126 @@ adaboost <- function(
   n_iter,
   eta,
   keep_data = TRUE,
-  input_checks = TRUE,
+  check_inputs = TRUE,
   verbose = TRUE
 ) {
-  # preconditions, not checks: run whatever `input_checks` says
+  validate_learner(h)
+
+  frame <- h$model
+  y_train <- stats::model.response(frame)
+
+  # fit `<response> ~ .` over the frame, which holds evaluated terms such as
+  # `log(power.o)`; this environment lets rpart find `D`, not stats::D
+  frame_formula <- stats::as.formula(
+    paste0("`", names(frame)[attr(h$terms, "response")], "` ~ ."),
+    env = environment()
+  )
+
+  # point the terms at globalenv(), or this frame rides on every saved tree
+  learner_terms <- h$terms
+  attr(learner_terms, ".Environment") <- globalenv()
+
+  # drop xval and surrogates: they cost time and leave the tree unchanged
+  control <- h$control
+  control$xval <- 0
+  control$maxsurrogate <- 0
+
+  split_rule <- read_split_rule(h)
+
+  progress <- NULL
+  finished <- FALSE
+  if (verbose) {
+    on.exit(close_progress(progress, finished), add = TRUE)
+    color_message(
+      "Start the AdaBoost training process:\n",
+      color_code = ansi_bold
+    )
+  }
+
+  if (check_inputs) {
+    if (verbose) {
+      color_message("Run mild input checks", color_code = ansi_dim)
+    }
+    check_df(frame)
+    check_length(frame)
+    check_eta(eta)
+    check_numeric(n_iter)
+    if (verbose) mark_done()
+  }
+
+  if (verbose) {
+    color_message("Start the initialization process", color_code = ansi_dim)
+  }
+
+  m <- nrow(frame)
+  D <- rep(1, m) / m
+  H <- vector("list", n_iter)
+
+  if (verbose) {
+    mark_done()
+    color_message(
+      "Steps 1-4: Run through the algorithm steps",
+      color_code = ansi_dim
+    )
+    progress <- open_progress(n_iter)
+  }
+
+  for (t in seq_len(n_iter)) {
+    # h_t, not h: the prototype must survive the loop; model = FALSE keeps
+    # one data copy on the ensemble, not one per tree
+    h_t <- rpart::rpart(
+      formula = frame_formula,
+      data = frame,
+      weights = D,
+      method = "class",
+      control = control,
+      # keep the split rule; let rpart derive prior and loss from the weights
+      parms = list(split = split_rule),
+      model = FALSE,
+      y = FALSE
+    )
+    correct <- y_train == stats::predict(h_t, newdata = frame, type = "class")
+    a <- weigh_learner(sum(D[!correct]), eta)
+    D <- update_weights(D, correct, a)
+    H[[t]] <- list("h" = strip_tree(h_t, learner_terms), "a" = a)
+
+    if (verbose) utils::setTxtProgressBar(progress, t)
+  }
+
+  finished <- TRUE
+
+  if (verbose) {
+    close(progress)
+    color_message("Create output", color_code = ansi_dim)
+    mark_done()
+    color_message(
+      "Training process successfully completed.\n",
+      color_code = ansi_bold,
+      newline = TRUE
+    )
+  }
+
+  names(H) <- paste0("t", seq_len(n_iter))
+
+  structure(
+    H,
+    class = "adaboost",
+    trainset = if (keep_data) frame,
+    train = h$call[["data"]],
+    formula = stats::formula(learner_terms),
+    n_iter = n_iter,
+    eta = eta,
+    control = control,
+    split = split_rule
+  )
+}
+
+#' Stop unless adaboost() can refit `h` as it was fitted
+#'
+#' Always runs, whatever `check_inputs` says: boosting a different model than
+#' the one handed in would go unnoticed.
+#' @noRd
+validate_learner <- function(h) {
   if (!inherits(h, "rpart")) {
     stop("`h` must be a tree fitted with rpart().", call. = FALSE)
   }
@@ -90,32 +206,22 @@ adaboost <- function(
       call. = FALSE
     )
   }
-
-  # expanded formula: `outcome ~ .` arrives with its terms resolved; the
-  # environment lets rpart find `D` (in globalenv() it finds stats::D)
-  formula <- stats::formula(h$terms)
-  environment(formula) <- environment()
-
-  mf <- h$model
-
-  # refuse what cannot be carried: boosting a different model than the one
-  # handed in would go unnoticed
-  if ("(weights)" %in% names(mf)) {
+  if ("(weights)" %in% names(h$model)) {
     stop(
-      "`h` was fitted with `weights`, which AdaBoost cannot honour: it sets ",
+      "`h` was fitted with `weights`, which AdaBoost cannot honor: it sets ",
       "its own observation weights, starting at 1/n and reweighting every ",
       "round. Refit `h` without `weights`.",
       call. = FALSE
     )
   }
-  y_train <- stats::model.response(mf)
+
   # prior is recomputed from each round's weights and loss is not passed on,
   # so a value that differs from the data's default was set by hand
-  tab <- table(y_train)
+  counts <- table(stats::model.response(h$model))
   if (
     !isTRUE(all.equal(
       as.numeric(h$parms$prior),
-      as.numeric(tab / sum(tab))
+      as.numeric(counts / sum(counts))
     ))
   ) {
     stop(
@@ -128,7 +234,7 @@ adaboost <- function(
   if (
     !isTRUE(all.equal(
       as.numeric(h$parms$loss),
-      as.numeric(1 - diag(length(tab)))
+      as.numeric(1 - diag(length(counts)))
     ))
   ) {
     stop(
@@ -137,172 +243,65 @@ adaboost <- function(
       call. = FALSE
     )
   }
+  invisible(h)
+}
 
-  # the model frame holds evaluated terms (`log(power.o)` as a column), so fit
-  # `<response> ~ .` over it; the original terms go back onto each tree below
-  fit_formula <- stats::as.formula(
-    paste0("`", names(mf)[attr(h$terms, "response")], "` ~ ."),
-    env = environment()
-  )
+#' Read the splitting rule of `h` by name
+#' @noRd
+read_split_rule <- function(h) {
+  # rpart stores a code; passing the code back gives NA and a silent gini
+  rule <- c("gini", "information")[h$parms$split]
+  if (is.na(rule)) "gini" else rule
+}
 
-  # point the terms at globalenv(), or this frame (`mf`, `D`, `H`) rides on
-  # every saved tree
-  learner_terms <- h$terms
-  attr(learner_terms, ".Environment") <- globalenv()
+#' Open a faint progress bar on stderr
+#' @noRd
+open_progress <- function(n_iter) {
+  # stdout would mix the bar into the results, and plain stderr is red in
+  # RStudio; close_progress() resets the style
+  message("\033[", ansi_dim, "m", appendLF = FALSE)
+  utils::txtProgressBar(min = 0, max = n_iter, style = 3, file = stderr())
+}
 
-  # keep the caller's controls; drop xval and surrogates, which cost time and
-  # leave the tree unchanged
-  ctrl <- h$control
-  ctrl$xval <- 0
-  ctrl$maxsurrogate <- 0
-
-  # map rpart's split code back to its name: given the code, rpart stores NA
-  # and silently falls back to gini
-  split_rule <- c("gini", "information")[h$parms$split]
-  if (is.na(split_rule)) {
-    split_rule <- "gini"
+#' Reset the progress style and close a half-finished line
+#'
+#' Runs from on.exit(), which unlike tryCatch() also runs on a user interrupt.
+#' @noRd
+close_progress <- function(progress, finished) {
+  if (!is.null(progress)) {
+    cat("\033[0m", file = stderr())
   }
-
-  # dataset name from the tree's call, for the `train` attribute
-  data_name <- h$call[["data"]]
-
-  # close a half-finished progress line on error; unlike tryCatch(), on.exit()
-  # also runs on a user interrupt
-  pb <- NULL
-  finish <- FALSE
-  if (verbose) {
-    on.exit(
-      {
-        # stop the bar's color leaking past this call
-        if (!is.null(pb)) {
-          cat("\033[0m", file = stderr())
-        }
-        if (!finish) {
-          # closing the bar breaks the line; without one, break it directly
-          if (!is.null(pb)) close(pb) else message("")
-        }
-      },
-      add = TRUE
-    )
+  if (!finished) {
+    # closing the bar breaks the line; without one, break it directly
+    if (!is.null(progress)) close(progress) else message("")
   }
+}
 
-  if (verbose) {
-    color_message(
-      "Start the AdaBoost training process:\n",
-      color_code = ansi_bold
-    )
-  }
+#' Weigh a learner by its weighted error `e`
+#' @noRd
+weigh_learner <- function(e, eta) {
+  # clamp so a perfect or useless learner keeps a finite weight; e > 0.5
+  # gives a negative weight, which update_weights() handles
+  e <- min(max(e, 1e-10), 1 - 1e-10)
+  0.5 * log((1 - e) / e) * eta
+}
 
-  if (input_checks) {
-    if (verbose) {
-      color_message("Run mild input checks", color_code = ansi_dim)
-    }
-    check_df(mf)
-    check_length(mf)
-    check_eta(eta)
-    check_numeric(n_iter)
-    if (verbose) walking_colordots()
-  }
+#' Shift weight toward the misclassified observations
+#' @noRd
+update_weights <- function(D, correct, a) {
+  D_raw <- D * exp(ifelse(correct, -a, a))
+  D_raw / sum(D_raw)
+}
 
-  if (verbose) {
-    color_message("Start the initialization process", color_code = ansi_dim)
-  }
-
-  m <- nrow(mf)
-  D <- rep(1, m) / m
-  H <- vector("list", n_iter)
-
-  if (verbose) {
-    walking_colordots()
-    color_message(
-      "Steps 1-4: Run through the algorithm steps",
-      color_code = ansi_dim
-    )
-    # faint, on stderr: stdout would mix the bar into the results, and plain
-    # stderr is red in RStudio; on.exit() above resets the attribute
-    message("\033[", ansi_dim, "m", appendLF = FALSE)
-    pb <- utils::txtProgressBar(
-      min = 0,
-      max = n_iter,
-      style = 3,
-      file = stderr()
-    )
-  }
-
-  for (t in seq_len(n_iter)) {
-    # h_t, not h: the prototype must survive the loop; model = FALSE keeps one
-    # data copy on the ensemble instead of one per tree
-    h_t <- rpart::rpart(
-      formula = fit_formula,
-      data = mf,
-      weights = D,
-      method = "class",
-      control = ctrl,
-      # keep the split rule; let rpart derive prior and loss from the weights
-      parms = list(split = split_rule),
-      model = FALSE,
-      y = FALSE
-    )
-
-    y_retro <- stats::predict(h_t, newdata = mf, type = "class")
-
-    correct <- (y_train == y_retro)
-    # clamp so a perfect or useless learner keeps a finite weight; e > 0.5
-    # gives a negative `a`, which the update handles
-    e <- min(max(sum(D[!correct]), 1e-10), 1 - 1e-10)
-    a <- 0.5 * log((1 - e) / e) * eta
-
-    D_unorm <- D
-    D_unorm[correct] <- D[correct] * exp(-a)
-    D_unorm[!correct] <- D[!correct] * exp(a)
-    D <- D_unorm / sum(D_unorm)
-
-    # drop what predict() does not need
-    h_t$where <- NULL
-    h_t$call <- NULL
-    # restore the learner's terms: predict() evaluates transformations on raw
-    # newdata, and the fitted terms would carry this frame and its data
-    h_t$terms <- learner_terms
-
-    H[[t]] <- list("h" = h_t, "a" = a)
-
-    if (verbose) utils::setTxtProgressBar(pb, t)
-  }
-
-  finish <- TRUE
-
-  if (verbose) {
-    close(pb)
-    color_message("Create output", color_code = ansi_dim)
-    walking_colordots()
-    color_message(
-      "Training process successfully completed.\n",
-      color_code = ansi_bold,
-      newline = TRUE
-    )
-  }
-
-  names(H) <- paste0("t", seq_len(n_iter))
-
-  # one data copy, on the ensemble
-  trainset <- if (keep_data) mf else NULL
-
-  # store the formula without this frame, so the fit holds no training data;
-  # keep the whole control list so every setting stays visible
-  form_store <- formula
-  environment(form_store) <- globalenv()
-
-  structure(
-    H,
-    class = "adaboost",
-    trainset = trainset,
-    train = data_name,
-    formula = form_store,
-    n_iter = n_iter,
-    eta = eta,
-    control = ctrl,
-    split = split_rule
-  )
+#' Strip a tree to what predict() needs
+#' @noRd
+strip_tree <- function(tree, learner_terms) {
+  tree$where <- NULL
+  tree$call <- NULL
+  # predict() evaluates transformations on raw newdata; the fitted terms
+  # would carry adaboost()'s frame and its data
+  tree$terms <- learner_terms
+  tree
 }
 
 #' Predict from a boosted ensemble
@@ -323,7 +322,7 @@ adaboost <- function(
 #' @param newdata A data frame with the predictors the model was trained on.
 #' @param type `"class"` for class labels (-1 or 1), or `"margin"` for the
 #'   continuous score. Use `"margin"` for ranking measures such as [auroc()].
-#' @param input_checks Whether to check the inputs. Defaults to `TRUE`.
+#' @param check_inputs Whether to check the inputs. Defaults to `TRUE`.
 #' @param verbose Whether to show progress. Defaults to `TRUE`.
 #' @param ... Ignored.
 #'
@@ -336,48 +335,44 @@ predict.adaboost <- function(
   object,
   newdata,
   type = c("class", "margin"),
-  input_checks = TRUE,
+  check_inputs = TRUE,
   verbose = TRUE,
   ...
 ) {
   type <- match.arg(type)
 
-  # no newdata: fall back to the training data, as predict.lm() does;
-  # check_train() below reports the retrodiction
+  # no newdata: score the training data, as predict.lm() does; check_train()
+  # below reports the retrodiction
   trainset <- attr(object, "trainset")
-  fell_back <- missing(newdata)
-  if (missing(newdata)) {
+  defaulted <- missing(newdata)
+  if (defaulted) {
     if (is.null(trainset)) {
-      msg <- "`newdata` is required. "
-      sug <- paste0(
-        "This fit was built with `keep_data = FALSE`, so it has no training ",
-        "data to fall back on. Pass the training frame for retrodictions, the ",
-        "test frame for predictions."
+      stop(
+        "`newdata` is required. This fit was built with `keep_data = FALSE`, ",
+        "so it has no training data to fall back on. Pass the training frame ",
+        "for retrodictions, the test frame for predictions.",
+        call. = FALSE
       )
-      stop(c(msg, sug), call. = FALSE)
     }
     newdata <- trainset
   }
 
   # break a line left open for " Done" if an error hits in between
-  finish <- FALSE
+  finished <- FALSE
   if (verbose) {
-    on.exit(if (!finish) message(""), add = TRUE)
+    on.exit(if (!finished) message(""), add = TRUE)
   }
 
   # work this out whenever anything reports it, not only with the checks
-  fcl <- match.call()
-  test_pos <- match("newdata", names(fcl), nomatch = 0L)
-  testnme <- if (test_pos) fcl[[test_pos]] else NULL
-  state <- if (input_checks || verbose) {
-    overlap_state(attr(object, "train"), testnme, trainset, newdata)
+  newdata_name <- match.call()[["newdata"]]
+  overlap <- if (check_inputs || verbose) {
+    detect_overlap(attr(object, "train"), newdata_name, trainset, newdata)
   } else {
     NA_character_
   }
-  # "all" retrodictions, "none" predictions, the slash form when unknown
-  noun <- if (is.na(state)) {
+  kind <- if (is.na(overlap)) {
     "predictions/retrodictions"
-  } else if (state == "all") {
+  } else if (overlap == "all") {
     "retrodictions"
   } else {
     "predictions"
@@ -386,7 +381,7 @@ predict.adaboost <- function(
   if (verbose) {
     color_message("Start the AdaBoost test process:\n", color_code = ansi_bold)
   }
-  if (input_checks) {
+  if (check_inputs) {
     if (verbose) {
       color_message("Run mild input checks", color_code = ansi_dim)
     }
@@ -394,53 +389,49 @@ predict.adaboost <- function(
     check_length(object)
     check_df(newdata)
     check_length(newdata)
-  }
-  if (verbose && input_checks) {
-    walking_colordots()
+    if (verbose) mark_done()
   }
   if (verbose) {
     color_message("Extract the trees", color_code = ansi_dim)
-    walking_colordots()
+    mark_done()
   }
   h <- lapply(object, "[[", "h")
   check_length(h)
   if (verbose) {
     color_message("Extract the model weights", color_code = ansi_dim)
-    walking_colordots()
+    mark_done()
   }
   a <- vapply(object, "[[", numeric(1), "a")
   check_length(a)
 
   if (verbose) {
-    color_message(paste0("Make ", noun, "\n"), color_code = ansi_dim)
+    color_message(paste0("Make ", kind, "\n"), color_code = ansi_dim)
   }
 
-  N <- nrow(newdata)
-  # matrix(): vapply returns a vector when N == 1, which would turn the
-  # product below into a T x T outer product
-  y12_stumps <- matrix(
+  n <- nrow(newdata)
+  # matrix(): with one row, vapply() returns a vector and the product below
+  # becomes an outer product
+  codes <- matrix(
     vapply(
       h,
-      function(tree) {
-        stats::predict(tree, newdata = newdata, type = "vector")
-      },
-      FUN.VALUE = numeric(N)
+      \(tree) stats::predict(tree, newdata = newdata, type = "vector"),
+      numeric(n)
     ),
-    nrow = N
+    nrow = n
   )
 
   if (verbose) {
-    color_message(paste0("Combine ", noun), color_code = ansi_dim)
+    color_message(paste0("Combine ", kind), color_code = ansi_dim)
   }
 
-  ypred_stumps <- 2 * y12_stumps - 3
+  # rpart codes the classes 1 and 2; the vote needs -1 and 1
+  votes <- 2 * codes - 3
+  margin <- as.vector(a %*% t(votes))
 
-  raw_margin <- as.vector(a %*% t(ypred_stumps))
-
-  finish <- TRUE
+  finished <- TRUE
 
   if (verbose) {
-    walking_colordots()
+    mark_done()
     color_message(
       "Test process successfully completed.\n",
       color_code = ansi_bold
@@ -448,13 +439,9 @@ predict.adaboost <- function(
   }
 
   # last: a transcript scrolls, so the note sits next to its values
-  if (input_checks) {
-    check_train(state, testnme, verbose = verbose, fell_back = fell_back)
+  if (check_inputs) {
+    check_train(overlap, newdata_name, verbose = verbose, defaulted = defaulted)
   }
 
-  if (type == "class") {
-    sign(raw_margin)
-  } else {
-    raw_margin
-  }
+  if (type == "class") sign(margin) else margin
 }
