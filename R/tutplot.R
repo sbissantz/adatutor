@@ -10,7 +10,9 @@
 #' * `tutplot_importance()`: the model weight a stump earns, by its
 #'   performance.
 #' * `tutplot_weightone()`: observation weights before and after one round.
-#' * `tutplot_lpocv()`: the leave-project-out cross-validation scheme.
+#' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
+#' * `tutplot_logocv()`: the leave-one-group-out estimates per project, with
+#'   or without bootstrap intervals.
 #'
 #' @section Output:
 #' With `file = NULL` (the default), the figure is drawn on the current
@@ -48,20 +50,33 @@
 #'   the weights alone cannot show which points were missed.
 #' @param n The number of data points to draw. 25 fits a column.
 #' @param scaling The bubble size multiplier.
-#' @param group One project label per row, as [lpocv()] takes it.
+#' @param group One project label per row, as [logo_cv()] takes it.
 #' @param proportional Whether to size the rows by project. `TRUE` (the
 #'   default) shows the imbalance: one project holds 59 percent of the rows.
 #'   `FALSE` draws the equal blocks the manuscript prints.
 #' @param levels The project order, top to bottom. `NULL` uses a factor's
 #'   levels or the order of first appearance.
+#' @param res A result of [logo_cv()].
+#' @param bootstrap Whether to draw bootstrap intervals. `FALSE` draws the
+#'   estimates only, without resampling. `TRUE` (the default) uses the
+#'   intervals attached by [bootstrap()], or resamples when there are none;
+#'   set the seed first. These are percentile intervals within each project,
+#'   not standard errors.
+#' @param n_resample The number of resamples per project, when `bootstrap`
+#'   has to resample. Defaults to 1000.
+#' @param metric The measure to draw. Defaults to `"auroc"`.
+#' @param bands The interval widths, widest last. Defaults to 0.50, 0.80 and
+#'   0.95.
+#' @param ylab The axis label. Defaults to `metric` in capitals.
 #' @param width,height,pointsize Passed to [grDevices::pdf()]; ignored when
 #'   `file` is `NULL`.
 #'
 #' @return Invisibly, the facts the figure's caption states, so tests can
 #'   check them. `tutplot_cstump()` returns the fit, the split variable, the
 #'   cutpoint and the leaf sizes; `tutplot_gini()` the curve and its peak;
-#'   `tutplot_lpocv()` the project sizes, their count, the order and the row
-#'   heights.
+#'   `tutplot_logoscheme()` the project sizes, their count, the order and the
+#'   row heights; `tutplot_logocv()` one row per project with its estimate,
+#'   the widest interval, and whether too many resamples were rejected.
 #'
 #' @family tutorial plots
 #' @seealso [tutplot_boundary()] for Figures 3 and 9.
@@ -86,9 +101,9 @@
 #' gini <- tutplot_gini()
 #' gini$peak
 #'
-#' # Figure 1: the LPO-CV scheme, drawn from the grouping itself
+#' # Figure 1: the LOGO-CV scheme, drawn from the grouping itself
 #' data(altmejd)
-#' folds <- tutplot_lpocv(altmejd$pid)
+#' folds <- tutplot_logoscheme(altmejd$pid)
 #' folds$n
 #'
 #' @name tutplot
@@ -994,7 +1009,51 @@ boundary_colorbar <- function(alpha, labels) {
 
 #' @rdname tutplot
 #' @export
-tutplot_lpocv <- function(
+tutplot_logocv <- function(
+  res,
+  bootstrap = TRUE,
+  n_resample = 1000,
+  metric = "auroc",
+  bands = c(0.50, 0.80, 0.95),
+  ylab = toupper(metric),
+  file = NULL,
+  width = tutplot_opts$col[["width"]],
+  height = tutplot_opts$col[["height"]],
+  pointsize = tutplot_opts$pointsize
+) {
+  if (!inherits(res, "logo_cv")) {
+    stop("`res` must be a result of logo_cv().", call. = FALSE)
+  }
+  if (!bootstrap) {
+    res$ci <- NULL
+  } else if (is.null(res$ci)) {
+    # the method, not the generic: the argument `bootstrap` shadows its name
+    res <- bootstrap.logo_cv(res, n_resample = n_resample)
+  }
+
+  if (!is.null(file)) {
+    grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
+    on.exit(grDevices::dev.off(), add = TRUE)
+  }
+
+  op <- tut_par(legend = TRUE)
+  on.exit(graphics::par(op), add = TRUE)
+
+  # no title and no footnote: the caption names the figure and the flags
+  facts <- draw_logo_cv(
+    res,
+    metric = metric,
+    levels = bands,
+    main = NULL,
+    ylab = ylab,
+    footnote = FALSE
+  )
+  invisible(facts)
+}
+
+#' @rdname tutplot
+#' @export
+tutplot_logoscheme <- function(
   group,
   proportional = TRUE,
   levels = NULL,
