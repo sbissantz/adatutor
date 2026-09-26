@@ -7,7 +7,7 @@ test_that("adaboost() and predict() work", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
 
   expect_length(fit, 10)
   expect_equal(round(fit$t1$a, 1), 0.3)
@@ -15,7 +15,7 @@ test_that("adaboost() and predict() work", {
   expect_match(class(fit$t1$h), "rpart")
   expect_equal(attr(fit, "train"), as.name("iris"))
 
-  ypred <- predict(fit, iris, input_checks = FALSE, verbose = FALSE)
+  ypred <- predict(fit, iris, check_inputs = FALSE, verbose = FALSE)
   expect_equal(ypred[1:6], rep(-1, 6))
 
   # Test 2: Verbose and with input checks
@@ -25,7 +25,7 @@ test_that("adaboost() and predict() work", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 10, eta = 1, verbose = TRUE, input_checks = TRUE)
+    adaboost(n_iter = 10, eta = 1, verbose = TRUE, check_inputs = TRUE)
 
   expect_length(fit2, 10)
   expect_equal(round(fit2$t1$a, 1), 0.3)
@@ -33,10 +33,10 @@ test_that("adaboost() and predict() work", {
   expect_match(class(fit2$t1$h), "rpart")
   expect_equal(attr(fit2, "train"), as.name("iris"))
 
-  ypred2 <- predict(fit2, iris, input_checks = FALSE, verbose = FALSE)
+  ypred2 <- predict(fit2, iris, check_inputs = FALSE, verbose = FALSE)
   expect_equal(ypred2[1:6], rep(-1, 6))
 
-  ypred3 <- predict(fit2, iris, input_checks = TRUE, verbose = TRUE)
+  ypred3 <- predict(fit2, iris, check_inputs = TRUE, verbose = TRUE)
   expect_equal(ypred3[1:6], rep(-1, 6))
 })
 
@@ -53,7 +53,7 @@ test_that("predict() handles single-row newdata", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE, check_inputs = FALSE)
 
   for (ty in c("margin", "class")) {
     many <- predict(
@@ -61,14 +61,14 @@ test_that("predict() handles single-row newdata", {
       altmejd[61:70, prednms],
       type = ty,
       verbose = FALSE,
-      input_checks = FALSE
+      check_inputs = FALSE
     )
     one <- predict(
       fit,
       altmejd[61, prednms, drop = FALSE],
       type = ty,
       verbose = FALSE,
-      input_checks = FALSE
+      check_inputs = FALSE
     )
 
     expect_length(one, 1L)
@@ -89,7 +89,7 @@ test_that("adaboost() stashes hyperparameters and predict() returns margins", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 20, eta = 0.5, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 20, eta = 0.5, verbose = FALSE, check_inputs = FALSE)
 
   # adaboost() stashes the hyperparameters needed to refit the model later.
   # Depth is not one of its own: it arrives on the learner and is stored as the
@@ -104,14 +104,14 @@ test_that("adaboost() stashes hyperparameters and predict() returns margins", {
     altmejd[, prednms],
     type = "margin",
     verbose = FALSE,
-    input_checks = FALSE
+    check_inputs = FALSE
   )
   class_lab <- predict(
     fit,
     altmejd[, prednms],
     type = "class",
     verbose = FALSE,
-    input_checks = FALSE
+    check_inputs = FALSE
   )
 
   # the class label is the sign of the margin, so the margin carries the
@@ -125,7 +125,7 @@ test_that("adaboost() stashes hyperparameters and predict() returns margins", {
     altmejd[, prednms],
     type = "prob",
     verbose = FALSE,
-    input_checks = FALSE
+    check_inputs = FALSE
   ))
 })
 
@@ -455,7 +455,7 @@ test_that("the slash wording is kept for the case we cannot tell", {
   expect_match(out, "Make predictions/retrodictions")
 })
 
-test_that("the wording does not depend on input_checks", {
+test_that("the wording does not depend on check_inputs", {
   # the state is computed whenever anything will say it, not only when the
   # checks run -- this is what proves it was lifted out of check_train()
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
@@ -467,17 +467,17 @@ test_that("the wording does not depend on input_checks", {
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   out <- verbose_lines(
-    predict(fit, newdata = train, type = "margin", input_checks = FALSE)
+    predict(fit, newdata = train, type = "margin", check_inputs = FALSE)
   )
   expect_match(out, "Make retrodictions")
   expect_false(has_notice(
-    predict(fit, newdata = train, type = "margin", input_checks = FALSE)
+    predict(fit, newdata = train, type = "margin", check_inputs = FALSE)
   ))
 })
 
 test_that("the notice comes after the transcript, on its own line", {
   # it was once emitted into the open line left by "Run mild input checks",
-  # which waits for walking_colordots() to close it. It now lands at the very
+  # which waits for mark_done() to close it. It now lands at the very
   # end: a transcript scrolls, and nobody reads upwards.
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
@@ -534,7 +534,7 @@ test_that("a partial overlap is deliberately not reported", {
 })
 
 test_that("predict() with no newdata names the fall-back, not \"this\"", {
-  # testnme is NULL when there is no `newdata` argument to deparse, so the
+  # newdata_name is NULL when there is no `newdata` argument to deparse, so the
   # message used to name no source at all, reading "this ..."
   train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
