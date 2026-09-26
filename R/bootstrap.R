@@ -109,20 +109,20 @@ bootstrap.default <- function(
 
   notes <- character(0)
   if (stratified) {
-    msg <- paste0(
+    note <- paste0(
       "stratified = TRUE holds the class balance fixed, so intervals for the ",
       "prevalence-dependent measures (auprc, ppv, npv, f1, acc, mcc) are ",
       "understated. auroc and bacc are unaffected."
     )
-    notes <- c(notes, msg)
-    warning(msg, call. = FALSE)
+    notes <- c(notes, note)
+    warning(note, call. = FALSE)
   }
 
   # keep only the names: no class, no print attributes
   observed <- c(assess(y, score, threshold = threshold, k = k))
   n <- length(y)
-  pos <- which(y == 1L)
-  neg <- which(y == 0L)
+  positives <- which(y == 1L)
+  negatives <- which(y == 0L)
 
   # cap the attempts: only an all-one-class fold fails, and no count fixes it
   max_attempts <- 100L * as.integer(n_resample)
@@ -138,23 +138,23 @@ bootstrap.default <- function(
   attempts <- 0L
   while (kept < n_resample && attempts < max_attempts) {
     attempts <- attempts + 1L
-    idx <- if (stratified) {
+    rows <- if (stratified) {
       # resample within class, so the class counts never change
       c(
-        sample(pos, length(pos), replace = TRUE),
-        sample(neg, length(neg), replace = TRUE)
+        sample(positives, length(positives), replace = TRUE),
+        sample(negatives, length(negatives), replace = TRUE)
       )
     } else {
       sample.int(n, n, replace = TRUE)
     }
-    if (length(unique(y[idx])) < 2L) {
+    if (length(unique(y[rows])) < 2L) {
       next
     }
     kept <- kept + 1L
     # one assess() call per draw keeps the intervals of all measures coherent;
     # the scale check already ran on the observed data, so mute it per draw
     draws[kept, ] <- withCallingHandlers(
-      assess(y[idx], score[idx], threshold = threshold, k = k),
+      assess(y[rows], score[rows], threshold = threshold, k = k),
       warning = function(w) {
         if (
           startsWith(conditionMessage(w), "`score` lies entirely in [0, 1]")
@@ -165,7 +165,7 @@ bootstrap.default <- function(
     )
   }
 
-  drop <- attempts - kept
+  n_dropped <- attempts - kept
 
   if (kept < n_resample) {
     warning(
@@ -179,20 +179,26 @@ bootstrap.default <- function(
     )
     lower <- upper <- rep(NA_real_, length(observed))
   } else {
-    a <- (1 - conf) / 2
-    lower <- apply(draws, 2, stats::quantile, probs = a, na.rm = TRUE)
-    upper <- apply(draws, 2, stats::quantile, probs = 1 - a, na.rm = TRUE)
+    tail_prob <- (1 - conf) / 2
+    lower <- apply(draws, 2, stats::quantile, probs = tail_prob, na.rm = TRUE)
+    upper <- apply(
+      draws,
+      2,
+      stats::quantile,
+      probs = 1 - tail_prob,
+      na.rm = TRUE
+    )
 
-    if (!stratified && drop / attempts > 0.05) {
-      msg <- sprintf(
+    if (!stratified && n_dropped / attempts > 0.05) {
+      note <- sprintf(
         paste0(
           "%.1f%% of resamples were rejected as single-class. The interval is ",
           "conditional on both classes appearing, so its bounds are optimistic."
         ),
-        100 * drop / attempts
+        100 * n_dropped / attempts
       )
-      notes <- c(notes, msg)
-      warning(msg, call. = FALSE)
+      notes <- c(notes, note)
+      warning(note, call. = FALSE)
     }
   }
 
@@ -201,7 +207,7 @@ bootstrap.default <- function(
     estimate = unname(observed),
     lower = unname(lower),
     upper = unname(upper),
-    drop = drop,
+    drop = n_dropped,
     row.names = NULL,
     stringsAsFactors = FALSE
   )
@@ -257,23 +263,23 @@ bootstrap.logo_cv <- function(
     x$scores <- scores
   }
 
-  threshold <- if (x$model == "adaboost") 0 else 0.5
+  threshold <- choose_threshold(x$model)
   projects <- x$projects$project
   x$ci <- stats::setNames(
-    lapply(projects, function(p) {
-      rows <- scores$project == p
+    lapply(projects, function(project) {
+      in_project <- scores$project == project
       # name the project, so warnings from different folds stay apart
       withCallingHandlers(
         bootstrap.default(
-          scores$actual[rows],
-          scores$score[rows],
+          scores$actual[in_project],
+          scores$score[in_project],
           n_resample = n_resample,
           stratified = stratified,
           conf = conf,
           threshold = threshold
         ),
         warning = function(w) {
-          warning("project ", p, ": ", conditionMessage(w), call. = FALSE)
+          warning("project ", project, ": ", conditionMessage(w), call. = FALSE)
           invokeRestart("muffleWarning")
         }
       )

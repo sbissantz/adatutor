@@ -38,9 +38,9 @@
 #' @param ylim The vertical range. Defaults to the manuscript's.
 #' @param eta The learning rates, one curve each.
 #' @param from Where performance starts. The default, 0.5, is chance.
-#' @param mark_perf A performance to mark on the figure, so you can find your
+#' @param marked_perf A performance to mark on the figure, so you can find your
 #'   own stump. `NULL` draws no mark. Must be at least `from` and below 1.
-#' @param mark_eta The curve the mark belongs to. Defaults to the first.
+#' @param marked_eta The curve the mark belongs to. Defaults to the first.
 #' @param data The training data for the first boosting round, used when `d1`
 #'   and `d2` are `NULL`.
 #' @param d1,d2 The observation weights before and after one round. `NULL`
@@ -125,7 +125,7 @@ tutplot_cstump <- function(
   }
 
   # color-blind palette from the fit's own class proportions
-  sty <- viridis_tree(fit)
+  colors <- viridis_tree(fit)
 
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
@@ -136,20 +136,20 @@ tutplot_cstump <- function(
     fit,
     extra = extra,
     digits = 4,
-    box.col = sty$box,
-    col = sty$text
+    box.col = colors$box,
+    col = colors$text
   )
 
   # what the caption claims, for tests; a stump that never split has no
   # `splits` matrix
-  leaf <- fit$frame$var == "<leaf>"
-  split <- if (is.null(fit$splits)) NULL else fit$splits[1, "index"]
+  terminal <- fit$frame$var == "<leaf>"
+  cutpoint <- if (is.null(fit$splits)) NULL else fit$splits[1, "index"]
 
   invisible(list(
     fit = fit,
     variable = as.character(fit$frame$var[1]),
-    cutpoint = split,
-    leaves = fit$frame$n[leaf]
+    cutpoint = cutpoint,
+    leaves = fit$frame$n[terminal]
   ))
 }
 
@@ -172,29 +172,32 @@ tutplot_gini <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  op <- tut_par(legend = FALSE)
-  on.exit(graphics::par(op), add = TRUE)
+  old_par <- set_figure_par(reserve_legend = FALSE)
+  on.exit(graphics::par(old_par), add = TRUE)
 
   # a single curve, so one color rather than a scale
-  col <- viridisLite::viridis(1, end = tutplot_opts$viridis_end)
+  color <- viridisLite::viridis(1, end = tutplot_opts$viridis_end)
 
-  # two-class gini impurity
-  x <- x_seq
-  y <- 1 - (x^2) - (1 - x)^2
+  proportion <- x_seq
+  impurity <- 1 - (proportion^2) - (1 - proportion)^2
 
   # empty frame, grid, then curve, so the grid lies under the curve
   plot(
     NULL,
-    xlim = range(x),
-    ylim = range(y),
+    xlim = range(proportion),
+    ylim = range(impurity),
     xlab = "Proportion of Successes",
     ylab = "Impurity"
   )
   graphics::grid()
-  graphics::lines(x, y, lwd = lwd, col = col)
+  graphics::lines(proportion, impurity, lwd = lwd, col = color)
   graphics::axis(side = 1, at = seq(0, 1, by = 0.1))
 
-  invisible(list(x = x, y = y, peak = x[which.max(y)]))
+  invisible(list(
+    x = proportion,
+    y = impurity,
+    peak = proportion[which.max(impurity)]
+  ))
 }
 
 #' @rdname tutplot
@@ -217,15 +220,15 @@ tutplot_updatefactor <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  op <- tut_par(legend = TRUE)
-  on.exit(graphics::par(op), add = TRUE)
+  old_par <- set_figure_par(reserve_legend = TRUE)
+  on.exit(graphics::par(old_par), add = TRUE)
 
   # same ordered palette as the eta curves: model weights are ordered too
-  pal <- viridisLite::viridis(length(alpha), end = tutplot_opts$viridis_end)
+  colors <- viridisLite::viridis(length(alpha), end = tutplot_opts$viridis_end)
   pch <- rep_len(pch, length(alpha))
 
-  # the update factor: chi is +1 where the learner was right, -1 where wrong
-  feat <- function(at, x) exp(-at * x)
+  # chi is +1 where the learner was right, -1 where wrong
+  rescale_weight <- function(alpha, chi) exp(-alpha * chi)
 
   # empty frame first, so the grid lies under every curve
   plot(
@@ -240,21 +243,22 @@ tutplot_updatefactor <- function(
 
   # one alpha per curve, and its two end points read from that same alpha
   for (i in seq_along(alpha)) {
+    # curve() evaluates its expression in `x`
     graphics::curve(
-      feat(alpha[i], x),
+      rescale_weight(alpha[i], x),
       from = -1,
       to = 1,
-      col = pal[i],
+      col = colors[i],
       lty = lty,
       lwd = lwd,
       add = TRUE
     )
     graphics::points(
       c(1, -1),
-      c(feat(alpha[i], 1), feat(alpha[i], -1)),
+      c(rescale_weight(alpha[i], 1), rescale_weight(alpha[i], -1)),
       pch = pch[i],
       cex = 2,
-      col = pal[i]
+      col = colors[i]
     )
   }
 
@@ -262,13 +266,13 @@ tutplot_updatefactor <- function(
   graphics::abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
 
   # built from `alpha`, so a label cannot outlive the curve it names
-  tut_legend(
+  draw_legend(
     as.expression(lapply(
       alpha,
-      function(a) bquote(a[t] * " = " * .(format(a)))
+      \(value) bquote(a[t] * " = " * .(format(value)))
     )),
     cex = 1,
-    col = pal,
+    col = colors,
     lty = lty,
     lwd = lwd,
     pch = pch
@@ -277,8 +281,8 @@ tutplot_updatefactor <- function(
 
   invisible(list(
     alpha = alpha,
-    correct = feat(alpha, 1),
-    wrong = feat(alpha, -1)
+    correct = rescale_weight(alpha, 1),
+    wrong = rescale_weight(alpha, -1)
   ))
 }
 
@@ -289,21 +293,26 @@ tutplot_importance <- function(
   lty = c(1, 2, 4, 5),
   lwd = 2,
   from = 0.5,
-  mark_perf = NULL,
-  mark_eta = eta[1],
+  marked_perf = NULL,
+  marked_eta = eta[1],
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
   pointsize = tutplot_opts$pointsize
 ) {
   check_numeric(eta)
-  if (!is.null(mark_perf)) {
-    check_numeric(mark_perf)
+  if (!is.null(marked_perf)) {
+    check_numeric(marked_perf)
     # refuse an invisible mark: below `from` it is off the panel, at 1 infinite
-    if (length(mark_perf) != 1L || mark_perf < from || mark_perf >= 1) {
-      msg <- paste0("`mark_perf` must be one value in [", from, ", 1). ")
-      sug <- paste0("Got ", paste(format(mark_perf), collapse = ", "), ".")
-      stop(c(msg, sug), call. = FALSE)
+    if (length(marked_perf) != 1L || marked_perf < from || marked_perf >= 1) {
+      stop(
+        "`marked_perf` must be one value in [",
+        from,
+        ", 1). Got ",
+        paste(format(marked_perf), collapse = ", "),
+        ".",
+        call. = FALSE
+      )
     }
   }
 
@@ -312,25 +321,29 @@ tutplot_importance <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  op <- tut_par(legend = TRUE)
-  on.exit(graphics::par(op), add = TRUE)
+  old_par <- set_figure_par(reserve_legend = TRUE)
+  on.exit(graphics::par(old_par), add = TRUE)
 
   # ordered learning rates, so the palette runs with them
-  pal <- viridisLite::viridis(length(eta), end = tutplot_opts$viridis_end)
+  colors <- viridisLite::viridis(length(eta), end = tutplot_opts$viridis_end)
   lty <- rep_len(lty, length(eta))
 
   # a stump's importance as a function of its performance
-  fat <- function(x, eta) 1 / 2 * log(x / (1 - x)) * eta
+  weigh <- function(accuracy, eta) 1 / 2 * log(accuracy / (1 - accuracy)) * eta
 
   # stop short of the asymptote at 1: R drops the one infinite value
-  xs <- seq(from, 1, length.out = 101)
-  ys <- vapply(eta, function(e) fat(xs, e), numeric(length(xs)))
+  performance <- seq(from, 1, length.out = 101)
+  importance <- vapply(
+    eta,
+    \(rate) weigh(performance, rate),
+    numeric(length(performance))
+  )
 
   # size the panel from every curve; the first alone clips ascending rates
   plot(
     NULL,
     xlim = c(from, 1),
-    ylim = range(ys[is.finite(ys)]),
+    ylim = range(importance[is.finite(importance)]),
     xlab = "Performance",
     ylab = "Importance"
   )
@@ -338,56 +351,68 @@ tutplot_importance <- function(
 
   # the reader's own learner, drawn first so the curves stay on top; segments
   # stop at the crosshair instead of crossing every curve
-  mark_alpha <- NULL
-  if (!is.null(mark_perf)) {
-    mark_alpha <- fat(mark_perf, mark_eta)
+  marked_alpha <- NULL
+  if (!is.null(marked_perf)) {
+    marked_alpha <- weigh(marked_perf, marked_eta)
     graphics::segments(
-      mark_perf,
+      marked_perf,
       0,
-      mark_perf,
-      mark_alpha,
+      marked_perf,
+      marked_alpha,
       lty = 2,
       col = "gray30"
     )
     graphics::segments(
       from,
-      mark_alpha,
-      mark_perf,
-      mark_alpha,
+      marked_alpha,
+      marked_perf,
+      marked_alpha,
       lty = 2,
       col = "gray30"
     )
-    graphics::points(mark_perf, mark_alpha, pch = 19, cex = 1.1, col = "gray20")
+    graphics::points(
+      marked_perf,
+      marked_alpha,
+      pch = 19,
+      cex = 1.1,
+      col = "gray20"
+    )
   }
 
   for (i in seq_along(eta)) {
-    graphics::lines(xs, ys[, i], col = pal[i], lty = lty[i], lwd = lwd)
+    graphics::lines(
+      performance,
+      importance[, i],
+      col = colors[i],
+      lty = lty[i],
+      lwd = lwd
+    )
   }
 
   # legend in the top margin (`xpd = NA`), so it never covers a curve, built
   # from `eta`; `text.width = NA` stops `horiz` padding entries to the widest
-  tut_legend(
+  draw_legend(
     as.expression(lapply(
       eta,
-      function(e) bquote(eta * " = " * .(format(e)))
+      \(rate) bquote(eta * " = " * .(format(rate)))
     )),
     cex = 0.9,
-    col = pal,
+    col = colors,
     lty = lty,
     lwd = lwd
   )
 
   invisible(list(
     eta = eta,
-    performance = xs,
-    importance = ys,
-    alpha = mark_alpha
+    performance = performance,
+    importance = importance,
+    alpha = marked_alpha
   ))
 }
 
 # one round of AdaBoost on `data`, repeating Listings 17--22, so
 # tutplot_weightone() needs nothing from the reader's session
-tut_round_one <- function(
+run_round_one <- function(
   data,
   predictors = c("power.o", "effect_size.o", "n.o", "p_value.o")
 ) {
@@ -409,14 +434,14 @@ tut_round_one <- function(
     maxsurrogate = 0,
     weights = d1
   )
-  yretro <- stats::predict(h1, newdata = data, type = "class")
+  y_retro <- stats::predict(h1, newdata = data, type = "class")
 
   # the learner's weighted error, and the say it earns
-  e1 <- sum(d1 * (yretro != y))
+  e1 <- sum(d1 * (y_retro != y))
   alpha1 <- 0.5 * log((1 - e1) / e1)
 
   # +1 where it was right, -1 where it was wrong
-  chi1 <- (yretro == y) * 1 + (yretro != y) * -1
+  chi1 <- (y_retro == y) * 1 + (y_retro != y) * -1
   d2_raw <- d1 * exp(-alpha1 * chi1)
 
   list(
@@ -444,7 +469,7 @@ tutplot_weightone <- function(
   pointsize = tutplot_opts$pointsize
 ) {
   if (is.null(d1) || is.null(d2) || is.null(chi)) {
-    round_one <- tut_round_one(data)
+    round_one <- run_round_one(data)
     if (is.null(d1)) {
       d1 <- round_one$d1
     }
@@ -466,28 +491,27 @@ tutplot_weightone <- function(
   # weights alone cannot say which points were missed (the grown set is the
   # minority either way), so weights need a `chi`
   if (is.null(chi)) {
-    msg <- "`chi` is required when `d1` or `d2` is supplied. "
-    sug <- paste0(
-      "Weights cannot say which points were missed: a round grows the ",
-      "misclassified ones only while the learner beats chance."
+    stop(
+      "`chi` is required when `d1` or `d2` is supplied. Weights cannot say ",
+      "which points were missed: a round grows the misclassified ones only ",
+      "while the learner beats chance.",
+      call. = FALSE
     )
-    stop(c(msg, sug), call. = FALSE)
   }
   check_numeric(chi)
   if (length(chi) != length(d1) || !all(chi %in% c(-1, 1))) {
-    msg <- "`chi` must be +1 or -1, one per weight. "
-    sug <- paste0(
-      "Got ",
+    stop(
+      "`chi` must be +1 or -1, one per weight. Got ",
       length(chi),
       " value(s) for ",
       length(d1),
-      " weights."
+      " weights.",
+      call. = FALSE
     )
-    stop(c(msg, sug), call. = FALSE)
   }
   n <- min(n, length(d1))
 
-  wrong <- which(chi[seq_len(n)] == -1)
+  missed <- which(chi[seq_len(n)] == -1)
 
   if (is.null(ylim)) {
     ylim <- c(0, max(c(d1, d2)) * 1.15)
@@ -498,15 +522,15 @@ tutplot_weightone <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  op <- tut_par(legend = TRUE)
-  on.exit(graphics::par(op), add = TRUE)
+  old_par <- set_figure_par(reserve_legend = TRUE)
+  on.exit(graphics::par(old_par), add = TRUE)
 
   # `end = 0.5` keeps d2 teal, not a yellow-green that muddies on the band
-  pal <- viridisLite::viridis(2, end = 0.5)
+  colors <- viridisLite::viridis(2, end = 0.5)
   band <- grDevices::adjustcolor(viridisLite::viridis(1, begin = 1), 0.35)
 
   # scale by area, not diameter: sqrt keeps a doubled weight at double the ink
-  bubble <- function(w) sqrt(w / mean(d1)) * scaling
+  size_bubble <- function(weights) sqrt(weights / mean(d1)) * scaling
 
   plot(
     c(0.5, n + 0.5),
@@ -518,9 +542,9 @@ tutplot_weightone <- function(
   )
   # band behind everything: a miss belongs to the point, not to a weight
   graphics::rect(
-    wrong - 0.42,
+    missed - 0.42,
     ylim[1],
-    wrong + 0.42,
+    missed + 0.42,
     ylim[2],
     col = band,
     border = NA
@@ -539,28 +563,28 @@ tutplot_weightone <- function(
   )
 
   for (i in seq_len(2)) {
-    w <- list(d1, d2)[[i]]
+    weights <- list(d1, d2)[[i]]
     graphics::points(
       seq_len(n),
-      w[seq_len(n)],
+      weights[seq_len(n)],
       pch = 21,
-      bg = pal[i],
+      bg = colors[i],
       col = "white",
-      cex = bubble(w[seq_len(n)]),
+      cex = size_bubble(weights[seq_len(n)]),
       lwd = 1.3
     )
   }
 
-  tut_legend(
+  draw_legend(
     c(expression(D[1]), expression(D[2]), "misclassified"),
     cex = 0.9,
-    pt.bg = c(pal, band),
+    pt.bg = c(colors, band),
     col = c("white", "white", "grey60"),
     pch = c(21, 21, 22),
     pt.cex = 1.3
   )
 
-  invisible(list(d1 = d1, d2 = d2, chi = chi, wrong = wrong, n = n))
+  invisible(list(d1 = d1, d2 = d2, chi = chi, wrong = missed, n = n))
 }
 
 #' Plot a two-feature decision boundary
@@ -602,8 +626,8 @@ tutplot_weightone <- function(
 #' @param legend_pos Where to put the legend. The default, `"top"`, puts it
 #'   above the panel; any other [graphics::legend()] keyword puts it inside.
 #'   `NULL` leaves it out.
-#' @param colorbar Whether `shade = "margin"` draws a color bar in place of the
-#'   legend. Defaults to `TRUE`.
+#' @param add_colorbar Whether `shade = "margin"` draws a color bar in place of
+#'   the legend. Defaults to `TRUE`.
 #' @param main,subtitle An optional title and gray subtitle above the panel.
 #' @param xlab,ylab Axis labels. `NULL` (the default) uses the feature names.
 #' @param file A path to write a PDF to, or `NULL` to draw on the current
@@ -647,7 +671,7 @@ tutplot_boundary <- function(
   alpha = NULL,
   show_points = TRUE,
   legend_pos = "top",
-  colorbar = TRUE,
+  add_colorbar = TRUE,
   main = NULL,
   subtitle = NULL,
   xlab = NULL,
@@ -669,51 +693,51 @@ tutplot_boundary <- function(
     stop("`resolution` must be at least 2.", call. = FALSE)
   }
 
-  info <- boundary_terms(fit)
-  preds <- info$predictors
+  roles <- read_terms(fit)
+  predictors <- roles$predictors
   if (is.null(features)) {
-    if (length(preds) != 2L) {
+    if (length(predictors) != 2L) {
       stop(
         "`features` must name two columns: this model has ",
-        length(preds),
+        length(predictors),
         " predictors (",
-        paste(preds, collapse = ", "),
+        paste(predictors, collapse = ", "),
         "). Pick the two to plot rather than leaving it to be guessed.",
         call. = FALSE
       )
     }
-    features <- preds
+    features <- predictors
   }
   if (length(features) != 2L) {
     stop("`features` must name exactly two columns.", call. = FALSE)
   }
-  absent <- setdiff(features, names(data))
-  if (length(absent)) {
+  missing_columns <- setdiff(features, names(data))
+  if (length(missing_columns)) {
     stop(
       "column(s) not found in `data`: ",
-      paste(absent, collapse = ", "),
+      paste(missing_columns, collapse = ", "),
       call. = FALSE
     )
   }
 
-  ax <- function(v) {
+  make_axis <- function(feature) {
     seq(
-      min(data[[v]], na.rm = TRUE),
-      max(data[[v]], na.rm = TRUE),
+      min(data[[feature]], na.rm = TRUE),
+      max(data[[feature]], na.rm = TRUE),
       length.out = resolution
     )
   }
-  x1 <- ax(features[1])
-  x2 <- ax(features[2])
+  x1 <- make_axis(features[1])
+  x2 <- make_axis(features[2])
 
   # expand.grid varies x1 fastest, so nrow = length(x1) gives the layout
   # image() and contour() expect
   grid <- expand.grid(stats::setNames(list(x1, x2), features))
   # other predictors, if `features` was given, sit at their median
-  for (v in setdiff(preds, features)) {
-    grid[[v]] <- stats::median(data[[v]], na.rm = TRUE)
+  for (predictor in setdiff(predictors, features)) {
+    grid[[predictor]] <- stats::median(data[[predictor]], na.rm = TRUE)
   }
-  z <- matrix(boundary_score(fit, grid), nrow = resolution)
+  z <- matrix(score_grid(fit, grid), nrow = resolution)
 
   if (all(z > 0, na.rm = TRUE) || all(z <= 0, na.rm = TRUE)) {
     warning(
@@ -733,11 +757,11 @@ tutplot_boundary <- function(
   }
 
   # size the top margin from what is drawn: legend, sub-title and title
-  top <- 1.0 +
+  top_margin <- 1.0 +
     (if (!is.null(legend_pos)) 1.9 else 0) +
     (if (!is.null(subtitle)) 1.2 else 0) +
     (if (!is.null(main)) 1.4 else 0)
-  old_par <- graphics::par(mar = c(4.4, 4.8, top, 1.4) + 0.1)
+  old_par <- graphics::par(mar = c(4.4, 4.8, top_margin, 1.4) + 0.1)
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
@@ -753,7 +777,7 @@ tutplot_boundary <- function(
   )
 
   # useRaster: one image instead of resolution^2 rectangles, so no white
-  # seams and a pdf about 14 times smaller; needs the equal grid from ax()
+  # seams and a pdf about 14 times smaller; needs make_axis()'s equal grid
   if (shade == "class") {
     graphics::image(
       x1,
@@ -766,19 +790,19 @@ tutplot_boundary <- function(
   } else {
     # the whole viridis scale, centered on zero: the classes sit at its ends,
     # uncertainty in the middle; the ends reach as far as the score can
-    top <- boundary_top(fit, z)
-    nb <- 64L
-    brk <- seq(-top, top, length.out = nb + 1L)
-    ramp <- viridisLite::viridis(nb)
+    reach <- find_reach(fit, z)
+    n_colors <- 64L
+    breaks <- seq(-reach, reach, length.out = n_colors + 1L)
+    ramp <- viridisLite::viridis(n_colors)
     # nudge the extremes inside: a pure leaf sits exactly on an outer break
-    eps <- (2 * top) / (2 * nb)
-    zz <- pmin(pmax(z, -top + eps), top - eps)
+    nudge <- (2 * reach) / (2 * n_colors)
+    clamped <- pmin(pmax(z, -reach + nudge), reach - nudge)
     graphics::image(
       x1,
       x2,
-      zz,
+      clamped,
       col = grDevices::adjustcolor(ramp, alpha.f = alpha),
-      breaks = brk,
+      breaks = breaks,
       add = TRUE,
       useRaster = TRUE
     )
@@ -828,7 +852,7 @@ tutplot_boundary <- function(
     graphics::mtext(
       main,
       3,
-      line = top - 1.5,
+      line = top_margin - 1.5,
       adj = 0,
       font = 2,
       cex = 0.95
@@ -845,12 +869,12 @@ tutplot_boundary <- function(
     )
   }
 
-  lab <- boundary_labels(data, info$outcome)
+  labels <- read_class_labels(data, roles$outcome)
 
-  if (show_points && !is.null(lab)) {
-    y <- as_binary(data[[info$outcome]])
+  if (show_points && !is.null(labels)) {
+    y <- as_binary(data[[roles$outcome]])
     # full-strength, ringed endpoints keep the studies the most saturated marks
-    stroke <- contrast_stroke(palette)
+    stroke <- choose_ink(palette)
     graphics::points(
       data[[features[1]]],
       data[[features[2]]],
@@ -862,12 +886,12 @@ tutplot_boundary <- function(
     )
   }
 
-  if (shade == "class" && !is.null(legend_pos) && !is.null(lab)) {
-    args <- list(
-      legend = rev(lab),
+  if (shade == "class" && !is.null(legend_pos) && !is.null(labels)) {
+    legend_args <- list(
+      legend = rev(labels),
       pch = 21,
       pt.bg = rev(palette),
-      col = rev(contrast_stroke(palette)),
+      col = rev(choose_ink(palette)),
       pt.lwd = 1.1,
       pt.cex = 1.2,
       bty = "n",
@@ -878,37 +902,33 @@ tutplot_boundary <- function(
     if (identical(legend_pos, "top")) {
       # centered in the margin above the panel, so it never covers a study
       usr <- graphics::par("usr")
-      args$x <- (usr[1] + usr[2]) / 2
-      args$y <- usr[4] + 0.055 * (usr[4] - usr[3])
-      args$xjust <- 0.5
-      args$yjust <- 0
-      args$horiz <- TRUE
+      legend_args$x <- (usr[1] + usr[2]) / 2
+      legend_args$y <- usr[4] + 0.055 * (usr[4] - usr[3])
+      legend_args$xjust <- 0.5
+      legend_args$yjust <- 0
+      legend_args$horiz <- TRUE
       # each key its own width; `horiz` otherwise pads all to the widest label
-      args$text.width <- NA
-      args$x.intersp <- 0.7
+      legend_args$text.width <- NA
+      legend_args$x.intersp <- 0.7
     } else {
-      args$x <- legend_pos
+      legend_args$x <- legend_pos
     }
-    do.call(graphics::legend, args)
+    do.call(graphics::legend, legend_args)
   }
 
-  if (shade == "margin" && isTRUE(colorbar) && !is.null(legend_pos)) {
+  if (shade == "margin" && isTRUE(add_colorbar) && !is.null(legend_pos)) {
     # the ramp's ends are the classes, so the bar is the legend
-    boundary_colorbar(alpha, lab)
+    draw_colorbar(alpha, labels)
   }
 
   invisible(list(x1 = x1, x2 = x2, z = z, features = features))
 }
 
-#' Internal helpers for tutplot_boundary()
-#' @noRd
-NULL
-
 #' Read predictor and outcome names off a fitted model
 #' @noRd
-boundary_terms <- function(fit) {
+read_terms <- function(fit) {
   # the stored formula may be `outcome ~ .`; the fitted trees carry the names
-  tm <- if (inherits(fit, "rpart")) {
+  model_terms <- if (inherits(fit, "rpart")) {
     fit$terms
   } else if (is.list(fit) && !is.null(fit[[1]]$h)) {
     fit[[1]]$h$terms
@@ -918,18 +938,21 @@ boundary_terms <- function(fit) {
       call. = FALSE
     )
   }
-  if (is.null(tm)) {
+  if (is.null(model_terms)) {
     stop(
       "`fit` carries no model terms to read feature names from.",
       call. = FALSE
     )
   }
-  list(predictors = attr(tm, "term.labels"), outcome = all.vars(tm)[1L])
+  list(
+    predictors = attr(model_terms, "term.labels"),
+    outcome = all.vars(model_terms)[1L]
+  )
 }
 
 #' Reduce a tree or an ensemble to a signed score whose zero is the boundary
 #' @noRd
-boundary_score <- function(fit, newdata) {
+score_grid <- function(fit, newdata) {
   if (inherits(fit, "rpart")) {
     prob <- stats::predict(fit, newdata = newdata, type = "prob")
     # distance from the 0.5 cut, so zero is the boundary
@@ -938,9 +961,9 @@ boundary_score <- function(fit, newdata) {
   predict(fit, newdata, type = "margin", verbose = FALSE, check_inputs = FALSE)
 }
 
-#' How far the color scale should reach
+#' Find how far the color scale should reach
 #' @noRd
-boundary_top <- function(fit, z) {
+find_reach <- function(fit, z) {
   # a tree's score lies in [-0.5, 0.5], so anchor the scale for a fixed
   # reading; a boosted margin depends on T and eta, so use its observed maximum
   if (inherits(fit, "rpart")) {
@@ -949,57 +972,68 @@ boundary_top <- function(fit, z) {
   max(abs(z), na.rm = TRUE)
 }
 
-#' Recover the class names for the region labels
+#' Read the class names for the region labels
 #' @noRd
-boundary_labels <- function(data, outcome) {
+read_class_labels <- function(data, outcome) {
   if (is.null(outcome) || !outcome %in% names(data)) {
     return(NULL)
   }
-  v <- data[[outcome]]
-  if (is.factor(v)) levels(v) else c("0", "1")
+  values <- data[[outcome]]
+  if (is.factor(values)) levels(values) else c("0", "1")
 }
 
 #' Draw the margin color bar above the panel
 #' @noRd
-boundary_colorbar <- function(alpha, labels) {
+draw_colorbar <- function(alpha, labels) {
   # centered in the margin above the panel like the class legend; its ends
   # carry the class names, so no caption
   usr <- graphics::par("usr")
-  w <- usr[2] - usr[1]
-  h <- usr[4] - usr[3]
-  x0 <- (usr[1] + usr[2]) / 2 - 0.18 * w
-  x9 <- (usr[1] + usr[2]) / 2 + 0.18 * w
-  y0 <- usr[4] + 0.045 * h
-  y9 <- y0 + 0.028 * h
+  width <- usr[2] - usr[1]
+  height <- usr[4] - usr[3]
+  left <- (usr[1] + usr[2]) / 2 - 0.18 * width
+  right <- (usr[1] + usr[2]) / 2 + 0.18 * width
+  bottom <- usr[4] + 0.045 * height
+  top <- bottom + 0.028 * height
 
-  n <- 64L
-  xs <- seq(x0, x9, length.out = n + 1L)
+  n_colors <- 64L
+  edges <- seq(left, right, length.out = n_colors + 1L)
   graphics::rect(
-    utils::head(xs, -1),
-    y0,
-    utils::tail(xs, -1),
-    y9,
-    col = grDevices::adjustcolor(viridisLite::viridis(n), alpha.f = alpha),
+    utils::head(edges, -1),
+    bottom,
+    utils::tail(edges, -1),
+    top,
+    col = grDevices::adjustcolor(
+      viridisLite::viridis(n_colors),
+      alpha.f = alpha
+    ),
     border = NA,
     xpd = NA
   )
-  graphics::rect(x0, y0, x9, y9, border = "grey65", lwd = 0.6, xpd = NA)
+  graphics::rect(
+    left,
+    bottom,
+    right,
+    top,
+    border = "grey65",
+    lwd = 0.6,
+    xpd = NA
+  )
 
-  lo <- if (is.null(labels)) "negative" else labels[1]
-  hi <- if (is.null(labels)) "positive" else labels[2]
+  low_label <- if (is.null(labels)) "negative" else labels[1]
+  high_label <- if (is.null(labels)) "positive" else labels[2]
   graphics::text(
-    x0 - 0.015 * w,
-    (y0 + y9) / 2,
-    lo,
+    left - 0.015 * width,
+    (bottom + top) / 2,
+    low_label,
     adj = c(1, 0.5),
     cex = 0.72,
     col = "grey25",
     xpd = NA
   )
   graphics::text(
-    x9 + 0.015 * w,
-    (y0 + y9) / 2,
-    hi,
+    right + 0.015 * width,
+    (bottom + top) / 2,
+    high_label,
     adj = c(0, 0.5),
     cex = 0.72,
     col = "grey25",
@@ -1036,8 +1070,8 @@ tutplot_logocv <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  op <- tut_par(legend = TRUE)
-  on.exit(graphics::par(op), add = TRUE)
+  old_par <- set_figure_par(reserve_legend = TRUE)
+  on.exit(graphics::par(old_par), add = TRUE)
 
   # no title and no footnote: the caption names the figure and the flags
   facts <- draw_logo_cv(
@@ -1046,7 +1080,7 @@ tutplot_logocv <- function(
     levels = bands,
     main = NULL,
     ylab = ylab,
-    footnote = FALSE
+    add_footnote = FALSE
   )
   invisible(facts)
 }
@@ -1069,17 +1103,17 @@ tutplot_logoscheme <- function(
   if (is.null(levels)) {
     levels <- if (is.factor(group)) base::levels(group) else unique(group)
   }
-  absent <- setdiff(levels, as.character(group))
-  if (length(absent)) {
+  unknown_levels <- setdiff(levels, as.character(group))
+  if (length(unknown_levels)) {
     stop(
       "`levels` names a project that is not in `group`: ",
-      paste(absent, collapse = ", "),
+      paste(unknown_levels, collapse = ", "),
       call. = FALSE
     )
   }
-  n <- table(factor(as.character(group), levels = levels))
-  k <- length(n)
-  nm <- toupper(names(n))
+  sizes <- table(factor(as.character(group), levels = levels))
+  n_projects <- length(sizes)
+  labels <- toupper(names(sizes))
 
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
@@ -1087,18 +1121,22 @@ tutplot_logoscheme <- function(
   }
 
   # row heights carry project sizes; equal blocks would imply comparable folds
-  h <- if (proportional) as.numeric(n) / sum(n) else rep(1 / k, k)
-  edge <- cumsum(c(0, h))
-  y0 <- 1 - edge[-1]
-  y1 <- 1 - edge[-(k + 1)]
-  pal <- viridisLite::viridis(k, end = 0.92)
+  heights <- if (proportional) {
+    as.numeric(sizes) / sum(sizes)
+  } else {
+    rep(1 / n_projects, n_projects)
+  }
+  edges <- cumsum(c(0, heights))
+  bottoms <- 1 - edges[-1]
+  tops <- 1 - edges[-(n_projects + 1)]
+  colors <- viridisLite::viridis(n_projects, end = 0.92)
 
   # no bottom label: the caption and column headers say it
-  op <- graphics::par(mar = c(0.4, 2.0, 1.3, 0.3))
-  on.exit(graphics::par(op), add = TRUE)
+  old_par <- graphics::par(mar = c(0.4, 2.0, 1.3, 0.3))
+  on.exit(graphics::par(old_par), add = TRUE)
   plot(
     NULL,
-    xlim = c(-0.62, k + 0.5),
+    xlim = c(-0.62, n_projects + 0.5),
     ylim = c(-0.26, 1.10),
     axes = FALSE,
     xlab = "",
@@ -1110,81 +1148,81 @@ tutplot_logoscheme <- function(
   # carry the horizontal gap through inches, so it looks the same vertically
   usr <- graphics::par("usr")
   pin <- graphics::par("pin")
-  pad <- 0.09
-  pad_y <- pad * (usr[4] - usr[3]) / (usr[2] - usr[1]) * pin[1] / pin[2]
-  gx <- 0.03
-  gy <- 0.006
+  gap <- 0.09
+  gap_y <- gap * (usr[4] - usr[3]) / (usr[2] - usr[1]) * pin[1] / pin[2]
+  inset_x <- 0.03
+  inset_y <- 0.006
 
   # drop a label whose band is too thin, so the smallest project still fits
-  fits <- function(i) (y1[i] - y0[i]) > 0.055
+  fits <- function(i) (tops[i] - bottoms[i]) > 0.055
 
   graphics::mtext("Dataset", side = 2, line = 0.7, cex = 0.72, col = "grey25")
-  for (i in seq_len(k)) {
-    tut_roundrect(
+  for (i in seq_len(n_projects)) {
+    draw_roundrect(
       -0.58,
-      y0[i] + gy,
+      bottoms[i] + inset_y,
       0.44,
-      y1[i] - gy,
-      col = grDevices::adjustcolor(pal[i], alpha.f = 0.32)
+      tops[i] - inset_y,
+      col = grDevices::adjustcolor(colors[i], alpha.f = 0.32)
     )
     if (fits(i)) {
       graphics::text(
         -0.07,
-        (y0[i] + y1[i]) / 2,
-        nm[i],
+        (bottoms[i] + tops[i]) / 2,
+        labels[i],
         cex = 0.7,
         col = "grey15"
       )
     }
   }
   graphics::text(
-    seq_len(k),
+    seq_len(n_projects),
     1.05,
-    sprintf("Iteration %d", seq_len(k)),
+    sprintf("Iteration %d", seq_len(n_projects)),
     cex = 0.7,
     col = "grey25"
   )
 
-  for (j in seq_len(k)) {
-    for (i in seq_len(k)) {
-      test <- i == j
+  for (j in seq_len(n_projects)) {
+    for (i in seq_len(n_projects)) {
+      held_out <- i == j
       # color says which project, opacity whether it is held out
-      fill <- if (test) {
-        pal[i]
+      fill <- if (held_out) {
+        colors[i]
       } else {
-        grDevices::adjustcolor(pal[i], alpha.f = 0.22)
+        grDevices::adjustcolor(colors[i], alpha.f = 0.22)
       }
-      tut_roundrect(
-        j - 0.5 + gx,
-        y0[i] + gy,
-        j + 0.5 - gx,
-        y1[i] - gy,
+      draw_roundrect(
+        j - 0.5 + inset_x,
+        bottoms[i] + inset_y,
+        j + 0.5 - inset_x,
+        tops[i] - inset_y,
         col = fill
       )
       if (fits(i)) {
         graphics::text(
           j,
-          (y0[i] + y1[i]) / 2,
-          if (test) "Test" else "Training",
-          col = if (test) tut_ink(pal[i]) else "grey30",
+          (bottoms[i] + tops[i]) / 2,
+          if (held_out) "Test" else "Training",
+          col = if (held_out) choose_ink(colors[i]) else "grey30",
           cex = 0.66
         )
       }
     }
-    tut_roundrect(
-      j - 0.5 + gx,
-      -pad_y - 0.14,
-      j + 0.5 - gx,
-      -pad_y,
-      col = pal[j]
+    draw_roundrect(
+      j - 0.5 + inset_x,
+      -gap_y - 0.14,
+      j + 0.5 - inset_x,
+      -gap_y,
+      col = colors[j]
     )
     graphics::text(
       j,
-      -pad_y - 0.07,
-      sprintf("Performance\n%s", nm[j]),
-      col = tut_ink(pal[j]),
+      -gap_y - 0.07,
+      sprintf("Performance\n%s", labels[j]),
+      col = choose_ink(colors[j]),
       cex = 0.62
     )
   }
-  invisible(list(n = n, k = k, levels = levels, heights = h))
+  invisible(list(n = sizes, k = n_projects, levels = levels, heights = heights))
 }

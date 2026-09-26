@@ -310,10 +310,10 @@ test_that("tutplot_weightone() derives the misclassified set from the weights", 
     maxsurrogate = 0,
     weights = d1
   )
-  yretro <- predict(h1, newdata = train, type = "class")
+  y_retro <- predict(h1, newdata = train, type = "class")
 
   expect_identical(w$wrong, which((w$d2 > w$d1)[seq_len(w$n)]))
-  expect_identical(w$wrong, which((yretro != y)[seq_len(w$n)]))
+  expect_identical(w$wrong, which((y_retro != y)[seq_len(w$n)]))
   # what the chunk drew
   expect_length(w$wrong, 7)
 })
@@ -354,9 +354,9 @@ test_that("tutplot_weightone() takes its own weights and honors n", {
   )
 })
 
-test_that("tut_round_one() reproduces the tutorial's D1 and D2", {
+test_that("run_round_one() reproduces the tutorial's D1 and D2", {
   train <- altmejd_splits$train
-  r <- tut_round_one(train)
+  r <- run_round_one(train)
 
   expect_equal(r$d1, rep(1, nrow(train)) / nrow(train))
   expect_equal(sum(r$d2), 1)
@@ -380,11 +380,11 @@ test_that("tutplot_importance() marks the reader's own learner exactly", {
     maxdepth = 1,
     weights = d1
   )
-  yretro <- predict(h1, newdata = train, type = "class")
-  perf <- sum(d1 * (yretro == y))
+  y_retro <- predict(h1, newdata = train, type = "class")
+  perf <- sum(d1 * (y_retro == y))
   alpha1 <- 1 / 2 * log(perf / (1 - perf)) * 1
 
-  marked <- tutplot_importance(mark_perf = perf)
+  marked <- tutplot_importance(marked_perf = perf)
 
   expect_equal(marked$alpha, alpha1)
   expect_equal(round(marked$alpha, 4), 0.5431)
@@ -394,15 +394,15 @@ test_that("the mark sits on the curve it belongs to", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # for a mark_eta that is one of the drawn curves, the marked importance must
+  # for a marked_eta that is one of the drawn curves, the marked importance must
   # equal that curve's value there -- it cannot float off its own line
   for (e in c(1, 0.5, 0.1)) {
-    m <- tutplot_importance(mark_perf = 0.8, mark_eta = e)
+    m <- tutplot_importance(marked_perf = 0.8, marked_eta = e)
     expect_equal(m$alpha, 1 / 2 * log(0.8 / 0.2) * e)
   }
   # and it moves when the learner does
-  a <- tutplot_importance(mark_perf = 0.6)$alpha
-  b <- tutplot_importance(mark_perf = 0.9)$alpha
+  a <- tutplot_importance(marked_perf = 0.6)$alpha
+  b <- tutplot_importance(marked_perf = 0.9)$alpha
   expect_lt(a, b)
 })
 
@@ -411,7 +411,7 @@ test_that("no mark leaves the figure exactly as it was", {
   on.exit(grDevices::dev.off(), add = TRUE)
 
   plain <- tutplot_importance()
-  marked <- tutplot_importance(mark_perf = 0.75)
+  marked <- tutplot_importance(marked_perf = 0.75)
 
   expect_null(plain$alpha)
   expect_identical(plain$importance, marked$importance)
@@ -423,11 +423,14 @@ test_that("tutplot_importance() refuses a mark it could not draw", {
   on.exit(grDevices::dev.off(), add = TRUE)
 
   # worse than chance: the importance is negative and off the panel
-  expect_error(tutplot_importance(mark_perf = 0.3), "must be one value")
+  expect_error(tutplot_importance(marked_perf = 0.3), "must be one value")
   # perfect: the importance is infinite
-  expect_error(tutplot_importance(mark_perf = 1), "must be one value")
-  expect_error(tutplot_importance(mark_perf = c(0.6, 0.8)), "must be one value")
-  expect_error(tutplot_importance(mark_perf = "good"))
+  expect_error(tutplot_importance(marked_perf = 1), "must be one value")
+  expect_error(
+    tutplot_importance(marked_perf = c(0.6, 0.8)),
+    "must be one value"
+  )
+  expect_error(tutplot_importance(marked_perf = "good"))
 })
 
 test_that("the tutorial's eta merge cannot duplicate or drop a curve", {
@@ -482,7 +485,7 @@ test_that("the spliced call marks the reader's own alpha", {
   eta <- 0.75
   etas <- sort(unique(c(eta, 1, 0.5, 0.1)), decreasing = TRUE)
 
-  imp <- tutplot_importance(eta = etas, mark_perf = perf, mark_eta = eta)
+  imp <- tutplot_importance(eta = etas, marked_perf = perf, marked_eta = eta)
   expect_equal(imp$alpha, 1 / 2 * log(perf / (1 - perf)) * eta)
   # the marked rate is one of the drawn curves, so the crosshair sits on a line
   expect_true(eta %in% imp$eta)
@@ -537,8 +540,8 @@ test_that("supplied weights must come with chi, because it cannot be inferred", 
   )
 })
 
-test_that("tut_round_one() hands back a real chi, so nothing is derived", {
-  r <- tut_round_one(altmejd_splits$train)
+test_that("run_round_one() hands back a real chi, so nothing is derived", {
+  r <- run_round_one(altmejd_splits$train)
 
   voinms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
   train <- altmejd_splits$train[, voinms]
@@ -550,9 +553,9 @@ test_that("tut_round_one() hands back a real chi, so nothing is derived", {
     maxsurrogate = 0,
     weights = r$d1
   )
-  yretro <- predict(h1, newdata = train, type = "class")
+  y_retro <- predict(h1, newdata = train, type = "class")
 
-  expect_identical(r$chi == -1, unname(yretro != train$replicate))
+  expect_identical(r$chi == -1, unname(y_retro != train$replicate))
   expect_true(all(r$chi %in% c(-1, 1)))
 })
 
@@ -576,7 +579,7 @@ test_that("tutplot_weightone() validates chi", {
   )
 })
 
-test_that("the mark follows mark_eta, whatever the reader sets", {
+test_that("the mark follows marked_eta, whatever the reader sets", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
@@ -591,20 +594,20 @@ test_that("the mark follows mark_eta, whatever the reader sets", {
     maxdepth = 1,
     weights = d1
   )
-  yretro <- predict(h1, newdata = train, type = "class")
-  perf <- sum(d1 * (yretro == y))
+  y_retro <- predict(h1, newdata = train, type = "class")
+  perf <- sum(d1 * (y_retro == y))
   epsilon <- 1 - perf
 
   # 0.75 is deliberately not one of the drawn curves: the mark still belongs to
   # it, it simply sits between two of them
   for (e in c(1, 0.5, 0.1, 0.75)) {
-    m <- tutplot_importance(mark_perf = perf, mark_eta = e)
+    m <- tutplot_importance(marked_perf = perf, marked_eta = e)
     expect_equal(m$alpha, 1 / 2 * log(perf / epsilon) * e)
   }
 
-  # the regression this fixes: omitting mark_eta pins the mark to eta[1], so a
+  # the regression this fixes: omitting marked_eta pins the mark to eta[1], so a
   # reader who changes eta in Listing 22 would see a crosshair that lies
-  pinned <- tutplot_importance(mark_perf = perf)$alpha
+  pinned <- tutplot_importance(marked_perf = perf)$alpha
   expect_equal(pinned, 1 / 2 * log(perf / epsilon) * 1)
   expect_false(isTRUE(all.equal(
     pinned,
@@ -662,14 +665,14 @@ test_that("tutplot_opts is a reference, not a switch", {
   expect_false(identical(size(h), size(f)))
 })
 
-test_that("tut_par() restores what it found, both ways", {
+test_that("set_figure_par() restores what it found, both ways", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
   keys <- c("mar", "mgp", "tcl", "cex.axis")
   for (leg in c(TRUE, FALSE)) {
     before <- graphics::par(keys)
-    op <- tut_par(legend = leg)
+    op <- set_figure_par(reserve_legend = leg)
     # it set what the object says
     want <- if (leg) tutplot_opts$mar_legend else tutplot_opts$mar_plain
     expect_identical(graphics::par("mar"), want)
@@ -684,9 +687,17 @@ test_that("each figure asks for the margins it needs", {
 
   # gini has no legend above the panel; the other three do
   body_of <- function(f) paste(deparse(body(f)), collapse = " ")
-  expect_match(body_of(tutplot_gini), "tut_par(legend = FALSE)", fixed = TRUE)
+  expect_match(
+    body_of(tutplot_gini),
+    "set_figure_par(reserve_legend = FALSE)",
+    fixed = TRUE
+  )
   for (f in list(tutplot_updatefactor, tutplot_importance, tutplot_weightone)) {
-    expect_match(body_of(f), "tut_par(legend = TRUE)", fixed = TRUE)
+    expect_match(
+      body_of(f),
+      "set_figure_par(reserve_legend = TRUE)",
+      fixed = TRUE
+    )
   }
 })
 
@@ -816,7 +827,7 @@ test_that("tutplot_logoscheme() equal blocks hide what proportional ones show", 
   expect_true(any(prop$n > tot - prop$n))
 })
 
-test_that("tut_roundrect() keeps its corners circular on any panel", {
+test_that("draw_roundrect() keeps its corners circular on any panel", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
@@ -828,14 +839,14 @@ test_that("tut_roundrect() keeps its corners circular on any panel", {
   ry <- 0.04 * (usr[4] - usr[3]) / pin[2]
   # same size on paper, very different in user units
   expect_gt(rx / ry, 3)
-  expect_silent(tut_roundrect(1, 0.1, 3, 0.9, col = "grey80"))
+  expect_silent(draw_roundrect(1, 0.1, 3, 0.9, col = "grey80"))
 })
 
-test_that("tut_ink() picks readable text for both ends of viridis", {
+test_that("choose_ink() picks readable text for both ends of viridis", {
   pal <- viridisLite::viridis(5)
-  expect_identical(tut_ink(pal[1]), "white")
-  expect_identical(tut_ink(pal[5]), "grey15")
-  expect_identical(tut_ink(c("#440154", "#FDE725")), c("white", "grey15"))
+  expect_identical(choose_ink(pal[1]), "white")
+  expect_identical(choose_ink(pal[5]), "grey15")
+  expect_identical(choose_ink(c("#440154", "#FDE725")), c("white", "grey15"))
 })
 
 test_that("axis labels are title case, as APA asks", {

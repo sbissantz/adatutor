@@ -82,12 +82,12 @@ test_that("mark_done() defaults to bold teal Done", {
   expect_true(grepl(paste0("\033[", ansi_note, "m Done"), out, fixed = TRUE))
 })
 
-test_that("ansi_style() colors only when asked", {
+test_that("style_ansi() colors only when asked", {
   expect_identical(
-    ansi_style("abc", ansi_note, use = TRUE),
+    style_ansi("abc", ansi_note, use = TRUE),
     paste0("\033[", ansi_note, "mabc\033[0m")
   )
-  expect_identical(ansi_style("abc", ansi_note, use = FALSE), "abc")
+  expect_identical(style_ansi("abc", ansi_note, use = FALSE), "abc")
   # never under testthat, which is not a live console
   expect_false(use_ansi())
 })

@@ -51,8 +51,8 @@ ansi_note <- "1;38;5;30"
 #' Print text in an ANSI style, then reset it
 #' @noRd
 color_message <- function(text, color_code = ansi_teal, newline = FALSE) {
-  msg <- paste0("\033[", color_code, "m", text, "\033[0m")
-  message(msg, appendLF = newline)
+  styled <- paste0("\033[", color_code, "m", text, "\033[0m")
+  message(styled, appendLF = newline)
   invisible(NULL)
 }
 
@@ -83,7 +83,7 @@ use_ansi <- function() {
 
 #' Wrap text in an ANSI style when `use` is `TRUE`
 #' @noRd
-ansi_style <- function(text, color_code, use = use_ansi()) {
+style_ansi <- function(text, color_code, use = use_ansi()) {
   if (!use) {
     return(text)
   }

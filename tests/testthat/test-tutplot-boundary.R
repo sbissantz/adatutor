@@ -40,7 +40,7 @@ test_that("tutplot_boundary() returns the grid it drew, invisibly", {
 })
 
 test_that("the score reproduces the class labels predict() would give", {
-  # boundary_score() must not change which side of the boundary a point is on
+  # score_grid() must not change which side of the boundary a point is on
   data(altmejd)
   fit <- fit_ada(50)
   g <- expand.grid(
@@ -48,7 +48,7 @@ test_that("the score reproduces the class labels predict() would give", {
     n.o = seq(10, 400, length.out = 40)
   )
   labs <- predict(fit, g, verbose = FALSE, check_inputs = FALSE)
-  expect_equal(sign(boundary_score(fit, g)), labs)
+  expect_equal(sign(score_grid(fit, g)), labs)
 })
 
 test_that("it works for a single rpart tree as well as an ensemble", {
@@ -198,7 +198,7 @@ test_that("the legend and colour bar can be turned off", {
       altmejd,
       resolution = 20,
       shade = "margin",
-      colorbar = FALSE
+      add_colorbar = FALSE
     ))
   })
 })
@@ -242,26 +242,57 @@ test_that("titles are off unless asked for", {
   expect_equal(bare$features, titled$features)
 })
 
+test_that("the title sits in the top margin under either shade", {
+  # one name once held both the top margin and the color-scale reach, so under
+  # the default shade a stump's title landed inside the panel, at line -1
+  data(altmejd)
+  title_line <- function(shade) {
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    grDevices::dev.control("enable")
+    tutplot_boundary(
+      fit_stump(),
+      altmejd,
+      resolution = 20,
+      shade = shade,
+      main = "A title"
+    )
+    titles <- Filter(
+      \(item) {
+        identical(item[[2]][[1]]$name, "C_mtext") &&
+          identical(item[[2]][[2]], "A title")
+      },
+      grDevices::recordPlot()[[1]]
+    )
+    titles[[1]][[2]][[4]]
+  }
+  expect_equal(title_line("margin"), title_line("class"))
+  expect_gt(title_line("margin"), 0)
+})
+
 test_that("region labels come from the outcome's own levels", {
   data(altmejd)
-  expect_equal(boundary_labels(altmejd, "replicate"), levels(altmejd$replicate))
+  expect_equal(
+    read_class_labels(altmejd, "replicate"),
+    levels(altmejd$replicate)
+  )
   # a 0/1 outcome has no levels to borrow
   d <- altmejd
   d$replicate <- as.integer(d$replicate) - 1L
-  expect_equal(boundary_labels(d, "replicate"), c("0", "1"))
-  expect_null(boundary_labels(altmejd, "not_a_column"))
+  expect_equal(read_class_labels(d, "replicate"), c("0", "1"))
+  expect_null(read_class_labels(altmejd, "not_a_column"))
 })
 
 test_that("the marker ring is chosen from the fill's luminance", {
   # a pale marker with a white ring has no edge at all: viridis's yellow end
   # vanished against the panel until the ring followed the fill
   v <- viridisLite::viridis(2)
-  expect_equal(contrast_stroke(v), c("white", "grey15"))
+  expect_equal(choose_ink(v), c("white", "grey15"))
 
   # and it is a rule, not a special case for yellow
-  expect_equal(contrast_stroke("#000000"), "white")
-  expect_equal(contrast_stroke("#FFFFFF"), "grey15")
-  expect_length(contrast_stroke(c("#440154", "#FDE725", "#21918C")), 3L)
+  expect_equal(choose_ink("#000000"), "white")
+  expect_equal(choose_ink("#FFFFFF"), "grey15")
+  expect_length(choose_ink(c("#440154", "#FDE725", "#21918C")), 3L)
 })
 
 test_that("the legend sits outside the panel by default", {
@@ -318,7 +349,7 @@ test_that("margin shading shows one key, not two", {
         altmejd,
         resolution = 20,
         shade = "margin",
-        colorbar = FALSE
+        add_colorbar = FALSE
       )
     )
     # legend_pos = NULL suppresses the key in both modes
@@ -348,7 +379,7 @@ test_that("the bar's end labels come from the outcome, including 0/1", {
   d <- altmejd
   d$replicate <- as.integer(d$replicate) - 1L
   # a numeric outcome has no levels to borrow, so the bar falls back to 0/1
-  expect_equal(boundary_labels(d, "replicate"), c("0", "1"))
+  expect_equal(read_class_labels(d, "replicate"), c("0", "1"))
   quietly({
     fit <- rpart::rpart(
       replicate ~ .,
@@ -384,9 +415,9 @@ test_that("a tree's colour scale is anchored, a boosted margin's is not", {
   )
 
   # anchored: independent of the scores actually present
-  expect_equal(boundary_top(stump, c(-0.2, 0.25)), 0.5)
-  expect_equal(boundary_top(deep, c(-0.5, 0.5)), 0.5)
-  expect_equal(boundary_top(stump, c(-0.01, 0.01)), 0.5)
+  expect_equal(find_reach(stump, c(-0.2, 0.25)), 0.5)
+  expect_equal(find_reach(deep, c(-0.5, 0.5)), 0.5)
+  expect_equal(find_reach(stump, c(-0.01, 0.01)), 0.5)
 
   # not anchored: follows the observed range
   fit <- rpart::rpart(
@@ -396,7 +427,7 @@ test_that("a tree's colour scale is anchored, a boosted margin's is not", {
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE, check_inputs = FALSE)
-  expect_equal(boundary_top(fit, c(-3, 2.2)), 3)
+  expect_equal(find_reach(fit, c(-3, 2.2)), 3)
 })
 
 test_that("margin shading survives a leaf that is entirely one class", {
@@ -437,7 +468,7 @@ test_that("the stump reads as two moderate tones, not two extremes", {
   on.exit(dev.off(), add = TRUE)
   g <- tutplot_boundary(stump, data = sub, shade = "margin")
 
-  top <- boundary_top(stump, g$z)
+  top <- find_reach(stump, g$z)
   # both regions sit well inside the ramp rather than on its ends
   expect_true(all(abs(range(g$z)) / top < 0.75))
   expect_length(unique(as.vector(g$z)), 2L)

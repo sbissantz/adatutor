@@ -44,33 +44,33 @@
 gauge <- function(fit) {
   check_ada_fit(fit)
 
-  var_wght <- list()
+  totals <- list()
 
   for (t in seq_along(fit)) {
     tree <- fit[[t]]$h
-    wght <- fit[[t]]$a
+    weight <- fit[[t]]$a
 
-    # improvement-based importance: NULL for a bare leaf, one entry for a stump
-    imp <- tree$variable.importance
+    # rpart's improvement: NULL for a bare leaf, one entry for a stump
+    improvement <- tree$variable.importance
 
-    if (is.null(imp) || sum(imp) == 0) {
+    if (is.null(improvement) || sum(improvement) == 0) {
       next
     }
 
     # split the tree's model weight across its variables; a stump gets it all
-    share <- wght * imp / sum(imp)
+    share <- weight * improvement / sum(improvement)
 
-    for (v in names(share)) {
-      if (is.null(var_wght[[v]])) {
-        var_wght[[v]] <- share[[v]]
+    for (variable in names(share)) {
+      if (is.null(totals[[variable]])) {
+        totals[[variable]] <- share[[variable]]
       } else {
-        var_wght[[v]] <- var_wght[[v]] + share[[v]]
+        totals[[variable]] <- totals[[variable]] + share[[variable]]
       }
     }
   }
 
   # no tree in the ensemble split on anything
-  if (length(var_wght) == 0) {
+  if (length(totals) == 0) {
     return(structure(
       data.frame(
         variable = character(0),
@@ -81,20 +81,21 @@ gauge <- function(fit) {
     ))
   }
 
-  imp_df <- data.frame(
-    variable = names(var_wght),
-    importance = unlist(var_wght),
+  importance <- data.frame(
+    variable = names(totals),
+    importance = unlist(totals),
     stringsAsFactors = FALSE
   )
 
   # percent of the total: easier to read
-  imp_df$importance <- (imp_df$importance / sum(imp_df$importance)) * 100
+  total <- sum(importance$importance)
+  importance$importance <- importance$importance / total * 100
 
-  imp_df <- imp_df[order(-imp_df$importance), ]
-  rownames(imp_df) <- NULL
+  importance <- importance[order(-importance$importance), ]
+  rownames(importance) <- NULL
 
   # the class is what lets plot(gauge(fit)) find its method
-  structure(imp_df, class = c("gauge", "data.frame"))
+  structure(importance, class = c("gauge", "data.frame"))
 }
 
 #' @rdname gauge
@@ -108,32 +109,30 @@ plot.gauge <- function(x, top_n = 15, ...) {
   }
 
   # top_n features only, so the chart stays readable
-  n_plot <- min(top_n, nrow(x))
-  top_imp <- utils::head(x, n_plot)
+  n_bars <- min(top_n, nrow(x))
+  bars <- utils::head(x, n_bars)
 
   # ascending, so the highest bar plots at the top
-  top_imp <- top_imp[order(top_imp$importance, decreasing = FALSE), ]
+  bars <- bars[order(bars$importance, decreasing = FALSE), ]
 
-  # size the palette by the bars drawn, so the gradient spans its full range
-  pal <- viridisLite::viridis(n_plot)
-
-  # reverse viridis so the darkest color goes to the most important bar
-  bar_cols <- rev(pal)
+  # size the palette by the bars drawn, so the gradient spans its full range;
+  # reversed, so the darkest color goes to the most important bar
+  colors <- rev(viridisLite::viridis(n_bars))
 
   # wide left margin for long variable names
   old_par <- graphics::par(mar = c(5, 10, 4, 2) + 0.1)
   on.exit(graphics::par(old_par), add = TRUE)
 
   # headroom past the longest bar: pretty() ticks can stop well below it
-  xmax <- min(max(top_imp$importance) + 5, 100)
+  xmax <- min(max(bars$importance) + 5, 100)
 
   graphics::barplot(
-    top_imp$importance,
-    names.arg = top_imp$variable,
+    bars$importance,
+    names.arg = bars$variable,
     horiz = TRUE,
     las = 1, # horizontal labels
     xlim = c(0, xmax),
-    col = bar_cols,
+    col = colors,
     border = NA,
     xlab = "Relative Importance (%)",
     main = "Feature Importance"

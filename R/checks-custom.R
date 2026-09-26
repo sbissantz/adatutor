@@ -10,26 +10,36 @@ NULL
 #' @noRd
 check_df <- function(x) {
   if (!is.data.frame(x)) {
-    x_inp <- substitute(x)
-    msg <- paste0("`", deparse(x_inp), "` is not a data frame. ")
-    sug <- paste0("Check that ", "`", deparse(x_inp), "` is valid.")
-    stop(c(msg, sug), call. = FALSE)
+    argument <- deparse(substitute(x))
+    stop(
+      "`",
+      argument,
+      "` is not a data frame. ",
+      "Check that `",
+      argument,
+      "` is valid.",
+      call. = FALSE
+    )
   }
 }
 
 #' Stop unless `eta` is numeric; note when it is above 1
 #' @noRd
 check_eta <- function(x) {
-  x_inp <- substitute(x)
+  argument <- deparse(substitute(x))
   if (!is.numeric(x)) {
-    msg <- paste0("`", deparse(x_inp), "` is not a numeric value. ")
-    sug <- paste0("Check that ", "`", deparse(x_inp), "` is valid.")
-    stop(c(msg, sug), call. = FALSE)
+    stop(
+      "`",
+      argument,
+      "` is not a numeric value. ",
+      "Check that `",
+      argument,
+      "` is valid.",
+      call. = FALSE
+    )
   } else {
     if (x > 1) {
-      msg <- paste0("The value of `eta` is greater than 1. ")
-      sug <- paste0("Think about overfitting.")
-      message(c(msg, sug))
+      message("The value of `eta` is greater than 1. Think about overfitting.")
     }
   }
 }
@@ -38,10 +48,16 @@ check_eta <- function(x) {
 #' @noRd
 check_length <- function(x) {
   if (length(x) == 0) {
-    x_inp <- substitute(x)
-    msg <- paste0("`", deparse(x_inp), "` has no elements. ")
-    sug <- paste0("Check that ", "`", deparse(x_inp), "` is valid.")
-    stop(c(msg, sug), call. = FALSE)
+    argument <- deparse(substitute(x))
+    stop(
+      "`",
+      argument,
+      "` has no elements. ",
+      "Check that `",
+      argument,
+      "` is valid.",
+      call. = FALSE
+    )
   }
 }
 
@@ -49,10 +65,16 @@ check_length <- function(x) {
 #' @noRd
 check_list <- function(x) {
   if (!is.list(x)) {
-    x_inp <- substitute(x)
-    msg <- paste0("`", deparse(x_inp), "` is not a list. ")
-    sug <- paste0("Check that ", "`", deparse(x_inp), "` is valid.")
-    stop(c(msg, sug), call. = FALSE)
+    argument <- deparse(substitute(x))
+    stop(
+      "`",
+      argument,
+      "` is not a list. ",
+      "Check that `",
+      argument,
+      "` is valid.",
+      call. = FALSE
+    )
   }
 }
 
@@ -60,10 +82,16 @@ check_list <- function(x) {
 #' @noRd
 check_numeric <- function(x) {
   if (!is.numeric(x)) {
-    x_inp <- substitute(x)
-    msg <- paste0("`", deparse(x_inp), "` is not a numeric value. ")
-    sug <- paste0("Check that ", "`", deparse(x_inp), "` is valid.")
-    stop(c(msg, sug), call. = FALSE)
+    argument <- deparse(substitute(x))
+    stop(
+      "`",
+      argument,
+      "` is not a numeric value. ",
+      "Check that `",
+      argument,
+      "` is valid.",
+      call. = FALSE
+    )
   }
 }
 
@@ -80,21 +108,21 @@ detect_overlap <- function(
   # compare rows when the fit kept its frame (catches renames and subsets),
   # else the deparsed name (all or nothing); NA means unknown, not no overlap
   if (!is.null(trainset) && !is.null(newdata)) {
-    shared <- intersect(names(trainset), names(newdata))
-    if (length(shared)) {
-      rows <- do.call(paste, c(newdata[shared], sep = "\r"))
-      tr <- do.call(paste, c(trainset[shared], sep = "\r"))
-      hits <- sum(rows %in% tr)
+    shared_columns <- intersect(names(trainset), names(newdata))
+    if (length(shared_columns)) {
+      new_rows <- do.call(paste, c(newdata[shared_columns], sep = "\r"))
+      train_rows <- do.call(paste, c(trainset[shared_columns], sep = "\r"))
+      hits <- sum(new_rows %in% train_rows)
       return(structure(
         if (hits == 0L) {
           "none"
-        } else if (hits == length(rows)) {
+        } else if (hits == length(new_rows)) {
           "all"
         } else {
           "some"
         },
         hits = hits,
-        n = length(rows)
+        n = length(new_rows)
       ))
     }
   }
@@ -151,24 +179,21 @@ check_train <- function(
 check_prop <- function(x) {
   # vectorized: partition() passes one proportion per set
   if (any(x < 0 | x > 1)) {
-    msg <- paste0(
-      "Specified proportion ",
-      "`",
+    stop(
+      "Specified proportion `",
       deparse(x),
-      "` is not between 0 and 1."
+      "` is not between 0 and 1.",
+      call. = FALSE
     )
-    stop(msg, call. = FALSE)
   }
   # single proportion only: with several, a zero is a deliberate empty set
   if (length(x) == 1L && (x == 0 | x == 1)) {
-    msg <- paste0(
-      "Specified proportion ",
-      "`",
+    warning(
+      "Specified proportion `",
       deparse(x),
-      "` is not practical."
+      "` is not practical.",
+      call. = FALSE
     )
-    sug <- "Use a value greater than 0 and less than 1."
-    warning(msg, call. = FALSE)
   }
 }
 
@@ -179,9 +204,10 @@ check_prop <- function(x) {
 check_confusion <- function(cm) {
   needed <- c("tp", "tn", "fp", "fn")
   if (is.null(names(cm)) || !all(needed %in% names(cm))) {
-    msg <- "`cm` must be the output of confusion(): "
-    sug <- "a vector with tp, tn, fp, fn."
-    stop(c(msg, sug), call. = FALSE)
+    stop(
+      "`cm` must be the output of confusion(): a vector with tp, tn, fp, fn.",
+      call. = FALSE
+    )
   }
 }
 
@@ -189,22 +215,22 @@ check_confusion <- function(cm) {
 #' @noRd
 check_ada_fit <- function(fit) {
   if (!is.list(fit) || length(fit) == 0L) {
-    msg <- "`fit` is not a fitted ensemble. "
-    sug <- "Pass the list returned by adaboost()."
-    stop(c(msg, sug), call. = FALSE)
+    stop(
+      "`fit` is not a fitted ensemble. Pass the list returned by adaboost().",
+      call. = FALSE
+    )
   }
   ok <- vapply(
     fit,
-    function(z) is.list(z) && !is.null(z$h) && !is.null(z$a),
+    \(element) is.list(element) && !is.null(element$h) && !is.null(element$a),
     logical(1)
   )
   if (!all(ok)) {
-    msg <- paste0(
+    stop(
       "`fit` element ",
       which(!ok)[1L],
-      " has no `h` and `a`. "
+      " has no `h` and `a`. Pass the list returned by adaboost().",
+      call. = FALSE
     )
-    sug <- "Pass the list returned by adaboost()."
-    stop(c(msg, sug), call. = FALSE)
   }
 }

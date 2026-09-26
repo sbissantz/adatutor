@@ -36,11 +36,16 @@ tutplot_opts <- list(
   viridis_end = 0.85
 )
 
+
 # shared par() block; returns the old settings for on.exit(), since one
-# session renders every figure; `legend = TRUE` reserves the top margin
-tut_par <- function(legend = TRUE) {
+# session renders every figure; `reserve_legend` makes room in the top margin
+set_figure_par <- function(reserve_legend = TRUE) {
   graphics::par(
-    mar = if (legend) tutplot_opts$mar_legend else tutplot_opts$mar_plain,
+    mar = if (reserve_legend) {
+      tutplot_opts$mar_legend
+    } else {
+      tutplot_opts$mar_plain
+    },
     mgp = tutplot_opts$mgp,
     tcl = tutplot_opts$tcl,
     cex.axis = tutplot_opts$cex_axis
@@ -49,7 +54,7 @@ tut_par <- function(legend = TRUE) {
 
 # legend centered in the top margin (`xpd = NA`), so it never covers a
 # curve; `text.width = NA` stops `horiz` padding entries to the widest
-tut_legend <- function(labels, cex = 1, ...) {
+draw_legend <- function(labels, cex = 1, ...) {
   usr <- graphics::par("usr")
   graphics::legend(
     x = (usr[1] + usr[2]) / 2,
@@ -68,28 +73,36 @@ tut_legend <- function(labels, cex = 1, ...) {
   )
 }
 
-# rounded rectangle; `r` is in inches, converted per axis so corners stay
+# rounded rectangle; `radius` is in inches, converted per axis so corners stay
 # circular, and clamped to half the box so thin blocks become stadiums
-tut_roundrect <- function(x0, y0, x1, y1, col, r = 0.04, border = NA) {
+draw_roundrect <- function(
+  left,
+  bottom,
+  right,
+  top,
+  col,
+  radius = 0.04,
+  border = NA
+) {
   usr <- graphics::par("usr")
   pin <- graphics::par("pin")
-  rx <- min(r * (usr[2] - usr[1]) / pin[1], (x1 - x0) / 2)
-  ry <- min(r * (usr[4] - usr[3]) / pin[2], (y1 - y0) / 2)
-  a <- seq(0, pi / 2, length.out = 12)
+  radius_x <- min(radius * (usr[2] - usr[1]) / pin[1], (right - left) / 2)
+  radius_y <- min(radius * (usr[4] - usr[3]) / pin[2], (top - bottom) / 2)
+  angle <- seq(0, pi / 2, length.out = 12)
   graphics::polygon(
-    c(x1 - rx + rx * sin(a), x1 - rx + rx * cos(a),
-      x0 + rx - rx * sin(a), x0 + rx - rx * cos(a)),
-    c(y0 + ry - ry * cos(a), y1 - ry + ry * sin(a),
-      y1 - ry + ry * cos(a), y0 + ry - ry * sin(a)),
+    c(
+      right - radius_x + radius_x * sin(angle),
+      right - radius_x + radius_x * cos(angle),
+      left + radius_x - radius_x * sin(angle),
+      left + radius_x - radius_x * cos(angle)
+    ),
+    c(
+      bottom + radius_y - radius_y * cos(angle),
+      top - radius_y + radius_y * sin(angle),
+      top - radius_y + radius_y * cos(angle),
+      bottom + radius_y - radius_y * sin(angle)
+    ),
     col = col,
     border = border
   )
-}
-
-# label ink by relative luminance: white on dark purple, near-black on yellow
-tut_ink <- function(col) {
-  v <- grDevices::col2rgb(col) / 255
-  # unname(): col2rgb() row names would ride into the result
-  lum <- unname(0.2126 * v[1, ] + 0.7152 * v[2, ] + 0.0722 * v[3, ])
-  ifelse(lum > 0.55, "grey15", "white")
 }

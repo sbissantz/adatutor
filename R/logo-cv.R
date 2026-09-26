@@ -799,7 +799,7 @@ plot.logo_cv <- function(
     max_rejected = max_rejected,
     main = "Leave-one-group-out performance",
     ylab = metric,
-    footnote = TRUE
+    add_footnote = TRUE
   )
   invisible(x)
 }
@@ -817,7 +817,7 @@ draw_logo_cv <- function(
   max_rejected = 0.05,
   main = NULL,
   ylab = metric,
-  footnote = TRUE
+  add_footnote = TRUE
 ) {
   long <- as.data.frame(x)
   estimates <- long[long$metric == metric, , drop = FALSE]
@@ -834,7 +834,7 @@ draw_logo_cv <- function(
   rejection_rate <- intervals$rejection_rate
   flagged <- rejection_rate > max_rejected
   # the star points at the footnote, so it goes where the footnote goes
-  starred <- footnote & flagged
+  starred <- add_footnote & flagged
 
   reference <- find_reference(metric, baseline, estimates$base_rate)
 
@@ -948,7 +948,7 @@ draw_logo_cv <- function(
       col = "gray35"
     )
   }
-  if (footnote && any(flagged)) {
+  if (add_footnote && any(flagged)) {
     graphics::mtext(
       paste0(
         "* resamples rejected as single-class: ",

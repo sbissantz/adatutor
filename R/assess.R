@@ -151,90 +151,93 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
   }
   at_k <- stats::setNames(unname(patk(y, score, k)), k_names)
 
-  out <- c(
+  measures <- c(
     unclass(assess(cm)),
     auroc = auroc(y, score),
     auprc = auprc(y, score),
     at_k
   )
-  structure(out, class = "assessment", threshold = threshold, k = k)
+  structure(measures, class = "assessment", threshold = threshold, k = k)
 }
 
 #' @rdname assess
 #' @export
 assess.confusion <- function(x, ...) {
   # one function per measure, so each formula is written once
-  out <- c(
+  measures <- c(
     tp = x[["tp"]],
     tn = x[["tn"]],
     fp = x[["fp"]],
     fn = x[["fn"]],
-    sens = confusion_sens(x),
-    spec = confusion_spec(x),
-    ppv = confusion_ppv(x),
-    npv = confusion_npv(x),
-    acc = confusion_acc(x),
-    bacc = confusion_bacc(x),
-    f1 = confusion_f1(x),
-    mcc = confusion_mcc(x)
+    sens = measure_sens(x),
+    spec = measure_spec(x),
+    ppv = measure_ppv(x),
+    npv = measure_npv(x),
+    acc = measure_acc(x),
+    bacc = measure_bacc(x),
+    f1 = measure_f1(x),
+    mcc = measure_mcc(x)
   )
   # pass NULL on for a hand-built vector: plain header
-  structure(out, class = "assessment", threshold = attr(x, "threshold"))
+  structure(measures, class = "assessment", threshold = attr(x, "threshold"))
 }
 
 #' @rdname assess
 #' @export
 print.assessment <- function(x, digits = 3, ...) {
-  v <- unclass(x)
-  attributes(v) <- list(names = names(x))
+  values <- unclass(x)
+  attributes(values) <- list(names = names(x))
   counts <- c("tp", "tn", "fp", "fn")
   at_cut <- c("sens", "spec", "ppv", "npv", "acc", "bacc", "f1", "mcc")
   areas <- c("auroc", "auprc")
 
   # fall back when arithmetic has changed the names
-  if (!all(c(counts, at_cut) %in% names(v))) {
-    print(v)
+  if (!all(c(counts, at_cut) %in% names(values))) {
+    print(values)
     return(invisible(x))
   }
 
   blocks <- list(
-    list(label = threshold_label(attr(x, "threshold")), vals = v[at_cut])
+    list(label = label_threshold(attr(x, "threshold")), values = values[at_cut])
   )
   k <- attr(x, "k")
-  at_k <- v[grepl("^patk(_|$)", names(v))]
+  at_k <- values[grepl("^patk(_|$)", names(values))]
   if (length(at_k) && length(at_k) == length(k)) {
     names(at_k) <- paste0("k=", k)
     # drop what is out of reach, and a default that repeats 3 or 5
     at_k <- at_k[!is.na(at_k) & !duplicated(k)]
     if (length(at_k)) {
-      blocks <- c(blocks, list(list(label = "Among top k", vals = at_k)))
+      blocks <- c(blocks, list(list(label = "Among top k", values = at_k)))
     }
   }
-  if (all(areas %in% names(v))) {
-    blocks <- c(blocks, list(list(label = "Over thresholds", vals = v[areas])))
+  if (all(areas %in% names(values))) {
+    blocks <- c(
+      blocks,
+      list(list(label = "Over thresholds", values = values[areas]))
+    )
   }
 
   # four cells per line; a continued block leaves its label blank
   rows <- list()
-  for (b in blocks) {
-    chunks <- split(b$vals, ceiling(seq_along(b$vals) / 4))
+  for (block in blocks) {
+    chunks <- split(block$values, ceiling(seq_along(block$values) / 4))
     for (i in seq_along(chunks)) {
       rows[[length(rows) + 1L]] <- list(
-        label = if (i == 1L) b$label else "",
-        vals = chunks[[i]]
+        label = if (i == 1L) block$label else "",
+        values = chunks[[i]]
       )
     }
   }
 
   labels <- vapply(rows, `[[`, character(1), "label")
   width <- max(nchar(c(labels, "predicted 1"))) + 2L
-  cat(confusion_lines(v, width), sep = "\n")
+  cat(format_confusion(values, width), sep = "\n")
   cat("\n")
 
-  fmt <- function(z) {
-    ifelse(is.na(z), "NA", formatC(z, format = "f", digits = digits))
+  format_value <- function(value) {
+    ifelse(is.na(value), "NA", formatC(value, format = "f", digits = digits))
   }
-  val_width <- max(nchar(fmt(unlist(lapply(rows, `[[`, "vals")))))
+  value_width <- max(nchar(format_value(unlist(lapply(rows, `[[`, "values")))))
   name_width <- vapply(
     1:4,
     function(j) {
@@ -242,23 +245,25 @@ print.assessment <- function(x, digits = 3, ...) {
         0L,
         vapply(
           rows,
-          function(r) if (length(r$vals) >= j) nchar(names(r$vals)[j]) else 0L,
+          \(entry) {
+            if (length(entry$values) >= j) nchar(names(entry$values)[j]) else 0L
+          },
           integer(1)
         )
       )
     },
     integer(1)
   )
-  for (r in rows) {
+  for (entry in rows) {
     cells <- sprintf(
       "%-*s %*s",
-      name_width[seq_along(r$vals)],
-      names(r$vals),
-      val_width,
-      fmt(r$vals)
+      name_width[seq_along(entry$values)],
+      names(entry$values),
+      value_width,
+      format_value(entry$values)
     )
     cat(
-      pad_label(r$label, width),
+      pad_label(entry$label, width),
       paste(cells, collapse = "  "),
       "\n",
       sep = ""
@@ -267,7 +272,7 @@ print.assessment <- function(x, digits = 3, ...) {
   invisible(x)
 }
 
-threshold_label <- function(threshold) {
+label_threshold <- function(threshold) {
   if (is.null(threshold)) "At threshold" else paste("At threshold", threshold)
 }
 
@@ -275,37 +280,37 @@ threshold_label <- function(threshold) {
 pad_label <- function(label, width) {
   padded <- formatC(label, width = -width)
   if (nzchar(label)) {
-    ansi_style(padded, ansi_note)
+    style_ansi(padded, ansi_note)
   } else {
     padded
   }
 }
 
-confusion_lines <- function(cm, width) {
-  cell <- paste(
+format_confusion <- function(cm, width) {
+  cells <- paste(
     c("tp", "fp", "fn", "tn"),
     formatC(cm[c("tp", "fp", "fn", "tn")], format = "d")
   )
-  cw <- max(nchar(c("actual 1", cell)))
-  head <- formatC(c("actual 1", "actual 0"), width = -cw)
+  cell_width <- max(nchar(c("actual 1", cells)))
+  header <- formatC(c("actual 1", "actual 0"), width = -cell_width)
   c(
     paste0(
       strrep(" ", width),
-      ansi_style(head[1], ansi_note),
+      style_ansi(header[1], ansi_note),
       "  ",
-      ansi_style(trimws(head[2]), ansi_note)
+      style_ansi(trimws(header[2]), ansi_note)
     ),
     paste0(
       pad_label("predicted 1", width),
-      formatC(cell[1], width = -cw),
+      formatC(cells[1], width = -cell_width),
       "  ",
-      cell[2]
+      cells[2]
     ),
     paste0(
       pad_label("predicted 0", width),
-      formatC(cell[3], width = -cw),
+      formatC(cells[3], width = -cell_width),
       "  ",
-      cell[4]
+      cells[4]
     )
   )
 }
@@ -349,14 +354,14 @@ confusion <- function(actual, score, threshold = 0) {
       call. = FALSE
     )
   }
-  pred <- score > threshold
+  predicted <- score > threshold
   # the class lets assess(cm) dispatch to the matrix method
   structure(
     c(
-      tp = sum(pred & y == 1),
-      tn = sum(!pred & y == 0),
-      fp = sum(pred & y == 0),
-      fn = sum(!pred & y == 1)
+      tp = sum(predicted & y == 1),
+      tn = sum(!predicted & y == 0),
+      fp = sum(predicted & y == 0),
+      fn = sum(!predicted & y == 1)
     ),
     class = "confusion",
     threshold = threshold
@@ -366,15 +371,15 @@ confusion <- function(actual, score, threshold = 0) {
 #' @rdname confusion
 #' @export
 print.confusion <- function(x, ...) {
-  v <- unclass(x)
-  attributes(v) <- list(names = names(x))
+  values <- unclass(x)
+  attributes(values) <- list(names = names(x))
   width <- nchar("predicted 1") + 2L
   cat(
-    ansi_style(threshold_label(attr(x, "threshold")), ansi_note),
+    style_ansi(label_threshold(attr(x, "threshold")), ansi_note),
     "\n",
     sep = ""
   )
-  cat(confusion_lines(v, width), sep = "\n")
+  cat(format_confusion(values, width), sep = "\n")
   invisible(x)
 }
 
@@ -384,8 +389,8 @@ print.confusion <- function(x, ...) {
 #' failed calculation. logo_cv() stores such cells as undefined.
 #'
 #' @noRd
-divide_safely <- function(num, den) {
-  if (den == 0) NA_real_ else num / den
+divide_safely <- function(numerator, denominator) {
+  if (denominator == 0) NA_real_ else numerator / denominator
 }
 
 #' Area under the ROC curve
@@ -416,8 +421,8 @@ auroc <- function(actual, score) {
   if (length(unique(y)) < 2L) {
     return(NA_real_)
   }
-  out <- PRROC::roc.curve(scores.class0 = score, weights.class0 = y)$auc
-  if (is.nan(out)) NA_real_ else out
+  area <- PRROC::roc.curve(scores.class0 = score, weights.class0 = y)$auc
+  if (is.nan(area)) NA_real_ else area
 }
 
 #' Area under the precision-recall curve
@@ -454,11 +459,11 @@ auprc <- function(actual, score) {
   }
   # Davis & Goadrich: interpolate at the local skew, integrate by trapezoid;
   # operating points at distinct scores make ties order-invariant
-  out <- PRROC::pr.curve(
+  area <- PRROC::pr.curve(
     scores.class0 = score,
     weights.class0 = y
   )$auc.davis.goadrich
-  if (is.nan(out)) NA_real_ else out
+  if (is.nan(area)) NA_real_ else area
 }
 
 #' Precision among the top-ranked cases
@@ -502,24 +507,25 @@ patk <- function(actual, score, k = NULL) {
   if (is.null(k)) {
     k <- n_pos
   }
-  out <- vapply(
+  precision <- vapply(
     as.integer(k),
-    function(kk) {
+    function(budget) {
       # out of reach: fewer positives than places
-      if (is.na(kk) || kk < 1L || kk > n_pos) {
+      if (is.na(budget) || budget < 1L || budget > n_pos) {
         return(NA_real_)
       }
-      v <- sort(score, decreasing = TRUE)[kk]
-      above <- score > v
+      cutoff <- sort(score, decreasing = TRUE)[budget]
+      above <- score > cutoff
       # share the places left across the tie, as random tie-breaking would
-      (sum(y[above]) + (kk - sum(above)) * mean(y[score == v])) / kk
+      (sum(y[above]) + (budget - sum(above)) * mean(y[score == cutoff])) /
+        budget
     },
     numeric(1)
   )
   if (length(k) > 1L) {
-    names(out) <- k
+    names(precision) <- k
   }
-  out
+  precision
 }
 
 #' Measures from a confusion matrix
@@ -531,27 +537,27 @@ patk <- function(actual, score, k = NULL) {
 #' @noRd
 NULL
 
-confusion_sens <- function(cm) {
+measure_sens <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tp"]], cm[["tp"]] + cm[["fn"]])
 }
 
-confusion_spec <- function(cm) {
+measure_spec <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tn"]], cm[["tn"]] + cm[["fp"]])
 }
 
-confusion_ppv <- function(cm) {
+measure_ppv <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tp"]], cm[["tp"]] + cm[["fp"]])
 }
 
-confusion_npv <- function(cm) {
+measure_npv <- function(cm) {
   check_confusion(cm)
   divide_safely(cm[["tn"]], cm[["tn"]] + cm[["fn"]])
 }
 
-confusion_acc <- function(cm) {
+measure_acc <- function(cm) {
   check_confusion(cm)
   divide_safely(
     cm[["tp"]] + cm[["tn"]],
@@ -559,11 +565,11 @@ confusion_acc <- function(cm) {
   )
 }
 
-confusion_bacc <- function(cm) {
-  (confusion_sens(cm) + confusion_spec(cm)) / 2
+measure_bacc <- function(cm) {
+  (measure_sens(cm) + measure_spec(cm)) / 2
 }
 
-confusion_f1 <- function(cm) {
+measure_f1 <- function(cm) {
   check_confusion(cm)
   divide_safely(
     2 * cm[["tp"]],
@@ -571,20 +577,20 @@ confusion_f1 <- function(cm) {
   )
 }
 
-confusion_mcc <- function(cm) {
+measure_mcc <- function(cm) {
   check_confusion(cm)
   tp <- cm[["tp"]]
   tn <- cm[["tn"]]
   fp <- cm[["fp"]]
   fn <- cm[["fn"]]
   # as.double(): the integer product overflows from roughly n > 430
-  denom <- sqrt(
+  denominator <- sqrt(
     as.double(tp + fp) *
       as.double(tp + fn) *
       as.double(tn + fp) *
       as.double(tn + fn)
   )
-  num <- as.double(tp) * as.double(tn) - as.double(fp) * as.double(fn)
+  numerator <- as.double(tp) * as.double(tn) - as.double(fp) * as.double(fn)
   # undefined when a row or column of the table is empty; 0 by convention
-  if (denom == 0) 0 else num / denom
+  if (denominator == 0) 0 else numerator / denominator
 }

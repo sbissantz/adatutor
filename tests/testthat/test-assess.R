@@ -344,59 +344,59 @@ test_that("the derived measures agree with the assess() bundle", {
   g <- assess(y, s)
   cm <- confusion(y, s)
 
-  expect_equal(confusion_sens(cm), unname(g[["sens"]]))
-  expect_equal(confusion_spec(cm), unname(g[["spec"]]))
-  expect_equal(confusion_ppv(cm), unname(g[["ppv"]]))
-  expect_equal(confusion_npv(cm), unname(g[["npv"]]))
-  expect_equal(confusion_acc(cm), unname(g[["acc"]]))
-  expect_equal(confusion_bacc(cm), unname(g[["bacc"]]))
-  expect_equal(confusion_f1(cm), unname(g[["f1"]]))
-  expect_equal(confusion_mcc(cm), unname(g[["mcc"]]))
+  expect_equal(measure_sens(cm), unname(g[["sens"]]))
+  expect_equal(measure_spec(cm), unname(g[["spec"]]))
+  expect_equal(measure_ppv(cm), unname(g[["ppv"]]))
+  expect_equal(measure_npv(cm), unname(g[["npv"]]))
+  expect_equal(measure_acc(cm), unname(g[["acc"]]))
+  expect_equal(measure_bacc(cm), unname(g[["bacc"]]))
+  expect_equal(measure_f1(cm), unname(g[["f1"]]))
+  expect_equal(measure_mcc(cm), unname(g[["mcc"]]))
 })
 
 test_that("they reproduce a hand-computed table", {
   # 4 TP, 3 TN, 2 FP, 1 FN
   cm <- c(tp = 4, tn = 3, fp = 2, fn = 1)
-  expect_equal(confusion_sens(cm), 4 / 5)
-  expect_equal(confusion_spec(cm), 3 / 5)
-  expect_equal(confusion_ppv(cm), 4 / 6)
-  expect_equal(confusion_npv(cm), 3 / 4)
-  expect_equal(confusion_acc(cm), 7 / 10)
-  expect_equal(confusion_bacc(cm), (4 / 5 + 3 / 5) / 2)
-  expect_equal(confusion_f1(cm), 8 / 11)
-  expect_equal(confusion_mcc(cm), (4 * 3 - 2 * 1) / sqrt(6 * 5 * 5 * 4))
+  expect_equal(measure_sens(cm), 4 / 5)
+  expect_equal(measure_spec(cm), 3 / 5)
+  expect_equal(measure_ppv(cm), 4 / 6)
+  expect_equal(measure_npv(cm), 3 / 4)
+  expect_equal(measure_acc(cm), 7 / 10)
+  expect_equal(measure_bacc(cm), (4 / 5 + 3 / 5) / 2)
+  expect_equal(measure_f1(cm), 8 / 11)
+  expect_equal(measure_mcc(cm), (4 * 3 - 2 * 1) / sqrt(6 * 5 * 5 * 4))
 })
 
 test_that("undefined cases give NA, and mcc gives 0 by convention", {
   # nothing predicted positive
   cm <- c(tp = 0, tn = 2, fp = 0, fn = 2)
-  expect_true(is.na(confusion_ppv(cm)))
-  expect_equal(confusion_f1(cm), 0)
-  expect_equal(confusion_mcc(cm), 0)
+  expect_true(is.na(measure_ppv(cm)))
+  expect_equal(measure_f1(cm), 0)
+  expect_equal(measure_mcc(cm), 0)
 
   # nothing predicted negative
   cm2 <- c(tp = 2, tn = 0, fp = 2, fn = 0)
-  expect_true(is.na(confusion_npv(cm2)))
+  expect_true(is.na(measure_npv(cm2)))
 
   # no positives at all -- f1's denominator vanishes
   cm3 <- c(tp = 0, tn = 4, fp = 0, fn = 0)
-  expect_true(is.na(confusion_f1(cm3)))
+  expect_true(is.na(measure_f1(cm3)))
 })
 
 test_that("mcc survives counts whose four-way product overflows integers", {
   # the product of the four margins passes .Machine$integer.max well before
   # the counts themselves look large
   cm <- c(tp = 300L, tn = 300L, fp = 300L, fn = 300L)
-  expect_equal(confusion_mcc(cm), 0)
+  expect_equal(measure_mcc(cm), 0)
   cm2 <- c(tp = 500L, tn = 500L, fp = 100L, fn = 100L)
-  expect_false(is.na(confusion_mcc(cm2)))
-  expect_gt(confusion_mcc(cm2), 0)
+  expect_false(is.na(measure_mcc(cm2)))
+  expect_gt(measure_mcc(cm2), 0)
 })
 
 test_that("they reject anything that is not a confusion matrix", {
-  expect_error(confusion_sens(c(a = 1, b = 2)), "output of confusion")
-  expect_error(confusion_spec(1:4), "output of confusion")
-  expect_error(confusion_mcc(list(tp = 1)), "output of confusion")
+  expect_error(measure_sens(c(a = 1, b = 2)), "output of confusion")
+  expect_error(measure_spec(1:4), "output of confusion")
+  expect_error(measure_mcc(list(tp = 1)), "output of confusion")
 })
 
 test_that("confusion() warns when a probability is scored at the margin cutoff", {
@@ -426,11 +426,11 @@ test_that("the threshold reaches every derived measure from one place", {
   low <- confusion(y, s, threshold = -0.5)
   high <- confusion(y, s, threshold = 0.5)
 
-  expect_gt(confusion_sens(low), confusion_sens(high))
-  expect_lt(confusion_spec(low), confusion_spec(high))
+  expect_gt(measure_sens(low), measure_sens(high))
+  expect_lt(measure_spec(low), measure_spec(high))
   # the ranking measures cannot move, having no cutoff to move
   expect_equal(auroc(y, s), auroc(y, s))
-  expect_false(isTRUE(all.equal(confusion_bacc(low), confusion_bacc(high))))
+  expect_false(isTRUE(all.equal(measure_bacc(low), measure_bacc(high))))
 })
 
 # ---- the synonyms in the documentation --------------------------------------
@@ -445,7 +445,10 @@ test_that("the documented synonyms hold as identities", {
   # mcc is the phi coefficient: Pearson's r of true and predicted 0/1
   expect_equal(g[["mcc"]], cor(y, as.integer(s > 0)))
   # f1 is the harmonic mean of precision and recall
-  expect_equal(g[["f1"]], 2 * g[["ppv"]] * g[["sens"]] / (g[["ppv"]] + g[["sens"]]))
+  expect_equal(
+    g[["f1"]],
+    2 * g[["ppv"]] * g[["sens"]] / (g[["ppv"]] + g[["sens"]])
+  )
   # bacc is (J + 1) / 2 with Youden's J
   j <- g[["sens"]] + g[["spec"]] - 1
   expect_equal(g[["bacc"]], (j + 1) / 2)

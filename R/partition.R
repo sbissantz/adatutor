@@ -55,61 +55,59 @@ partition <- function(data, prop = 0.7, strata = NULL) {
   if (length(prop) == 1L) {
     prop <- c(prop, 1 - prop)
   } else if (!isTRUE(all.equal(sum(prop), 1))) {
-    msg <- "`prop` must sum to 1 when it names more than one set. "
-    sug <- paste0(
-      "Got ",
+    stop(
+      "`prop` must sum to 1 when it names more than one set. Got ",
       paste(format(prop), collapse = " + "),
       " = ",
       format(sum(prop)),
       ". The last set takes whatever is left, so a shortfall would be handed ",
-      "to it silently."
+      "to it silently.",
+      call. = FALSE
     )
-    stop(c(msg, sug), call. = FALSE)
   }
 
   if (!is.null(strata)) {
     strata <- as.character(strata)
     if (length(strata) != 1L || !strata %in% names(data)) {
-      msg <- paste0("`strata` must name one column of `data`. ")
-      sug <- paste0(
-        "Got ",
+      stop(
+        "`strata` must name one column of `data`. Got ",
         paste0("`", paste(strata, collapse = "`, `"), "`"),
         "; `data` has ",
         paste0("`", paste(names(data), collapse = "`, `"), "`"),
-        "."
+        ".",
+        call. = FALSE
       )
-      stop(c(msg, sug), call. = FALSE)
     }
   }
 
   # no strata means one stratum holding everything
-  key <- if (is.null(strata)) rep(1L, nrow(data)) else data[[strata]]
-  rows <- split(seq_len(nrow(data)), key, drop = TRUE)
-  sizes <- vapply(rows, length, integer(1))
+  stratum <- if (is.null(strata)) rep(1L, nrow(data)) else data[[strata]]
+  stratum_rows <- split(seq_len(nrow(data)), stratum, drop = TRUE)
+  sizes <- vapply(stratum_rows, length, integer(1))
 
-  set_of <- integer(nrow(data))
-  left <- rows
+  assignment <- integer(nrow(data))
+  leftovers <- stratum_rows
 
   # split-major: every stratum's first draw, then its second
   for (j in seq_len(length(prop) - 1L)) {
-    for (g in seq_along(left)) {
+    for (g in seq_along(leftovers)) {
       # count from the stratum's original size: proportions of the whole
-      k <- min(round(sizes[g] * prop[j]), length(left[[g]]))
-      if (k > 0L) {
+      n_draw <- min(round(sizes[g] * prop[j]), length(leftovers[[g]]))
+      if (n_draw > 0L) {
         # sample.int, then index: sample(rows, k) reads a one-row stratum as 1:n
-        take <- sample.int(length(left[[g]]), k)
-        set_of[left[[g]][take]] <- j
-        left[[g]] <- left[[g]][-take]
+        picks <- sample.int(length(leftovers[[g]]), n_draw)
+        assignment[leftovers[[g]][picks]] <- j
+        leftovers[[g]] <- leftovers[[g]][-picks]
       }
     }
   }
   # the last set takes what nobody drew, so every row lands exactly once
-  set_of[unlist(left, use.names = FALSE)] <- length(prop)
+  assignment[unlist(leftovers, use.names = FALSE)] <- length(prop)
 
   # numbered, not train/test: which set is which is the caller's call;
   # drop = FALSE: a one-column data frame would otherwise come back a vector
   stats::setNames(
-    lapply(seq_along(prop), function(j) data[set_of == j, , drop = FALSE]),
+    lapply(seq_along(prop), \(j) data[assignment == j, , drop = FALSE]),
     paste0("set", seq_along(prop))
   )
 }

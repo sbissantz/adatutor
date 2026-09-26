@@ -128,6 +128,11 @@ algorithm's: AdaBoost is defined over any *weak learner* whose weighted error
 stays below one half. That is why `adaboost()` takes a fitted learner rather
 than a formula, and why its own signature mentions no trees at all:
 
+The AdaBoost algorithm combines multiple base models into a strong overall model, which is referred to as *ensemble*. The base model is actually a free choice and originally the AdaBoost algorithm was defined over any *weak learner* whose weighted error stays below one half, but often depth-one decision trees (aka. *stumps*) are used for convenience. 
+
+**TODO** AdaBoost is first and foremost a teaching package. That is why we mimic the signature of  
+
+
 ```r
 adaboost(h, n_iter, eta)
 ```
@@ -135,9 +140,15 @@ adaboost(h, n_iter, eta)
 ### The Weak Learner
 
 Here the weak learner is a classification stump, so that is what we fit first.
-Every tree hyperparameter belongs to this call -- depth, the splitting rule,
-the complexity parameter -- and `adaboost()` carries all of them into every
-boosting round.
+The tree hyperparameters belong to this call, and `adaboost()` carries them
+into every boosting round: depth, the complexity parameter, the minimum split
+and bucket sizes, and the splitting rule. It overrides only `xval` and
+`maxsurrogate`, which are speed rather than structure.
+
+Two settings cannot travel, and `adaboost()` refuses them rather than ignoring
+them. A `prior` is recomputed from each round's observation weights -- that is
+what boosting *does* -- and a `loss` matrix is not passed on, so a learner
+carrying either is an error rather than a surprise.
 
 `model = TRUE` is the one requirement. `rpart()` keeps the outcome but discards
 the predictors unless you ask for them, and `adaboost()` has to refit this tree
@@ -180,7 +191,7 @@ fit <- h |> adaboost(n_iter = 10, eta = 1)
 
 Swapping the weak learner is now a change to the `rpart()` call above and
 nothing else: a deeper tree, a different splitting rule or a different
-complexity parameter all reach the ensemble without `adaboost()` gaining an
+complexity parameter reaches the ensemble without `adaboost()` gaining an
 argument.
 
 ### Test Phase
@@ -204,6 +215,94 @@ A confusion matrix can help us evaluate the prediction accuracy:
 #| label: confusion
 # Confusion matrix
 table(ypred, test[, outnme])
+```
+
+### Performance Measures
+
+Class labels say only whether a prediction was right. The *margin*, the
+weighted vote before its sign is taken, also says how sure the model was, and
+every measure that reads a ranking needs that. So we score the margin:
+
+```{r}
+#| label: margin
+# Margins on the test set
+margin <- predict(
+  fit,
+  newdata = test[, prednms],
+  type = "margin",
+  verbose = FALSE
+)
+```
+
+`assess()` computes the usual measures in one call:
+
+```{r}
+#| label: assess
+# Performance measures
+assess(test[, outnme], score = margin)
+```
+
+The printout shows the confusion matrix at a threshold of 0, then the measures
+at that threshold. Next comes the precision among the top 3, the top 5 and the
+top k scores, where k is the number of actual successes. Last are the areas
+under the ROC and precision-recall curves, which use every threshold.
+`?assess` lists the formulas and the other names each measure goes by (for
+example, `sens` is also called recall).
+
+## Leave-One-Group-Out Cross-Validation
+
+A single split gives a single estimate. The five replication projects differ
+in design and base rate, so we hold out one project at a time and train on the
+other four: leave-one-group-out cross-validation (LOGO-CV), with the projects
+as the groups.
+
+`logo_cv()` takes the fitted ensemble, reads its settings (the formula, the
+tree settings, `n_iter` and `eta`), and refits them once per project. It does
+not use the fit's own data: cross-validation evaluates the procedure, not one
+fitted model. The fit only carries the settings, so `verbose = FALSE` keeps it
+quiet.
+
+```{r}
+#| label: logo-cv
+# LOGO-CV: refit the same recipe with each project held out
+res <- h |>
+  adaboost(n_iter = 1000, eta = 1, verbose = FALSE) |>
+  logo_cv(data = df, group = "pid")
+
+# Results per project
+res
+```
+
+Read the spread across projects, not an average. The projects differ in size
+(10 to 90 studies), and they share most of their training data, so a mean and
+its standard error would mislead.
+
+`bootstrap()` resamples each held-out project to show how much its estimate
+could move with different studies. `plot()` then draws the intervals as bands:
+
+```{r}
+#| label: logo-cv-bootstrap
+#| fig-alt: "AUROC per replication project with bootstrapped interval bands"
+# Bootstrapped intervals per project
+set.seed(112)
+res |>
+  bootstrap(n_resample = 1000) |>
+  plot()
+```
+
+To compare AdaBoost with another learner, pass a formula and a `model`
+instead of a fit. Here is a logistic regression on the same predictors:
+
+```{r}
+#| label: logo-cv-logit
+# LOGO-CV for a logistic regression
+logit <- logo_cv(
+  replicate ~ power.o + effect_size.o + n.o + p_value.o,
+  data = df,
+  group = "pid",
+  model = "logit"
+)
+logit
 ```
 
 ## Feature Importance

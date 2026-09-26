@@ -30,9 +30,13 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
   if (!inherits(fit, "rpart")) {
     stop("`fit` must be an rpart object.", call. = FALSE)
   }
-  yv <- fit$frame$yval2
+  node_stats <- fit$frame$yval2
   # yval, class counts, class probabilities, node probability: 2 + 2 * nclass
-  if (is.null(dim(yv)) || ncol(yv) < 6L || ncol(yv) %% 2L != 0L) {
+  if (
+    is.null(dim(node_stats)) ||
+      ncol(node_stats) < 6L ||
+      ncol(node_stats) %% 2L != 0L
+  ) {
     stop(
       "`fit` must be a classification tree, fitted with method = \"class\".",
       call. = FALSE
@@ -40,23 +44,25 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
   }
 
   # probability of the last class: the column before the node probability
-  prob <- yv[, ncol(yv) - 1L]
+  prob <- node_stats[, ncol(node_stats) - 1L]
 
   ramp <- palette(n)
   # cut [0, 1] absolutely, not by quantiles, so a probability keeps its color
-  idx <- pmin(n, pmax(1L, ceiling(prob * n)))
-  box <- ramp[idx]
+  steps <- pmin(n, pmax(1L, ceiling(prob * n)))
+  box <- ramp[steps]
 
-  list(box = box, text = contrast_stroke(box))
+  list(box = box, text = choose_ink(box))
 }
 
-#' Pick black or white to draw on a fill color
+#' Choose black or white ink to draw on a fill color
 #'
 #' Uses Rec. 709 luminance with a cut at 0.55, so any palette works.
 #' @noRd
-contrast_stroke <- function(cols) {
-  rgb <- grDevices::col2rgb(cols) / 255
-  # unname(): a single color would carry the channel's rowname into `col`
-  lum <- unname(0.2126 * rgb[1, ] + 0.7152 * rgb[2, ] + 0.0722 * rgb[3, ])
-  ifelse(lum > 0.55, "grey15", "white")
+choose_ink <- function(colors) {
+  channels <- grDevices::col2rgb(colors) / 255
+  # unname(): a single color would carry the channel's rowname along
+  luminance <- unname(
+    0.2126 * channels[1, ] + 0.7152 * channels[2, ] + 0.0722 * channels[3, ]
+  )
+  ifelse(luminance > 0.55, "grey15", "white")
 }
