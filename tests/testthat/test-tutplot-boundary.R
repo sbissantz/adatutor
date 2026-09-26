@@ -121,6 +121,11 @@ test_that("tutplot_boundary() rejects malformed input", {
     tutplot_boundary("not a model", altmejd),
     "rpart object or the output"
   )
+  # an empty list once failed on fit[[1]] before this message could appear
+  expect_error(
+    tutplot_boundary(list(), altmejd),
+    "rpart object or the output"
+  )
 })
 
 test_that("a one-class window warns instead of drawing nothing", {

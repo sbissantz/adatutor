@@ -61,6 +61,6 @@ test_that("detect_overlap() reads the data, not the name", {
 test_that("check_prop() works", {
   expect_error(check_prop(3L))
   expect_warning(check_prop(0))
-  expect_warning(check_prop(1))
+  expect_warning(check_prop(1), "greater than 0 and less than 1")
   expect_no_error(check_prop(0.8))
 })

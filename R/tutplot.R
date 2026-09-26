@@ -930,7 +930,7 @@ read_terms <- function(fit) {
   # the stored formula may be `outcome ~ .`; the fitted trees carry the names
   model_terms <- if (inherits(fit, "rpart")) {
     fit$terms
-  } else if (is.list(fit) && !is.null(fit[[1]]$h)) {
+  } else if (inherits(fit, "adaboost")) {
     fit[[1]]$h$terms
   } else {
     stop(

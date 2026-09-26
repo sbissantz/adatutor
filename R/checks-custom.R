@@ -191,7 +191,7 @@ check_prop <- function(x) {
     warning(
       "Specified proportion `",
       deparse(x),
-      "` is not practical.",
+      "` is not practical. Use a value greater than 0 and less than 1.",
       call. = FALSE
     )
   }
