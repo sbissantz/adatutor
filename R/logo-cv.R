@@ -125,10 +125,9 @@ logo_cv.formula <- function(
   verbose = FALSE,
   ...
 ) {
-  formula <- x
   model <- match.arg(model)
   treehypar <- normalize_treehypar(treehypar)
-  folds <- logo_cv_folds(data, group)
+  folds <- read_folds(data, group)
   if (model == "rf" && !requireNamespace("randomForest", quietly = TRUE)) {
     stop(
       "model = \"rf\" needs the randomForest package. ",
@@ -152,8 +151,8 @@ logo_cv.formula <- function(
         call. = FALSE
       )
     }
-    return(logo_cv_nested(
-      formula = formula,
+    return(cross_validate_nested(
+      formula = x,
       data = data,
       group = group,
       model = model,
@@ -165,8 +164,8 @@ logo_cv.formula <- function(
     ))
   }
 
-  logo_cv_run(
-    formula = formula,
+  cross_validate(
+    formula = x,
     data = data,
     group = group,
     model = model,
@@ -181,11 +180,10 @@ logo_cv.formula <- function(
 #' @export
 logo_cv.adaboost <- function(x, data, group, verbose = FALSE, ...) {
   check_ada_fit(x)
-  ctrl <- attr(x, "control")
-  split <- attr(x, "split")
-  folds <- logo_cv_folds(data, group)
+  control <- attr(x, "control")
+  folds <- read_folds(data, group)
   # the fit's settings, not its data: cross-validation refits the recipe
-  logo_cv_run(
+  cross_validate(
     formula = attr(x, "formula"),
     data = data,
     group = group,
@@ -193,18 +191,21 @@ logo_cv.adaboost <- function(x, data, group, verbose = FALSE, ...) {
     grid = data.frame(
       T = attr(x, "n_iter"),
       eta = attr(x, "eta"),
-      depth = ctrl$maxdepth
+      depth = control$maxdepth
     ),
-    treehypar = normalize_treehypar(ctrl[setdiff(names(ctrl), "maxdepth")]),
+    treehypar = normalize_treehypar(
+      control[setdiff(names(control), "maxdepth")]
+    ),
     folds = folds,
-    split = if (is.null(split)) "gini" else split,
+    # fits made before the split attribute existed used gini
+    split = attr(x, "split") %||% "gini",
     verbose = verbose
   )
 }
 
 #' Check `data` and `group`, and return the folds
 #' @noRd
-logo_cv_folds <- function(data, group) {
+read_folds <- function(data, group) {
   check_df(data)
   check_length(data)
   if (!is.character(group) || length(group) != 1L) {
@@ -225,7 +226,7 @@ logo_cv_folds <- function(data, group) {
 
 #' Score every setting on every fold, keeping the held-out scores
 #' @noRd
-logo_cv_run <- function(
+cross_validate <- function(
   formula,
   data,
   group,
@@ -238,9 +239,8 @@ logo_cv_run <- function(
 ) {
   outcome <- all.vars(formula)[1L]
 
-  # allocate the setting x project x metric cube up front; assess() names
-  # the measures
-  measure_names <- names(assess(c(1, 0), c(1, -1)))
+  # allocate the setting x project x metric cube up front
+  measure_names <- list_measures()
   estimates <- array(
     NA_real_,
     dim = c(nrow(grid), length(folds), length(measure_names)),
@@ -266,27 +266,22 @@ logo_cv_run <- function(
         message("setting ", i, "/", nrow(grid), " | fold ", fold)
       }
 
-      in_test <- as.character(data[[group]]) == fold
-      train <- data[!in_test, , drop = FALSE]
-      test <- data[in_test, , drop = FALSE]
+      held_out <- as.character(data[[group]]) == fold
+      train <- data[!held_out, , drop = FALSE]
+      test <- data[held_out, , drop = FALSE]
 
-      score <- fold_score(
+      score <- score_fold(
         formula = formula,
         train = train,
         test = test,
         model = model,
-        pars = grid[i, , drop = FALSE],
+        setting = grid[i, , drop = FALSE],
         treehypar = treehypar,
         split = split
       )
 
       actual <- test[[outcome]]
-      # threshold 0 for the AdaBoost margin, 0.5 for probabilities
-      measures <- assess(
-        actual,
-        score,
-        threshold = if (model == "adaboost") 0 else 0.5
-      )
+      measures <- assess(actual, score, threshold = choose_threshold(model))
 
       estimates[i, fold, names(measures)] <- unname(measures)
       # keep the held-out scores, so bootstrap() needs no refit
@@ -308,20 +303,11 @@ logo_cv_run <- function(
     }
   }
 
-  # hyperparameters meaningless for this learner are NA, not a stale default;
-  # set after the loop, which fits from the same columns
-  if (model %in% c("logit", "rf")) {
-    grid$depth <- NA_real_
-  }
-  if (model != "adaboost") {
-    grid$T <- NA_real_
-    grid$eta <- NA_real_
-  }
-
   structure(
     list(
       estimates = estimates,
-      grid = grid,
+      # after the loop, which fits from these columns
+      grid = mask_unused(grid, model),
       projects = projects,
       scores = do.call(rbind, scores),
       model = model,
@@ -333,13 +319,9 @@ logo_cv_run <- function(
   )
 }
 
-#' Internal helpers for logo_cv()
-#' @noRd
-NULL
-
 #' Run the outer loop of nested LOGO-CV, calling logo_cv() for each inner search
 #' @noRd
-logo_cv_nested <- function(
+cross_validate_nested <- function(
   formula,
   data,
   group,
@@ -351,7 +333,7 @@ logo_cv_nested <- function(
   verbose
 ) {
   outcome <- all.vars(formula)[1L]
-  measure_names <- names(assess(c(1, 0), c(1, -1)))
+  measure_names <- list_measures()
 
   # no setting dimension: each outer fold selects its own (see `selected`)
   estimates <- array(
@@ -366,7 +348,7 @@ logo_cv_nested <- function(
     row.names = NULL,
     stringsAsFactors = FALSE
   )
-  picked <- vector("list", length(folds))
+  selected <- vector("list", length(folds))
   scores <- vector("list", length(folds))
 
   for (k in seq_along(folds)) {
@@ -376,12 +358,11 @@ logo_cv_nested <- function(
     }
 
     # drop the held-out project entirely, which keeps the selection honest
-    in_test <- as.character(data[[group]]) == fold
-    train <- data[!in_test, , drop = FALSE]
-    test <- data[in_test, , drop = FALSE]
+    held_out <- as.character(data[[group]]) == fold
+    train <- data[!held_out, , drop = FALSE]
+    test <- data[held_out, , drop = FALSE]
 
-    # inner loop: reuse logo_cv() on the remaining projects
-    inner <- logo_cv(
+    inner_cv <- logo_cv(
       formula,
       data = train,
       group = group,
@@ -391,7 +372,7 @@ logo_cv_nested <- function(
       verbose = FALSE
     )
 
-    if (!criterion %in% dimnames(inner$estimates)$metric) {
+    if (!criterion %in% dimnames(inner_cv$estimates)$metric) {
       stop(
         "`criterion` \"",
         criterion,
@@ -400,39 +381,38 @@ logo_cv_nested <- function(
       )
     }
 
-    # rank settings by their mean over the inner folds: a ranking, not an
-    # estimate (see ?logo_cv)
-    ranked <- rowMeans(
-      inner$estimates[,, criterion, drop = FALSE],
+    # the mean over the inner folds ranks settings; it is not an estimate
+    # (see ?logo_cv)
+    inner_means <- rowMeans(
+      inner_cv$estimates[,, criterion, drop = FALSE],
       na.rm = TRUE
     )
-    best <- unname(which.max(ranked))
+    winner <- unname(which.max(inner_means))
 
-    score <- fold_score(
+    score <- score_fold(
       formula = formula,
       train = train,
       test = test,
       model = model,
-      pars = grid[best, , drop = FALSE],
+      setting = grid[winner, , drop = FALSE],
       treehypar = treehypar
     )
 
     actual <- test[[outcome]]
-    measures <- assess(
-      actual,
-      score,
-      threshold = if (model == "adaboost") 0 else 0.5
-    )
+    measures <- assess(actual, score, threshold = choose_threshold(model))
 
     # keep the whole grid row, so a control tuned in the grid travels along;
     # depth, T and eta keep fixed positions
-    row <- grid[best, , drop = FALSE]
-    row <- row[, union(c("depth", "T", "eta"), names(row)), drop = FALSE]
-    picked[[k]] <- data.frame(
+    choice <- grid[winner, , drop = FALSE]
+    choice <- choice[,
+      union(c("depth", "T", "eta"), names(choice)),
+      drop = FALSE
+    ]
+    selected[[k]] <- data.frame(
       project = fold,
-      setting = best,
-      `rownames<-`(row, NULL),
-      inner_criterion = max(ranked, na.rm = TRUE),
+      setting = winner,
+      `rownames<-`(choice, NULL),
+      inner_criterion = max(inner_means, na.rm = TRUE),
       row.names = NULL,
       stringsAsFactors = FALSE
     )
@@ -449,6 +429,38 @@ logo_cv_nested <- function(
     projects$base_rate[k] <- mean(as_binary(actual))
   }
 
+  structure(
+    list(
+      estimates = estimates,
+      grid = mask_unused(grid, model),
+      projects = projects,
+      scores = do.call(rbind, scores),
+      model = model,
+      nested = TRUE,
+      criterion = criterion,
+      selected = do.call(rbind, selected)
+    ),
+    class = "logo_cv"
+  )
+}
+
+#' List the measures assess() returns
+#' @noRd
+list_measures <- function() {
+  names(assess(c(1, 0), c(1, -1)))
+}
+
+#' Choose the classification threshold for a learner's score
+#' @noRd
+choose_threshold <- function(model) {
+  # 0 for the AdaBoost margin, 0.5 for probabilities
+  if (model == "adaboost") 0 else 0.5
+}
+
+#' Set the hyperparameters a learner ignores to NA
+#' @noRd
+mask_unused <- function(grid, model) {
+  # NA, not a stale default that reads as if it were used
   if (model %in% c("logit", "rf")) {
     grid$depth <- NA_real_
   }
@@ -456,29 +468,18 @@ logo_cv_nested <- function(
     grid$T <- NA_real_
     grid$eta <- NA_real_
   }
-
-  structure(
-    list(
-      estimates = estimates,
-      grid = grid,
-      projects = projects,
-      scores = do.call(rbind, scores),
-      model = model,
-      nested = TRUE,
-      criterion = criterion,
-      selected = do.call(rbind, picked)
-    ),
-    class = "logo_cv"
-  )
+  grid
 }
 
 #' List the tree controls a grid row may set
 #' @noRd
-tree_control_names <- function() {
-  # controls a grid row may set; maxdepth is excluded because depth is tuned
+list_tree_controls <- function() {
+  # maxdepth is excluded: depth is tuned
   setdiff(names(formals(rpart::rpart.control)), c("maxdepth", "..."))
 }
 
+#' Fill in the grid's missing columns and warn about unknown ones
+#' @noRd
 normalize_grid <- function(grid, T, eta, depth) {
   if (is.null(grid)) {
     return(data.frame(T = T, eta = eta, depth = depth))
@@ -498,13 +499,13 @@ normalize_grid <- function(grid, T, eta, depth) {
   }
   # read extra columns as rpart controls; warn once about the rest instead of
   # dropping a column meant to tune something
-  unknown <- setdiff(names(grid), c("T", "eta", "depth", tree_control_names()))
+  unknown <- setdiff(names(grid), c("T", "eta", "depth", list_tree_controls()))
   if (length(unknown)) {
     warning(
       "grid column(s) not used for fitting: ",
       paste(unknown, collapse = ", "),
       ". Beyond `T`, `eta` and `depth`, only rpart controls are read (",
-      paste(tree_control_names(), collapse = ", "),
+      paste(list_tree_controls(), collapse = ", "),
       ").",
       call. = FALSE
     )
@@ -514,9 +515,9 @@ normalize_grid <- function(grid, T, eta, depth) {
 
 #' Build the one tree control that all tree learners share
 #' @noRd
-normalize_treehypar <- function(treehypar, row = NULL) {
+normalize_treehypar <- function(treehypar, setting = NULL) {
   # one control for every tree learner, so they differ only in depth
-  def_ctrl <- rpart::rpart.control(xval = 0, maxsurrogate = 0, cp = 0.01)
+  control <- rpart::rpart.control(xval = 0, maxsurrogate = 0, cp = 0.01)
   if (!is.null(treehypar)) {
     if (!is.list(treehypar)) {
       stop(
@@ -532,57 +533,57 @@ normalize_treehypar <- function(treehypar, row = NULL) {
       )
       treehypar$maxdepth <- NULL
     }
-    def_ctrl <- utils::modifyList(def_ctrl, treehypar)
+    control <- utils::modifyList(control, treehypar)
   }
   # a grid-row control wins over `treehypar`: the row is more specific
-  if (!is.null(row)) {
-    ctrl <- intersect(names(row), tree_control_names())
-    if (length(ctrl)) {
-      def_ctrl <- utils::modifyList(
-        def_ctrl,
-        as.list(row[, ctrl, drop = FALSE])
+  if (!is.null(setting)) {
+    row_controls <- intersect(names(setting), list_tree_controls())
+    if (length(row_controls)) {
+      control <- utils::modifyList(
+        control,
+        as.list(setting[, row_controls, drop = FALSE])
       )
     }
   }
   # depth is supplied per grid row, never here
-  def_ctrl$maxdepth <- NULL
-  def_ctrl
+  control$maxdepth <- NULL
+  control
 }
 
 #' Fit one learner on one fold and score the held-out rows
 #' @noRd
-fold_score <- function(
+score_fold <- function(
   formula,
   train,
   test,
   model,
-  pars,
+  setting,
   treehypar = NULL,
   split = "gini"
 ) {
-  treehypar <- normalize_treehypar(treehypar, row = pars)
+  treehypar <- normalize_treehypar(treehypar, setting = setting)
   outcome <- all.vars(formula)[1L]
-  prednms <- all.vars(formula)[-1L]
-  if (identical(prednms, ".")) {
-    prednms <- setdiff(names(train), outcome)
+  predictors <- all.vars(formula)[-1L]
+  if (identical(predictors, ".")) {
+    predictors <- setdiff(names(train), outcome)
   }
-  voi <- c(prednms, outcome)
+  variables <- c(predictors, outcome)
 
   if (model == "adaboost") {
     # build the weak learner like the stump branch; model = TRUE carries the
     # data adaboost() needs
     h <- rpart::rpart(
       formula,
-      data = train[, voi, drop = FALSE],
+      data = train[, variables, drop = FALSE],
       method = "class",
-      control = utils::modifyList(treehypar, list(maxdepth = pars$depth)),
+      control = utils::modifyList(treehypar, list(maxdepth = setting$depth)),
       parms = list(split = split),
       model = TRUE
     )
     fit <- adaboost(
       h,
-      n_iter = pars$T,
-      eta = pars$eta,
+      n_iter = setting$T,
+      eta = setting$eta,
       # each fit is thrown away, so keep no data for retrodictions
       keep_data = FALSE,
       verbose = FALSE,
@@ -591,7 +592,7 @@ fold_score <- function(
     # the margin, not labels: labels collapse auroc onto balanced accuracy
     return(predict(
       fit,
-      test[, prednms, drop = FALSE],
+      test[, predictors, drop = FALSE],
       type = "margin",
       verbose = FALSE,
       check_inputs = FALSE
@@ -599,10 +600,10 @@ fold_score <- function(
   }
 
   if (model %in% c("stump", "tree")) {
-    maxdepth <- if (model == "stump") 1 else pars$depth
+    maxdepth <- if (model == "stump") 1 else setting$depth
     fit <- rpart::rpart(
       formula,
-      data = train[, voi, drop = FALSE],
+      data = train[, variables, drop = FALSE],
       method = "class",
       control = utils::modifyList(treehypar, list(maxdepth = maxdepth))
     )
@@ -611,13 +612,16 @@ fold_score <- function(
   }
 
   if (model == "logit") {
-    tr <- train[, voi, drop = FALSE]
-    tr[[outcome]] <- as_binary(tr[[outcome]])
-    fit <- stats::glm(formula, data = tr, family = stats::binomial)
+    train_coded <- train[, variables, drop = FALSE]
+    train_coded[[outcome]] <- as_binary(train_coded[[outcome]])
+    fit <- stats::glm(formula, data = train_coded, family = stats::binomial)
     return(stats::predict(fit, newdata = test, type = "response"))
   }
 
-  fit <- randomForest::randomForest(formula, data = train[, voi, drop = FALSE])
+  fit <- randomForest::randomForest(
+    formula,
+    data = train[, variables, drop = FALSE]
+  )
   prob <- stats::predict(fit, newdata = test, type = "prob")
   prob[, ncol(prob)]
 }
@@ -659,16 +663,20 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
   }
   cat("  measure: ", metric, "\n\n", sep = "")
 
-  est <- as.data.frame(x)
-  sub <- est[est$metric == metric, , drop = FALSE]
-  if (nrow(sub) == 0L) {
+  long <- as.data.frame(x)
+  rows <- long[long$metric == metric, , drop = FALSE]
+  if (nrow(rows) == 0L) {
     cat("no estimates for `", metric, "`\n", sep = "")
     return(invisible(x))
   }
 
-  keep <- c("depth", "T", "eta", "project", "n", "base_rate", "estimate")
-  keep <- keep[vapply(sub[keep], function(z) !all(is.na(z)), logical(1))]
-  print(format(sub[, keep, drop = FALSE], digits = 3), row.names = FALSE)
+  columns <- c("depth", "T", "eta", "project", "n", "base_rate", "estimate")
+  columns <- columns[vapply(
+    rows[columns],
+    \(column) !all(is.na(column)),
+    logical(1)
+  )]
+  print(format(rows[, columns, drop = FALSE], digits = 3), row.names = FALSE)
 
   # no mean or SE across folds: shared training data bias the naive SE down
   # (Bengio & Grandvalet, 2004)
@@ -694,42 +702,46 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
 #' @rdname logo_cv_methods
 #' @export
 summary.logo_cv <- function(object, metric = "auroc", ...) {
-  est <- as.data.frame(object)
-  sub <- est[est$metric == metric, , drop = FALSE]
-  sub[order(sub$depth, sub$T, sub$eta, sub$project), , drop = FALSE]
+  long <- as.data.frame(object)
+  rows <- long[long$metric == metric, , drop = FALSE]
+  rows[order(rows$depth, rows$T, rows$eta, rows$project), , drop = FALSE]
 }
 
 #' @rdname logo_cv_methods
 #' @export
 as.data.frame.logo_cv <- function(x, ...) {
-  arr <- x$estimates
-  dn <- dimnames(arr)
-  reserved <- c("depth", "T", "eta")
+  cube <- x$estimates
+  dim_names <- dimnames(cube)
+  core_columns <- c("depth", "T", "eta")
 
   # aperm() then as.vector() order rows metric fastest, then project, then
   # setting, matching expand.grid() below
   if (isTRUE(x$nested)) {
-    idx <- expand.grid(
-      metric = dn$metric,
-      project = dn$project,
+    keys <- expand.grid(
+      metric = dim_names$metric,
+      project = dim_names$project,
       stringsAsFactors = FALSE
     )
-    est <- as.vector(aperm(arr, c(2L, 1L)))
-    setting <- x$selected$setting[match(idx$project, x$selected$project)]
+    values <- as.vector(aperm(cube, c(2L, 1L)))
+    setting <- x$selected$setting[match(keys$project, x$selected$project)]
   } else {
-    idx <- expand.grid(
-      metric = dn$metric,
-      project = dn$project,
-      setting = dn$setting,
+    keys <- expand.grid(
+      metric = dim_names$metric,
+      project = dim_names$project,
+      setting = dim_names$setting,
       stringsAsFactors = FALSE
     )
-    est <- as.vector(aperm(arr, c(3L, 2L, 1L)))
-    setting <- as.integer(idx$setting)
+    values <- as.vector(aperm(cube, c(3L, 2L, 1L)))
+    setting <- as.integer(keys$setting)
   }
 
-  gr <- x$grid[setting, , drop = FALSE]
-  pj <- x$projects[match(idx$project, x$projects$project), , drop = FALSE]
-  extra <- setdiff(names(gr), reserved)
+  settings <- x$grid[setting, , drop = FALSE]
+  project_info <- x$projects[
+    match(keys$project, x$projects$project),
+    ,
+    drop = FALSE
+  ]
+  extra_columns <- setdiff(names(settings), core_columns)
 
   out <- data.frame(
     model = x$model,
@@ -737,18 +749,21 @@ as.data.frame.logo_cv <- function(x, ...) {
     row.names = NULL,
     stringsAsFactors = FALSE
   )
-  out <- cbind(out, `rownames<-`(gr[, reserved, drop = FALSE], NULL))
-  if (length(extra)) {
-    out <- cbind(out, `rownames<-`(gr[, extra, drop = FALSE], NULL))
+  out <- cbind(out, `rownames<-`(settings[, core_columns, drop = FALSE], NULL))
+  if (length(extra_columns)) {
+    out <- cbind(
+      out,
+      `rownames<-`(settings[, extra_columns, drop = FALSE], NULL)
+    )
   }
   cbind(
     out,
     data.frame(
-      project = idx$project,
-      n = pj$n,
-      base_rate = pj$base_rate,
-      metric = idx$metric,
-      estimate = est,
+      project = keys$project,
+      n = project_info$n,
+      base_rate = project_info$base_rate,
+      metric = keys$metric,
+      estimate = values,
       row.names = NULL,
       stringsAsFactors = FALSE
     )
@@ -762,8 +777,8 @@ as.data.frame.logo_cv <- function(x, ...) {
 #' @param baseline The reference line. `"auto"` draws it where a useless model
 #'   would score: 0.5 for `auroc` and `bacc`, 0 for `mcc`, and each project's
 #'   base rate for the others. A number sets it; `NA` leaves it out.
-#' @param drop_flag Projects whose bootstrap rejected more than this share of
-#'   draws get a star and a footnote. Defaults to 0.05.
+#' @param max_rejected Projects whose bootstrap rejected more than this share
+#'   of draws get a star and a footnote. Defaults to 0.05.
 #'
 #' @export
 plot.logo_cv <- function(
@@ -771,7 +786,7 @@ plot.logo_cv <- function(
   metric = "auroc",
   levels = c(0.50, 0.80, 0.95),
   baseline = "auto",
-  drop_flag = 0.05,
+  max_rejected = 0.05,
   ...
 ) {
   old_par <- graphics::par(mar = c(5.2, 5, 4, 2) + 0.1)
@@ -781,7 +796,7 @@ plot.logo_cv <- function(
     metric = metric,
     levels = levels,
     baseline = baseline,
-    drop_flag = drop_flag,
+    max_rejected = max_rejected,
     main = "Leave-one-group-out performance",
     ylab = metric,
     footnote = TRUE
@@ -799,83 +814,39 @@ draw_logo_cv <- function(
   metric = "auroc",
   levels = c(0.50, 0.80, 0.95),
   baseline = "auto",
-  drop_flag = 0.05,
+  max_rejected = 0.05,
   main = NULL,
   ylab = metric,
   footnote = TRUE
 ) {
   long <- as.data.frame(x)
-  est <- long[long$metric == metric, , drop = FALSE]
-  if (nrow(est) == 0L) {
+  estimates <- long[long$metric == metric, , drop = FALSE]
+  if (nrow(estimates) == 0L) {
     stop("no estimates for metric `", metric, "`.", call. = FALSE)
   }
-  est <- est[order(est$project), , drop = FALSE]
-  ci <- x$ci
-  np <- nrow(est)
-  at <- seq_len(np)
+  estimates <- estimates[order(estimates$project), , drop = FALSE]
+  n_projects <- nrow(estimates)
+  positions <- seq_len(n_projects)
   levels <- sort(levels)
 
-  # bands from the draws, so any level can be asked for later
-  bands <- vector("list", np)
-  rej <- rep(0, np)
-  for (i in at) {
-    cij <- ci[[est$project[i]]]
-    if (is.null(cij)) {
-      next
-    }
-    d <- attr(cij, "draws")
-    if (is.null(d) || !metric %in% colnames(d)) {
-      next
-    }
-    bands[[i]] <- vapply(
-      levels,
-      function(lv) {
-        a <- (1 - lv) / 2
-        stats::quantile(d[, metric], c(a, 1 - a), na.rm = TRUE)
-      },
-      numeric(2)
-    )
-    dropped <- cij$drop[1]
-    rej[i] <- dropped / (dropped + attr(cij, "n_resample"))
-  }
-  flag <- rej > drop_flag
+  intervals <- compute_bands(x$ci, estimates$project, metric, levels)
+  bands <- intervals$bands
+  rejection_rate <- intervals$rejection_rate
+  flagged <- rejection_rate > max_rejected
   # the star points at the footnote, so it goes where the footnote goes
-  star <- footnote & flag
+  starred <- footnote & flagged
 
-  # chance level differs by measure: 0.5 for auroc and bacc, 0 for mcc, the
-  # project base rate (.30 to .85) for the rest
-  ref_lab <- ""
-  ref <- if (identical(baseline, "auto")) {
-    if (metric %in% c("auroc", "bacc")) {
-      ref_lab <- "dashed line: chance (0.5)"
-      rep(0.5, np)
-    } else if (metric == "mcc") {
-      ref_lab <- "dashed line: no association (0)"
-      rep(0, np)
-    } else if (
-      metric %in% c("auprc", "ppv", "f1", "acc") || grepl("^patk(_|$)", metric)
-    ) {
-      ref_lab <- "dashed line: base rate of each project"
-      est$base_rate
-    } else {
-      rep(NA_real_, np)
-    }
-  } else if (length(baseline) == 1L && is.na(baseline)) {
-    rep(NA_real_, np)
-  } else {
-    ref_lab <- paste0("dashed line: ", signif(baseline, 3))
-    rep(as.numeric(baseline), np)
-  }
+  reference <- find_reference(metric, baseline, estimates$base_rate)
 
-  vals <- c(est$estimate, unlist(bands), ref)
-  rng <- range(vals, na.rm = TRUE)
-  pad <- max(diff(rng), 0.05) * 0.14
-  cols <- viridisLite::viridis(np, end = 0.85)
+  values <- c(estimates$estimate, unlist(bands), reference$values)
+  data_range <- range(values, na.rm = TRUE)
+  padding <- max(diff(data_range), 0.05) * 0.14
+  colors <- viridisLite::viridis(n_projects, end = 0.85)
 
-  ylim <- c(rng[1] - pad, rng[2] + pad * 2)
+  ylim <- c(data_range[1] - padding, data_range[2] + padding * 2)
   graphics::plot(
     NULL,
-    xlim = c(0.5, np + 0.5),
+    xlim = c(0.5, n_projects + 0.5),
     ylim = ylim,
     xaxt = "n",
     yaxt = "n",
@@ -885,8 +856,8 @@ draw_logo_cv <- function(
   )
   graphics::axis(
     1,
-    at = at,
-    labels = paste0(est$project, ifelse(star, "*", ""))
+    at = positions,
+    labels = paste0(estimates$project, ifelse(starred, "*", ""))
   )
   # ticks only where the measure can go: the headroom for the n labels is not
   # a value
@@ -900,52 +871,64 @@ draw_logo_cv <- function(
     ]
   )
 
-  if (any(is.finite(ref))) {
+  if (any(is.finite(reference$values))) {
     graphics::segments(
-      at - 0.42,
-      ref,
-      at + 0.42,
-      ref,
+      positions - 0.42,
+      reference$values,
+      positions + 0.42,
+      reference$values,
       col = "gray55",
       lty = 2,
       lwd = 2
     )
   }
 
-  lwds <- seq(9, 2.2, length.out = length(levels))
-  alph <- seq(1, 0.32, length.out = length(levels))
-  for (i in at) {
-    b <- bands[[i]]
-    if (is.null(b)) {
+  widths <- seq(9, 2.2, length.out = length(levels))
+  alphas <- seq(1, 0.32, length.out = length(levels))
+  for (i in positions) {
+    band <- bands[[i]]
+    if (is.null(band)) {
       next
     }
     for (k in seq_along(levels)) {
       graphics::segments(
         i,
-        b[1, k],
+        band[1, k],
         i,
-        b[2, k],
-        lwd = lwds[k],
-        col = grDevices::adjustcolor(cols[i], alpha.f = alph[k])
+        band[2, k],
+        lwd = widths[k],
+        col = grDevices::adjustcolor(colors[i], alpha.f = alphas[k])
       )
     }
   }
 
   # halo first, so the estimate stays legible against the darkest band
-  graphics::points(at, est$estimate, pch = 19, cex = 1.6, col = "white")
-  graphics::points(at, est$estimate, pch = 19, cex = 1.15, col = cols)
+  graphics::points(
+    positions,
+    estimates$estimate,
+    pch = 19,
+    cex = 1.6,
+    col = "white"
+  )
+  graphics::points(
+    positions,
+    estimates$estimate,
+    pch = 19,
+    cex = 1.15,
+    col = colors
+  )
 
   # fold size drives the band widths, so it belongs on the plot
   graphics::text(
-    at,
-    rng[2] + pad * 1.5,
-    paste0("n = ", est$n),
+    positions,
+    data_range[2] + padding * 1.5,
+    paste0("n = ", estimates$n),
     cex = 0.75,
     col = "gray30"
   )
 
   # keys go in the margin rather than over the data
-  if (!is.null(ci) && any(!vapply(bands, is.null, logical(1)))) {
+  if (!is.null(x$ci) && any(!vapply(bands, is.null, logical(1)))) {
     graphics::mtext(
       paste0("bands: ", paste0(round(100 * levels), collapse = " / "), "%"),
       side = 3,
@@ -955,9 +938,9 @@ draw_logo_cv <- function(
       col = "gray35"
     )
   }
-  if (nzchar(ref_lab)) {
+  if (nzchar(reference$label)) {
     graphics::mtext(
-      ref_lab,
+      reference$label,
       side = 3,
       line = 0.25,
       adj = 0,
@@ -965,14 +948,14 @@ draw_logo_cv <- function(
       col = "gray35"
     )
   }
-  if (footnote && any(flag)) {
+  if (footnote && any(flagged)) {
     graphics::mtext(
       paste0(
         "* resamples rejected as single-class: ",
         paste0(
-          est$project[flag],
+          estimates$project[flagged],
           " ",
-          round(100 * rej[flag]),
+          round(100 * rejection_rate[flagged]),
           "%",
           collapse = ",  "
         ),
@@ -986,18 +969,79 @@ draw_logo_cv <- function(
     )
   }
 
-  widest <- function(i, row) {
-    if (is.null(bands[[i]])) NA_real_ else bands[[i]][row, length(levels)]
+  read_widest <- function(i, bound) {
+    if (is.null(bands[[i]])) NA_real_ else bands[[i]][bound, length(levels)]
   }
   data.frame(
-    project = est$project,
-    n = est$n,
-    estimate = est$estimate,
-    lower = vapply(at, widest, numeric(1), row = 1L),
-    upper = vapply(at, widest, numeric(1), row = 2L),
-    rejected = rej,
-    flagged = flag,
+    project = estimates$project,
+    n = estimates$n,
+    estimate = estimates$estimate,
+    lower = vapply(positions, read_widest, numeric(1), bound = 1L),
+    upper = vapply(positions, read_widest, numeric(1), bound = 2L),
+    rejected = rejection_rate,
+    flagged = flagged,
     row.names = NULL,
     stringsAsFactors = FALSE
   )
+}
+
+#' Compute each project's bands from its bootstrap draws
+#'
+#' Also returns the share of resamples each bootstrap rejected.
+#' @noRd
+compute_bands <- function(ci, projects, metric, levels) {
+  bands <- vector("list", length(projects))
+  rejection_rate <- rep(0, length(projects))
+  for (i in seq_along(projects)) {
+    project_ci <- ci[[projects[i]]]
+    draws <- attr(project_ci, "draws")
+    if (is.null(draws) || !metric %in% colnames(draws)) {
+      next
+    }
+    # from the draws, so any level can be asked for later
+    bands[[i]] <- vapply(
+      levels,
+      function(level) {
+        tail_prob <- (1 - level) / 2
+        stats::quantile(
+          draws[, metric],
+          c(tail_prob, 1 - tail_prob),
+          na.rm = TRUE
+        )
+      },
+      numeric(2)
+    )
+    n_dropped <- project_ci$drop[1]
+    rejection_rate[i] <- n_dropped /
+      (n_dropped + attr(project_ci, "n_resample"))
+  }
+  list(bands = bands, rejection_rate = rejection_rate)
+}
+
+#' Find the reference line and its key
+#' @noRd
+find_reference <- function(metric, baseline, base_rate) {
+  n_projects <- length(base_rate)
+  if (!identical(baseline, "auto")) {
+    if (length(baseline) == 1L && is.na(baseline)) {
+      return(list(values = rep(NA_real_, n_projects), label = ""))
+    }
+    return(list(
+      values = rep(as.numeric(baseline), n_projects),
+      label = paste0("dashed line: ", signif(baseline, 3))
+    ))
+  }
+  # chance level differs by measure: 0.5 for auroc and bacc, 0 for mcc, the
+  # project base rate (.30 to .85) for the precision-type rest
+  if (metric %in% c("auroc", "bacc")) {
+    list(values = rep(0.5, n_projects), label = "dashed line: chance (0.5)")
+  } else if (metric == "mcc") {
+    list(values = rep(0, n_projects), label = "dashed line: no association (0)")
+  } else if (
+    metric %in% c("auprc", "ppv", "f1", "acc") || grepl("^patk(_|$)", metric)
+  ) {
+    list(values = base_rate, label = "dashed line: base rate of each project")
+  } else {
+    list(values = rep(NA_real_, n_projects), label = "")
+  }
 }
