@@ -25,7 +25,7 @@ test_that("check_numeric() works", {
 })
 
 test_that("check_train() works", {
-  # it now takes the overlap state, which overlap_state() works out
+  # it now takes the overlap state, which detect_overlap() works out
   expect_message(check_train("all", quote(train)))
   expect_no_message(check_train("none", quote(test)))
   expect_no_message(check_train(NA_character_, quote(test)))
@@ -33,19 +33,19 @@ test_that("check_train() works", {
   expect_no_message(check_train("some", quote(mixed)))
 })
 
-test_that("overlap_state() reads the data, not the name", {
+test_that("detect_overlap() reads the data, not the name", {
   tr <- data.frame(a = 1:5, b = letters[1:5])
-  expect_identical(as.character(overlap_state(NULL, NULL, tr, tr)), "all")
+  expect_identical(as.character(detect_overlap(NULL, NULL, tr, tr)), "all")
   expect_identical(
-    as.character(overlap_state(NULL, NULL, tr, tr[1:2, ])),
+    as.character(detect_overlap(NULL, NULL, tr, tr[1:2, ])),
     "all"
   )
   expect_identical(
-    as.character(overlap_state(NULL, NULL, tr, data.frame(a = 9, b = "z"))),
+    as.character(detect_overlap(NULL, NULL, tr, data.frame(a = 9, b = "z"))),
     "none"
   )
   expect_identical(
-    as.character(overlap_state(
+    as.character(detect_overlap(
       NULL,
       NULL,
       tr,
@@ -54,8 +54,8 @@ test_that("overlap_state() reads the data, not the name", {
     "some"
   )
   # with no stored frame it can only compare names, and says NA when it cannot
-  expect_identical(overlap_state(quote(d), quote(x)), NA_character_)
-  expect_identical(as.character(overlap_state(quote(d), quote(d))), "all")
+  expect_identical(detect_overlap(quote(d), quote(x)), NA_character_)
+  expect_identical(as.character(detect_overlap(quote(d), quote(d))), "all")
 })
 
 test_that("check_prop() works", {

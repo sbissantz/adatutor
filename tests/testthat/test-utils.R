@@ -19,10 +19,6 @@ test_that("as_binary() refuses an encoding it cannot read", {
   expect_error(as_binary(c(1, 2, 3)), "two-level factor")
 })
 
-test_that("walking_dots() writes to the message stream", {
-  expect_message(walking_dots(n = 1, delay = 0))
-})
-
 test_that("color_message() wraps the text in the code and resets it", {
   out <- capture.output(
     color_message("abc", color_code = 32),
@@ -35,7 +31,7 @@ test_that("feedback goes to the message stream, not stdout", {
   # progress is diagnostic, so it must not land in captured results
   expect_identical(capture.output(color_message("abc")), character(0))
   expect_identical(
-    capture.output(walking_colordots(n = 1, delay = 0)),
+    capture.output(mark_done(n = 1, delay = 0)),
     character(0)
   )
   expect_message(color_message("abc"))
@@ -61,10 +57,10 @@ test_that("color_message() honors `newline`", {
   expect_identical(raw("abc", newline = TRUE), paste0(plain, "\n"))
 })
 
-test_that("walking_colordots() colors `Done`, not the dots", {
+test_that("mark_done() colors `Done`, not the dots", {
   out <- paste(
     capture.output(
-      walking_colordots(n = 2, delay = 0, color_code = 34),
+      mark_done(n = 2, delay = 0, color_code = 34),
       type = "message"
     ),
     collapse = ""
@@ -77,9 +73,9 @@ test_that("walking_colordots() colors `Done`, not the dots", {
   expect_false(grepl("\033[34m.\033", out, fixed = TRUE))
 })
 
-test_that("walking_colordots() defaults to bold teal Done", {
+test_that("mark_done() defaults to bold teal Done", {
   out <- paste(
-    capture.output(walking_colordots(n = 1, delay = 0), type = "message"),
+    capture.output(mark_done(n = 1, delay = 0), type = "message"),
     collapse = ""
   )
   # the same style as the retrodiction notice, on purpose

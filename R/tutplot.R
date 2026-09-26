@@ -935,7 +935,7 @@ boundary_score <- function(fit, newdata) {
     # distance from the 0.5 cut, so zero is the boundary
     return(prob[, ncol(prob)] - 0.5)
   }
-  predict(fit, newdata, type = "margin", verbose = FALSE, input_checks = FALSE)
+  predict(fit, newdata, type = "margin", verbose = FALSE, check_inputs = FALSE)
 }
 
 #' How far the color scale should reach

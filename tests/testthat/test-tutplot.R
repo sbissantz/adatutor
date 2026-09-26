@@ -737,7 +737,7 @@ test_that("tutplot_boundary() takes either learner, and writes no file", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 20, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 20, eta = 1, verbose = FALSE, check_inputs = FALSE)
   many <- tutplot_boundary(ens, data = train, resolution = 40)
   expect_identical(many$features, c("power.o", "n.o"))
   expect_gt(length(unique(as.vector(many$z))), 2L)
@@ -792,7 +792,10 @@ test_that("tutplot_logoscheme() draws the order it is given, not table()'s", {
   expect_identical(tutplot_logoscheme(g)$levels, paper)
 
   # and a level that is not in the data is refused rather than drawn empty
-  expect_error(tutplot_logoscheme(altmejd$pid, levels = c(paper, "nope")), "nope")
+  expect_error(
+    tutplot_logoscheme(altmejd$pid, levels = c(paper, "nope")),
+    "nope"
+  )
 })
 
 test_that("tutplot_logoscheme() equal blocks hide what proportional ones show", {
@@ -906,7 +909,9 @@ test_that("tutplot_logocv(bootstrap = TRUE) brackets every estimate", {
   on.exit(grDevices::dev.off(), add = TRUE)
   set.seed(1)
   facts <- suppressWarnings(tutplot_logocv(logocv_res(), n_resample = 100))
-  expect_true(all(facts$lower <= facts$estimate & facts$estimate <= facts$upper))
+  expect_true(all(
+    facts$lower <= facts$estimate & facts$estimate <= facts$upper
+  ))
   expect_type(facts$flagged, "logical")
 })
 

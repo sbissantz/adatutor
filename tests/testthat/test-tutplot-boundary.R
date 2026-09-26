@@ -8,7 +8,7 @@ fit_ada <- function(T = 20) {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = T, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = T, eta = 1, verbose = FALSE, check_inputs = FALSE)
 }
 fit_stump <- function() {
   data(altmejd)
@@ -47,7 +47,7 @@ test_that("the score reproduces the class labels predict() would give", {
     power.o = seq(0.2, 1, length.out = 40),
     n.o = seq(10, 400, length.out = 40)
   )
-  labs <- predict(fit, g, verbose = FALSE, input_checks = FALSE)
+  labs <- predict(fit, g, verbose = FALSE, check_inputs = FALSE)
   expect_equal(sign(boundary_score(fit, g)), labs)
 })
 
@@ -85,7 +85,7 @@ test_that("features are inferred only when the choice is unambiguous", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE, check_inputs = FALSE)
   expect_error(
     quietly(tutplot_boundary(wide, altmejd)),
     "must name two columns"
@@ -360,7 +360,7 @@ test_that("the bar's end labels come from the outcome, including 0/1", {
       maxdepth = 1,
       model = TRUE
     ) |>
-      adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
+      adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
     expect_silent(tutplot_boundary(fit, d, resolution = 20, shade = "margin"))
   })
 })
@@ -395,7 +395,7 @@ test_that("a tree's colour scale is anchored, a boosted margin's is not", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE, check_inputs = FALSE)
   expect_equal(boundary_top(fit, c(-3, 2.2)), 3)
 })
 

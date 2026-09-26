@@ -71,7 +71,12 @@ check_numeric <- function(x) {
 #'
 #' Returns "all", "some", "none", or `NA` when it cannot tell.
 #' @noRd
-overlap_state <- function(trainnme, testnme, trainset = NULL, newdata = NULL) {
+detect_overlap <- function(
+  train_name,
+  newdata_name,
+  trainset = NULL,
+  newdata = NULL
+) {
   # compare rows when the fit kept its frame (catches renames and subsets),
   # else the deparsed name (all or nothing); NA means unknown, not no overlap
   if (!is.null(trainset) && !is.null(newdata)) {
@@ -93,7 +98,7 @@ overlap_state <- function(trainnme, testnme, trainset = NULL, newdata = NULL) {
       ))
     }
   }
-  if (!is.null(testnme) && identical(trainnme, testnme)) {
+  if (!is.null(newdata_name) && identical(train_name, newdata_name)) {
     return("all")
   }
   NA_character_
@@ -104,23 +109,23 @@ overlap_state <- function(trainnme, testnme, trainset = NULL, newdata = NULL) {
 #' A message, not a warning: retrodicting on purpose is normal.
 #' @noRd
 check_train <- function(
-  state,
-  testnme = NULL,
+  overlap,
+  newdata_name = NULL,
   verbose = FALSE,
-  fell_back = FALSE
+  defaulted = FALSE
 ) {
   # report only "all": `altmejd` has duplicated rows, so 2 of the 23 shipped
   # test rows match training by chance; "all" still catches renames and subsets
-  if (is.na(state) || state != "all") {
+  if (is.na(overlap) || overlap != "all") {
     return(invisible(NULL))
   }
 
   # two routes here: the training frame was passed, or predict() fell back to it
-  reason <- if (fell_back) {
+  reason <- if (defaulted) {
     "  No `newdata` specified. The model scored its training data."
   } else {
-    what <- if (!is.null(testnme)) {
-      paste0("`", deparse(testnme), "`")
+    what <- if (!is.null(newdata_name)) {
+      paste0("`", deparse(newdata_name), "`")
     } else {
       "that data"
     }

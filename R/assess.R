@@ -102,13 +102,13 @@
 #'   maxdepth = 1,
 #'   model = TRUE
 #' )
-#' fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
+#' fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
 #' margin <- predict(
 #'   fit,
 #'   test[, prednms],
 #'   type = "margin",
 #'   verbose = FALSE,
-#'   input_checks = FALSE
+#'   check_inputs = FALSE
 #' )
 #'
 #' assess(test$replicate, margin)
@@ -231,16 +231,21 @@ print.assessment <- function(x, digits = 3, ...) {
   cat(confusion_lines(v, width), sep = "\n")
   cat("\n")
 
-  fmt <- function(z) ifelse(is.na(z), "NA", formatC(z, format = "f", digits = digits))
+  fmt <- function(z) {
+    ifelse(is.na(z), "NA", formatC(z, format = "f", digits = digits))
+  }
   val_width <- max(nchar(fmt(unlist(lapply(rows, `[[`, "vals")))))
   name_width <- vapply(
     1:4,
     function(j) {
-      max(0L, vapply(
-        rows,
-        function(r) if (length(r$vals) >= j) nchar(names(r$vals)[j]) else 0L,
-        integer(1)
-      ))
+      max(
+        0L,
+        vapply(
+          rows,
+          function(r) if (length(r$vals) >= j) nchar(names(r$vals)[j]) else 0L,
+          integer(1)
+        )
+      )
     },
     integer(1)
   )
@@ -252,7 +257,12 @@ print.assessment <- function(x, digits = 3, ...) {
       val_width,
       fmt(r$vals)
     )
-    cat(pad_label(r$label, width), paste(cells, collapse = "  "), "\n", sep = "")
+    cat(
+      pad_label(r$label, width),
+      paste(cells, collapse = "  "),
+      "\n",
+      sep = ""
+    )
   }
   invisible(x)
 }
@@ -272,7 +282,10 @@ pad_label <- function(label, width) {
 }
 
 confusion_lines <- function(cm, width) {
-  cell <- paste(c("tp", "fp", "fn", "tn"), formatC(cm[c("tp", "fp", "fn", "tn")], format = "d"))
+  cell <- paste(
+    c("tp", "fp", "fn", "tn"),
+    formatC(cm[c("tp", "fp", "fn", "tn")], format = "d")
+  )
   cw <- max(nchar(c("actual 1", cell)))
   head <- formatC(c("actual 1", "actual 0"), width = -cw)
   c(
@@ -282,8 +295,18 @@ confusion_lines <- function(cm, width) {
       "  ",
       ansi_style(trimws(head[2]), ansi_note)
     ),
-    paste0(pad_label("predicted 1", width), formatC(cell[1], width = -cw), "  ", cell[2]),
-    paste0(pad_label("predicted 0", width), formatC(cell[3], width = -cw), "  ", cell[4])
+    paste0(
+      pad_label("predicted 1", width),
+      formatC(cell[1], width = -cw),
+      "  ",
+      cell[2]
+    ),
+    paste0(
+      pad_label("predicted 0", width),
+      formatC(cell[3], width = -cw),
+      "  ",
+      cell[4]
+    )
   )
 }
 
@@ -346,7 +369,11 @@ print.confusion <- function(x, ...) {
   v <- unclass(x)
   attributes(v) <- list(names = names(x))
   width <- nchar("predicted 1") + 2L
-  cat(ansi_style(threshold_label(attr(x, "threshold")), ansi_note), "\n", sep = "")
+  cat(
+    ansi_style(threshold_label(attr(x, "threshold")), ansi_note),
+    "\n",
+    sep = ""
+  )
   cat(confusion_lines(v, width), sep = "\n")
   invisible(x)
 }

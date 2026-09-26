@@ -141,13 +141,13 @@ test_that("intervals on the altmejd folds track fold size", {
         maxdepth = 1,
         model = TRUE
       ) |>
-        adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
+        adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
       m <- predict(
         fit,
         te[, prednms],
         type = "margin",
         verbose = FALSE,
-        input_checks = FALSE
+        check_inputs = FALSE
       )
       set.seed(112)
       ci <- suppressWarnings(bootstrap(te$replicate, m, n_resample = 500))
@@ -164,7 +164,12 @@ test_that("intervals on the altmejd folds track fold size", {
 test_that("bootstrap() carries every patk budget, and stratified draws define them all", {
   set.seed(7)
   f <- make_fold(12, 9)
-  ci <- suppressWarnings(bootstrap(f$y, f$s, n_resample = 200, stratified = TRUE))
+  ci <- suppressWarnings(bootstrap(
+    f$y,
+    f$s,
+    n_resample = 200,
+    stratified = TRUE
+  ))
   expect_identical(
     tail(ci$metric, 3),
     c("patk_3", "patk_5", "patk")
