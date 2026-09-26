@@ -451,13 +451,13 @@ boot_by_project <- function(n_resample = 200) {
       maxdepth = 1,
       model = TRUE
     ) |>
-      adaboost(n_iter = 5, eta = 1, verbose = FALSE, input_checks = FALSE)
+      adaboost(n_iter = 5, eta = 1, verbose = FALSE, check_inputs = FALSE)
     m <- predict(
       fit,
       te[, prednms],
       type = "margin",
       verbose = FALSE,
-      input_checks = FALSE
+      check_inputs = FALSE
     )
     set.seed(112)
     out[[rp]] <- suppressWarnings(bootstrap(
@@ -563,7 +563,13 @@ test_that("treehypar$maxdepth is refused so the grid keeps control of depth", {
     "maxdepth.*ignored"
   )
   # depth came from `depth`, not from treehypar
-  plain <- logo_cv(fml, data = altmejd, group = "pid", model = "tree", depth = 1)
+  plain <- logo_cv(
+    fml,
+    data = altmejd,
+    group = "pid",
+    model = "tree",
+    depth = 1
+  )
   expect_equal(
     summary(res, metric = "auroc")$estimate,
     summary(plain, metric = "auroc")$estimate
@@ -584,7 +590,7 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 10, eta = 1, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
   want <- auroc(
     test$replicate,
     predict(
@@ -592,7 +598,7 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
       test[, -1],
       type = "margin",
       verbose = FALSE,
-      input_checks = FALSE
+      check_inputs = FALSE
     )
   )
 
@@ -621,7 +627,7 @@ test_that("the learner's control reaches every boosted tree", {
     n_iter = 20,
     eta = 0.55,
     verbose = FALSE,
-    input_checks = FALSE
+    check_inputs = FALSE
   )
 
   ctrl <- attr(fit, "control")
@@ -642,7 +648,7 @@ test_that("the learner's control reaches every boosted tree", {
 
   # a different learner is a different ensemble, so the control is not ignored
   stumps <- rpart::rpart(fml, data = d, maxdepth = 1, cp = 0, model = TRUE) |>
-    adaboost(n_iter = 20, eta = 0.55, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 20, eta = 0.55, verbose = FALSE, check_inputs = FALSE)
   expect_false(isTRUE(all.equal(
     vapply(fit, function(z) z$a, numeric(1)),
     vapply(stumps, function(z) z$a, numeric(1))
@@ -660,7 +666,7 @@ test_that("model weights stay finite when a base learner refuses to split", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 300, eta = 0.55, verbose = FALSE, input_checks = FALSE)
+    adaboost(n_iter = 300, eta = 0.55, verbose = FALSE, check_inputs = FALSE)
   alphas <- vapply(fit, function(z) z$a, numeric(1))
   rootonly <- vapply(fit, function(z) nrow(z$h$frame) == 1L, logical(1))
 
@@ -687,7 +693,10 @@ test_that("logo_cv() on an adaboost fit equals the formula interface", {
 
   expect_identical(from_fit$estimates, from_fml$estimates)
   expect_identical(from_fit$scores, from_fml$scores)
-  expect_equal(from_fit$grid[, c("T", "eta", "depth")], data.frame(T = 5, eta = 0.5, depth = 1))
+  expect_equal(
+    from_fit$grid[, c("T", "eta", "depth")],
+    data.frame(T = 5, eta = 0.5, depth = 1)
+  )
 })
 
 test_that("logo_cv() refits the fit's split rule, not the default", {
@@ -761,9 +770,13 @@ test_that("bootstrap() names the project in its warnings", {
   data(altmejd)
   res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
   set.seed(3)
-  expect_warning(
-    bootstrap(res, n_resample = 50, stratified = TRUE),
-    "^project eerp: stratified"
+  messages <- capture_warnings(
+    bootstrap(res, n_resample = 50, stratified = TRUE)
+  )
+  # one per project, in project order
+  expect_identical(
+    sub(": stratified.*", "", messages),
+    paste("project", res$projects$project)
   )
 })
 
