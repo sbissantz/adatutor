@@ -267,10 +267,10 @@ past the tutorial's own data.
 
 #### Figure 1 [NEW]
 
-Visualization of the leave-project-out cross-validation (LPO-CV) process. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). In Iteration 1, the ML 1 project is then used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out or test data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding a distribution of five performance estimates. It might be tempting to summarize the distribution with a point estimates, but keep in mind that the distribution always provides the richer picture of the validation process.
+Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, with the replication projects as the groups. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). In Iteration 1, the ML 1 project is then used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out or test data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding a distribution of five performance estimates. It might be tempting to summarize the distribution with a point estimates, but keep in mind that the distribution always provides the richer picture of the validation process.
 
 ```{r figure-1}
-tutplot_lpocv(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
+tutplot_logoscheme(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
 ```
 
 #### Listing 10
@@ -958,7 +958,7 @@ construction.
 
 For more see Molnar & Pargent.
 
-TODO: Can we bootstrap the importance scores to get a sense of their stability? Or havent we done that already with the LPO-CV?
+TODO: Can we bootstrap the importance scores to get a sense of their stability? Or havent we done that already with the LOGO-CV?
 
 # NEW: Module Retrodictions and Pretrodictions
 
@@ -1109,7 +1109,7 @@ Code to evaluate the predictive performance of the ensemble.
 table(y_test, y_pred_cls) # Inperfect predictions
 ```
 
-# Module 4: Leave-Project-Out Cross-Validation and Hyperparameter Optimization
+# Module 4: Leave-One-Group-Out Cross-Validation and Hyperparameter Optimization
 
 ## Two Wrapper Functions [REMOVE]
 
@@ -1197,11 +1197,11 @@ Keilwagen). Specifically, `auprc()` wraps `pr.curve()`. The wrapper exists so th
 The precision-recall curve plots `ppv` (precision) against `sens` (recall) over every threshold, just as the ROC curve plots `sens` against 1 - `spec`. See `?assess` for the other names each measure goes by.
 :::
 
-## Leave-Project-Out Cross-Validation
+## Leave-One-Group-Out Cross-Validation
 
 #### Listing 32
 
-Code to do a leave-project-out cross-validation.
+Code to do a leave-one-group-out cross-validation.
 
 ::: {.callout-note}
 This ran for approximately 2 minutes on our laptops.
@@ -1215,7 +1215,7 @@ df_split <- split(df, df$pid)
 auc <- list()
 
 runtime <- system.time({
-  # LPO-CV
+  # LOGO-CV
   for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
     message("\nProject: ", paste0(rp), "\n")
     # Training and test set
@@ -1240,11 +1240,28 @@ runtime <- system.time({
 message("\n Run time: ", runtime["elapsed"], " s\n")
 
 # Results
-# TODO: From mean to plot?
-c(unlist(auc), "mean" = mean(unlist(auc)))
+c(unlist(auc))
 ```
 
 **TODO**: Remove the mean?
+
+#### Figure [New] 
+
+```{r figure-xx}
+# LOGO-CV: refit the same recipe with each project held out
+logo_int <- h |>
+  adaboost(n_iter = 1000, eta = 1, verbose = FALSE) |>
+  logo_cv(data = df, group = "pid")
+
+# Visualize (manuscript figure)
+set.seed(112)
+tutplot_logocv(logo_int, n_resample = 500)
+```
+
+`logo_cv()` uses the fit's settings, not its data: it refits the same recipe
+once per project, holding that project out. The plot shows each project's
+estimate and its spread, not a mean. The projects differ in size and share
+most of their training data, so an average would hide both.
 
 ## Hyperparameter Optimization
 
@@ -1276,7 +1293,7 @@ hgrid <- expand.grid(
 
 #### Listing 34
 
-Code to do hyperparameter optimization using a leave-project-out
+Code to do hyperparameter optimization using a leave-one-group-out
 cross-validation strategy.
 
 **TODO** Random grid search!
@@ -1296,7 +1313,7 @@ df_split <- split(df, df$pid)
 for (i in seq_len(hgrid_rows)) {
   # Iteration time
   runtime <- system.time({
-    # Leave-project-out CV
+    # Leave-one-group-out CV
     for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
       # Progress report
       cat(
@@ -1354,7 +1371,7 @@ Listing 34 searches 18 settings and keep the result in columns named after the
 projects. The package ships the full search as `hypergrid`: 
 960 settings, each scored on all five projects under 15 different measures.
 
-`lpocv()` returns that as an array rather than a table, because I think in 
+`logo_cv()` returns that as an array rather than a table, because I think in 
 setting x project x metric. So you can easily slice it without a reshape.
 
 ```{r hypergrid-array}
@@ -1405,12 +1422,12 @@ dependence. TODO
 
 Listing 34 scores every setting in the hypergrid on all available (i.e., five) projects, and we took the row with the best average. I think that this number is not an estimate of how the chosen model will do on a new project, because the same five projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
 
-This is the job of nested leave-project-out cross-validation. The outer loop holds
+This is the job of nested leave-one-group-out cross-validation. The outer loop holds
 out one project entirely and the inner loop repeats the whole grid search on the four that remain, choosing hyperparameters without ever seeing the held-out project. The
 chosen setting is then refit on those four projects and scored on the fifth.
 Repeat five times.
 
-When I first met Nested LPO-CV, I had a hard time to wrap my head around the fact, that it does not give me a(n overall) performance estimate for a particular hyperparameter setting. 
+When I first met Nested LOGO-CV, I had a hard time to wrap my head around the fact, that it does not give me a(n overall) performance estimate for a particular hyperparameter setting. 
 Instead, it puts a number (an estimate) on the procedure: "run the grid search, pick, then fit the winner." Every model built inside the nesting is discarded; none of them is the model you ship. You still fit one setting on all five projects, as in Listing 35. Nesting tells you what to expect from that
 model, not what it scores.
 
@@ -1476,7 +1493,7 @@ choice among many, and its settings are yours rather than the algorithm's.
 
 #### Listing 35
 
-Code to do a nested leave-project-out cross-validation.
+Code to do a nested leave-one-group-out cross-validation.
 
 ::: {.callout-note}
 This ran for approximately 10 minutes on our laptops.
@@ -1505,8 +1522,8 @@ runtime <- system.time({
     train <- df[!(df$pid %in% rp), ]
 
     # INNER loop: selects. This is the same grid search as Listing 34, run on
-    # the training projects only -- so we can hand it to lpocv().
-    inner <- lpocv(
+    # the training projects only -- so we can hand it to logo_cv().
+    inner <- logo_cv(
       replicate ~ power.o + effect_size.o + n.o + p_value.o,
       data = train,
       group = "pid",
@@ -1550,14 +1567,14 @@ unlist(nested_auc)
 do.call(rbind, selected)
 ```
 
-Only the outer loop is new. The inner one is the leave-project-out search we
-already ran in Listing 34, so we hand it to `lpocv()` rather than write it out
+Only the outer loop is new. The inner one is the leave-one-group-out search we
+already ran in Listing 34, so we hand it to `logo_cv()` rather than write it out
 again -- the single change is that it now sees `train` instead of `df`.
 
 The whole procedure is also one call, which is what we use from here on:
 
 ```{r listing-35-oneline}
-nested <- lpocv(
+nested <- logo_cv(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
   data = df,
   group = "pid",
@@ -1593,7 +1610,7 @@ several of those mislead, and one was actively wrong until it was fixed.
 
 | label | file | float | produced by | geometry |
 |:--|:--|:--|:--|:--|
-| `fig:lpocv` | `ext/lpocv` | `figure*` | Figure 1, `tutplot_lpocv(df$pid)` | full |
+| `fig:lpocv` | `ext/lpocv` | `figure*` | Figure 1, `tutplot_logoscheme(df$pid)` | full |
 | `fig:cstump` | `ext/cstump` | `figure` | Figure 2, `rpart.plot(h)`, **two features** | column |
 | `fig:dboundstump` | `ext/dboundstump` | `figure*` | Figure 3, `tutplot_boundary(cstump_int)` | full |
 | `fig:gini` | `ext/gini` | `figure` | Figure 4, the Gini curve | column |
@@ -1602,8 +1619,9 @@ several of those mislead, and one was actively wrong until it was fixed.
 | `fig:updatefactor` | `ext/updatefactor` | `figure` | Figure 7 | column |
 | `fig:weightone` | `ext/weightone` | `figure` | Figure 8 | column |
 | `fig:dboundada` | `ext/dboundada` | `figure*` | Figure 9, `tutplot_boundary(ada_int)` | full |
+| `fig:logocv` | `ext/logocv` | `figure` | new, `tutplot_logocv(res)` | column |
 
-Every file now comes from R: six single-column and three `figure*`. The LPO-CV
+Every file now comes from R: six single-column and three `figure*`. The LOGO-CV
 diagram used to be TikZ drawn in the manuscript, which is why its LaTeX source
 still sits in this vignette -- kept for reference, not executed.
 
