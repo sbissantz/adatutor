@@ -1297,6 +1297,7 @@ Code to do hyperparameter optimization using a leave-one-group-out
 cross-validation strategy.
 
 **TODO** Random grid search!
+**TODO** Exclude mean AUC? 
 
 ::: {.callout-note}
 This ran for approximately 3 minutes on our laptops.
