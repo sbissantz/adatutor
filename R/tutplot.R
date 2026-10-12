@@ -693,7 +693,7 @@ tutplot_boundary <- function(
     stop("`resolution` must be at least 2.", call. = FALSE)
   }
 
-  roles <- read_terms(fit)
+  roles <- read_variables(fit)
   predictors <- roles$predictors
   if (is.null(features)) {
     if (length(predictors) != 2L) {
@@ -926,7 +926,7 @@ tutplot_boundary <- function(
 
 #' Read predictor and outcome names off a fitted model
 #' @noRd
-read_terms <- function(fit) {
+read_variables <- function(fit) {
   # the stored formula may be `outcome ~ .`; the fitted trees carry the names
   model_terms <- if (inherits(fit, "rpart")) {
     fit$terms
@@ -958,7 +958,13 @@ score_grid <- function(fit, newdata) {
     # distance from the 0.5 cut, so zero is the boundary
     return(prob[, ncol(prob)] - 0.5)
   }
-  predict(fit, newdata, type = "margin", verbose = FALSE, check_inputs = FALSE)
+  stats::predict(
+    fit,
+    newdata,
+    type = "margin",
+    verbose = FALSE,
+    check_inputs = FALSE
+  )
 }
 
 #' Find how far the color scale should reach

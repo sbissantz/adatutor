@@ -94,7 +94,8 @@ partition <- function(data, prop = 0.7, strata = NULL) {
       # count from the stratum's original size: proportions of the whole
       n_draw <- min(round(sizes[g] * prop[j]), length(leftovers[[g]]))
       if (n_draw > 0L) {
-        # sample.int, then index: sample(rows, k) reads a one-row stratum as 1:n
+        # sample.int, then index: sample() reads a one-row stratum's single
+        # row number n as 1:n
         picks <- sample.int(length(leftovers[[g]]), n_draw)
         assignment[leftovers[[g]][picks]] <- j
         leftovers[[g]] <- leftovers[[g]][-picks]

@@ -18,11 +18,11 @@ as_binary <- function(actual) {
     return(as.integer(actual))
   }
 
-  vals <- unique(actual[!is.na(actual)])
-  if (all(vals %in% c(0, 1))) {
+  values <- unique(actual[!is.na(actual)])
+  if (all(values %in% c(0, 1))) {
     return(as.integer(actual))
   }
-  if (all(vals %in% c(-1, 1))) {
+  if (all(values %in% c(-1, 1))) {
     # predict(type = "class") returns -1/1
     return(as.integer((actual + 1) / 2))
   }
@@ -34,8 +34,8 @@ as_binary <- function(actual) {
 
 #' Console feedback while a fit runs
 #'
-#' Dots, styled text and both combined. They write to stderr, so progress
-#' stays out of results, and adaboost() and predict() call them when
+#' Styled messages, and faint dots that end in "Done". They write to stderr, so
+#' progress stays out of results, and adaboost() and predict() call them when
 #' `verbose = TRUE`.
 #'
 #' @noRd

@@ -590,7 +590,7 @@ score_fold <- function(
       check_inputs = FALSE
     )
     # the margin, not labels: labels collapse auroc onto balanced accuracy
-    return(predict(
+    return(stats::predict(
       fit,
       test[, predictors, drop = FALSE],
       type = "margin",
@@ -775,8 +775,9 @@ as.data.frame.logo_cv <- function(x, ...) {
 #' @param levels The band widths, widest last. Defaults to 0.50, 0.80 and
 #'   0.95.
 #' @param baseline The reference line. `"auto"` draws it where a useless model
-#'   would score: 0.5 for `auroc` and `bacc`, 0 for `mcc`, and each project's
-#'   base rate for the others. A number sets it; `NA` leaves it out.
+#'   would score: 0.5 for `auroc` and `bacc`, 0 for `mcc`, the majority-class
+#'   rate for `acc`, and each project's base rate for the others. A number
+#'   sets it; `NA` leaves it out.
 #' @param max_rejected Projects whose bootstrap rejected more than this share
 #'   of draws get a star and a footnote. Defaults to 0.05.
 #'
@@ -1031,14 +1032,20 @@ find_reference <- function(metric, baseline, base_rate) {
       label = paste0("dashed line: ", signif(baseline, 3))
     ))
   }
-  # chance level differs by measure: 0.5 for auroc and bacc, 0 for mcc, the
-  # project base rate (.30 to .85) for the precision-type rest
+  # what a useless model scores: 0.5 for auroc and bacc, 0 for mcc, always
+  # predicting the larger class for acc, the base rate for the precision
+  # measures (auprc, ppv, patk) and f1
   if (metric %in% c("auroc", "bacc")) {
     list(values = rep(0.5, n_projects), label = "dashed line: chance (0.5)")
   } else if (metric == "mcc") {
     list(values = rep(0, n_projects), label = "dashed line: no association (0)")
+  } else if (metric == "acc") {
+    list(
+      values = pmax(base_rate, 1 - base_rate),
+      label = "dashed line: majority-class rate"
+    )
   } else if (
-    metric %in% c("auprc", "ppv", "f1", "acc") || grepl("^patk(_|$)", metric)
+    metric %in% c("auprc", "ppv", "f1") || grepl("^patk(_|$)", metric)
   ) {
     list(values = base_rate, label = "dashed line: base rate of each project")
   } else {
