@@ -68,7 +68,7 @@ test_that("mark_done() colors `Done`, not the dots", {
   # dots stay faint whatever `color_code` says. Faint rather than a grey:
   # ANSI 30 is plain black, which vanishes on a dark terminal.
   expect_true(grepl(paste0("\033[", ansi_dim, "m."), out, fixed = TRUE))
-  # and "Done" takes the requested colour, which was ignored before
+  # and "Done" takes the requested color, which was ignored before
   expect_true(grepl("\033[34m Done", out, fixed = TRUE))
   expect_false(grepl("\033[34m.\033", out, fixed = TRUE))
 })

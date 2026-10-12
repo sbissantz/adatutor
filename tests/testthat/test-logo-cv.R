@@ -379,7 +379,7 @@ test_that("the criterion decides what the inner search maximizes", {
   expect_equal(nrow(by_bacc$selected), 5L)
 })
 
-test_that("nested logo_cv() rejects input it cannot honour", {
+test_that("nested logo_cv() rejects input it cannot honor", {
   data(altmejd)
   expect_error(
     logo_cv(fml, data = altmejd, group = "pid", nested = TRUE),
@@ -770,12 +770,12 @@ test_that("bootstrap() names the project in its warnings", {
   data(altmejd)
   res <- logo_cv(fml, data = altmejd, group = "pid", T = 5, eta = 1)
   set.seed(3)
-  messages <- capture_warnings(
+  warning_texts <- capture_warnings(
     bootstrap(res, n_resample = 50, stratified = TRUE)
   )
   # one per project, in project order
   expect_identical(
-    sub(": stratified.*", "", messages),
+    sub(": stratified.*", "", warning_texts),
     paste("project", res$projects$project)
   )
 })
@@ -818,6 +818,13 @@ test_that("the stored hypergrid prints and plots under the logo_cv class", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
   expect_silent(plot(one))
+})
+
+test_that("accuracy's reference line is the majority-class rate", {
+  # always predicting the larger class scores max(p, 1 - p), not p
+  reference <- find_reference("acc", "auto", c(0.3, 0.8))
+  expect_equal(reference$values, c(0.7, 0.8))
+  expect_match(reference$label, "majority-class rate")
 })
 
 test_that("every patk budget gets the base-rate floor, not only the default", {

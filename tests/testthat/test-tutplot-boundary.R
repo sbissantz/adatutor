@@ -148,7 +148,7 @@ test_that("a one-class window warns instead of drawing nothing", {
   expect_equal(length(unique(as.vector(g$z))), 1L)
 })
 
-test_that("a custom palette is honoured", {
+test_that("a custom palette is honored", {
   data(altmejd)
   quietly(
     g <- tutplot_boundary(
@@ -183,7 +183,7 @@ test_that("shade = 'margin' varies the fill while class shading does not", {
   expect_lte(length(unique(as.vector(s$z))), 2L)
 })
 
-test_that("the legend and colour bar can be turned off", {
+test_that("the legend and color bar can be turned off", {
   data(altmejd)
   quietly({
     expect_silent(tutplot_boundary(
@@ -251,7 +251,7 @@ test_that("the title sits in the top margin under either shade", {
   # one name once held both the top margin and the color-scale reach, so under
   # the default shade a stump's title landed inside the panel, at line -1
   data(altmejd)
-  title_line <- function(shade) {
+  read_title_line <- function(shade) {
     grDevices::pdf(NULL)
     on.exit(grDevices::dev.off(), add = TRUE)
     grDevices::dev.control("enable")
@@ -263,7 +263,7 @@ test_that("the title sits in the top margin under either shade", {
       main = "A title"
     )
     titles <- Filter(
-      \(item) {
+      function(item) {
         identical(item[[2]][[1]]$name, "C_mtext") &&
           identical(item[[2]][[2]], "A title")
       },
@@ -271,8 +271,8 @@ test_that("the title sits in the top margin under either shade", {
     )
     titles[[1]][[2]][[4]]
   }
-  expect_equal(title_line("margin"), title_line("class"))
-  expect_gt(title_line("margin"), 0)
+  expect_equal(read_title_line("margin"), read_title_line("class"))
+  expect_gt(read_title_line("margin"), 0)
 })
 
 test_that("region labels come from the outcome's own levels", {
@@ -303,7 +303,7 @@ test_that("the marker ring is chosen from the fill's luminance", {
 test_that("the legend sits outside the panel by default", {
   data(altmejd)
   quietly({
-    # "top" is the outside-centred path; a keyword places it inside instead
+    # "top" is the outside-centered path; a keyword places it inside instead
     expect_silent(tutplot_boundary(fit_ada(), altmejd, resolution = 20))
     expect_silent(
       tutplot_boundary(
@@ -401,9 +401,9 @@ test_that("the bar's end labels come from the outcome, including 0/1", {
   })
 })
 
-test_that("a tree's colour scale is anchored, a boosted margin's is not", {
+test_that("a tree's color scale is anchored, a boosted margin's is not", {
   # A probability offset cannot leave [-0.5, 0.5], so the same score must draw
-  # the same colour in every tree. A margin has no such bound.
+  # the same color in every tree. A margin has no such bound.
   data(altmejd)
   sub <- altmejd[, c("power.o", "n.o", "replicate")]
   stump <- rpart::rpart(

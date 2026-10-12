@@ -586,7 +586,19 @@ test_that("the splitting rule travels with the learner", {
   expect_true(all(vapply(gini, function(z) z$h$parms$split, numeric(1)) == 1))
 })
 
-test_that("a learner adaboost() cannot honour is refused, not ignored", {
+test_that("a column named `D` is refused, not boosted on", {
+  # rpart looks up `weights = D` in the data first: a column `D` used to
+  # replace the weights silently, and every round after the first had a = 0
+  tr <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  names(tr)[1] <- "D"
+  h <- rpart::rpart(replicate ~ ., data = tr, maxdepth = 1, model = TRUE)
+  expect_error(
+    adaboost(h, n_iter = 3, eta = 1, verbose = FALSE),
+    "column named `D`"
+  )
+})
+
+test_that("a learner adaboost() cannot honor is refused, not ignored", {
   tr <- altmejd_splits$train[, c(
     "power.o",
     "n.o",

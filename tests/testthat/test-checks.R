@@ -33,6 +33,17 @@ test_that("check_train() works", {
   expect_no_message(check_train("some", quote(mixed)))
 })
 
+test_that("check_train() names a long expression on one line", {
+  # deparse() splits a long call over several lines, which once printed the
+  # "was also used" line once per piece
+  long <- quote(train_data_with_a_long_name[
+    train_data_with_a_long_name$column_with_a_long_name > 10,
+    c("first_column_name", "second_column_name")
+  ])
+  shown <- capture_messages(check_train("all", long))
+  expect_length(grep("was also used for training", shown), 1L)
+})
+
 test_that("detect_overlap() reads the data, not the name", {
   tr <- data.frame(a = 1:5, b = letters[1:5])
   expect_identical(as.character(detect_overlap(NULL, NULL, tr, tr)), "all")

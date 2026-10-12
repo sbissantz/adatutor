@@ -34,7 +34,7 @@ test_that("the ends of the scale go to the purest nodes", {
 
 test_that("the scale is absolute, not quantiles of the fitted values", {
   # box.palette partitions by quantile, so the same probability draws a
-  # different colour in different trees. That is the behaviour being replaced,
+  # different color in different trees. That is the behavior being replaced,
   # so it is the property worth pinning.
   data(altmejd)
   a <- stump_fit(maxdepth = 2, minsplit = 5, minbucket = 2, cp = 1e-2)
