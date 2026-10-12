@@ -10,7 +10,7 @@ NULL
 #' @noRd
 check_df <- function(x) {
   if (!is.data.frame(x)) {
-    argument <- deparse(substitute(x))
+    argument <- deparse1(substitute(x))
     stop(
       "`",
       argument,
@@ -26,7 +26,7 @@ check_df <- function(x) {
 #' Stop unless `eta` is numeric; note when it is above 1
 #' @noRd
 check_eta <- function(x) {
-  argument <- deparse(substitute(x))
+  argument <- deparse1(substitute(x))
   if (!is.numeric(x)) {
     stop(
       "`",
@@ -48,7 +48,7 @@ check_eta <- function(x) {
 #' @noRd
 check_length <- function(x) {
   if (length(x) == 0) {
-    argument <- deparse(substitute(x))
+    argument <- deparse1(substitute(x))
     stop(
       "`",
       argument,
@@ -65,7 +65,7 @@ check_length <- function(x) {
 #' @noRd
 check_list <- function(x) {
   if (!is.list(x)) {
-    argument <- deparse(substitute(x))
+    argument <- deparse1(substitute(x))
     stop(
       "`",
       argument,
@@ -82,7 +82,7 @@ check_list <- function(x) {
 #' @noRd
 check_numeric <- function(x) {
   if (!is.numeric(x)) {
-    argument <- deparse(substitute(x))
+    argument <- deparse1(substitute(x))
     stop(
       "`",
       argument,
@@ -153,7 +153,7 @@ check_train <- function(
     "  No `newdata` specified. The model scored its training data."
   } else {
     what <- if (!is.null(newdata_name)) {
-      paste0("`", deparse(newdata_name), "`")
+      paste0("`", deparse1(newdata_name), "`")
     } else {
       "that data"
     }
@@ -181,7 +181,7 @@ check_prop <- function(x) {
   if (any(x < 0 | x > 1)) {
     stop(
       "Specified proportion `",
-      deparse(x),
+      deparse1(x),
       "` is not between 0 and 1.",
       call. = FALSE
     )
@@ -190,7 +190,7 @@ check_prop <- function(x) {
   if (length(x) == 1L && (x == 0 | x == 1)) {
     warning(
       "Specified proportion `",
-      deparse(x),
+      deparse1(x),
       "` is not practical. Use a value greater than 0 and less than 1.",
       call. = FALSE
     )
