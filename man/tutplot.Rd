@@ -46,8 +46,8 @@ tutplot_importance(
   lty = c(1, 2, 4, 5),
   lwd = 2,
   from = 0.5,
-  mark_perf = NULL,
-  mark_eta = eta[1],
+  marked_perf = NULL,
+  marked_eta = eta[1],
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -120,10 +120,10 @@ between 0 and 1.}
 
 \item{from}{Where performance starts. The default, 0.5, is chance.}
 
-\item{mark_perf}{A performance to mark on the figure, so you can find your
+\item{marked_perf}{A performance to mark on the figure, so you can find your
 own stump. \code{NULL} draws no mark. Must be at least \code{from} and below 1.}
 
-\item{mark_eta}{The curve the mark belongs to. Defaults to the first.}
+\item{marked_eta}{The curve the mark belongs to. Defaults to the first.}
 
 \item{data}{The training data for the first boosting round, used when \code{d1}
 and \code{d2} are \code{NULL}.}

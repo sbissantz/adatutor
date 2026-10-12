@@ -34,8 +34,9 @@
 0.95.}
 
 \item{baseline}{The reference line. \code{"auto"} draws it where a useless model
-would score: 0.5 for \code{auroc} and \code{bacc}, 0 for \code{mcc}, and each project's
-base rate for the others. A number sets it; \code{NA} leaves it out.}
+would score: 0.5 for \code{auroc} and \code{bacc}, 0 for \code{mcc}, the majority-class
+rate for \code{acc}, and each project's base rate for the others. A number
+sets it; \code{NA} leaves it out.}
 
 \item{max_rejected}{Projects whose bootstrap rejected more than this share
 of draws get a star and a footnote. Defaults to 0.05.}

@@ -14,7 +14,7 @@ tutplot_boundary(
   alpha = NULL,
   show_points = TRUE,
   legend_pos = "top",
-  colorbar = TRUE,
+  add_colorbar = TRUE,
   main = NULL,
   subtitle = NULL,
   xlab = NULL,
@@ -53,8 +53,8 @@ Defaults to \code{viridisLite::viridis(2)}.}
 above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
 \code{NULL} leaves it out.}
 
-\item{colorbar}{Whether \code{shade = "margin"} draws a color bar in place of the
-legend. Defaults to \code{TRUE}.}
+\item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar in place of
+the legend. Defaults to \code{TRUE}.}
 
 \item{main, subtitle}{An optional title and gray subtitle above the panel.}
 
