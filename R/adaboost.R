@@ -73,17 +73,18 @@ adaboost <- function(
 ) {
   validate_learner(h)
 
-  frame <- h$model
-  y_train <- stats::model.response(frame)
+  model_frame <- h$model
+  y_train <- stats::model.response(model_frame)
 
-  # fit `<response> ~ .` over the frame, which holds evaluated terms such as
-  # `log(power.o)`; this environment lets rpart find `D`, not stats::D
+  # fit `<response> ~ .` over the model frame, which holds evaluated terms
+  # such as `log(power.o)`; this environment lets rpart find `D`, not stats::D
   frame_formula <- stats::as.formula(
-    paste0("`", names(frame)[attr(h$terms, "response")], "` ~ ."),
+    paste0("`", names(model_frame)[attr(h$terms, "response")], "` ~ ."),
     env = environment()
   )
 
-  # point the terms at globalenv(), or this frame rides on every saved tree
+  # point the terms at globalenv(), or this environment and its data ride on
+  # every saved tree
   learner_terms <- h$terms
   attr(learner_terms, ".Environment") <- globalenv()
 
@@ -108,8 +109,8 @@ adaboost <- function(
     if (verbose) {
       color_message("Run mild input checks", color_code = ansi_dim)
     }
-    check_df(frame)
-    check_length(frame)
+    check_df(model_frame)
+    check_length(model_frame)
     check_eta(eta)
     check_numeric(n_iter)
     if (verbose) mark_done()
@@ -119,7 +120,7 @@ adaboost <- function(
     color_message("Start the initialization process", color_code = ansi_dim)
   }
 
-  m <- nrow(frame)
+  m <- nrow(model_frame)
   D <- rep(1, m) / m
   H <- vector("list", n_iter)
 
@@ -137,7 +138,7 @@ adaboost <- function(
     # one data copy on the ensemble, not one per tree
     h_t <- rpart::rpart(
       formula = frame_formula,
-      data = frame,
+      data = model_frame,
       weights = D,
       method = "class",
       control = control,
@@ -146,7 +147,8 @@ adaboost <- function(
       model = FALSE,
       y = FALSE
     )
-    correct <- y_train == stats::predict(h_t, newdata = frame, type = "class")
+    correct <- y_train ==
+      stats::predict(h_t, newdata = model_frame, type = "class")
     a <- weigh_learner(sum(D[!correct]), eta)
     D <- update_weights(D, correct, a)
     H[[t]] <- list("h" = strip_tree(h_t, learner_terms), "a" = a)
@@ -172,7 +174,7 @@ adaboost <- function(
   structure(
     H,
     class = "adaboost",
-    trainset = if (keep_data) frame,
+    trainset = if (keep_data) model_frame,
     train = h$call[["data"]],
     formula = stats::formula(learner_terms),
     n_iter = n_iter,
@@ -211,6 +213,15 @@ validate_learner <- function(h) {
       "`h` was fitted with `weights`, which AdaBoost cannot honor: it sets ",
       "its own observation weights, starting at 1/n and reweighting every ",
       "round. Refit `h` without `weights`.",
+      call. = FALSE
+    )
+  }
+  # rpart looks up `weights = D` in the data first, so a column `D` would
+  # silently replace the observation weights
+  if ("D" %in% names(h$model)) {
+    stop(
+      "`h` was fitted on a column named `D`, which adaboost() reserves for ",
+      "its observation weights. Rename the column and refit `h`.",
       call. = FALSE
     )
   }
@@ -299,7 +310,7 @@ strip_tree <- function(tree, learner_terms) {
   tree$where <- NULL
   tree$call <- NULL
   # predict() evaluates transformations on raw newdata; the fitted terms
-  # would carry adaboost()'s frame and its data
+  # would carry adaboost()'s environment and its data
   tree$terms <- learner_terms
   tree
 }
