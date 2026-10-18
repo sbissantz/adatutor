@@ -824,6 +824,9 @@ Furthermore, the signature l. 802 also makes explicit what is often taken for gr
 **TODO**: Prompt to the tidymodels package? and link the resources and say we designed the package so it mimics the structure for easier transition?
 
 ## NEW: Feature Importance
+
+Only a short description than reference to molnar and pargent.
+
 Note: We should describe the package function before module 4 and maybe move the feature importance before hyperparameter optimization. (before we touch performance)
 
 TODO: Describe better.

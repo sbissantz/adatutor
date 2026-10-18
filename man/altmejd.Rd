@@ -40,8 +40,13 @@ Project and the Social Science Replication Project.
 Other datasets:
 \code{\link{altmejd723}},
 \code{\link{altmejd_splits}},
+\code{\link{altmext}},
+\code{\link{holz1026}},
 \code{\link{hypergrid}},
 \code{\link{hypernested}},
+\code{\link{mltwo1026}},
+\code{\link{score1026}},
+\code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }
 \concept{datasets}
