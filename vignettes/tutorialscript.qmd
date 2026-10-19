@@ -34,6 +34,7 @@ Code to load the dataset.
 ```{r listing-2}
 # Load data
 data(altmejd)
+data(altmext)
 ```
 
 #### Listing 3
@@ -52,6 +53,7 @@ voi_nms <- c(pred_nms, out_nme)
 
 # Shorten 'altmejd'
 df <- altmejd
+df <- altmext
 ```
 
 # Module 1: Data Splitting
@@ -311,6 +313,7 @@ Code to restore the stratified split from the package.
 ```{r restore-split}
 # Load the data
 data(altmejd_splits)
+data(altmext_splits)
 
 # The split every later module is written against
 train <- altmejd_splits$train
@@ -1213,13 +1216,14 @@ This ran for approximately 2 minutes on our laptops.
 ```{r listing-32}
 # Partition data by project ID
 df_split <- split(df, df$pid)
-
+proj_nms <- names(df_split)
 # List for AUC results
 auc <- list()
 
 runtime <- system.time({
   # LOGO-CV
-  for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
+  for (rp in proj_nms) {
+    # for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
     message("\nProject: ", paste0(rp), "\n")
     # Training and test set
     test <- df_split[[rp]]
