@@ -54,8 +54,13 @@
 #' @param proportional Whether to size the rows by project. `TRUE` (the
 #'   default) shows the imbalance: one project holds 59 percent of the rows.
 #'   `FALSE` draws the equal blocks the manuscript prints.
-#' @param levels The project order, top to bottom. `NULL` uses a factor's
-#'   levels or the order of first appearance.
+#' @param levels The projects to show, in drawing order, top to bottom. A
+#'   project left out is dropped from the figure, and the rest share its
+#'   height. `NULL` shows every project, in a factor's level order or the
+#'   order of first appearance.
+#' @param min_height The smallest share of the height a project gets when
+#'   `proportional = TRUE`, so that a small project keeps its label. The rest
+#'   is shared by size. Defaults to 0.06; 0 gives exact proportions.
 #' @param res A result of [logo_cv()].
 #' @param bootstrap Whether to draw bootstrap intervals. `FALSE` draws the
 #'   estimates only, without resampling. `TRUE` (the default) uses the
@@ -1097,6 +1102,7 @@ tutplot_logoscheme <- function(
   group,
   proportional = TRUE,
   levels = NULL,
+  min_height = 0.06,
   file = NULL,
   width = tutplot_opts$full[["width"]],
   height = tutplot_opts$full[["height"]],
@@ -1120,6 +1126,21 @@ tutplot_logoscheme <- function(
   sizes <- table(factor(as.character(group), levels = levels))
   n_projects <- length(sizes)
   labels <- toupper(names(sizes))
+  check_numeric(min_height)
+  if (proportional && min_height * n_projects > 1) {
+    stop(
+      "`min_height` = ",
+      min_height,
+      " cannot fit ",
+      n_projects,
+      " projects. Use at most 1/",
+      n_projects,
+      " = ",
+      format(1 / n_projects, digits = 3),
+      ".",
+      call. = FALSE
+    )
+  }
 
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
@@ -1127,11 +1148,7 @@ tutplot_logoscheme <- function(
   }
 
   # row heights carry project sizes; equal blocks would imply comparable folds
-  heights <- if (proportional) {
-    as.numeric(sizes) / sum(sizes)
-  } else {
-    rep(1 / n_projects, n_projects)
-  }
+  heights <- set_heights(as.numeric(sizes), proportional, min_height)
   edges <- cumsum(c(0, heights))
   bottoms <- 1 - edges[-1]
   tops <- 1 - edges[-(n_projects + 1)]
@@ -1231,4 +1248,25 @@ tutplot_logoscheme <- function(
     )
   }
   invisible(list(n = sizes, k = n_projects, levels = levels, heights = heights))
+}
+
+#' Share the figure's height among the projects
+#' @noRd
+set_heights <- function(sizes, proportional, min_height) {
+  n_projects <- length(sizes)
+  if (!proportional) {
+    return(rep(1 / n_projects, n_projects))
+  }
+  # raise thin rows to the minimum and share the rest by size; repeat, because
+  # shrinking the rest can push another row under
+  raised <- sizes / sum(sizes) < min_height
+  repeat {
+    rest <- 1 - sum(raised) * min_height
+    heights <- ifelse(raised, min_height, sizes / sum(sizes[!raised]) * rest)
+    newly_raised <- !raised & heights < min_height
+    if (!any(newly_raised)) {
+      return(heights)
+    }
+    raised <- raised | newly_raised
+  }
 }
