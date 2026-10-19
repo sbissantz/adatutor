@@ -48,6 +48,7 @@ Other datasets:
 \code{\link{altmejd723}},
 \code{\link{altmejd_splits}},
 \code{\link{altmext}},
+\code{\link{altmext_splits}},
 \code{\link{holz1026}},
 \code{\link{hypergrid}},
 \code{\link{hypernested}},
