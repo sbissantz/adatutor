@@ -1261,6 +1261,14 @@ c(unlist(auc))
 #### Figure [New] 
 
 ```{r figure-xx}
+# The weak learner, on all projects: logo_cv() reads only its recipe
+h <- rpart::rpart(
+  replicate ~ .,
+  data = df[, voi_nms],
+  maxdepth = 1,
+  model = TRUE
+)
+
 # LOGO-CV: refit the same recipe with each project held out
 logo_int <- h |>
   adaboost(n_iter = 1000, eta = 1, verbose = FALSE) |>
