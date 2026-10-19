@@ -271,12 +271,12 @@ past the tutorial's own data.
 
 #### Figure 1 [NEW]
 
-Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, with the replication projects as the groups. Reading the graph from left to right, the data are first partitioned into eight projects: Many Labs 1 (ML1, 13 studies), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), Many Labs 2 (ML2, 24), the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], and SCORE [Systematizing Confidence in Open Research and Evidence, 92\; @tyner2026], 294 studies in all. Row heights are proportional to project size, except that no row is drawn smaller than 6% of the height, so ML1, ML3, and EERP appear the same size. In Iteration 1, the ML1 project is used as the test set and the other seven projects for model training. After fitting the model to the training data, its performance is evaluated on the held-out ML1 studies. This is repeated for each of the other projects (Iterations 2--8), yielding a distribution of eight performance estimates. It might be tempting to summarize them with a single number, but the distribution gives the richer picture of how well the model carries over to a new project.
+Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, with the replication projects as the groups. Reading the graph from left to right, the data are first partitioned into seven projects: Many Labs 1 (ML1, 13 studies), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), Many Labs 2 (ML2, 24), and the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], 202 studies in all. Row heights are proportional to project size, except that no row is drawn smaller than 6% of the height, so ML3 appears slightly larger than its share. In Iteration 1, the ML1 project is used as the test set and the other six projects for model training. After fitting the model to the training data, its performance is evaluated on the held-out ML1 studies. This is repeated for each of the other projects (Iterations 2--7), yielding a distribution of seven performance estimates. It might be tempting to summarize them with a single number, but the distribution gives the richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
 tutplot_logoscheme(
   df$pid,
-  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2", "holz", "score")
+  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2", "holz")
 )
 ```
 

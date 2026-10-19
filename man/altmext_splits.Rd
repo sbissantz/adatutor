@@ -6,7 +6,7 @@
 \title{Stratified 70/15/15 split of the extended Altmejd data}
 \format{
 A list of three data frames with the columns of \link{altmext}: \code{train}
-(205 rows), \code{valid} (44 rows) and \code{test} (45 rows).
+(141 rows), \code{valid} (30 rows) and \code{test} (31 rows).
 }
 \description{
 The training, validation and test sets of \link{altmext}. Made by
@@ -18,10 +18,8 @@ The sets are shipped because a seed is not enough: R changed \code{sample()} in
 version 3.6.0, which moved every seeded split.
 
 The split is stratified on \code{replicate}, so each set stays close to the
-whole data's share of successes (.483): .483, .477 and .489. It is not
-stratified on \code{pid}, so the project mix varies between the sets. SCORE, for
-example, makes up 31 percent of the whole data but 35, 25 and 20 percent of
-the three sets.
+whole data's share of successes (.475): .475, .467 and .484. It is not
+stratified on \code{pid}, so the project mix varies between the sets.
 }
 \seealso{
 \code{\link[=partition]{partition()}} to make your own split.
@@ -35,7 +33,6 @@ Other datasets:
 \code{\link{hypergrid}},
 \code{\link{hypernested}},
 \code{\link{mltwo1026}},
-\code{\link{score1026}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }

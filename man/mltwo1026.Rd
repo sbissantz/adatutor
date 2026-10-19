@@ -57,7 +57,6 @@ Other datasets:
 \code{\link{holz1026}},
 \code{\link{hypergrid}},
 \code{\link{hypernested}},
-\code{\link{score1026}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }

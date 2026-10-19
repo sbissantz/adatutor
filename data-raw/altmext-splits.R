@@ -28,7 +28,7 @@ altmext_splits <- list(
 # ---- assert the split, so a change fails loudly ----------------------------
 
 sizes <- vapply(altmext_splits, nrow, integer(1))
-stopifnot(identical(sizes, c(train = 205L, valid = 44L, test = 45L)))
+stopifnot(identical(sizes, c(train = 141L, valid = 30L, test = 31L)))
 
 # every effect lands in exactly one set
 eids <- unlist(lapply(altmext_splits, `[[`, "eid"), use.names = FALSE)
@@ -37,7 +37,7 @@ stopifnot(
   !anyDuplicated(eids)
 )
 
-# each set keeps the .483 base rate of the whole: .483, .477 and .489
+# each set keeps the .475 base rate of the whole: .475, .467 and .484
 base_rate <- mean(altmext$replicate == "success")
 rates <- vapply(
   altmext_splits,

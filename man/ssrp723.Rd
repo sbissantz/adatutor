@@ -43,7 +43,6 @@ Other datasets:
 \code{\link{hypergrid}},
 \code{\link{hypernested}},
 \code{\link{mltwo1026}},
-\code{\link{score1026}},
 \code{\link{ssrp1026}}
 }
 \concept{datasets}

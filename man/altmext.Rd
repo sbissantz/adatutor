@@ -5,14 +5,14 @@
 \alias{altmext}
 \title{Altmejd et al.'s replication database, extended}
 \format{
-A data frame with 294 rows (study effects) and the 7 columns of
+A data frame with 202 rows (study effects) and the 7 columns of
 \link{altmejd}:
 \itemize{
 \item \code{eid}: Effect identifier, \verb{<pid>.<number>}.
 \item \code{pid}: Project identifier: Many Labs 1 (\code{ml1}), 2 (\code{ml2}) and 3 (\code{ml3}),
 Replication Project Psychology (\code{rpp}), Experimental Economics
 Replication Project (\code{eerp}), Social Science Replication Project
-(\code{ssrp}), Holzmeister et al. (\code{holz}) or SCORE (\code{score}).
+(\code{ssrp}) or Holzmeister et al. (\code{holz}).
 \item \code{effect_size.o}: Effect size of the original study, as a correlation r.
 \item \code{n.o}: Number of observations in the original study.
 \item \code{p_value.o}: P-value of the original study.
@@ -26,22 +26,22 @@ Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
 Predicting the replicability of social science lab experiments. PLOS ONE
 14(12): e0225826. \url{https://doi.org/10.1371/journal.pone.0225826}
 
-For the other sources, see \link{ssrp1026}, \link{holz1026}, \link{mltwo1026} and
-\link{score1026}. The data were downloaded in October 2026; each project's
-snapshot is in \code{inst/extdata} and built by \verb{data-raw/}.
+For the other sources, see \link{ssrp1026}, \link{holz1026} and \link{mltwo1026}. The
+data were downloaded in October 2026; each project's snapshot is in
+\code{inst/extdata} and built by \verb{data-raw/}.
 }
 \usage{
 altmext
 }
 \description{
 Altmejd et al.'s (2019) replication database in the format of \link{altmejd},
-extended to eight large-scale replication projects: 294 original studies
+extended to seven large-scale replication projects: 202 original studies
 and whether each one replicated. Many Labs 1 and 3, the Replication Project
 Psychology and the Experimental Economics Replication Project come from
 \link{altmejd723} unchanged. The Social Science Replication Project is rebuilt
-from its own results file (\link{ssrp1026}). Three projects are new:
-Holzmeister et al.'s decision-market replications (\link{holz1026}), Many Labs 2
-(\link{mltwo1026}) and SCORE (\link{score1026}).
+from its own results file (\link{ssrp1026}). Two projects are new: Holzmeister
+et al.'s decision-market replications (\link{holz1026}) and Many Labs 2
+(\link{mltwo1026}).
 }
 \details{
 Every row follows Altmejd et al.'s rule: one row per original effect, the
@@ -50,23 +50,18 @@ with its pooled result. A replication succeeded if it is significant
 (p <= .05) in the original's direction.
 
 Projects and replication rates: rpp 90 (31 replicated), eerp 18 (11), ml1
-13 (11), ml3 10 (3), ssrp 21 (13), holz 26 (14), ml2 24 (13), score 92 (46);
-142 of 294 in all.
+13 (11), ml3 10 (3), ssrp 21 (13), holz 26 (14), ml2 24 (13); 96 of 202
+in all.
 
 Things to keep in mind:
 \itemize{
 \item The SSRP rows differ from \link{altmejd}'s: the pooled outcome (13 rather than
 12 of 21 replicated), two effect sizes, three p-values and seven sample
 sizes. See \link{ssrp1026}.
-\item SCORE is the largest project (31\% of rows) and spans more disciplines.
-Evaluate by project, e.g. with \code{logo_cv(..., group = "pid")}, or weight
-rows by project, so that it does not dominate a pooled result.
 \item Holzmeister et al.'s 26 studies were selected by a decision market (the
 12 highest-priced, the 12 lowest-priced and 2 at random), not sampled
 from a literature.
-\item Five SCORE originals report only a bound, and \code{p_value.o} holds the
-bound's value (e.g. .001 for p < .001). ml2.9's p is below double
-precision and reads 0.
+\item ml2.9's p is below double precision, so \code{p_value.o} reads 0.
 \item Two pairs of effects come from the same original paper: ml2.21 and ml1.2
 (Tversky & Kahneman 1981, two different problems), ml2.16 and rpp.68
 (Risen & Gilovich 2008, Studies 2 and 6).
@@ -82,7 +77,6 @@ Other datasets:
 \code{\link{hypergrid}},
 \code{\link{hypernested}},
 \code{\link{mltwo1026}},
-\code{\link{score1026}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }

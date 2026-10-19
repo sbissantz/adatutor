@@ -2,10 +2,10 @@
 # Snapshots of the Published Files (October 2026) #
 ###################################################
 #
-# The download step for the four 1026 datasets: each project's own published
+# The download step for the three 1026 datasets: each project's own published
 # values, copied into one CSV per project in ./inst/extdata/. Nothing is
-# computed here; ssrp1026.R, holz1026.R, mltwo1026.R and score1026.R do all of
-# the processing.
+# computed here; ssrp1026.R, holz1026.R and mltwo1026.R do all of the
+# processing.
 #
 # The files are read from a local copy of the projects' data (the exmachina
 # repository). Every input is checked against the md5 it had when the
@@ -22,10 +22,6 @@
 # - Many Labs 2: Klein et al. (2018), https://osf.io/8cd4r, files
 #   "!!Figures_Tables/table5data_RM.csv", "!!RawData/ML2_OriginalEffects.csv"
 #   and "!!KeyTables/ML2_KeyTable.csv".
-# - SCORE: Tyner et al. (2026), https://doi.org/10.1038/s41586-025-10078-y,
-#   the analysis-ready tables "repli_outcomes.csv", "orig_outcomes.csv" and
-#   "paper_metadata.csv". The location of the tables is in the paper's data
-#   availability statement.
 
 # Location of the local copy
 src <- "~/projects/exmachina/inst/context"
@@ -36,10 +32,7 @@ files <- c(
   holz = "lsrprojects-et-al/holzmeister-2024-oerp/osf-sk82q/data/proc/data_to_use.csv",
   ml2_table5 = "lsrprojects-et-al/klein-2018-mlrp2/OSFdata/!!Figures_Tables/table5data_RM.csv",
   ml2_effects = "lsrprojects-et-al/klein-2018-mlrp2/OSFdata/!!RawData/ML2_OriginalEffects.csv",
-  ml2_key = "lsrprojects-et-al/klein-2018-mlrp2/OSFdata/!!KeyTables/ML2_KeyTable.csv",
-  score_repli = "lsrprojects-et-al/tyner-2026-score/Analysis-ready Data/Replication and Reproduction Papers/repli_outcomes.csv",
-  score_orig = "lsrprojects-et-al/tyner-2026-score/Analysis-ready Data/Replication and Reproduction Papers/orig_outcomes.csv",
-  score_papers = "lsrprojects-et-al/tyner-2026-score/Analysis-ready Data/Replication and Reproduction Papers/paper_metadata.csv"
+  ml2_key = "lsrprojects-et-al/klein-2018-mlrp2/OSFdata/!!KeyTables/ML2_KeyTable.csv"
 )
 paths <- file.path(path.expand(src), files)
 names(paths) <- names(files)
@@ -51,10 +44,7 @@ md5 <- c(
   holz = "2413af8d6454d361cd8a9c7d3be5a93f",
   ml2_table5 = "4596c37cf74e2ae2db60f6c16fc87c48",
   ml2_effects = "232c5eb7c1fd576f5473638e69c746d7",
-  ml2_key = "701aebd7b4e2bb6d76085eb51e4ba2e4",
-  score_repli = "5716b665a29473265146809335f961dc",
-  score_orig = "d0d2cc68fc24c5f1c8dc5c510c7a3f62",
-  score_papers = "45b9559cb0c9411812ccc23e554d859c"
+  ml2_key = "701aebd7b4e2bb6d76085eb51e4ba2e4"
 )
 stopifnot(identical(unname(tools::md5sum(paths)), unname(md5[names(paths)])))
 
@@ -137,61 +127,4 @@ write_snapshot(
     key[kk, key_cols]
   ),
   "mltwo1026.csv"
-)
-
-# ---- SCORE: the version-of-record replications with their originals ---------
-repli <- read("score_repli")
-orig <- read("score_orig")
-papers <- read("score_papers")
-record <- repli[toupper(repli$repli_version_of_record) == "TRUE", ]
-stopifnot(nrow(record) == 309, !anyDuplicated(record$claim_id))
-ko <- match(record$claim_id, orig$claim_id)
-kp <- match(record$paper_id, papers$paper_id)
-stopifnot(!anyNA(ko), !anyNA(kp))
-# Where the record pools several labs, how many of them are generalizability
-# tests (a deliberately different population): the one column not copied
-# as is, counted from the labs' own rows
-lab <- toupper(repli$repli_version_of_record) != "TRUE" &
-  repli$manylabs_type %in% c("count", "instance_primary") &
-  toupper(repli$repli_is_generalizability) == "TRUE"
-record$generalizability_labs <- ifelse(
-  record$manylabs_type %in% "aggregation",
-  as.integer(table(factor(repli$claim_id[lab], levels = record$claim_id))),
-  0L
-)
-stopifnot(sum(record$generalizability_labs > 0) == 7)
-repli_cols <- c(
-  "paper_id",
-  "claim_id",
-  "report_id",
-  "repli_type",
-  "repli_is_generalizability",
-  "manylabs_type",
-  "repli_conv_r",
-  "repli_effect_direction",
-  "repli_p_value",
-  "repli_sample_size_value",
-  "repli_score_criteria_met",
-  "generalizability_labs"
-)
-orig_cols <- c(
-  "is_covid",
-  "orig_conv_r",
-  "orig_sample_size_value",
-  "orig_sample_size_units",
-  "orig_stat_type",
-  "orig_stat_dof_1",
-  "orig_stat_dof_2",
-  "orig_stat_value",
-  "orig_p_value_type",
-  "orig_p_value",
-  "orig_p_value_tails"
-)
-write_snapshot(
-  cbind(
-    record[, repli_cols],
-    orig[ko, orig_cols],
-    doi = papers$DOI[kp]
-  ),
-  "score1026.csv"
 )

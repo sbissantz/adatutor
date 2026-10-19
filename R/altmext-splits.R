@@ -8,13 +8,11 @@
 #' version 3.6.0, which moved every seeded split.
 #'
 #' The split is stratified on `replicate`, so each set stays close to the
-#' whole data's share of successes (.483): .483, .477 and .489. It is not
-#' stratified on `pid`, so the project mix varies between the sets. SCORE, for
-#' example, makes up 31 percent of the whole data but 35, 25 and 20 percent of
-#' the three sets.
+#' whole data's share of successes (.475): .475, .467 and .484. It is not
+#' stratified on `pid`, so the project mix varies between the sets.
 #'
 #' @format A list of three data frames with the columns of [altmext]: `train`
-#'   (205 rows), `valid` (44 rows) and `test` (45 rows).
+#'   (141 rows), `valid` (30 rows) and `test` (31 rows).
 #'
 #' @family datasets
 #' @seealso [partition()] to make your own split.

@@ -9,7 +9,7 @@ test_that("altmext has altmejd's columns and types", {
   expect_false(anyDuplicated(altmext$eid) > 0)
 })
 
-test_that("altmext holds the eight projects with their outcomes", {
+test_that("altmext holds the seven projects with their outcomes", {
   n <- table(altmext$pid)
   success <- tapply(altmext$replicate == "success", altmext$pid, sum)
   want_n <- c(
@@ -19,7 +19,6 @@ test_that("altmext holds the eight projects with their outcomes", {
     ml2 = 24,
     ml3 = 10,
     rpp = 90,
-    score = 92,
     ssrp = 21
   )
   want_success <- c(
@@ -29,9 +28,9 @@ test_that("altmext holds the eight projects with their outcomes", {
     ml2 = 13,
     ml3 = 3,
     rpp = 31,
-    score = 46,
     ssrp = 13
   )
+  expect_setequal(names(n), names(want_n))
   expect_equal(as.vector(n[names(want_n)]), unname(want_n))
   expect_equal(as.vector(success[names(want_success)]), unname(want_success))
 })
@@ -44,7 +43,7 @@ test_that("altmejd723's rows are unchanged in altmext", {
 })
 
 test_that("the per-project data sets make up altmext", {
-  parts <- list(ssrp1026, holz1026, mltwo1026, score1026)
+  parts <- list(ssrp1026, holz1026, mltwo1026)
   for (part in parts) {
     rows <- altmext[match(part$eid, altmext$eid), ]
     expect_false(anyNA(rows$eid))

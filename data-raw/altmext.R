@@ -3,17 +3,16 @@
 ##########################################
 #
 # Altmejd et al.'s four projects (altmejd723, unchanged) with SSRP rebuilt
-# from its own results file (ssrp1026) and three more projects: Holzmeister et
-# al. 2024 (holz1026), Many Labs 2 (mltwo1026) and SCORE (score1026). Same
-# columns and the same rule as altmejd: one row per original effect, Many Labs
-# and SCORE's multi-lab claims as the pooled result.
+# from its own results file (ssrp1026) and two more projects: Holzmeister et
+# al. 2024 (holz1026) and Many Labs 2 (mltwo1026). Same columns and the same
+# rule as altmejd: one row per original effect, Many Labs' multi-lab claims as
+# the pooled result.
 
 # Load the per-project data sets
 data("altmejd723")
 data("ssrp1026")
 data("holz1026")
 data("mltwo1026")
-data("score1026")
 
 # Variables of interest, in altmejd's order
 voi <- c(
@@ -27,7 +26,7 @@ voi <- c(
 )
 
 # Bind the data sets with the pre-selected variables
-projects <- list(altmejd723, ssrp1026, holz1026, mltwo1026, score1026)
+projects <- list(altmejd723, ssrp1026, holz1026, mltwo1026)
 stopifnot(all(vapply(projects, function(x) all(voi %in% names(x)), TRUE)))
 altmext <- do.call(rbind.data.frame, lapply(projects, `[`, voi))
 
@@ -48,10 +47,10 @@ altmext <- altmext[order(prefix, suffix, method = "radix"), ]
 rownames(altmext) <- paste0(seq_len(nrow(altmext)))
 
 stopifnot(
-  nrow(altmext) == 131 + 21 + 26 + 24 + 92,
+  nrow(altmext) == 131 + 21 + 26 + 24,
   !anyNA(altmext),
   !anyDuplicated(altmext$eid),
-  sum(altmext$replicate == "success") == 56 + 13 + 14 + 13 + 46
+  sum(altmext$replicate == "success") == 56 + 13 + 14 + 13
 )
 
 # Save the data set as R data
