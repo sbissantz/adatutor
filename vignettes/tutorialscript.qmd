@@ -269,10 +269,13 @@ past the tutorial's own data.
 
 #### Figure 1 [NEW]
 
-Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, with the replication projects as the groups. Reading the graph from left to right, the data are first partitioned into the Many Labs 1 (ML 1) project, the Replication Project Psychology (RPP), the Many Labs 3 (ML 3) project, the Experimental Economics Replication Project (EERP), and the Social Science Replication Project (SSRP). In Iteration 1, the ML 1 project is then used as the test set. The other data are used for model training. After fitting the model to the training data, its performance is evaluated on the hold-out or test data from the Many Labs 1 project. This is repeated for the other replication projects (Iterations 2--5), ultimately yielding a distribution of five performance estimates. It might be tempting to summarize the distribution with a point estimates, but keep in mind that the distribution always provides the richer picture of the validation process.
+Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, with the replication projects as the groups. Reading the graph from left to right, the data are first partitioned into eight projects: Many Labs 1 (ML1, 13 studies), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), Many Labs 2 (ML2, 24), the decision-market replications of Holzmeister et al. (2024; HOLZ, 26), and SCORE (Systematizing Confidence in Open Research and Evidence, 92), 294 studies in all. Row heights are proportional to project size, except that no row is drawn smaller than 6% of the height, so ML1, ML3, and EERP appear the same size. In Iteration 1, the ML1 project is used as the test set and the other seven projects for model training. After fitting the model to the training data, its performance is evaluated on the held-out ML1 studies. This is repeated for each of the other projects (Iterations 2--8), yielding a distribution of eight performance estimates. It might be tempting to summarize them with a single number, but the distribution gives the richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
-tutplot_logoscheme(df$pid, levels = c("ml1", "rpp", "ml3", "eerp", "ssrp"))
+tutplot_logoscheme(
+  df$pid,
+  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2", "holz", "score")
+)
 ```
 
 #### Listing 10
@@ -316,9 +319,12 @@ data(altmejd_splits)
 data(altmext_splits)
 
 # The split every later module is written against
-train <- altmejd_splits$train
-valid <- altmejd_splits$valid
-test <- altmejd_splits$test
+train <- altmext_splits$train
+# train <- altmejd_splits$train
+valid <- altmext_splits$valid
+# valid <- altmejd_splits$valid
+test <- altmext_splits$test
+# test <- altmejd_splits$test
 ```
 
 ::: {.callout-important title="Restore the split before going on"}
@@ -548,12 +554,12 @@ weights from a uniform distribution.
 Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the `extra` argument of the `rpart.plot()` function with a value set to `100`.
 
 :::{ .callout-note}
-The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.6358)
+The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.927)
 :::
 
 ```{r listing-16}
 # For reproducibility
-set.seed(110)
+set.seed(112)
 
 # Draws from standard uniform
 D_raw <- runif(m)
