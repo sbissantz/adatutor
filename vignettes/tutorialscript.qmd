@@ -1302,16 +1302,14 @@ hgrid <- expand.grid(
   # Number of trees
   "T" = c(10, 100, 1000),
   # Learning rate
-  "eta" = c(1, 0.1),
-  # Container for fold performance
-  "eerp" = NA,
-  "ml1" = NA,
-  "ml3" = NA,
-  "rpp" = NA,
-  "ssrp" = NA,
-  "auc.mean" = NA,
-  "runtime" = NA
+  "eta" = c(1, 0.1)
 )
+
+# Container for fold performance, one column per project
+proj_nms <- sort(unique(df$pid))
+hgrid[proj_nms] <- NA_real_
+hgrid$auc.mean <- NA_real_
+hgrid$runtime <- NA_real_
 ```
 
 #### Listing 34
@@ -1338,7 +1336,7 @@ for (i in seq_len(hgrid_rows)) {
   # Iteration time
   runtime <- system.time({
     # Leave-one-group-out CV
-    for (rp in c("eerp", "ml1", "ml3", "rpp", "ssrp")) {
+    for (rp in proj_nms) {
       # Progress report
       cat(
         "\rProgress: ",
@@ -1380,13 +1378,13 @@ for (i in seq_len(hgrid_rows)) {
       hgrid[[rp]][i] <- auroc(test$replicate, y_pred)
     }
     # Average performance
-    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, 4:8]))
+    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, proj_nms]))
   })
   hgrid$runtime[i] <- runtime[["elapsed"]]
 }
 
 # Hypergrid sorted by average AUC
-hgrid[order(-hgrid$auc.mean), ]
+hgrid[order(-hgrid$auc.mean), ] |> round(2)
 ```
 
 # NEW
