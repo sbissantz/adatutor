@@ -74,6 +74,12 @@ test_that("partition() reproduces the split the package ships", {
   )
 })
 
+test_that("partition() reproduces the altmext split the package ships", {
+  set.seed(112)
+  three <- partition(altmext, prop = c(0.7, 0.15, 0.15), strata = "replicate")
+  expect_identical(unname(three), unname(altmext_splits))
+})
+
 test_that("both halves keep the data's row order and lose nothing", {
   set.seed(112)
   p <- partition(altmejd, prop = 0.7, strata = "replicate")
