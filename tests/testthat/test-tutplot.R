@@ -827,6 +827,49 @@ test_that("tutplot_logoscheme() equal blocks hide what proportional ones show", 
   expect_true(any(prop$n > tot - prop$n))
 })
 
+test_that("tutplot_logoscheme() keeps thin projects tall enough to label", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  # of altmext's eight projects, ML3 and ML1 hold 3.4 and 4.4 percent of rows
+  f <- tutplot_logoscheme(altmext$pid)
+  expect_equal(sum(f$heights), 1)
+  expect_equal(f$heights[f$levels %in% c("ml1", "ml3", "eerp")], rep(0.06, 3))
+  # no smaller project is drawn taller than a larger one
+  expect_true(all(diff(f$heights[order(f$n)]) >= -1e-12))
+
+  # 0 switches the minimum off
+  exact <- tutplot_logoscheme(altmext$pid, min_height = 0)
+  expect_equal(exact$heights, as.numeric(exact$n) / sum(exact$n))
+})
+
+test_that("tutplot_logoscheme() draws only the projects in `levels`", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  shown <- c("rpp", "score", "ml3")
+  f <- tutplot_logoscheme(altmext$pid, levels = shown)
+  expect_identical(f$k, 3L)
+  expect_identical(names(f$n), shown)
+  # the shares are of the shown projects only, ML3 raised from 5.2 percent
+  expect_equal(sum(f$heights), 1)
+  expect_equal(f$heights[3], 0.06)
+})
+
+test_that("tutplot_logoscheme() refuses a minimum the projects cannot fit", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  expect_error(
+    tutplot_logoscheme(altmext$pid, min_height = 0.2),
+    "at most 1/8"
+  )
+  # equal blocks have no minimum to fit
+  expect_no_error(
+    tutplot_logoscheme(altmext$pid, proportional = FALSE, min_height = 0.2)
+  )
+})
+
 test_that("draw_roundrect() keeps its corners circular on any panel", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
