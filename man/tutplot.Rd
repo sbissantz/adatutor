@@ -85,6 +85,7 @@ tutplot_logoscheme(
   group,
   proportional = TRUE,
   levels = NULL,
+  min_height = 0.06,
   file = NULL,
   width = tutplot_opts$full[["width"]],
   height = tutplot_opts$full[["height"]],
@@ -163,8 +164,14 @@ has to resample. Defaults to 1000.}
 default) shows the imbalance: one project holds 59 percent of the rows.
 \code{FALSE} draws the equal blocks the manuscript prints.}
 
-\item{levels}{The project order, top to bottom. \code{NULL} uses a factor's
-levels or the order of first appearance.}
+\item{levels}{The projects to show, in drawing order, top to bottom. A
+project left out is dropped from the figure, and the rest share its
+height. \code{NULL} shows every project, in a factor's level order or the
+order of first appearance.}
+
+\item{min_height}{The smallest share of the height a project gets when
+\code{proportional = TRUE}, so that a small project keeps its label. The rest
+is shared by size. Defaults to 0.06; 0 gives exact proportions.}
 }
 \value{
 Invisibly, the facts the figure's caption states, so tests can
