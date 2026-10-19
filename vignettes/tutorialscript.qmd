@@ -1222,8 +1222,12 @@ This ran for approximately 2 minutes on our laptops.
 :::
 
 ```{r listing-32}
-# Partition data by project ID
-df_split <- split(df, df$pid)
+# Hold out the newest project, HOLZ (2024), as the final test set
+df_holz <- df[df$pid == "holz", ]
+df_noholz <- df[df$pid != "holz", ]
+
+# Partition the tuning data by project ID
+df_split <- split(df_noholz, df_noholz$pid)
 proj_nms <- names(df_split)
 # List for AUC results
 auc <- list()
@@ -1235,7 +1239,7 @@ runtime <- system.time({
     message("\nProject: ", paste0(rp), "\n")
     # Training and test set
     test <- df_split[[rp]]
-    train <- df[!(df$pid %in% rp), ]
+    train <- df_noholz[!(df_noholz$pid %in% rp), ]
     # Fit model to data
     h <- rpart::rpart(
       replicate ~ .,
@@ -1256,6 +1260,7 @@ message("\n Run time: ", runtime["elapsed"], " s\n")
 
 # Results
 c(unlist(auc))
+# c(unlist(auc)) |> mean()
 ```
 
 **TODO**: Remove the mean?
@@ -1263,10 +1268,10 @@ c(unlist(auc))
 #### Figure [New] 
 
 ```{r figure-xx}
-# The weak learner, on all projects: logo_cv() reads only its recipe
+# The weak learner, on the six tuning projects: logo_cv() reads only its recipe
 h <- rpart::rpart(
   replicate ~ .,
-  data = df[, voi_nms],
+  data = df_noholz[, voi_nms],
   maxdepth = 1,
   model = TRUE
 )
@@ -1274,7 +1279,7 @@ h <- rpart::rpart(
 # LOGO-CV: refit the same recipe with each project held out
 logo_int <- h |>
   adaboost(n_iter = 1000, eta = 1, verbose = FALSE) |>
-  logo_cv(data = df, group = "pid")
+  logo_cv(data = df_noholz, group = "pid")
 
 # Visualize (manuscript figure)
 set.seed(112)
@@ -1305,10 +1310,12 @@ hgrid <- expand.grid(
   "eta" = c(1, 0.1)
 )
 
-# Container for fold performance, one column per project
-proj_nms <- sort(unique(df$pid))
+# Container for fold performance, one column per tuning project
+proj_nms <- sort(unique(df_noholz$pid))
 hgrid[proj_nms] <- NA_real_
 hgrid$auc.mean <- NA_real_
+hgrid$auc.sd <- NA_real_
+hgrid$auc.stable <- NA_real_
 hgrid$runtime <- NA_real_
 ```
 
@@ -1328,8 +1335,8 @@ This ran for approximately 3 minutes on our laptops.
 # Number of rows
 hgrid_rows <- nrow(hgrid)
 
-# Partition data by project ID
-df_split <- split(df, df$pid)
+# Partition the tuning data by project ID
+df_split <- split(df_noholz, df_noholz$pid)
 
 # Hyperparameter optimization
 for (i in seq_len(hgrid_rows)) {
@@ -1353,7 +1360,7 @@ for (i in seq_len(hgrid_rows)) {
       )
       # Training and test set
       test <- df_split[[rp]]
-      train <- df[!(df$pid %in% rp), ]
+      train <- df_noholz[!(df_noholz$pid %in% rp), ]
       # Fit model to data
       h <- rpart::rpart(
         replicate ~ .,
@@ -1377,15 +1384,21 @@ for (i in seq_len(hgrid_rows)) {
       # Performance evaluation
       hgrid[[rp]][i] <- auroc(test$replicate, y_pred)
     }
-    # Average performance
-    hgrid$auc.mean[i] <- mean(as.numeric(hgrid[i, proj_nms]))
+    # Average performance, its spread across projects, and the two combined
+    fold_auc <- as.numeric(hgrid[i, proj_nms])
+    hgrid$auc.mean[i] <- mean(fold_auc)
+    hgrid$auc.sd[i] <- sd(fold_auc)
+    hgrid$auc.stable[i] <- hgrid$auc.mean[i] - hgrid$auc.sd[i]
   })
   hgrid$runtime[i] <- runtime[["elapsed"]]
 }
 
-# Hypergrid sorted by average AUC
-hgrid[order(-hgrid$auc.mean), ] |> round(2)
+# Hypergrid sorted by the most stable performance (mean minus SD)
+hgrid[order(-hgrid$auc.stable), ] |> round(2)
 ```
+
+**NEW**
+The mean tells us how well a setting can be expected to do on a new project; the spread tells us how much to trust that expectation. A setting with a high mean and a small spread is the safest bet.
 
 # NEW
 
@@ -1611,18 +1624,41 @@ nested
 
 #### Listing 36
 
-Code to fit the final model to the data.
+Code to refit the most stable setting on the six tuning projects and test it,
+and a logistic regression, on HOLZ.
 
 ```{r listing-36}
-# Fit optimized model
+# The most stable setting of the grid search (Listing 34)
+best <- hgrid[which.max(hgrid$auc.stable), ]
+
+# Refit it on all six tuning projects
 h_final <- rpart::rpart(
   replicate ~ .,
-  data = df[, voi_nms],
-  maxdepth = 1,
+  data = df_noholz[, voi_nms],
+  maxdepth = best$depth,
   model = TRUE
 )
-fit_final <- adaboost(h_final, n_iter = 10, eta = 1)
+fit_final <- adaboost(h_final, n_iter = best$T, eta = best$eta)
+
+# Baseline: logistic regression on the same predictors and projects
+fit_logit <- glm(
+  replicate ~ .,
+  data = df_noholz[, voi_nms],
+  family = binomial
+)
+
+# The final test: score both once on HOLZ, on the margin and the
+# probability, so the AUC sees the ranking
+y_ada <- predict(fit_final, newdata = df_holz[, pred_nms], type = "margin")
+y_logit <- predict(fit_logit, newdata = df_holz, type = "response")
+c(
+  adaboost = auroc(df_holz$replicate, y_ada),
+  logit = auroc(df_holz$replicate, y_logit)
+)
 ```
+
+
+
 
 # Figure map
 
