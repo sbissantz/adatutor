@@ -1,6 +1,7 @@
 ---
 title: "A Short Overview"
 bibliography: references.bib
+csl: apa.csl
 vignette: >
   %\VignetteIndexEntry{A Short Overview}
   %\VignetteEngine{quarto::html}
