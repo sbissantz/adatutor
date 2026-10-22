@@ -1455,58 +1455,7 @@ dependence. TODO
 
 ## Selecting versus Evaluating
 
-Listing 34 scores every setting in the hypergrid on all available (i.e., five) projects, and we took the row with the best average. I think that this number is not an estimate of how the chosen model will do on a new project, because the same five projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
-
-This is the job of nested leave-one-group-out cross-validation. The outer loop holds
-out one project entirely and the inner loop repeats the whole grid search on the four that remain, choosing hyperparameters without ever seeing the held-out project. The
-chosen setting is then refit on those four projects and scored on the fifth.
-Repeat five times.
-
-When I first met Nested LOGO-CV, I had a hard time to wrap my head around the fact, that it does not give me a(n overall) performance estimate for a particular hyperparameter setting. 
-Instead, it puts a number (an estimate) on the procedure: "run the grid search, pick, then fit the winner." Every model built inside the nesting is discarded; none of them is the model you ship. You still fit one setting on all five projects, as in Listing 35. Nesting tells you what to expect from that
-model, not what it scores.
-
-completely separating the tuning process from the evaluation process
-
-if you have a very large training validation and test set you can do the tripple, but if you have very vew data (as we comparably do) we might consider moving to nested cross-validation.
-
-Take our data and split it into folds (the 5 groups in our case). Then we reserve one group, say Group 1, as test set (let's call this the outer test set). 
-Then we take the remaining 4 (Group 2, 3, 4, 5) and split them again into 4 pieces: 3 pieces (Group 2, 3, 4) for the training set and one for the (inner) test set (Group 5). Then we (randomly, we do full Cartesian) search a hyperparameter setting from our test set and train the model with the inner 3 pieces (Group 2, 3, 4) and score it on the inner test set (Group 5) - and then again with a different hyperparameter setting. Then, we select the winning model with the best hyperparameter combi on Group 5 and pass it to the outer loop and train the model using the bigger training set with 4 pieces (Group 2, 3, 4, 5) and then evaluate it on the outer test set (Group 1). And then you repeat the whole procedure again with the next group
-So instead of one model performance on on test set we have 5 (5 Groups) measures. What people than usually do is to take the mean performance across projects.
-So we use all the data as a test set once
-
-In small test set you can have the problem of bad luck and up (especially with small test sets) with a handy partition which is too easy to classify and (thus not representative of what would usually happen, i.e. performane overestimate).
-
-TODO: Random grid search. Define 20 as a number in the random search
-
-Two things follow. First, the five inner searches may each select a different
-setting, and the setting that won in Listing 34 may be chosen by none of them.
-That is expected rather than alarming: with five projects there is no stable
-"best" setting to find, and seeing that instability directly is more informative
-than the average that hides it. Second, the nested estimate is *conservative*
-here, because each nested model saw four projects while the model you ship sees
-five.
-
-If nesting does not hand you a model, what does? The three listings have three
-different jobs, and it is worth being explicit about which is which:
-
-| job | listing |
-|:----|:--------|
-| Choose the hyperparameters, using all five projects | Listing 34 |
-| Estimate what that choosing procedure is worth | Listing 35 |
-| Fit the model you will actually use | Listing 36 |
-
-So Listing 34 still picks the setting and Listing 36 still fits it on the full
-dataset -- nesting changes neither. What it changes is the number you quote
-alongside that model: not the winning average from Listing 34, which the same
-five projects produced by selecting it, but the nested estimate, which no project
-had a hand in choosing.
-
-The settings the inner searches picked are worth looking at, but they are a
-diagnostic rather than a shortlist. They have the same standing as the
-coefficients fitted inside each cross-validation fold back in Module 1: nobody
-averages those, and nobody asks which fold's coefficients to keep. They are
-by-products of a procedure being measured, not candidates for shipping.
+Listing 34 scores every setting in the hypergrid on the six tuning projects, and we took the row with the most stable performance. I think that this number is not an estimate of how the chosen model will do on a new project, because the same six projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
 
 ::: {.callout-tip}
 ## The depth belongs to the tree, not to the boosting
@@ -1526,7 +1475,143 @@ This is why AdaBoost has no `maxdepth` argument. The algorithm is defined over
 choice among many, and its settings are yours rather than the algorithm's.
 :::
 
+## Finalizing an Ensemble
+
 #### Listing 35
+
+Code to refit the most stable setting on the six tuning projects and test it
+on HOLZ.
+
+```{r listing-35}
+# The most stable setting of the grid search (Listing 34)
+best <- hgrid[which.max(hgrid$auc.stable), ]
+
+# Refit it on all six tuning projects
+h_final <- rpart::rpart(
+  replicate ~ .,
+  data = df_noholz[, voi_nms],
+  maxdepth = best$depth,
+  model = TRUE
+)
+fit_final <- adaboost(h_final, n_iter = best$T, eta = best$eta)
+
+# The final test: score it once on HOLZ, on the margin so the AUC sees the
+# ranking
+y_ada <- predict(fit_final, newdata = df_holz[, pred_nms], type = "margin")
+auroc(df_holz$replicate, y_ada)
+```
+
+## Benchmarks
+
+Compare the results from ligistic regression, adaboost and decision trees here?
+
+```{r benchmarks}
+# Baseline: logistic regression on the same predictors and projects
+fit_logit <- glm(
+  replicate ~ .,
+  data = df_noholz[, voi_nms],
+  family = binomial
+)
+
+# Baseline: a single tree on the same predictors and projects. Its depth, 5, is
+# chosen by the same LOGO-CV rule on the six tuning projects (mean minus SD)
+fit_tree <- rpart::rpart(
+  replicate ~ .,
+  data = df_noholz[, voi_nms],
+  maxdepth = 5
+)
+
+# Score each baseline once on HOLZ, on its probability of success rather than
+# the class, so the AUC sees the ranking
+y_logit <- predict(fit_logit, newdata = df_holz, type = "response")
+y_tree <- predict(fit_tree, df_holz[, pred_nms], type = "prob")[, "success"]
+
+# All models on the same 26 HOLZ studies; AdaBoost's score is from Listing 35
+c(
+  adaboost = auroc(df_holz$replicate, y_ada),
+  logit = auroc(df_holz$replicate, y_logit),
+  tree = auroc(df_holz$replicate, y_tree)
+)
+```
+
+
+
+
+## Addition: Nested LOGO-CV
+
+Setting a project aside costs data: HOLZ's 26 studies never helped choose the
+setting, and the final test in Listing 35 rests on those 26 studies alone.
+Nested LOGO-CV avoids both. It repeats the whole procedure -- search the grid,
+pick the winner, refit it -- once per project, each time with that project held
+out. Every project serves as the test once, and none is withheld from tuning for
+good. The result estimates the procedure, not any single setting, and it shows
+which setting each search chose, so you see how stable the choice is. It is
+worth its cost, one grid search per project, when the data are too few to spare
+a test project, or when the stability of the choice is itself the question.
+
+::: {.callout-note}
+## Nested LOGO-CV picks by the mean
+
+`logo_cv(nested = TRUE)` lets each inner search pick the setting with the
+highest mean AUROC (`criterion = "auroc"`), not the highest mean minus SD that
+Listing 34 uses. Listing 36 ranks by the mean as well, so its two versions agree
+with each other, but not with the stability rule of the main thread. To nest
+that rule, rank the inner settings by mean minus SD inside the loop of
+Listing 36.
+:::
+
+In nested leave-one-group-out cross-validation, the outer loop holds
+out one project entirely and the inner loop repeats the whole grid search on the six that remain, choosing hyperparameters without ever seeing the held-out project. The
+chosen setting is then refit on those six projects and scored on the seventh.
+Repeat seven times.
+
+When I first met Nested LOGO-CV, I had a hard time to wrap my head around the fact, that it does not give me a(n overall) performance estimate for a particular hyperparameter setting. 
+Instead, it puts a number (an estimate) on the procedure: "run the grid search, pick, then fit the winner." Every model built inside the nesting is discarded; none of them is the model you ship. You still fit one setting on all the projects you have. Nesting tells you what to expect from that
+model, not what it scores.
+
+completely separating the tuning process from the evaluation process
+
+if you have a very large training validation and test set you can do the tripple, but if you have very vew data (as we comparably do) we might consider moving to nested cross-validation.
+
+Take our data and split it into folds (the 5 groups in our case). Then we reserve one group, say Group 1, as test set (let's call this the outer test set). 
+Then we take the remaining 4 (Group 2, 3, 4, 5) and split them again into 4 pieces: 3 pieces (Group 2, 3, 4) for the training set and one for the (inner) test set (Group 5). Then we (randomly, we do full Cartesian) search a hyperparameter setting from our test set and train the model with the inner 3 pieces (Group 2, 3, 4) and score it on the inner test set (Group 5) - and then again with a different hyperparameter setting. Then, we select the winning model with the best hyperparameter combi on Group 5 and pass it to the outer loop and train the model using the bigger training set with 4 pieces (Group 2, 3, 4, 5) and then evaluate it on the outer test set (Group 1). And then you repeat the whole procedure again with the next group
+So instead of one model performance on on test set we have 5 (5 Groups) measures. What people than usually do is to take the mean performance across projects.
+So we use all the data as a test set once
+
+In small test set you can have the problem of bad luck and up (especially with small test sets) with a handy partition which is too easy to classify and (thus not representative of what would usually happen, i.e. performane overestimate).
+
+TODO: Random grid search. Define 20 as a number in the random search
+
+Two things follow. First, the seven inner searches may each select a different
+setting, and the setting that won in Listing 34 may be chosen by none of them.
+That is expected rather than alarming: with seven projects there is no stable
+"best" setting to find, and seeing that instability directly is more informative
+than the average that hides it. Second, the nested estimate is *conservative*
+here, because each nested model saw six projects while a model fitted on all of
+them sees seven.
+
+If nesting does not hand you a model, what does? The three listings have three
+different jobs, and it is worth being explicit about which is which:
+
+| job | listing |
+|:----|:--------|
+| Choose the hyperparameters, using the six tuning projects | Listing 34 |
+| Estimate what that choice is worth, on one held-out project | Listing 35 |
+| Estimate what the choosing procedure is worth, with every project held out once | Listing 36 |
+
+So Listing 34 still picks the setting and Listing 35 still tests it -- nesting
+changes neither. What it adds is a number for the whole procedure: not the
+winning score from Listing 34, which the same six projects produced by selecting
+it, and not a single test project, but an estimate from every project, none of
+which had a hand in choosing its own setting.
+
+The settings the inner searches picked are worth looking at, but they are a
+diagnostic rather than a shortlist. They have the same standing as the
+coefficients fitted inside each cross-validation fold back in Module 1: nobody
+averages those, and nobody asks which fold's coefficients to keep. They are
+by-products of a procedure being measured, not candidates for shipping.
+
+#### Listing 36
 
 Code to do a nested leave-one-group-out cross-validation.
 
@@ -1534,9 +1619,9 @@ Code to do a nested leave-one-group-out cross-validation.
 This ran for approximately 10 minutes on our laptops.
 :::
 
-```{r listing-35}
-# Projects, in the order they take their turn
-projects <- c("eerp", "ml1", "ml3", "rpp", "ssrp")
+```{r listing-36}
+# Projects, in the order they take their turn: all seven, HOLZ included
+projects <- sort(unique(df$pid))
 
 # Partition data by project ID
 df_split <- split(df, df$pid)
@@ -1570,18 +1655,23 @@ runtime <- system.time({
     inner_auc <- summary(inner, metric = "auroc")
     ranked <- aggregate(estimate ~ setting, data = inner_auc, FUN = mean)
 
-    # The setting the four training projects chose, on their own
-    best <- hgrid[ranked$setting[which.max(ranked$estimate)], ]
-    selected[[rp]] <- best[, c("depth", "T", "eta")]
+    # The setting the six training projects chose, on their own
+    inner_best <- hgrid[ranked$setting[which.max(ranked$estimate)], ]
+    selected[[rp]] <- inner_best[, c("depth", "T", "eta")]
 
     # Refit at that setting and score the untouched project
     h <- rpart::rpart(
       replicate ~ .,
       data = train[, voi_nms],
-      maxdepth = best$depth,
+      maxdepth = inner_best$depth,
       model = TRUE
     )
-    fit <- adaboost(h, n_iter = best$T, eta = best$eta, verbose = FALSE)
+    fit <- adaboost(
+      h,
+      n_iter = inner_best$T,
+      eta = inner_best$eta,
+      verbose = FALSE
+    )
     y_pred <- predict(
       fit,
       newdata = test[, pred_nms],
@@ -1604,11 +1694,11 @@ do.call(rbind, selected)
 
 Only the outer loop is new. The inner one is the leave-one-group-out search we
 already ran in Listing 34, so we hand it to `logo_cv()` rather than write it out
-again -- the single change is that it now sees `train` instead of `df`.
+again -- the single change is that it now sees `train` instead of `df_noholz`.
 
-The whole procedure is also one call, which is what we use from here on:
+The whole procedure is also one call:
 
-```{r listing-35-oneline}
+```{r listing-36-oneline}
 nested <- logo_cv(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
   data = df,
@@ -1619,92 +1709,3 @@ nested <- logo_cv(
 )
 nested
 ```
-
-## Finalizing an Ensemble
-
-#### Listing 36
-
-Code to refit the most stable setting on the six tuning projects and test it,
-and a logistic regression, on HOLZ.
-
-```{r listing-36}
-# The most stable setting of the grid search (Listing 34)
-best <- hgrid[which.max(hgrid$auc.stable), ]
-
-# Refit it on all six tuning projects
-h_final <- rpart::rpart(
-  replicate ~ .,
-  data = df_noholz[, voi_nms],
-  maxdepth = best$depth,
-  model = TRUE
-)
-fit_final <- adaboost(h_final, n_iter = best$T, eta = best$eta)
-
-# Baseline: logistic regression on the same predictors and projects
-fit_logit <- glm(
-  replicate ~ .,
-  data = df_noholz[, voi_nms],
-  family = binomial
-)
-
-# The final test: score both once on HOLZ, on the margin and the
-# probability, so the AUC sees the ranking
-y_ada <- predict(fit_final, newdata = df_holz[, pred_nms], type = "margin")
-y_logit <- predict(fit_logit, newdata = df_holz, type = "response")
-c(
-  adaboost = auroc(df_holz$replicate, y_ada),
-  logit = auroc(df_holz$replicate, y_logit)
-)
-```
-
-
-
-
-# Figure map
-
-Which chunk above produces which figure in the paper. Established by matching
-the actual splits against the captions, not by reading the file names --
-several of those mislead, and one was actively wrong until it was fixed.
-
-| label | file | float | produced by | geometry |
-|:--|:--|:--|:--|:--|
-| `fig:lpocv` | `ext/lpocv` | `figure*` | Figure 1, `tutplot_logoscheme(df$pid)` | full |
-| `fig:cstump` | `ext/cstump` | `figure` | Figure 2, `rpart.plot(h)`, **two features** | column |
-| `fig:dboundstump` | `ext/dboundstump` | `figure*` | Figure 3, `tutplot_boundary(cstump_int)` | full |
-| `fig:gini` | `ext/gini` | `figure` | Figure 4, the Gini curve | column |
-| `fig:cstumpwght` | `ext/cstumpwght` | `figure` | Listing 16, `cstump_ast`, `extra = 100` | column |
-| `fig:importance` | `ext/importance` | `figure` | Figure 6, the eta curves | column |
-| `fig:updatefactor` | `ext/updatefactor` | `figure` | Figure 7 | column |
-| `fig:weightone` | `ext/weightone` | `figure` | Figure 8 | column |
-| `fig:dboundada` | `ext/dboundada` | `figure*` | Figure 9, `tutplot_boundary(ada_int)` | full |
-| `fig:logocv` | `ext/logocv` | `figure` | new, `tutplot_logocv(res)` | column |
-
-Every file now comes from R: six single-column and three `figure*`. The LOGO-CV
-diagram used to be TikZ drawn in the manuscript, which is why its LaTeX source
-still sits in this vignette -- kept for reference, not executed.
-
-## Four things found while establishing that map
-
-1. **`cstump` is a tree, not a boundary.** This vignette used to export the
-   boundary plot under that name, and had already overwritten the tree in the
-   manuscript's `ext/`. Fixed: the boundary is `dboundstump.pdf` now, and
-   the ensemble's is `dboundada.pdf`.
-2. **Module 2's narrative is the two-feature model.** `fig:cstump`'s caption
-   says "two reviewer metrics: the power of the original study and the number of
-   observations", and Listing 11 and Listing 14's arithmetic both describe the
-   `power.o < 0.9305` split with 66/41 leaves. Listing 12 fits all four features
-   and splits on `p_value.o` with 72/35. Only Listing 12 disagrees with the
-   story. Open.
-3. **`cstumpwght` does not reproduce.** Its caption is Listing 16 exactly --
-   normalized random weights, `extra = 100` -- but the shipped file shows a
-   `p_value.o` split with 72/35 leaves while Listing 16 gives `power.o` with
-   66/41. Open.
-4. **The canonical `train` is Listing 7's, and the RNG order used to matter.**
-   Every hardcoded number in Listing 14 reproduces under it -- 66, 49, 41, .382,
-   .3688281, .37724, and the search finds .9305. This used to be fragile:
-   Listing 9 drew a simple random split first, which advanced the generator, so
-   *its* stratified `train` split at .9261 with 70/37 leaves and none of Listing
-   14's numbers held. Listing 9 now re-seeds before the stratified call, and its
-   `train` is `identical()` to `altmejd_splits$train` -- 107 rows, `power.o` at
-   .9305, leaves 66/41. The callout after Figure 2 still earns its place, since
-   Module 1 offers several splits and only this one is canonical.
