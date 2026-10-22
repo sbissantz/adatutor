@@ -1319,6 +1319,36 @@ hgrid$auc.stable <- NA_real_
 hgrid$runtime <- NA_real_
 ```
 
+#### Optional: Random Search
+
+Instead of trying every setting, a random search tries a few, drawn at random.
+It needs one step after Listing 33:
+
+```{r random-search}
+# Draw `n_draws` settings at random from the grid
+n_draws <- 8
+set.seed(112)
+hgrid_rnd <- hgrid[sample(nrow(hgrid), n_draws), ]
+```
+
+To search only these, use `hgrid_rnd` in place of `hgrid` in Listing 34. With
+the package, the drawn rows are simply the grid you hand to `logo_cv()`:
+
+```{r random-search-package}
+# LOGO-CV over the drawn settings, on the six tuning projects
+logo_rnd <- logo_cv(
+  replicate ~ power.o + effect_size.o + n.o + p_value.o,
+  data = df_noholz,
+  group = "pid",
+  grid = hgrid_rnd[, c("depth", "T", "eta")]
+)
+
+# The most stable of the drawn settings (mean minus SD), as in Listing 34
+rnd_auc <- logo_rnd$estimates[, , "auroc"]
+rnd_stable <- rowMeans(rnd_auc) - apply(rnd_auc, 1, sd)
+logo_rnd$grid[which.max(rnd_stable), ]
+```
+
 #### Listing 34
 
 Code to do hyperparameter optimization using a leave-one-group-out
