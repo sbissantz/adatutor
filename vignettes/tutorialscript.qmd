@@ -1344,7 +1344,7 @@ logo_rnd <- logo_cv(
 )
 
 # The most stable of the drawn settings (mean minus SD), as in Listing 34
-rnd_auc <- logo_rnd$estimates[, , "auroc"]
+rnd_auc <- logo_rnd$estimates[,, "auroc"]
 rnd_stable <- rowMeans(rnd_auc) - apply(rnd_auc, 1, sd)
 logo_rnd$grid[which.max(rnd_stable), ]
 ```
@@ -1523,7 +1523,20 @@ h_final <- rpart::rpart(
   maxdepth = best$depth,
   model = TRUE
 )
-fit_final <- adaboost(h_final, n_iter = best$T, eta = best$eta)
+fit_final <- adaboost(h_final, n_iter = 200, eta = 0.5)
+
+# DON'T RUN: Holz is tabu before deciding
+# TODO: Run a bigger grid since 2000 seems best on logocv
+h_final <- rpart::rpart(
+  replicate ~ .,
+  data = df_noholz[, voi_nms],
+  maxdepth = 2,
+  # maxdepth = 2,
+  model = TRUE
+)
+# fit_final <- adaboost(h_final, n_iter = 200, eta = 0.5)
+# better perfprmance on logocv, but depth tree is not discussed in the tutorial.
+# fit_final <- adaboost(h_final, n_iter = 2000, eta = 0.02)
 
 # The final test: score it once on HOLZ, on the margin so the AUC sees the
 # ranking
