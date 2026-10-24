@@ -276,9 +276,11 @@ Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, wit
 ```{r figure-1}
 tutplot_logoscheme(
   df$pid,
-  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2", "holz")
+  levels = c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2")
 )
 ```
+
+**Important** Holz is excluded, because it becomes the test set later after validation. 
 
 #### Listing 10
 
@@ -823,12 +825,9 @@ ada_fit <- cstump_fit |> adaboost(n_iter = T, eta = eta)
 identical(sapply(ada_diy, "[[", "a"), sapply(ada_fit, "[[", "a"))
 ```
 
-Note: Adatutor is a teaching package, hence forces you to be explicit and fails otherwise. `model = TRUE` in the `rpart()` function keeps the training data on the stump (outcome and predictors). Boosting only makes sense for the same (training) dataset used to fit the tree, so `adaboost()` has no slots to tinker with it. It is always the "specify once, resuse many" principle.
+**Add to tutorial**: As both are weight by weight identical, we will use the package solution in the following to save some typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function.
 
-As both are weight by weight identical, we will use the package solution in the following to save some typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function.
-
-Box:
-Furthermore, the signature l. 802 also makes explicit what is often taken for granted: the weak learner is a (classification) stump. In fact the algorithm is written to accept any weak learner, with a performance slighly better than guessing (we see this in Eq. xxx). So the weak learner is iself a choice (a free hyperparameter if you will) and in fact you can also boost other models as well, such as deep trees or single-layer perceptrons (if you want to get wild). That said, `adaboost()` only accepts trees as this tutorial introduced them in Module 2. Indeed, stumps are a convenient choice, especially because of their simplicity and thus explainability which we will discuss next.
+**Add to tutorial**: Furthermore, the signature l. 802 also makes explicit what is often taken for granted: the weak learner is a (classification) stump. In fact the algorithm is written to accept any weak learner, with a performance slighly better than guessing (we see this in Eq. xxx). So the weak learner is iself a choice (a free hyperparameter if you will) and in fact you can also boost other models as well, such as deep trees or single-layer perceptrons (if you want to get wild). That said, `adaboost()` only accepts trees as this tutorial introduced them in Module 2. Indeed, stumps are a convenient choice, especially because of their simplicity and thus explainability which we will discuss next.
 
 #### Listing [NEW]?
 
@@ -836,22 +835,19 @@ Furthermore, the signature l. 802 also makes explicit what is often taken for gr
 
 ## NEW: Feature Importance
 
-Only a short description than reference to molnar and pargent.
+In the introduction, we punchily stated the goal of turning AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts and rebuilding it ourselves. 
 
-Note: We should describe the package function before module 4 and maybe move the feature importance before hyperparameter optimization. (before we touch performance)
+Now, we want to add a la that this knowledge allows us to construct a tool that allows us to inspect the machinery and interpret what is going on under the hood. More specifically, we can built an  
 
-TODO: Describe better.
-So far, we restricted AdaBoost to work with decision stumps. From Module 2 we know, that stumps are trees of depth one that split (at most - recall: cp = 0.01) once on a variable. Recall also, that each stump carries a voting weight (`a`) based on its accuracy. The (relative) feature imporatance score we introduce below is to group stumps by the variable they split on, extract the (adaboost) weight, and sum their given weights. Why does it work? Well, AdaBoost sequentially targets the hardest-to-predict observations by re-weighting data points, so a variable that is frequently chosen, especially by high-weight stumps, is one that consistently helped correct the ensemble's "biggest mistakes". The total
-accumulated weight is thus a direct measure of a feature's predictive contribution or value.
+a glass box should also let us see what the fitted model has learned, for example which predictors it relies on most.
 
-That is the whole idea with nothing borrowed: count up the voting weight of the
-stumps that chose each variable.
+Variable importance measures answer this question. For tree ensembles, they usually either count how often a variable is used to split (split frequency) or add up how much its splits improve the fit (gain). In this side quest, we show that what we already know about AdaBoost is enough to build such a measure ourselves: a split frequency in which each stump counts with its voting weight. It shows where the ensemble directs most of its attention. Methods that work with any model, such as permutation importance and effect plots, are model-agnostic, more elaborate, but beyond the scope of this tutorial; see @pargent2023 and @molnar2025.
 
-Start with initializing a named vector of zeros (to keep the loop readable) growing it in Line -- `imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a` starting from an empty vector. If it does not split the addition step is skipped, so it silently produces nothing.
+this is a minimum viable solution/product.
 
-For stumps we can find the split directly: `frame` is the tree's node table.
-It's first row is our root, so `frame$var[1]` is the variable the stump splits on 
-If it does not split `rpart` writes `<leaf>`.
+From Module 2, we know that a stump splits once, on one variable, or not at all (see below). From Module 3, we know that each stump carries a voting weight `a`, which is larger the more accurate the stump is on the weighted data. The importance score groups the stumps by the variable they split on and sums their voting weights. Why does this make sense? AdaBoost shifts weight toward the observations the ensemble so far gets wrong or only barely right, so each new stump works on the ensemble's biggest mistakes. A variable that is chosen often, and by stumps with high voting weights, is one the ensemble relied on again and again to correct those mistakes. The summed weight thus shows how much the ensemble relied on each variable, not what a variable is worth on its own (see the caveats below).
+
+In a nutshell, we add up the voting weights of the stumps that chose each variable. The loop below starts from a named vector of zeros, one entry per predictor, and adds each stump's weight to the entry of its variable (`imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a`). For a stump, the variable can be read directly off `frame`, the tree's table of nodes: its first row is the root, so `frame$var[1]` is the variable the stump splits on. If the stump does not split, `rpart` writes `<leaf>` there, and `next` skips it. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages.
 
 ```{r importance-frame}
 n_preds <- length(pred_nms)
@@ -873,7 +869,12 @@ imp_diy <- imp_diy / sum(imp_diy) * 100
 sort(imp_diy, decreasing = TRUE)
 ```
 
-Alternative loop with `rpart` internals.
+Why would a stump not split? By default, `rpart` only makes a split that improves the fit by at least the complexity parameter, `cp = 0.01`, that is, 1 percent of the error at the root. With our training data, 97 of the 1,000 stumps found no such split.
+
+Note to self: cp and pruning maybe as box?
+
+`rpart` also stores what we need. Its `variable.importance` holds, for each variable, how much its splits improved the tree's fit, and it is `NULL` for a tree without a split. A stump has a single entry there, so its whole voting weight goes to that variable, and the result is identical.
+
 Note: Keep only loop not the full code.
 
 ```{r importance-byhand}
@@ -897,13 +898,8 @@ imp_alt <- imp_alt / sum(imp_alt) * 100
 identical(imp_alt, imp_diy)
 ```
 
-Note to self: Because in rpart cp is 0.01, by default, the trees do not need to split at all.
-In fact, 81 of the 1000 stumps decided not to, which is why `next` exists.
-Note to self: cp and pruning maybe as box?
+Deeper trees can split on several variables. Then each tree's voting weight is shared among the variables it used, in proportion to how much each variable's splits improved the fit; this is a weighted version of the mean decrease in impurity. The code changes in one line: `share <- ada_deep[[t]]$a * vi / sum(vi)`.
 
-Outlook? If we grow deeper trees they can split more than once, and the weight is shared between those variables. Specifically, the weight is shared in proportion to how much each split improved the overall fit. The difference comes down to a one-line difference:
-
-version with rpart helper function, general case
 ```{r importance-general}
 # Fit the weak learner: a depth-4 tree, not a stump
 ctree <- rpart::rpart(
@@ -918,8 +914,6 @@ ctree <- rpart::rpart(
 # Note: the boosting hyperparameters are all that is left here
 ada_deep <- adaboost(ctree, n_iter = 10, eta = 1)
 
-n_preds <- length(pred_nms)
-voz <- numeric(n_preds)
 imp_deep <- setNames(voz, pred_nms)
 for (t in seq_along(ada_deep)) {
   vi <- ada_deep[[t]][["h"]][["variable.importance"]]
@@ -935,10 +929,7 @@ imp_deep <- 100 * imp_deep / sum(imp_deep)
 sort(imp_deep, decreasing = TRUE)
 ```
 
-If we only have a stump, then `vi` holds a single number, so `vi / sum(vi)` is always 1. So we can the general version also for stumps.
-
-In adaboost's gauge we mainly use the `rpart` helper function `variable.importance`. 
-That is what `gauge()` does, so the two agree. 
+For a stump, `vi` holds a single number, so `vi / sum(vi)` is 1, and the general version gives the same scores as the stump version. The package function `gauge()` implements this general version, so for our stumps it agrees with the loops above.
 
 ```{r}
 #| label: importance
@@ -951,7 +942,7 @@ imp <- setNames(important$importance, important$variable)
 identical(imp, imp_diy[names(imp)])
 ```
 
-We also provide a quick and easy way to visualize the results.
+`plot()` draws the scores as a bar chart.
 
 ```{r}
 #| label: importance-plot
@@ -959,18 +950,7 @@ We also provide a quick and easy way to visualize the results.
 important |> plot(top_n = 15)
 ```
 
-**Important note** The provided scores are relative (to eachother), so we believe it is more accurate to say, that they describe how the ensemble divided its attention rather than making a satement
-on the net wort of a variable. They are also not "signed", so a variable may rand  
-
-attention rather than what any one variable is worth on its own. They carry no
-sign: a variable can rank highly because high values predict replication success
-or because they predict failure, and this does not distinguish the two.
-Correlated predictors split their share instead of each showing the full effect.
-And the ranking belongs to *this* fit on *this* training data -- it moves with
-the hyperparameters, since deeper trees spread weight over more variables by
-construction.
-
-For more see Molnar & Pargent.
+**Important note.** Read these scores with care. They are relative: they describe how the ensemble divided its attention, not what any one variable is worth on its own. They carry no sign: a variable can rank high because high values predict replication success or because they predict failure, and the scores do not tell these apart. Correlated predictors share their weight instead of each showing its full effect. And the ranking belongs to this fit on this training data: it changes with the hyperparameters, since deeper trees spread their weight over more variables by construction.
 
 TODO: Can we bootstrap the importance scores to get a sense of their stability? Or havent we done that already with the LOGO-CV?
 
@@ -1430,91 +1410,80 @@ hgrid[order(-hgrid$auc.stable), ] |> round(2)
 **NEW**
 The mean tells us how well a setting can be expected to do on a new project; the spread tells us how much to trust that expectation. A setting with a high mean and a small spread is the safest bet.
 
-# NEW
+#### Listing [NEW]
 
-Listing 34 searches 18 settings and keep the result in columns named after the
-projects. The package ships the full search as `hypergrid`: 
-960 settings, each scored on all five projects under 15 different measures.
+Listing 34 searches 18 settings. The package ships a much larger search as `hypergrid`: 2,640 settings (depth 1 to 8, 15 learning rates, and T from 10 to 3,000), each scored by LOGO-CV on the six tuning projects under all 17 measures of `assess()`. HOLZ takes no part, so it stays untouched for the final test. `hypergrid` is a list with one table per measure. Each row is a setting and each project a column. Before summarizing, look at the projects one by one.
 
-`logo_cv()` returns that as an array rather than a table, because I think in 
-setting x project x metric. So you can easily slice it without a reshape.
-
-```{r hypergrid-array}
+```{r hypergrid-projects}
 data(hypergrid)
 
-# setting x project x metric
-dim(hypergrid$estimates)
-names(dimnames(hypergrid$estimates))
-
-# `grid` says what each setting is. `cp`, the base learners' complexity
-# parameter, is a column here like any other hyperparameter -- which is why 480
-# combinations become 960 settings.
-head(hypergrid$grid, 3)
-hypergrid$projects
+# One table per measure: a row per setting, a column per tuning project
+names(hypergrid)
+auc <- hypergrid$auroc
+proj_nms <- attr(hypergrid, "projects")$project
 ```
 
-One measure across every setting and project: 960 x 5 matrix, and the grid
-telly us which row is which:
+The projects differ far more than the settings do. Over all 2,640 settings, the median AUC is .93 on ML1 but .64 on ML3 and RPP, and RPP, the largest project with 90 studies, never gets above .69. The three settings show the trade-off a summary has to make. The stumps (Listing 34's winner) and the depth-2 trees reach .96 on ML1, while the depth-5 trees give up ML1 (.82) but do better on ML2 and SSRP, so their results vary less across projects. The stability rule of Listing 34 weighs exactly this: a high average against a small spread.
 
-```{r hypergrid-slice}
-au <- hypergrid$estimates[,, "auroc"]
-g <- hypergrid$grid
-
-# One setting, sorted across projects
-i <- which(g$depth == 1 & g$T == 1000 & g$eta == 0.15 & g$cp == 0.01)
-sort(au[i, ], decreasing = TRUE)
-
-# The best each project can be made to look, over the depth-1 stumps
-d1 <- g$depth == 1 & g$cp == 0.01
-apply(au[d1, ], 2, max)
-
-# Rank the settings by their average over the projects
-m <- rowMeans(au)
-cbind(g, mean = round(m, 3))[order(-m), ][1:5, ]
+```{r hypergrid-stable}
+# Stability as in Listing 34: mean minus SD across the projects
+proj_auc <- as.matrix(auc[proj_nms])
+auc$auc.mean <- rowMeans(proj_auc)
+auc$auc.sd <- apply(proj_auc, 1, sd)
+auc$auc.stable <- auc$auc.mean - auc$auc.sd
+# The worst project, which we use as a safeguard below
+auc$auc.min <- apply(proj_auc, 1, min)
 ```
 
-An `NA` here means "undefined" rather than "failed": `ppv` has no value when a model predicts no positives at all, which a ten-tree ensemble does on the smaller projects. 
+Stability is not the only thing we care about. HOLZ is a single new project, so we also want to know how badly a setting can do on one project. Only three settings are not beaten on both counts: no other setting has both a higher stability and a better worst project. The table puts them next to the best stump, the model this tutorial builds.
 
-::: {.callout-important}
-## The mean over projects ranks settings does not estimate performance
+```{r hypergrid-unbeaten}
+# All settings, the most stable first
+hypar_auc <- auc[order(-auc$auc.stable, -auc$auc.min), ]
 
-The last slice averages five folds that hold 10, 13, 18, 21 and 90 studies and
-share most of their training data, so it hides both the imbalance and the
-dependence. TODO
-:::
+# (a) depth 1, the stumps of this tutorial: the most stable stump setting
+best_d1 <- hypar_auc[hypar_auc$depth == 1, ][1, ]
 
-## Selecting versus Evaluating
+# (b) the unbeaten settings: down the list sorted by stability, keep a setting
+# only if its worst project beats every setting above it
+unbeaten <- hypar_auc[
+  hypar_auc$auc.min > cummax(c(-Inf, head(hypar_auc$auc.min, -1))),
+]
 
-Listing 34 scores every setting in the hypergrid on the six tuning projects, and we took the row with the most stable performance. I think that this number is not an estimate of how the chosen model will do on a new project, because the same six projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
+# Settings in rows; the projects, then the summaries, side by side
+cols <- c(
+  "depth",
+  "T",
+  "eta",
+  proj_nms,
+  "auc.mean",
+  "auc.sd",
+  "auc.stable",
+  "auc.min"
+)
+rbind(best_d1, unbeaten)[cols] |> print(digits = 3, row.names = FALSE)
+```
 
-::: {.callout-tip}
-## The depth belongs to the tree, not to the boosting
+```{r hypergrid-safeguard}
+# Safeguard against the worst project: the best worst case, ties by stability
+best <- auc[order(-auc$auc.min, -auc$auc.stable), ][1, ]
+best[c("depth", "T", "eta", "auc.stable", "auc.min")]
+```
 
-`adaboost()` takes a fitted learner, so there is only one place to set depth:
-the `rpart()` call that builds it. Everything in `h$control` is carried into
-every round -- `maxdepth`, `cp`, `minsplit`, `minbucket` -- so the tree you
-looked at is the tree that gets boosted.
+If we safeguard against the worst project, we pick the setting whose weakest project is strongest and break ties by stability: depth 2, T = 2000, eta = .02. It boosts a weak learner, as AdaBoost intends, and on this criterion it sits on a plateau: from T = 800 to 2500, its worst project stays between .66 and .68. All three would have been a good choice, though: they differ by less than .02 on either measure, well within the noise of six projects. 
 
-Two controls are overridden, and only those two. `xval` and `maxsurrogate` are
-forced to zero: ten internal cross-validations per weak learner that nothing
-reads cost about thirty per cent of the runtime, and neither setting changes
-the tree that comes out. Everything you chose, you keep.
-
-This is why AdaBoost has no `maxdepth` argument. The algorithm is defined over
-*any* weak learner whose weighted error stays below one half; a tree is one
-choice among many, and its settings are yours rather than the algorithm's.
-:::
+**NOTE**: An `NA` here means "undefined" rather than "failed": precision among the top five (`patk_5`) has no value for ML3, which has only three successful replications.
 
 ## Finalizing an Ensemble
 
 #### Listing 35
 
-Code to refit the most stable setting on the six tuning projects and test it
-on HOLZ.
+Code to refit the safeguard setting of the hypergrid on the six tuning projects
+and test it on HOLZ.
 
 ```{r listing-35}
-# The most stable setting of the grid search (Listing 34)
-best <- hgrid[which.max(hgrid$auc.stable), ]
+# The safeguard setting from the hypergrid: depth 2, T 2000, eta .02
+best[c("depth", "T", "eta")]
 
 # Refit it on all six tuning projects
 h_final <- rpart::rpart(
@@ -1523,20 +1492,7 @@ h_final <- rpart::rpart(
   maxdepth = best$depth,
   model = TRUE
 )
-fit_final <- adaboost(h_final, n_iter = 200, eta = 0.5)
-
-# DON'T RUN: Holz is tabu before deciding
-# TODO: Run a bigger grid since 2000 seems best on logocv
-h_final <- rpart::rpart(
-  replicate ~ .,
-  data = df_noholz[, voi_nms],
-  maxdepth = 2,
-  # maxdepth = 2,
-  model = TRUE
-)
-# fit_final <- adaboost(h_final, n_iter = 200, eta = 0.5)
-# better perfprmance on logocv, but depth tree is not discussed in the tutorial.
-# fit_final <- adaboost(h_final, n_iter = 2000, eta = 0.02)
+fit_final <- adaboost(h_final, n_iter = best$T, eta = best$eta)
 
 # The final test: score it once on HOLZ, on the margin so the AUC sees the
 # ranking
@@ -1564,19 +1520,50 @@ fit_tree <- rpart::rpart(
   maxdepth = 5
 )
 
+# Default random forests on the same predictors
+set.seed(112)
+fit_rf <- randomForest::randomForest(
+  replicate ~ .,
+  data = df_noholz[, voi_nms]
+) # mtry=2, nodesize=1
+
 # Score each baseline once on HOLZ, on its probability of success rather than
 # the class, so the AUC sees the ranking
 y_logit <- predict(fit_logit, newdata = df_holz, type = "response")
 y_tree <- predict(fit_tree, df_holz[, pred_nms], type = "prob")[, "success"]
+y_rf <- predict(fit_rf, df_holz[, pred_nms], type = "prob")[, "success"]
 
 # All models on the same 26 HOLZ studies; AdaBoost's score is from Listing 35
 c(
   adaboost = auroc(df_holz$replicate, y_ada),
   logit = auroc(df_holz$replicate, y_logit),
-  tree = auroc(df_holz$replicate, y_tree)
-)
+  tree4 = auroc(df_holz$replicate, y_tree),
+  rf = auroc(df_holz$replicate, y_rf)
+) |>
+  round(3)
 ```
 
+## Selecting versus Evaluating
+
+Listing 34 scores every setting in the hypergrid on the six tuning projects, and we took the row with the most stable performance. I think that this number is not an estimate of how the chosen model will do on a new project, because the same six projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
+
+::: {.callout-tip}
+## The depth belongs to the tree, not to the boosting
+
+`adaboost()` takes a fitted learner, so there is only one place to set depth:
+the `rpart()` call that builds it. Everything in `h$control` is carried into
+every round -- `maxdepth`, `cp`, `minsplit`, `minbucket` -- so the tree you
+looked at is the tree that gets boosted.
+
+Two controls are overridden, and only those two. `xval` and `maxsurrogate` are
+forced to zero: ten internal cross-validations per weak learner that nothing
+reads cost about thirty per cent of the runtime, and neither setting changes
+the tree that comes out. Everything you chose, you keep.
+
+This is why AdaBoost has no `maxdepth` argument. The algorithm is defined over
+*any* weak learner whose weighted error stays below one half; a tree is one
+choice among many, and its settings are yours rather than the algorithm's.
+:::
 
 
 
