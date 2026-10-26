@@ -70,9 +70,9 @@ from a literature.
 \section{License}{
 
 The rows from Altmejd et al.'s database (Many Labs 1 and 3, the Replication
-Project Psychology and the Experimental Economics Replication Project) are
-shared with the permission of A. Altmejd (personal communication). The
-database is available from \url{https://osf.io/4fn73/}
+Project Psychology and the Experimental Economics Replication Project) may
+be shared under PLOS ONE's data policy, as A. Altmejd confirmed (personal
+communication). The database is available from \url{https://osf.io/4fn73/}
 (\url{https://doi.org/10.17605/OSF.IO/4FN73}). Of the projects behind it, the
 Replication Project Psychology and Many Labs 1 are licensed CC0 1.0 and
 Many Labs 3 is licensed CC BY 4.0. The other three projects carry their own
