@@ -243,8 +243,7 @@ The code has changed. It is not identical to what is in the tutorial. Need to re
 
 #### Listing 9
 
-Code to do a 70/30 random and stratified split, with the pre-implemented
-function of the adatutor package.
+Code to do a 70/30 random and stratified split, with the pre-implemented function of the adatutor package.
 
 ```{r listing-9}
 # Simple random split (two way)
@@ -319,7 +318,6 @@ Code to restore the stratified split from the package.
 
 ```{r restore-split}
 # Load the data
-data(altmejd_splits)
 data(altmext_splits)
 
 # The split every later module is written against
@@ -672,8 +670,7 @@ epsilon <- 1 - perf
 
 #### Listing 22
 
-Code to calculate the classification stump's weight assuming a learning rate
-eta of 1.
+Code to calculate the classification stump's weight assuming a learning rate eta of 1.
 
 ```{r listing-22}
 # Learning rate
@@ -746,12 +743,6 @@ Visualization of the result of the weight updating process after Iteration 1 for
 tutplot_weightone(d1 = D1, d2 = D2, chi = chi1)
 ```
 
-Passing your own `D1`, `D2` and `chi1` is what ties this figure to the listings
-above: change the learner or the weights and the picture follows. `chi1` is not
-optional here, because the weights alone cannot say which points were missed --
-a round grows the misclassified ones only while the stump beats chance. The call
-returns those weights and the missed points invisibly, so assigning it gives you
-the numbers as well as the plot.
 
 #### Listing 24
 
