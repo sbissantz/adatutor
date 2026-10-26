@@ -41,6 +41,12 @@ groups rather than 366 participants for ssrp.1); seven studies differ.
 project.
 }
 }
+\section{License}{
+
+The SSRP's data are licensed CC0 1.0
+(\url{https://creativecommons.org/publicdomain/zero/1.0/}).
+}
+
 \seealso{
 Other datasets:
 \code{\link{altmejd}},

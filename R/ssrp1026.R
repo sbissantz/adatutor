@@ -28,6 +28,10 @@
 #'   downloaded in October 2026; the `ssrp.X` ids from Altmejd et al.'s
 #'   codebook (<https://osf.io/7ad56/>).
 #'
+#' @section License:
+#' The SSRP's data are licensed CC0 1.0
+#' (<https://creativecommons.org/publicdomain/zero/1.0/>).
+#'
 #' @family datasets
 #'
 "ssrp1026"

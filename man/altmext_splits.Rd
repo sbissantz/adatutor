@@ -21,6 +21,11 @@ The split is stratified on \code{replicate}, so each set stays close to the
 whole data's share of successes (.475): .475, .467 and .484. It is not
 stratified on \code{pid}, so the project mix varies between the sets.
 }
+\section{License}{
+
+The same as \link{altmext}.
+}
+
 \seealso{
 \code{\link[=partition]{partition()}} to make your own split.
 

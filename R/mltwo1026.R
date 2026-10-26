@@ -34,6 +34,10 @@
 #'   `ML2_OriginalEffects.csv` and `ML2_KeyTable.csv`, downloaded in October
 #'   2026.
 #'
+#' @section License:
+#' Many Labs 2's data are licensed CC0 1.0
+#' (<https://creativecommons.org/publicdomain/zero/1.0/>).
+#'
 #' @family datasets
 #'
 "mltwo1026"

@@ -53,6 +53,17 @@
 #'   data were downloaded in October 2026; each project's snapshot is in
 #'   `inst/extdata` and built by `data-raw/`.
 #'
+#' @section License:
+#' The rows from Altmejd et al.'s database (Many Labs 1 and 3, the Replication
+#' Project Psychology and the Experimental Economics Replication Project) are
+#' shared with the permission of A. Altmejd (personal communication). The
+#' database is available from <https://osf.io/4fn73/>
+#' (<https://doi.org/10.17605/OSF.IO/4FN73>). Of the projects behind it, the
+#' Replication Project Psychology and Many Labs 1 are licensed CC0 1.0 and
+#' Many Labs 3 is licensed CC BY 4.0. The other three projects carry their own
+#' licenses: [ssrp1026] (CC0 1.0), [holz1026] (CC BY 4.0) and [mltwo1026]
+#' (CC0 1.0).
+#'
 #' @family datasets
 #'
 "altmext"

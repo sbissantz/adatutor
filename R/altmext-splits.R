@@ -14,6 +14,9 @@
 #' @format A list of three data frames with the columns of [altmext]: `train`
 #'   (141 rows), `valid` (30 rows) and `test` (31 rows).
 #'
+#' @section License:
+#' The same as [altmext].
+#'
 #' @family datasets
 #' @seealso [partition()] to make your own split.
 #'

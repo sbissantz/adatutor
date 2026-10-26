@@ -47,6 +47,12 @@ Left out: Norenzayan et al. (no original n or p), Inbar et al. and Schwarz
 et al. (tests of a difference between two correlations, no original r),
 and Savani et al. (the coded original found no difference, p = .70).
 }
+\section{License}{
+
+Many Labs 2's data are licensed CC0 1.0
+(\url{https://creativecommons.org/publicdomain/zero/1.0/}).
+}
+
 \seealso{
 Other datasets:
 \code{\link{altmejd}},

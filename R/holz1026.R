@@ -26,6 +26,14 @@
 #'   Data: <https://osf.io/sk82q/>, file `data/proc/data_to_use.csv`,
 #'   downloaded in October 2026.
 #'
+#' @section License:
+#' Holzmeister et al.'s data are licensed CC BY 4.0
+#' (<https://creativecommons.org/licenses/by/4.0/>). This data set changes
+#' them: it keeps the 26 replicated studies, converts the original's Cohen's d
+#' to r, recomputes p from the original's test statistic and adds the
+#' original study's power. The published file is in
+#' `inst/extdata/holz1026.csv` as downloaded.
+#'
 #' @family datasets
 #'
 "holz1026"
