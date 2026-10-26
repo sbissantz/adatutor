@@ -35,7 +35,6 @@ Code to load the dataset.
 
 ```{r listing-2}
 # Load data
-data(altmejd)
 data(altmext)
 ```
 
@@ -53,8 +52,7 @@ out_nme <- "replicate"
 # Variables of interest
 voi_nms <- c(pred_nms, out_nme)
 
-# Shorten 'altmejd'
-df <- altmejd
+# Shorten 'altmext'
 df <- altmext
 ```
 
@@ -133,7 +131,7 @@ test <- df[!train_ind & !valid_ind, ]
 The code has changed. It is not identical to what is in the tutorial. Need to rewrite the section.
 :::
 
-**Side note**: Every count comes from `n_fx`, so `0.15` means fifteen percent of 152 effects. Splitting in two independent steps (as we did earlier) would make the second proportion relative to what remains, and fifteen percent of the whole would then have to be written `0.15 / (1 - 0.70) = 0.5`.
+**Side note**: Every count comes from `n_fx`, so `0.15` means fifteen percent of 202 effects. Splitting in two independent steps (as we did earlier) would make the second proportion relative to what remains, and fifteen percent of the whole would then have to be written `0.15 / (1 - 0.70) = 0.5`.
 
 #### Listing 6
 
@@ -260,7 +258,7 @@ mapply(identical, strat_diy, strat_split)
 
 We recommend the adatutor's partition() function for the explorations and exercises in the tutorial. It validates inputs and is overall more robust than the DIY code above. For instance,
 
-`altmejd` the listings and the function agree, but not everywhere:
+On `altmext`, the listings and the function agree, but not everywhere:
 `sample(x, k)` reads a length-one `x` as `1:x`, so a stratum or a remainder
 holding a single row silently draws a value that is not in the data -- with a
 four-member stratum, on more than half of all seeds. `partition()` samples
@@ -322,11 +320,8 @@ data(altmext_splits)
 
 # The split every later module is written against
 train <- altmext_splits$train
-# train <- altmejd_splits$train
 valid <- altmext_splits$valid
-# valid <- altmejd_splits$valid
 test <- altmext_splits$test
-# test <- altmejd_splits$test
 ```
 
 ::: {.callout-important title="Restore the split before going on"}
@@ -347,18 +342,18 @@ power conditions.
 
 ```{r listing-11}
 # Condition for the split
-split_cond <- train$power.o < 0.9305
+split_cond <- train$power.o < 0.927
 
-# Studies with power.o < 0.9305
+# Studies with power.o < 0.927
 table(train$replicate[split_cond])
 
-# Studies with power.o >= 0.9305
+# Studies with power.o >= 0.927
 table(train$replicate[!split_cond])
 ```
 
 #### Figure 2
 
-Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.9305. The left leaf node contains about 62% of the training data and the right leaf node contains about 38%. The label in each node ("success", "failure") represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.9305 will fail replication. According to the training data, 49 of the 66 study effects with a power of less than 0.9305 actually failed replication.
+Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.927. The left leaf node contains about 63% of the training data and the right leaf node contains about 37%. The label in each node ("success", "failure") represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.927 will fail replication. According to the training data, 62 of the 89 study effects with a power of less than 0.927 actually failed replication.
 
 ```{r figure-2}
 # Fit classification stump
@@ -396,7 +391,7 @@ cstump <- rpart::rpart(
 
 #### Listing 13
 
-Code to visualize a fitted classification stump. `cstump` is the model behind Figure 2: the same two reviewer metrics, splitting on `power.o` at 0.9305 into leaves of 66 and 41. It is `cstump_int` with the arguments spelled out, so this listing reproduces that figure. The four-metric stump -- which splits on `p_value.o` at 0.0006 into leaves of 72 and 35 -- is `cstump_fit`, fitted in Listing 24.
+Code to visualize a fitted classification stump. `cstump` is the model behind Figure 2: the same two reviewer metrics, splitting on `power.o` at 0.927 into leaves of 89 and 52. It is `cstump_int` with the arguments spelled out, so this listing reproduces that figure. The four-metric stump -- which splits on `p_value.o` at 0.0007 into leaves of 90 and 51 -- is `cstump_fit`, fitted in Listing 24.
 
 ```{r listing-13}
 # Color-blind pallette
@@ -414,7 +409,7 @@ cstump |>
 
 #### Figure 3
 
-Visualization of the decision boundary of a classification stump. The predictor variable on the x-axis is the power of the original study effect. The predictor variable on the y-axis is the number of observations. So the y-axis does not display the outcome variable, but another study characteristic. However, since classification stumps are classification trees of depth one, only one study characteristic (i.e., power in this case) is used as a predictor to separate successfully replicated study effects from failed ones. The decision boundary is set at a power value of 0.9305 (vertical line). The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+Visualization of the decision boundary of a classification stump. The predictor variable on the x-axis is the power of the original study effect. The predictor variable on the y-axis is the number of observations. So the y-axis does not display the outcome variable, but another study characteristic. However, since classification stumps are classification trees of depth one, only one study characteristic (i.e., power in this case) is used as a predictor to separate successfully replicated study effects from failed ones. The decision boundary is set at a power value of 0.927 (vertical line). The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
 
 ```{r figure-3}
 # Visualize
@@ -448,35 +443,35 @@ power_srt <- sort(train$power.o)
 # Adjacent means
 adjmeans <- (power_srt[-1] + power_srt[-length(power_srt)]) / 2
 
-# Find position of value '0.9305'
-which(round(adjmeans, 4) == 0.9305)
+# Find position of value '0.927'
+which(round(adjmeans, 4) == 0.927)
 
 # Additional
 
-adj_pat <- which(round(adjmeans, 4) == 0.9305)
+adj_pat <- which(round(adjmeans, 4) == 0.927)
 const <- adjmeans[adj_pat]
-N_total <- nrow(train) # 107
+N_total <- nrow(train) # 141
 criterion_left <- train$power.o < const
-N_left <- length(train$replicate[criterion_left]) # 66 total
-left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) # 17
-left_failure <- N_left - left_success # 49 failures
+N_left <- length(train$replicate[criterion_left]) # 89 total
+left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) # 27
+left_failure <- N_left - left_success # 62 failures
 
 # Gini impuritiy (left)
 gini_left <- 1 - ((left_failure / N_left)^2 + (left_success / N_left)^2)
-gini_left # 0.382
+gini_left # 0.423
 criterion_right <- train$power.o >= const
-N_right <- length(train$replicate[criterion_right]) # 41
-right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) # 31
-right_failure <- N_right - right_success # 10
+N_right <- length(train$replicate[criterion_right]) # 52
+right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) # 40
+right_failure <- N_right - right_success # 12
 
 # Gini impuritiy (right)
 gini_right <- 1 - ((right_failure / N_right)^2 + (right_success / N_right)^2)
-gini_right # 0.3688281
+gini_right # 0.3550296
 # Overall weighted Gini impurity
 gini_impurity <- (N_left / N_total) *
   gini_left +
   (N_right / N_total) * gini_right
-round(gini_impurity, digits = 5) # 0.37724
+round(gini_impurity, digits = 5) # 0.39773
 # Sorted values
 power_srt <- sort(train$power.o)
 adjmeans <- (power_srt[-1] + power_srt[-length(power_srt)]) / 2
@@ -556,7 +551,7 @@ weights from a uniform distribution.
 Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the `extra` argument of the `rpart.plot()` function with a value set to `100`.
 
 :::{ .callout-note}
-The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.927)
+The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.9206, against 0.927 with equal weights)
 :::
 
 ```{r listing-16}
@@ -735,7 +730,7 @@ tutplot_updatefactor(
 
 #### Figure 8
 
-Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the `altmejd` dataset. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
+Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the `altmext` training set. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
 
 ```{r figure-8}
 # Visualize
