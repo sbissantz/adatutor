@@ -44,7 +44,6 @@ Other datasets:
 \code{\link{altmext_splits}},
 \code{\link{holz1026}},
 \code{\link{hypergrid}},
-\code{\link{hypernested}},
 \code{\link{mltwo1026}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}

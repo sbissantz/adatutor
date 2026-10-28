@@ -44,8 +44,7 @@ not change the tree. The splitting rule is kept too.
 
 \code{cp} is whatever \code{h} was fitted with: 0.01 for a plain \code{rpart()} call. The
 textbook advice is unpruned trees, \code{cp = 0} (Hastie, Tibshirani & Friedman,
-2009). On these data that makes no difference for stumps, and \code{cp = 0} does
-slightly worse at depth 4 (see \link{hypergrid}).
+2009).
 }
 
 \section{What is refused}{
