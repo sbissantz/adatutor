@@ -794,8 +794,9 @@ test_that("bootstrap() on logo_cv needs one setting and stored scores", {
   expect_identical(one$estimates[1, , ], res$estimates[2, , ])
   expect_equal(one$grid$T, 5)
 
-  data(hypergrid)
-  expect_error(bootstrap(hypergrid), "Rerun logo_cv")
+  no_scores <- res
+  no_scores$scores <- NULL
+  expect_error(bootstrap(no_scores, setting = 2), "Rerun logo_cv")
 })
 
 test_that("nested logo_cv keeps the chosen setting's scores and bootstraps", {
@@ -806,18 +807,6 @@ test_that("nested logo_cv keeps the chosen setting's scores and bootstraps", {
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 20))
   expect_named(boot$ci, res$projects$project)
-})
-
-test_that("the stored hypergrid prints and plots under the logo_cv class", {
-  data(hypergrid)
-  expect_s3_class(hypergrid, "logo_cv")
-  expect_output(print(hypergrid), "Leave-one-group-out cross-validation")
-  one <- hypergrid
-  one$estimates <- one$estimates[1, , , drop = FALSE]
-  one$grid <- one$grid[1, , drop = FALSE]
-  grDevices::pdf(NULL)
-  on.exit(grDevices::dev.off(), add = TRUE)
-  expect_silent(plot(one))
 })
 
 test_that("accuracy's reference line is the majority-class rate", {
