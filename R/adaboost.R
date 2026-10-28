@@ -12,8 +12,7 @@
 #'
 #' `cp` is whatever `h` was fitted with: 0.01 for a plain `rpart()` call. The
 #' textbook advice is unpruned trees, `cp = 0` (Hastie, Tibshirani & Friedman,
-#' 2009). On these data that makes no difference for stumps, and `cp = 0` does
-#' slightly worse at depth 4 (see [hypergrid]).
+#' 2009).
 #'
 #' @section What is refused:
 #' `adaboost()` stops with an error rather than boost a different model than
