@@ -3,56 +3,53 @@
 \docType{data}
 \name{hypergrid}
 \alias{hypergrid}
-\title{AdaBoost grid search by leave-one-group-out cross-validation}
+\title{AdaBoost hyperparameter grid by leave-one-group-out cross-validation}
 \format{
-An object of class \code{logo_cv} (see \code{\link[=logo_cv]{logo_cv()}}):
+A list of 17 data frames, one per measure of \code{\link[=assess]{assess()}}, from \code{tp}
+to \code{patk}. Each has one row per setting, 2,640 in all, and these columns:
 \itemize{
-\item \code{estimates}: An array of 960 settings x 5 projects x 15 measures. \code{NA}
-marks an undefined measure, such as \code{ppv} when a model predicts no
-positives. \code{auroc} is never \code{NA}.
-\item \code{grid}: The 960 settings: \code{depth} 1 to 4, \code{T} 10 to 1000, \code{eta} 0.02 to
-1, and \code{cp} 0 or 0.01.
-\item \code{projects}: Each project's \code{n} and \code{base_rate}.
-\item \code{model}: Always \code{"adaboost"}.
+\item \code{depth}: The depth of the tree that is boosted, 1 to 8.
+\item \code{T}: The number of boosting rounds, 10 to 3,000.
+\item \code{eta}: The learning rate, 0.0025 to 1.
+\item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The measure on that project,
+held out.
 }
 }
 \description{
-Every setting of a 480-row AdaBoost grid, scored on every replication
-project by leave-one-group-out cross-validation (the projects are the
-groups), under two values of the tree complexity parameter \code{cp}. Made by \code{data-raw/hypergrid.R}.
+Every setting of an AdaBoost grid, scored by leave-one-group-out
+cross-validation on the six tuning projects of \link{altmext}: each project is
+held out in turn and scored by the model trained on the other five. HOLZ,
+the newest project, takes no part; the tutorial keeps it for the final
+test. Made by \code{data-raw/hypergrid.R}.
 }
 \details{
-The search is plain, not nested: the best average is chosen and graded on
-the same five projects, which is optimistic on a grid this size. Quote
-\link{hypernested} instead. The mean over projects is fine for ranking settings,
-but it is not a performance estimate (see \code{\link[=logo_cv]{logo_cv()}}).
+The scores are project-level only, with no means and no rankings: which
+summary to use is your choice (see the examples).
 
-Paired over the settings, \code{cp = 0} trails \code{cp = 0.01} by .0044 in mean
-AUROC (95 percent CI .0021 to .0067). The whole gap is at depth 4 (-.0152,
-95 percent CI -.0214 to -.0090). At depth 1 there is no difference
-(+.0001, 95 percent CI -.0012 to .0014).
+\code{attr(hypergrid, "projects")} gives each project's \code{n} and \code{base_rate}.
+
+The trees are \code{rpart()} trees with its defaults apart from \code{maxdepth}, so
+\code{cp = 0.01} and \code{minbucket = 7}.
+
+\code{patk_5} is \code{NA} for ML3: it has only three successes, so precision among
+the top five is undefined.
 }
 \examples{
 data(hypergrid)
+auc <- hypergrid$auroc
+projects <- attr(hypergrid, "projects")$project
 
-# one measure across every setting and project: a 960 x 5 matrix
-au <- hypergrid$estimates[, , "auroc"]
-dim(au)
+# one setting, project by project
+auc[auc$depth == 1 & auc$T == 1000 & auc$eta == 0.1, ]
 
-# `grid` says what each row of that matrix is
-g <- hypergrid$grid
-head(cbind(g, round(au, 3)), 3)
+# a summary of your choice: mean minus SD across the projects
+x <- as.matrix(auc[projects])
+auc$stable <- rowMeans(x) - apply(x, 1, sd)
+head(auc[order(-auc$stable), ], 3)
 
-# one setting, sorted across projects
-i <- which(g$depth == 1 & g$T == 1000 & g$eta == 0.15 & g$cp == 0.01)
-sort(au[i, ], decreasing = TRUE)
-
-# the mean over projects ranks settings; it does not estimate performance
-m <- rowMeans(au)
-g[which.max(m), ]
-
-# the whole long table, one row per estimate
-str(as.data.frame(hypergrid))
+# or the worst project, ties broken by stability
+auc$worst <- apply(x, 1, min)
+head(auc[order(-auc$worst, -auc$stable), ], 3)
 
 }
 \seealso{
@@ -63,7 +60,6 @@ Other datasets:
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
 \code{\link{holz1026}},
-\code{\link{hypernested}},
 \code{\link{mltwo1026}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
