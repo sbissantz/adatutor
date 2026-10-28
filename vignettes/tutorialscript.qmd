@@ -821,19 +821,9 @@ identical(sapply(ada_diy, "[[", "a"), sapply(ada_fit, "[[", "a"))
 
 ## NEW: Feature Importance
 
-In the introduction, we punchily stated the goal of turning AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts and rebuilding it ourselves. 
+In the introduction, we punchily stated that our goal is to turn AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts, and rebuilding it ourselves. Now we go one step further and use this knowledge to look inside the fitted model: which predictors does the ensemble focus on as it learns? This is the question of feature importance, part of the wider field of interpretable machine learning. Because this tutorial is about AdaBoost, we only scratch the surface, with a model-specific measure for boosted trees. Model-agnostic methods, such as permutation importance and effect plots, work with any model and go much further [see, e.g., @molnar2025; @pargent2023].
 
-Now, we want to add a la that this knowledge allows us to construct a tool that allows us to inspect the machinery and interpret what is going on under the hood. More specifically, we can built an  
-
-a glass box should also let us see what the fitted model has learned, for example which predictors it relies on most.
-
-Variable importance measures answer this question. For tree ensembles, they usually either count how often a variable is used to split (split frequency) or add up how much its splits improve the fit (gain). In this side quest, we show that what we already know about AdaBoost is enough to build such a measure ourselves: a split frequency in which each stump counts with its voting weight. It shows where the ensemble directs most of its attention. Methods that work with any model, such as permutation importance and effect plots, are model-agnostic, more elaborate, but beyond the scope of this tutorial; see @pargent2023 and @molnar2025.
-
-this is a minimum viable solution/product.
-
-From Module 2, we know that a stump splits once, on one variable, or not at all (see below). From Module 3, we know that each stump carries a voting weight `a`, which is larger the more accurate the stump is on the weighted data. The importance score groups the stumps by the variable they split on and sums their voting weights. Why does this make sense? AdaBoost shifts weight toward the observations the ensemble so far gets wrong or only barely right, so each new stump works on the ensemble's biggest mistakes. A variable that is chosen often, and by stumps with high voting weights, is one the ensemble relied on again and again to correct those mistakes. The summed weight thus shows how much the ensemble relied on each variable, not what a variable is worth on its own (see the caveats below).
-
-In a nutshell, we add up the voting weights of the stumps that chose each variable. The loop below starts from a named vector of zeros, one entry per predictor, and adds each stump's weight to the entry of its variable (`imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a`). For a stump, the variable can be read directly off `frame`, the tree's table of nodes: its first row is the root, so `frame$var[1]` is the variable the stump splits on. If the stump does not split, `rpart` writes `<leaf>` there, and `next` skips it. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages.
+For tree ensembles, importance measures usually either count how often a predictor is used to split (split frequency) or add up how much its splits improve the retrodictive performance or fit (gain). What we already know about AdaBoost is enough to build such a measure ourselves: a split frequency weighted by each stump's model weight. The measure is relative: it gives each predictor's percent share of the model weight of all stumps that split, so the scores add up to 100. Two things we already know make this work. In Module 2, we saw that a stump splits once, on one predictor, or not at all (see below). In Module 3, we saw that each stump carries a model weight `a`, which grows with the stump's accuracy on the weighted data. To get the importance score, we group the stumps by the predictor they split on and sum their model weights. Why does this make sense? AdaBoost shifts weight toward the observations the ensemble still gets wrong (or barely right), so each new stump works on the ensemble's biggest mistakes. A predictor that many stumps choose, especially stumps with high model weights, is one the ensemble relies on again and again to correct its mistakes, making it a key player in the ensemble's decision-making process. The summed weight thus shows how much the ensemble relies on a particular predictor relative to the others. Listing xxx puts this into code, and Figure xxx visualizes the result.
 
 ```{r importance-frame}
 n_preds <- length(pred_nms)
@@ -855,11 +845,14 @@ imp_diy <- imp_diy / sum(imp_diy) * 100
 sort(imp_diy, decreasing = TRUE)
 ```
 
+The loop below starts from a named vector of zeros, one entry per predictor, and adds each stump's weight to the entry of its variable (`imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a`). For a stump, the variable can be read directly off `frame`, the tree's table of nodes: its first row is the root, so `frame$var[1]` is the variable the stump splits on. If the stump does not split, `rpart` writes `<leaf>` there, and `next` skips it. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages.
+
+
 Why would a stump not split? By default, `rpart` only makes a split that improves the fit by at least the complexity parameter, `cp = 0.01`, that is, 1 percent of the error at the root. With our training data, 97 of the 1,000 stumps found no such split.
 
 Note to self: cp and pruning maybe as box?
 
-`rpart` also stores what we need. Its `variable.importance` holds, for each variable, how much its splits improved the tree's fit, and it is `NULL` for a tree without a split. A stump has a single entry there, so its whole voting weight goes to that variable, and the result is identical.
+`rpart` also stores what we need. Its `variable.importance` holds, for each variable, how much its splits improved the tree's fit, and it is `NULL` for a tree without a split. A stump has a single entry there, so its whole model weight goes to that variable, and the result is identical.
 
 Note: Keep only loop not the full code.
 
@@ -884,7 +877,7 @@ imp_alt <- imp_alt / sum(imp_alt) * 100
 identical(imp_alt, imp_diy)
 ```
 
-Deeper trees can split on several variables. Then each tree's voting weight is shared among the variables it used, in proportion to how much each variable's splits improved the fit; this is a weighted version of the mean decrease in impurity. The code changes in one line: `share <- ada_deep[[t]]$a * vi / sum(vi)`.
+Deeper trees can split on several variables. Then each tree's model weight is shared among the variables it used, in proportion to how much each variable's splits improved the fit; this is a weighted version of the mean decrease in impurity. The code changes in one line: `share <- ada_deep[[t]]$a * vi / sum(vi)`.
 
 ```{r importance-general}
 # Fit the weak learner: a depth-4 tree, not a stump
