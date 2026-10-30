@@ -878,11 +878,9 @@ Errors are then far more obvious then with hidden partial matches often easier t
 
 **TODO** Put in module 2 as a box after saying stumps split (*at most*) once? and then refer to it back here?
 Box?
-Footnote: Why would a stump not split? By default, `rpart` only makes a split if it improves the fit by at least the complexity parameter, `cp = 0.01`, that is, 1 percent of the error at the root. With our training data, 97 of the 1,000 stumps found no such split, so we need to skip those cases when implementing it.
+Why would a stump not split? By default, `rpart` only makes a split if it improves the fit by at least the complexity parameter, `cp = 0.01`, that is, 1 percent of the error at the root. With our training data, 97 of the 1,000 stumps found no such split, so we need to skip those cases when implementing it.
 
-The package function `gauge()` computes the measure for trees of any depth (see box below) 
-we added a `plot()` function to the adadtutor package, so readers can easily visualize the result.
-**TODO**: Make plot function look better :D? 80's barplot.
+The `gauge()` function in the adatutor package computes the measure for trees of any depth (see box below) and we added a `plot()` function so readers can easily visualize the result.
 
 ```{r}
 #| label: importance
