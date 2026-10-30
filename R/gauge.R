@@ -18,7 +18,8 @@
 #'
 #' @return `gauge()` returns a data frame of class `gauge` with the columns
 #'   `variable` and `importance` (a percentage), sorted from most to least
-#'   important. `plot()` draws a bar chart and returns `NULL` invisibly.
+#'   important. `plot()` draws a lollipop chart, a line and a dot per
+#'   feature, and returns `NULL` invisibly.
 #'
 #' @family tutorial plots
 #'
@@ -109,34 +110,57 @@ plot.gauge <- function(x, top_n = 15, ...) {
   }
 
   # top_n features only, so the chart stays readable
-  n_bars <- min(top_n, nrow(x))
-  bars <- utils::head(x, n_bars)
+  n_shown <- min(top_n, nrow(x))
+  shown <- utils::head(x, n_shown)
 
-  # ascending, so the highest bar plots at the top
-  bars <- bars[order(bars$importance, decreasing = FALSE), ]
+  # ascending, so the most important feature plots at the top
+  shown <- shown[order(shown$importance, decreasing = FALSE), ]
+  rows <- seq_len(n_shown)
 
-  # size the palette by the bars drawn, so the gradient spans its full range;
-  # reversed, so the darkest color goes to the most important bar
-  colors <- rev(viridisLite::viridis(n_bars))
+  # size the palette by the features drawn, so the gradient spans its full
+  # range; reversed, so the darkest color goes to the most important one
+  colors <- rev(viridisLite::viridis(n_shown))
 
   # wide left margin for long variable names
   old_par <- graphics::par(mar = c(5, 10, 4, 2) + 0.1)
   on.exit(graphics::par(old_par), add = TRUE)
 
-  # headroom past the longest bar: pretty() ticks can stop well below it
-  xmax <- min(max(bars$importance) + 5, 100)
+  # headroom past the longest line: pretty() ticks can stop well below it
+  xmax <- min(max(shown$importance) + 5, 100)
 
-  graphics::barplot(
-    bars$importance,
-    names.arg = bars$variable,
-    horiz = TRUE,
-    las = 1, # horizontal labels
+  graphics::plot.new()
+  graphics::plot.window(
     xlim = c(0, xmax),
-    col = colors,
-    border = NA,
-    xlab = "Relative Importance (%)",
-    main = "Feature Importance"
+    ylim = c(0.5, n_shown + 0.5),
+    xaxs = "i"
   )
+
+  # faint grid at the ticks, drawn first so it stays behind the lollipops
+  graphics::abline(v = graphics::axTicks(1), col = "grey90", lwd = 0.8)
+
+  # one lollipop per feature: a line from zero and a dot at its share; xpd so
+  # a dot at 100 is not cut in half
+  graphics::segments(
+    0,
+    rows,
+    shown$importance,
+    rows,
+    col = colors,
+    lwd = 3,
+    lend = "butt"
+  )
+  graphics::points(
+    shown$importance,
+    rows,
+    pch = 19,
+    cex = 2.2,
+    col = colors,
+    xpd = NA
+  )
+
+  graphics::axis(1)
+  graphics::axis(2, at = rows, labels = shown$variable, las = 1, lwd = 0)
+  graphics::title(xlab = "Relative Importance (%)", main = "Feature Importance")
 
   invisible(NULL)
 }

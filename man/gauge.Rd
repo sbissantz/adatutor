@@ -21,7 +21,8 @@ gauge(fit)
 \value{
 \code{gauge()} returns a data frame of class \code{gauge} with the columns
 \code{variable} and \code{importance} (a percentage), sorted from most to least
-important. \code{plot()} draws a bar chart and returns \code{NULL} invisibly.
+important. \code{plot()} draws a lollipop chart, a line and a dot per
+feature, and returns \code{NULL} invisibly.
 }
 \description{
 Sums, for each predictor, the model weights of the trees that split on it,
