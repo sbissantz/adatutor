@@ -834,7 +834,7 @@ This is why AdaBoost has no `maxdepth` argument. The algorithm is defined over
 choice among many, and its settings are yours rather than the algorithm's.
 :::
 
-
+# Module 4: A Glimpse at Feature Importance
 
 #### Listing [NEW]?
 
@@ -928,7 +928,7 @@ sort(imp_deep, decreasing = TRUE)
 Why do stumps lose the gain? In the line above, a stump's `vi` holds one number, so `vi / sum(vi)` is always 1. The gain still decides which predictor a stump picks, but not how much weight that predictor gets. The `gauge()` function in the `adatutor` package runs the general version, which is why it matches the stump loops exactly.
 :::
 
-# NEW: Module Retrodictions and Pretrodictions
+# Module 5: Retrodictions and Predictions
 
 #### Listing 25
 
@@ -1077,7 +1077,7 @@ Code to evaluate the predictive performance of the ensemble.
 table(y_test, y_pred_cls) # Inperfect predictions
 ```
 
-# Module 4: Leave-One-Group-Out Cross-Validation and Hyperparameter Optimization
+# Module 6: Leave-One-Group-Out Cross-Validation and Hyperparameter Optimization
 
 ## Two Wrapper Functions [REMOVE]
 
@@ -1120,7 +1120,7 @@ area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
 AUC; keep `type = "class"` for the confusion matrix.
 :::
 
-## Evaluating Model Performance
+## Module 6: Evaluating Model Performance/Evaluating an Ensemble
 
 #### Listing 31
 
@@ -1245,7 +1245,7 @@ once per project, holding that project out. The plot shows each project's
 estimate and its spread, not a mean. The projects differ in size and share
 most of their training data, so an average would hide both.
 
-## Hyperparameter Optimization
+# Module 7: Hyperparameter Optimization
 
 **TODO** Add section: the depth is a tree-hyperparameter here?
 
@@ -1275,7 +1275,8 @@ hgrid$auc.stable <- NA_real_
 hgrid$runtime <- NA_real_
 ```
 
-#### Optional: Random Search
+# Optional: Random Search
+**TODO** where to place it?
 
 Instead of trying every setting, a random search tries a few, drawn at random.
 It needs one step after Listing 33:
@@ -1450,7 +1451,7 @@ If we safeguard against the worst project, we pick the setting whose weakest pro
 
 **NOTE**: An `NA` here means "undefined" rather than "failed": precision among the top five (`patk_5`) has no value for ML3, which has only three successful replications.
 
-## Finalizing an Ensemble
+## Module 8: Finalizing an Ensemble / Final Tests and Benchmarks
 
 #### Listing 35
 
