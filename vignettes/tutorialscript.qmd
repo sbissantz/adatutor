@@ -1311,7 +1311,6 @@ logo_rnd$grid[which.max(rnd_stable), ]
 Code to do hyperparameter optimization using a leave-one-group-out
 cross-validation strategy.
 
-**TODO** Random grid search!
 **TODO** Exclude mean AUC? 
 
 ::: {.callout-note}
