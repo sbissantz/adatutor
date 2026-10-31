@@ -4,7 +4,7 @@
 #' result is one performance estimate per group rather than a single number:
 #' leave-one-group-out cross-validation (LOGO-CV). In the tutorial the groups
 #' are the replication projects. Whole projects are held out because the
-#' studies in a project share a design and a base rate.
+#' study effects in a project share a design and a base rate.
 #'
 #' Pass a fit from [adaboost()] to cross-validate its recipe: `logo_cv()` reads
 #' the formula, tree settings, splitting rule, `n_iter` and `eta` off the fit
@@ -15,8 +15,8 @@
 #' @section Reading the estimates:
 #' The estimates are returned per project and are not averaged. Describe their
 #' spread, but do not turn it into a standard error or a confidence interval.
-#' The folds differ in size (10 to 90 studies in `altmejd`), and they share
-#' most of their training data, so the usual standard error is too small
+#' The folds differ in size (10 to 90 study effects in `altmejd`), and they
+#' share most of their training data, so the usual standard error is too small
 #' (Bengio & Grandvalet, 2004).
 #'
 #' @section Nested cross-validation:

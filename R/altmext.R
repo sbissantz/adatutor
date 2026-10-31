@@ -1,7 +1,7 @@
 #' Altmejd et al.'s replication database, extended
 #'
 #' Altmejd et al.'s (2019) replication database in the format of [altmejd],
-#' extended to seven large-scale replication projects: 202 original studies
+#' extended to seven large-scale replication projects: 202 study effects
 #' and whether each one replicated. Many Labs 1 and 3, the Replication Project
 #' Psychology and the Experimental Economics Replication Project come from
 #' [altmejd723] unchanged. The Social Science Replication Project is rebuilt
@@ -22,10 +22,10 @@
 #'   Replication Project (`eerp`), Social Science Replication Project
 #'   (`ssrp`) or Holzmeister et al. (`holz`).
 #' * `effect_size.o`: Effect size of the original study, as a correlation r.
-#' * `n.o`: Number of observations in the original study.
+#' * `n.o`: Sample size of the original study.
 #' * `p_value.o`: P-value of the original study.
 #' * `power.o`: Power of the original study: a two-sided test of r at
-#'   alpha = .05 with `n.o` observations.
+#'   alpha = .05 with sample size `n.o`.
 #' * `replicate`: Whether the replication succeeded.
 #'
 #' @details

@@ -3,7 +3,7 @@
 #' Resamples the test cases and scores each resample with [assess()], so
 #' every measure gets an interval from the same draws. The model stays fixed:
 #' the interval shows how much an estimate would move if the project had
-#' drawn different studies.
+#' drawn different study effects.
 #'
 #' The default method bootstraps one set of labels and scores. The `logo_cv`
 #' method bootstraps each held-out project of an [logo_cv()] result and attaches
@@ -13,7 +13,8 @@
 #' A resample with only one class makes `auroc` and `auprc` undefined, so it
 #' is drawn again. `n_resample` counts the usable resamples, and `drop` counts
 #' the rejected ones. A high `drop` means the interval is too narrow: on a fold
-#' of 13 studies with 2 failures, about 11 percent of draws contain no failure.
+#' of 13 study effects with 2 failures, about 11 percent of draws contain no
+#' failure.
 #'
 #' @section Stratified resampling:
 #' With `stratified = TRUE`, each class is resampled separately, so no draw is
