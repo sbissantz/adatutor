@@ -12,7 +12,7 @@ A data frame with 152 rows (study effects) and 7 columns:
 Replication Project Psychology (RPP), Experimental Economics Replication
 Project (EERP) or Social Science Replication Project (SSRP).
 \item \code{effect_size.o}: Standardized effect size of the original study.
-\item \code{n.o}: Number of observations in the original study.
+\item \code{n.o}: Sample size of the original study.
 \item \code{p_value.o}: P-value of the original study.
 \item \code{power.o}: Power of the original study.
 \item \code{replicate}: Whether the replication succeeded.
@@ -31,7 +31,7 @@ altmejd
 }
 \description{
 An adapted version of the replication database of Altmejd et al. (2019):
-152 original studies from five large-scale replication projects, and
+152 study effects from five large-scale replication projects, and
 whether each one replicated. The projects are Many Labs 1 and 3, the
 Replication Project Psychology, the Experimental Economics Replication
 Project and the Social Science Replication Project.

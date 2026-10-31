@@ -64,7 +64,7 @@ frame per project in \code{x$ci}.
 Resamples the test cases and scores each resample with \code{\link[=assess]{assess()}}, so
 every measure gets an interval from the same draws. The model stays fixed:
 the interval shows how much an estimate would move if the project had
-drawn different studies.
+drawn different study effects.
 }
 \details{
 The default method bootstraps one set of labels and scores. The \code{logo_cv}
@@ -76,7 +76,8 @@ the intervals, so \link[=logo_cv_methods]{plot()} draws them as bands.
 A resample with only one class makes \code{auroc} and \code{auprc} undefined, so it
 is drawn again. \code{n_resample} counts the usable resamples, and \code{drop} counts
 the rejected ones. A high \code{drop} means the interval is too narrow: on a fold
-of 13 studies with 2 failures, about 11 percent of draws contain no failure.
+of 13 study effects with 2 failures, about 11 percent of draws contain no
+failure.
 }
 
 \section{Stratified resampling}{

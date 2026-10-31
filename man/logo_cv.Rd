@@ -84,7 +84,7 @@ Holds out each level of \code{group} in turn and trains on the rest, so the
 result is one performance estimate per group rather than a single number:
 leave-one-group-out cross-validation (LOGO-CV). In the tutorial the groups
 are the replication projects. Whole projects are held out because the
-studies in a project share a design and a base rate.
+study effects in a project share a design and a base rate.
 }
 \details{
 Pass a fit from \code{\link[=adaboost]{adaboost()}} to cross-validate its recipe: \code{logo_cv()} reads
@@ -97,8 +97,8 @@ formula instead to compare learners or search a grid.
 
 The estimates are returned per project and are not averaged. Describe their
 spread, but do not turn it into a standard error or a confidence interval.
-The folds differ in size (10 to 90 studies in \code{altmejd}), and they share
-most of their training data, so the usual standard error is too small
+The folds differ in size (10 to 90 study effects in \code{altmejd}), and they
+share most of their training data, so the usual standard error is too small
 (Bengio & Grandvalet, 2004).
 }
 

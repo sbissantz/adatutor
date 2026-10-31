@@ -35,7 +35,8 @@ result (12 of 21); ssrp.5, ssrp.8 and ssrp.18 differ.
 \item \code{effect_size.o}: ssrp.7 (.278 rather than .197) and ssrp.21 (.368
 rather than .437).
 \item \code{n.o}: the n of the focal test, which SSRP's r and p rest on (e.g. 51
-groups rather than 366 participants for ssrp.1); seven studies differ.
+groups rather than 366 participants for ssrp.1); seven study effects
+differ.
 \item \code{p_value.o}: two-sided; ssrp.6, ssrp.7 and ssrp.21 differ.
 \item \code{power.o}: computed from \code{effect_size.o} and \code{n.o}, as for every other
 project.

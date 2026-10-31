@@ -14,10 +14,10 @@ Replication Project Psychology (\code{rpp}), Experimental Economics
 Replication Project (\code{eerp}), Social Science Replication Project
 (\code{ssrp}) or Holzmeister et al. (\code{holz}).
 \item \code{effect_size.o}: Effect size of the original study, as a correlation r.
-\item \code{n.o}: Number of observations in the original study.
+\item \code{n.o}: Sample size of the original study.
 \item \code{p_value.o}: P-value of the original study.
 \item \code{power.o}: Power of the original study: a two-sided test of r at
-alpha = .05 with \code{n.o} observations.
+alpha = .05 with sample size \code{n.o}.
 \item \code{replicate}: Whether the replication succeeded.
 }
 }
@@ -35,7 +35,7 @@ altmext
 }
 \description{
 Altmejd et al.'s (2019) replication database in the format of \link{altmejd},
-extended to seven large-scale replication projects: 202 original studies
+extended to seven large-scale replication projects: 202 study effects
 and whether each one replicated. Many Labs 1 and 3, the Replication Project
 Psychology and the Experimental Economics Replication Project come from
 \link{altmejd723} unchanged. The Social Science Replication Project is rebuilt
