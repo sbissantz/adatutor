@@ -17,15 +17,17 @@ vignette: >
 Code to install the adatutor package from GitHub, load and attach it.
 
 ```{r listing-1}
-# Load package
-library(remotes)
-
-# Install package from GitHub
-# install_github("sbissantz/adatutor")
+# Install package from GitHub (once)
+# install.packages("pak")
+# pak::pak("sbissantz/adatutor")
 
 # Load package
 library(adatutor)
 ```
+
+::: {.callout-important title="Changed since submission"}
+- `pak::pak()` instead of `library(remotes)` and `install_github()`; install lines commented.
+:::
 
 # Empirical Example
 
@@ -38,6 +40,21 @@ Code to load the dataset.
 data(altmext)
 ```
 
+::: {.callout-note title="Add to tutorial"}
+The data set integrates 202 study effects from seven replication projects. Each row is one effect from an original study, paired with the outcome of its replication; Altmejd et al. [-@altmejd2019] call these study-replication pairs.
+:::
+
+::: {.callout-note title="Check in tutorial"}
+Use "study effects" for the rows throughout. Two places to align in `adatutorial.tex`:
+
+- Module 2 calls them "studies" (e.g., "all studies with a power of less than 0.9305", ll. 817--905, and the comments of Listing 11).
+- "Observations" means two things: the original sample size (`n.o`, "the number of observations", ll. 281, 825, 840, 858) and the data points that AdaBoost weights ("observation weights"). Keep "observations" for the weights and say "sample size" for `n.o`.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `altmext` (seven projects, 202 study effects) instead of `altmejd`.
+:::
+
 #### Listing 3
 
 Code to prepare the data.
@@ -49,12 +66,16 @@ pred_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 # Outcome variable (name)
 out_nme <- "replicate"
 
-# Variables of interest
+# Variables of interest (names)
 voi_nms <- c(pred_nms, out_nme)
 
 # Shorten 'altmext'
 df <- altmext
 ```
+
+::: {.callout-important title="Changed since submission"}
+- Snake_case names (`pred_nms`, `out_nme`, `voi_nms`); `altmext`.
+:::
 
 # Module 1: Data Splitting
 
@@ -87,12 +108,14 @@ train_ind <- fx_seq %in% fx_smpl
 # Training set
 train <- df[train_ind, ]
 
-# Test set (as leftover set)
+# Test set (the rest)
 test <- df[!train_ind, ]
 ```
 
-::: {.callout-important}
-The code has changed. It is not identical to what is in the tutorial.
+::: {.callout-important title="Changed since submission"}
+- A logical inclusion indicator (`train_ind`) instead of negative indexing (`train_idx`).
+- `prop_train` instead of `prop`.
+- The rest is the test set (`test`), not `testvalid`.
 :::
 
 #### Listing 5
@@ -103,10 +126,10 @@ Code to do a 70/15/15 simple random split in one pass.
 # For reproducibility
 set.seed(112)
 
-# Split proportions, of the whole data
-prop <- c(train = 0.70, valid = 0.15, test = 0.15)
+# Split proportions (of all effects)
+prop <- c(train = 0.7, valid = 0.15, test = 0.15)
 
-# Set sizes, counted from the whole data
+# Set sizes
 n <- round(n_fx * prop)
 
 # Training sample and inclusion indicator
@@ -123,15 +146,17 @@ train <- df[train_ind, ]
 # Validation set
 valid <- df[valid_ind, ]
 
-# Test set (as rest set)
+# Test set (the rest)
 test <- df[!train_ind & !valid_ind, ]
 ```
 
-::: {.callout-important}
-The code has changed. It is not identical to what is in the tutorial. Need to rewrite the section.
+::: {.callout-note title="Add to tutorial"}
+All three proportions refer to the whole data set, so `0.15` means 15 percent of all 202 study effects.
 :::
 
-**Side note**: Every count comes from `n_fx`, so `0.15` means fifteen percent of 202 effects. Splitting in two independent steps (as we did earlier) would make the second proportion relative to what remains, and fifteen percent of the whole would then have to be written `0.15 / (1 - 0.70) = 0.5`.
+::: {.callout-important title="Changed since submission"}
+- One pass with `prop <- c(train = 0.7, valid = 0.15, test = 0.15)`, instead of a second step with `prop <- 0.5` on `testvalid` (15 percent of the whole is half of the remaining 30 percent).
+:::
 
 #### Listing 6
 
@@ -148,8 +173,8 @@ proportions(tbl_orig)
 proportions(tbl_out)
 ```
 
-::: {.callout-important}
-The code has changed. It is not identical to what is in the tutorial.
+::: {.callout-important title="Changed since submission"}
+- The held-out set via `!train_ind` (`tbl_out`), instead of `testvalid` (`tbl_testvalid`).
 :::
 
 #### Listing 7
@@ -166,62 +191,55 @@ prop_train <- 0.7
 # Partition data based on outcome
 set_split <- split(df, df$replicate)
 
-# Number of training samples
-n_train <- lapply(set_split, function(set) round(nrow(set) * prop_train))
+# Number of training samples per stratum
+n_train <- lapply(set_split, \(set) round(nrow(set) * prop_train))
 
-# Training sample, drawn inside each stratum
-train_smpl <- mapply(
-  function(set, n) sample(set[, "eid"], n),
-  set_split,
-  n_train
-)
+# Training sample per stratum
+train_smpl <- mapply(\(set, n) sample(set$eid, n), set_split, n_train)
 
 # Inclusion indicator
 train_ind <- df$eid %in% unlist(train_smpl)
 
 # Combined sets
-strat2_diy <- list(
-  "train" = df[train_ind, ],
-  "test" = df[!train_ind, ]
-)
+strat_diy <- list(train = df[train_ind, ], test = df[!train_ind, ])
 ```
 
-::: {.callout-important}
-The code has changed. It is not identical to what is in the tutorial
+::: {.callout-note title="Add to tutorial"}
+`\(set)` is R's shorthand for `function(set)`.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- Lambdas (`\(set)`) instead of `function(set)`, and `set$eid` instead of `set[, "eid"]`.
+- `train_smpl` and `train_ind` instead of `strat_idx` and `train_idx`.
+- Returns the list `strat_diy` (train, test) instead of `train` and `testvalid`.
 :::
 
 #### Listing 8
 
-Code to do a 70/15/15 stratified split in one pass.
-
-**Note**: Switched from `props`to `prop`
+Code to do a 70/15/15 stratified split.
 
 ```{r listing-8}
 # For reproducibility
 set.seed(112)
 
-# Split proportions, of the whole data
-prop <- c(train = 0.70, valid = 0.15, test = 0.15)
+# Split proportions (of all effects)
+prop <- c(train = 0.7, valid = 0.15, test = 0.15)
 
 # Partition data based on outcome
 set_split <- split(df, df$replicate)
 
-# Set sizes per stratum, both counted from the whole data
-n_train <- lapply(set_split, function(set) round(nrow(set) * prop[["train"]]))
-n_valid <- lapply(set_split, function(set) round(nrow(set) * prop[["valid"]]))
+# Set sizes per stratum
+n_train <- lapply(set_split, \(set) round(nrow(set) * prop[["train"]]))
+n_valid <- lapply(set_split, \(set) round(nrow(set) * prop[["valid"]]))
 
-# Training sample, drawn inside each stratum
-train_smpl <- mapply(
-  function(set, n) sample(set[, "eid"], n),
-  set_split,
-  n_train
-)
+# Training sample per stratum
+train_smpl <- mapply(\(set, n) sample(set$eid, n), set_split, n_train)
 train_eid <- unlist(train_smpl)
 train_ind <- df$eid %in% train_eid
 
-# Validation sample, drawn from each stratum's effects that are still available
+# Validation sample per stratum, from the rest
 valid_smpl <- mapply(
-  function(set, n) sample(setdiff(set[, "eid"], train_eid), n),
+  \(set, n) sample(setdiff(set$eid, train_eid), n),
   set_split,
   n_valid
 )
@@ -229,19 +247,21 @@ valid_ind <- df$eid %in% unlist(valid_smpl)
 
 # Combined sets
 strat_diy <- list(
-  "train" = df[train_ind, ],
-  "valid" = df[valid_ind, ],
-  "test" = df[!train_ind & !valid_ind, ]
+  train = df[train_ind, ],
+  valid = df[valid_ind, ],
+  test = df[!train_ind & !valid_ind, ]
 )
 ```
 
-::: {.callout-important}
-The code has changed. It is not identical to what is in the tutorial. Need to rewrite the section.
+::: {.callout-important title="Changed since submission"}
+- One pass from the whole data: both set sizes per stratum count from all effects, and the validation sample is drawn from what the training sample left.
+- Returns the list `strat_diy` (train, valid, test) instead of separate sets.
+- Lambdas and `set$eid`, as in Listing 7.
 :::
 
 #### Listing 9
 
-Code to do a 70/30 random and stratified split, with the pre-implemented function of the adatutor package.
+Code to do a 70/30 simple random split and a 70/15/15 stratified split with the `partition()` function of the adatutor package.
 
 ```{r listing-9}
 # Simple random split (two way)
@@ -256,19 +276,60 @@ strat_split <- partition(df, prop = c(0.7, 0.15, 0.15), strata = "replicate")
 mapply(identical, strat_diy, strat_split)
 ```
 
-We recommend the adatutor's partition() function for the explorations and exercises in the tutorial. It validates inputs and is overall more robust than the DIY code above. For instance,
+::: {.callout-note title="Add to tutorial"}
+For your own work, we recommend `partition()` or the `rsample` package (Listing 10) over the hand-written code. `partition()` checks its inputs and avoids a pitfall of `sample()`: `sample(x, k)` reads a single number `x` as `1:x`, so a stratum with one row left can silently draw a row that is not in the data. On `altmext`, the listings and `partition()` agree, but on other data they may not.
+:::
 
-On `altmext`, the listings and the function agree, but not everywhere:
-`sample(x, k)` reads a length-one `x` as `1:x`, so a stratum or a remainder
-holding a single row silently draws a value that is not in the data -- with a
-four-member stratum, on more than half of all seeds. `partition()` samples
-positions with `sample.int()` instead and cannot do this, which is the reason to
-reach for a maintained implementation -- this one or `rsample`'s -- once you are
-past the tutorial's own data.
+::: {.callout-important title="Changed since submission"}
+- `partition()` replaces `random_split()` and `stratified_split()`.
+- The stratified split is now 70/15/15, with a check against Listing 8.
+:::
 
-#### Figure 1 [NEW]
+#### Listing 10
 
-Visualization of the leave-one-group-out cross-validation (LOGO-CV) process, with the replication projects as the groups. Reading the graph from left to right, the data are first partitioned into seven projects: Many Labs 1 (ML1, 13 studies), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), Many Labs 2 (ML2, 24), and the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], 202 studies in all. Row heights are proportional to project size, except that no row is drawn smaller than 6% of the height, so ML3 appears slightly larger than its share. In Iteration 1, the ML1 project is used as the test set and the other six projects for model training. After fitting the model to the training data, its performance is evaluated on the held-out ML1 studies. This is repeated for each of the other projects (Iterations 2--7), yielding a distribution of seven performance estimates. It might be tempting to summarize them with a single number, but the distribution gives the richer picture of how well the model carries over to a new project.
+Code to do a 70/30 simple random split and a 70/15/15 stratified split with the rsample package.
+
+```{r listing-10}
+# Install once: install.packages("rsample")
+
+# Simple random split (two way)
+set.seed(112)
+rand_split_pkg <- rsample::initial_split(df, prop = 0.7)
+train_pkg <- rsample::training(rand_split_pkg)
+test_pkg <- rsample::testing(rand_split_pkg)
+
+# Stratified split (three way)
+set.seed(112)
+strat_split_pkg <- rsample::initial_validation_split(
+  df,
+  prop = c(0.7, 0.15),
+  strata = "replicate"
+)
+
+# Training, validation, and test sets
+train_pkg <- rsample::training(strat_split_pkg)
+valid_pkg <- rsample::validation(strat_split_pkg)
+test_pkg <- rsample::testing(strat_split_pkg)
+```
+
+::: {.callout-note title="Add to tutorial"}
+For real work you will outgrow a single split -- cross-validation, bootstraps,
+nested resampling -- and at that point the tool to reach for is the `rsample`
+package, which the wider tidymodels ecosystem is built around. Its
+`initial_split()` does what `partition()` does and takes the same `strata`
+argument, so the idea carries over unchanged; what it adds is the two dozen
+other resampling schemes you will want next.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `rsample::` calls instead of `library(rsample)`, with an install line.
+- The stratified split is now 70/15/15, with `initial_validation_split()`, as in Listing 9; each split re-seeded.
+- Object names `rand_split_pkg`, `strat_split_pkg`, `train_pkg`, `valid_pkg`, `test_pkg` instead of `randsplit`, `stratsplit`, `train`, `testvalid`.
+:::
+
+#### Figure 1 
+
+Visualization of leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
 tutplot_logoscheme(
@@ -277,60 +338,30 @@ tutplot_logoscheme(
 )
 ```
 
-**Important** Holz is excluded, because it becomes the test set later after validation. 
-
-#### Listing 10
-
-Code to do a 70/30 random and stratified split, with the rsample package.
-
-```{r listing-10}
-# For reproducibility
-set.seed(112)
-
-# Simple random split
-rand_split_pkg <- rsample::initial_split(df, prop = 0.7)
-train_pkg <- rsample::training(rand_split_pkg)
-test_pkg <- rsample::testing(rand_split_pkg)
-
-# Stratified split
-strat_split_pkg <- rsample::initial_split(df, prop = 0.7, strata = "replicate")
-train_pkg <- rsample::training(strat_split_pkg)
-test_pkg <- rsample::testing(strat_split_pkg)
-```
-
-For real work you will outgrow a single split -- cross-validation, bootstraps,
-nested resampling -- and at that point the tool to reach for is the `rsample`
-package, which the wider tidymodels ecosystem is built around. Its
-`initial_split()` does what `partition()` does and takes the same `strata`
-argument, so the idea carries over unchanged; what it adds is the two dozen
-other resampling schemes you will want next.
-
-TODO: Teach "two functions become one." A simple random split is a stratified split with one stratum — let the code demonstrate it rather than asserting it.
-Retire `rsample` or teach how to use it?
-
-Note: tidymodels consumes rsample
+::: {.callout-important title="Changed since submission"}
+- New figure.
+:::
 
 #### Listing [NEW]
 
 Code to restore the stratified split from the package.
 
 ```{r restore-split}
-# Load the data
+# Load the split
 data(altmext_splits)
 
-# The split every later module is written against
+# The split all later modules use
 train <- altmext_splits$train
 valid <- altmext_splits$valid
 test <- altmext_splits$test
 ```
 
-::: {.callout-important title="Restore the split before going on"}
+::: {.callout-note title="Add to tutorial"}
+Module 1 showed several ways to split the data. From Module 2 onward, everything builds on the stratified 70/15/15 split of Listing 8. The package ships this split as `altmext_splits`, so you can load it in one line instead of rerunning Module 1. 
+:::
 
-Module 1 showed several ways to split. Everything from Module 2 onward is built on the stratified split of Listings 7 and 8. The package ships it, so load it back and the stumps, weights and figures
-come out as described. Setting a seed would not be enough on its own: R changed
-`sample()` in version 3.6.0 and moved every seeded split in the wild with it,
-which is why the sets themselves travel with the package rather than the recipe
-for them.
+::: {.callout-important title="Changed since submission"}
+- New listing.
 :::
 
 # Module 2: Classification Stumps
@@ -1010,7 +1041,8 @@ while the margin carries the ranking that measures like area under the receiving
 Visualization of the decision boundary of 1000 adaptively boosted shallow classification trees. The number of trees matches the Listings 24 and 25, but the trees were fitted to the training data using only two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
 
 ```{r figure-9}
-ada_int <- cstump_int |> adaboost(n_iter = 1e3, eta = 1, verbose = FALSE)
+ada_int <- cstump_int |>
+  adaboost(n_iter = 1e3, eta = 1, verbose = FALSE)
 
 # Visualize
 # Note: the same call as Figure 3, an ensemble in place of the stump
@@ -1056,7 +1088,9 @@ pred_mgn_diy <- as.vector(alpha_fit %*% t(y_pred_cstp))
 y_pred_diy <- sign(pred_mgn_diy)
 ```
 
-**[NEW]**
+#### Listing [New]
+
+Introduce the wrapper function predict and show they are identical.
 
 ```{r listing-28-pkg}
 # The package's predictions, both types. Listing 31 scores these
@@ -1077,16 +1111,9 @@ Code to evaluate the predictive performance of the ensemble.
 table(y_test, y_pred_cls) # Inperfect predictions
 ```
 
-# Module 6: Leave-One-Group-Out Cross-Validation and Hyperparameter Optimization
+# Module 6: Evaluating an Ensemble
 
-## Two Wrapper Functions [REMOVE]
-
-TODO: Wrapper function should be introduced earlier after the DIY version?
-
-#### Listing 30
-
-Code introducing the wrapper functions.
-
+**TODO** Can we remove this?
 ::: {.callout-note}
 We reduced the number of trees to speed up runtime in the upcoming sections.
 :::
@@ -1111,16 +1138,6 @@ We reduced the number of trees to speed up runtime in the upcoming sections.
 ## Predictions on test set (margins, for the AUC)
 #ymargin <- predict(fit, newdata = test[, pred_nms], type = "margin")
 ```
-
-::: {.callout-important}
-## `type = "class"` gives balanced accuracy, not AUC
-
-A two-valued score collapses the ROC curve to a single interior point, whose
-area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
-AUC; keep `type = "class"` for the confusion matrix.
-:::
-
-## Module 6: Evaluating Model Performance/Evaluating an Ensemble
 
 #### Listing 31
 
@@ -1150,6 +1167,14 @@ baserate <- aggregate(replicate_ind ~ pid, df, mean)
 # Average base rate
 mean(baserate$replicate_ind)
 ```
+
+::: {.callout-important}
+## `type = "class"` gives balanced accuracy, not AUC
+
+A two-valued score collapses the ROC curve to a single interior point, whose
+area is exactly (sensitivity + specificity) / 2. Use `type = "margin"` for the
+AUC; keep `type = "class"` for the confusion matrix.
+:::
 
 **Note on margins**: A hard label can only ever be right or wrong. The margin says how confidently (unnormalized), and every measure that reads a ranking needs that. Keep it in mind for Module 4, where the cross-validation scores on the margin throughout.
 
@@ -1479,6 +1504,7 @@ auroc(df_holz$replicate, y_ada)
 ## Benchmarks
 
 Compare the results from ligistic regression, adaboost and decision trees here?
+**TODO**: Cite the random forest package.
 
 ```{r benchmarks}
 # Baseline: logistic regression on the same predictors and projects
