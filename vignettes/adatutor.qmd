@@ -275,11 +275,11 @@ res
 ```
 
 Read the spread across projects, not an average. The projects differ in size
-(10 to 90 studies), and they share most of their training data, so a mean and
+(10 to 90 study effects), and they share most of their training data, so a mean and
 its standard error would mislead.
 
 `bootstrap()` resamples each held-out project to show how much its estimate
-could move with different studies. `plot()` then draws the intervals as bands:
+could move with different study effects. `plot()` then draws the intervals as bands:
 
 ```{r}
 #| label: logo-cv-bootstrap
