@@ -41,7 +41,7 @@ data(altmext)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-The data set integrates 202 study effects from seven replication projects. Each row is one effect from an original study, paired with the outcome of its replication; Altmejd et al. [-@altmejd2019] call these study-replication pairs.
+The dataset integrates 202 study effects from seven replication projects. Each row is one effect from an original study, paired with the outcome of its replication; Altmejd et al. [-@altmejd2019] call these study-replication pairs.
 :::
 
 ::: {.callout-note title="Check in tutorial"}
@@ -151,7 +151,7 @@ test <- df[!train_ind & !valid_ind, ]
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-All three proportions refer to the whole data set, so `0.15` means 15 percent of all 202 study effects.
+All three proportions refer to the whole dataset, so `0.15` means 15% of all 202 study effects.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -277,7 +277,7 @@ mapply(identical, strat_diy, strat_split)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-For your own work, we recommend `partition()` or the `rsample` package (Listing 10) over the hand-written code. `partition()` checks its inputs and avoids a pitfall of `sample()`: `sample(x, k)` reads a single number `x` as `1:x`, so a stratum with one row left can silently draw a row that is not in the data. On `altmext`, the listings and `partition()` agree, but on other data they may not.
+For applied work, we recommend `partition()` or the `rsample` package (Listing 10) over the code of Listings 4 to 8. `partition()` checks its inputs and avoids a pitfall of `sample()`: `sample(x, k)` reads a single number `x` as `1:x`. Listings 4 and 5 sample row positions, so with one row left they would draw a row that does not exist. (Listings 7 and 8 sample the character ids in `eid`, which are safe.) `partition()` draws positions with `sample.int()`, which has no such special case.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -287,7 +287,7 @@ For your own work, we recommend `partition()` or the `rsample` package (Listing 
 
 #### Listing 10
 
-Code to do a 70/30 simple random split and a 70/15/15 stratified split with the rsample package.
+Code to do a 70/30 simple random split and a 70/15/15 stratified split with the `rsample` package.
 
 ```{r listing-10}
 # Install once: install.packages("rsample")
@@ -313,12 +313,7 @@ test_pkg <- rsample::testing(strat_split_pkg)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-For real work you will outgrow a single split -- cross-validation, bootstraps,
-nested resampling -- and at that point the tool to reach for is the `rsample`
-package, which the wider tidymodels ecosystem is built around. Its
-`initial_split()` does what `partition()` does and takes the same `strata`
-argument, so the idea carries over unchanged; what it adds is the two dozen
-other resampling schemes you will want next.
+The adatutor package is built for teaching: its functions show the mechanics and stay small, even though `partition()` is fast. For applied work, a full machine-learning infrastructure such as tidymodels [@tidymodels] is the better home. It offers cross-validation, bootstraps, and nested resampling through `rsample` [@rsample], many more models through `parsnip`, and tuning workflows around them. The move is short, because adatutor follows the same conventions: `initial_split()` takes the same `prop` and `strata` arguments as `partition()`, models are fitted with a formula and a data frame, and predictions come from `predict()` with a `type` argument.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -350,14 +345,15 @@ Code to restore the stratified split from the package.
 # Load the split
 data(altmext_splits)
 
-# The split all later modules use
+# The split used before LOGO-CV takes over
 train <- altmext_splits$train
 valid <- altmext_splits$valid
 test <- altmext_splits$test
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-Module 1 showed several ways to split the data. From Module 2 onward, everything builds on the stratified 70/15/15 split of Listing 8. The package ships this split as `altmext_splits`, so you can load it in one line instead of rerunning Module 1. 
+Module 1 showed several ways to split the data. Modules 2 to 5 and the first listings of Module 6 build on the stratified 70/15/15 split of Listing 8: they fit on the training set and predict the test set. The package ships this split as `altmext_splits`, so it loads in one line instead of rerunning Module 1. With only 202 study effects, however, a test set of 31 gives a rough estimate at best, and a validation set of 30 leaves little room for tuning. From Listing 32 on, we therefore switch to LOGO-CV (Figure 1), in which every project serves as the test set in turn; the validation set stays unused.
+<!-- check the module and listing numbers after the module split -->
 :::
 
 ::: {.callout-important title="Changed since submission"}
