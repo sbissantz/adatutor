@@ -1721,3 +1721,9 @@ nested <- logo_cv(
 )
 nested
 ```
+
+# Conclusion
+
+::: {.callout-note title="Add to tutorial"}
+AdaBoost is also the simplest member of the boosting family that applied work uses today. Friedman et al. [-@friedman2000] showed that AdaBoost fits an additive model one stump at a time, and that each round minimizes an exponential loss: the observation weights of Module 3 are, up to a sign, the gradient of that loss. Replacing the exponential loss by the log loss gives LogitBoost, which returns probabilities instead of margins. Replacing the reweighting by a gradient step on any differentiable loss gives gradient boosting [@friedman2001], the algorithm behind XGBoost [@chen2016]. Readers who built AdaBoost by hand in Module 3 have therefore built the skeleton of all of them: a weak learner, T rounds, a learning rate, and a loss that decides what the next round corrects.
+:::
