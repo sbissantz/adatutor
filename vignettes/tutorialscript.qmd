@@ -324,7 +324,7 @@ The adatutor package is built for teaching: its functions show the mechanics and
 
 #### Figure 1 
 
-Visualization of leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
+Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
 tutplot_logoscheme(
@@ -364,38 +364,22 @@ Module 1 showed several ways to split the data. Modules 2 to 5 and the first lis
 
 #### Listing 11
 
-Code to retrieve the frequency tables for the outcome variable under the two
-power conditions.
+Code to tabulate the outcome on both sides of the power cut.
 
 ```{r listing-11}
 # Condition for the split
 split_cond <- train$power.o < 0.927
 
-# Studies with power.o < 0.927
+# Study effects with power.o < 0.927
 table(train$replicate[split_cond])
 
-# Studies with power.o >= 0.927
+# Study effects with power.o >= 0.927
 table(train$replicate[!split_cond])
 ```
 
-#### Figure 2
-
-Visualization of a classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power of the original study and the number of observations. The middle rectangle represents the root node, and the two lower rectangles are the leaf nodes. The power value used to partition the root node is 0.927. The left leaf node contains about 63% of the training data and the right leaf node contains about 37%. The label in each node ("success", "failure") represents the stump's prediction for each study effect in that node. For example, in the left leaf node, the stump predicts that studies with a power of less than 0.927 will fail replication. According to the training data, 62 of the 89 study effects with a power of less than 0.927 actually failed replication.
-
-```{r figure-2}
-# Fit classification stump
-# Note: Two metrics only
-cstump_int <- rpart::rpart(
-  replicate ~ power.o + n.o,
-  data = train[, voi_nms],
-  maxdepth = 1,
-  # keep to recycle below
-  model = TRUE
-)
-
-# Visualize
-tutplot_cstump(cstump_int, extra = 102)
-```
+::: {.callout-important title="Changed since submission"}
+- The cut is 0.927 on `altmext` (0.9305 on `altmejd`); `split_cond` instead of `splitcond`.
+:::
 
 #### Listing 12
 
@@ -412,56 +396,94 @@ cstump <- rpart::rpart(
   # Maximum depth
   maxdepth = 1,
   # Gini impurity (default)
-  parms = list(split = "gini")
+  parms = list(split = "gini"),
+  # Keep the training data (Figures 2 and 3)
+  model = TRUE
 )
 ```
 
+::: {.callout-important title="Changed since submission"}
+- Two predictors (`power.o + n.o`), the ones Figure 2 shows, instead of all four (`replicate ~ .`). Module 3 switches to all four in Listing 19.
+- `maxdepth` and `parms` passed directly instead of `treehypar <- rpart.control(...)`. The submitted `rpart.control(split = "gini")` was wrong: `split` belongs in `parms`.
+- `rpart::rpart()` instead of `library(rpart)`; `model = TRUE` keeps the training data for the figures.
+:::
+
+#### Figure 2
+
+A classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power and the sample size of the original study. The upper rectangle is the root node, the two lower rectangles are the leaf nodes. The root node is split at a power of 0.927. The left leaf node contains about 63% of the training data and the right leaf node about 37%. The label in each node ("success", "failure") is the stump's prediction for each study effect in that node. For example, the left leaf predicts failure for every study effect with a power below 0.927. In the training data, 62 of these 89 study effects did fail.
+
+```{r figure-2}
+# The stump of Listing 12, as a tree
+tutplot_cstump(cstump, extra = 102)
+```
+
+::: {.callout-important title="Changed since submission"}
+- Drawn by `tutplot_cstump()` from the stump of Listing 12 (`cstump_int` is gone).
+- On `altmext`: 0.927, 63% / 37%, 62 of 89 (submitted: 0.9305, 62% / 38%, 49 of 66).
+:::
+
 #### Listing 13
 
-Code to visualize a fitted classification stump. `cstump` is the model behind Figure 2: the same two reviewer metrics, splitting on `power.o` at 0.927 into leaves of 89 and 52. It is `cstump_int` with the arguments spelled out, so this listing reproduces that figure. The four-metric stump -- which splits on `p_value.o` at 0.0007 into leaves of 90 and 51 -- is `cstump_fit`, fitted in Listing 24.
+Code to visualize a fitted classification stump.
 
 ```{r listing-13}
-# Color-blind pallette
+# Color-blind palette
 sty <- viridis_tree(cstump)
 
 # Visualize classification stump
 cstump |>
   rpart.plot::rpart.plot(
-    extra = 100,
+    extra = 102,
     digits = 4,
     box.col = sty$box,
     col = sty$text
   )
 ```
 
+::: {.callout-note title="Check in tutorial"}
+The caption of `lst:vistree` says the plotted tree is "slightly different from Figure 2" because Listing 12 used all four predictors. Listing 12 now fits the stump behind Figure 2, so this listing reproduces the figure exactly. The four-predictor stump (`p_value.o` at 0.0007, leaves 90 and 51) first appears in Listing 19.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `viridis_tree()` colors instead of `box.palette = "BuGy"`; `rpart.plot::rpart.plot()` instead of `library(rpart.plot)`.
+:::
+
 #### Figure 3
 
-Visualization of the decision boundary of a classification stump. The predictor variable on the x-axis is the power of the original study effect. The predictor variable on the y-axis is the number of observations. So the y-axis does not display the outcome variable, but another study characteristic. However, since classification stumps are classification trees of depth one, only one study characteristic (i.e., power in this case) is used as a predictor to separate successfully replicated study effects from failed ones. The decision boundary is set at a power value of 0.927 (vertical line). The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+The decision boundary of a classification stump. The x-axis shows the power of the original study, the y-axis its sample size. So the y-axis does not show the outcome variable, but a second study characteristic. Because a classification stump is a tree of depth one, only one characteristic, power, separates successfully replicated study effects from failed ones. The decision boundary is the vertical line at a power of 0.927. The stump predicts success for every point in the green region and failure for every point in the blue region. Yellow dots are study effects that replicated, according to the replication metric; purple dots are those that failed. Thus, yellow dots in the blue region are misclassifications, and so are purple dots in the green region.
 
 ```{r figure-3}
-# Visualize
-# Note: the stump from Figure 2, now as the boundary it draws
+# The stump of Listing 12, as the boundary it draws
 tutplot_boundary(
-  cstump_int,
+  cstump,
   data = train,
   xlab = "Power (Original Study)",
   ylab = "Sample Size (Original Study)"
 )
 ```
 
+::: {.callout-important title="Changed since submission"}
+- New chunk: the submitted figure had no code. Drawn by `tutplot_boundary()` from the stump of Listing 12.
+- Axis labels (R1.C7) and viridis colors: blue and green regions, purple and yellow dots, a color-bar legend. The caption follows (submitted: gray triangles and blue circles).
+:::
+
 #### Figure 4
 
-Visualization of the Gini impurity for a two-class classification problem. The x-axis is the proportion or probability of Class 1 (e.g., the proportion of successes in the empirical example). The y-axis is the measure of Gini impurity. The Gini impurity is highest when the classes are equally represented. This occurs when the proportion of Class 1 is 0.5, meaning there are as many instances of Class 1 (i.e., successes) as of Class 2 (i.e., failures). The more homogeneous a class becomes, the lower the Gini impurity. The Gini impurity is zero if there are only instances of one type (i.e., only successes or failures).
+The Gini impurity for a two-class classification problem. The x-axis is the proportion of Class 1 (e.g., the proportion of successes in the empirical example). The y-axis is the Gini impurity. The Gini impurity is highest when both classes are equally frequent, that is, when the proportion of Class 1 is 0.5 and there are as many successes as failures. The more homogeneous a node becomes, the lower its impurity; it is zero when a node holds only one class (only successes or only failures).
 
 ```{r figure-4}
 # Visualize
 tutplot_gini(x_seq = seq(0.01, 1, by = 0.01), lwd = 2)
 ```
 
+::: {.callout-important title="Changed since submission"}
+- Drawn by `tutplot_gini()`: one viridis color and a grid, as in Figures 6 and 7.
+:::
+
 #### Listing 14
 
-Code to calculate means of neighboring units and find the position of the
-relevant power value.
+Code to calculate the midpoints between adjacent power values and find the
+position of the split value.
 
 ```{r listing-14}
 # Sorted vector
@@ -472,63 +494,23 @@ adjmeans <- (power_srt[-1] + power_srt[-length(power_srt)]) / 2
 
 # Find position of value '0.927'
 which(round(adjmeans, 4) == 0.927)
-
-# Additional
-
-adj_pat <- which(round(adjmeans, 4) == 0.927)
-const <- adjmeans[adj_pat]
-N_total <- nrow(train) # 141
-criterion_left <- train$power.o < const
-N_left <- length(train$replicate[criterion_left]) # 89 total
-left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1) # 27
-left_failure <- N_left - left_success # 62 failures
-
-# Gini impuritiy (left)
-gini_left <- 1 - ((left_failure / N_left)^2 + (left_success / N_left)^2)
-gini_left # 0.423
-criterion_right <- train$power.o >= const
-N_right <- length(train$replicate[criterion_right]) # 52
-right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1) # 40
-right_failure <- N_right - right_success # 12
-
-# Gini impuritiy (right)
-gini_right <- 1 - ((right_failure / N_right)^2 + (right_success / N_right)^2)
-gini_right # 0.3550296
-# Overall weighted Gini impurity
-gini_impurity <- (N_left / N_total) *
-  gini_left +
-  (N_right / N_total) * gini_right
-round(gini_impurity, digits = 5) # 0.39773
-# Sorted values
-power_srt <- sort(train$power.o)
-adjmeans <- (power_srt[-1] + power_srt[-length(power_srt)]) / 2
-gini_impurity <- vector(length = length(adjmeans))
-for (i in seq_along(adjmeans)) {
-  constant <- adjmeans[i]
-  N_total <- nrow(train)
-  # Left leaf
-  criterion_left <- train$power.o < constant
-  N_left <- length(train$replicate[criterion_left])
-  left_success <- sum(as.numeric(train$replicate[criterion_left]) - 1)
-  left_failure <- N_left - left_success
-  # Right leaf
-  criterion_right <- train$power.o >= constant
-  N_right <- length(train$replicate[criterion_right])
-  right_success <- sum(as.numeric(train$replicate[criterion_right]) - 1)
-  right_failure <- N_right - right_success
-  # Gini index
-  gini_d1 <- 1 - ((left_failure / N_left)^2 + (left_success / N_left)^2)
-  gini_d2 <- 1 - ((right_failure / N_right)^2 + (right_success / N_right)^2)
-  # Impurity
-  gini_impurity[i] <- (N_left / N_total) *
-    gini_d1 +
-    (N_right / N_total) * gini_d2
-}
-# Position of smallest impurity
-which.min(gini_impurity)
-# Outcome
-adjmeans[which.min(gini_impurity)]
 ```
+
+::: {.callout-important title="Changed since submission"}
+- The cut is 0.927, at position 89 (submitted: 0.9305).
+:::
+
+```{r gini-byhand}
+# Gini impurity of the two leaves and of the split, from the counts in Figure 2
+gini <- function(p) 1 - (p^2 + (1 - p)^2)
+gini_left <- gini(27 / 89)
+gini_right <- gini(40 / 52)
+(89 * gini_left + 52 * gini_right) / 141
+```
+
+::: {.callout-note title="Check in tutorial"}
+The equation block after Listing 14 regenerates: failure leaf 62 of 89 and 27 of 89, Gini 0.423; success leaf 12 of 52 and 40 of 52, Gini 0.355; split 89/141 · 0.423 + 52/141 · 0.355 ≈ 0.398 (submitted: 49/66, 17/66 → 0.382; 10/41, 31/41 → 0.369; 66/107, 41/107 → 0.377).
+:::
 
 #### Listing 15
 
@@ -541,7 +523,7 @@ m <- nrow(train)
 # Equal weight to each observation
 D <- rep(1, m) / m
 
-# Fit decision stump
+# Fit classification stump
 cstump_eq <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train[, voi_nms],
@@ -552,7 +534,7 @@ cstump_eq <- rpart::rpart(
 )
 
 # Visualize
-sty <- viridis_tree(cstump)
+sty <- viridis_tree(cstump_eq)
 cstump_eq |>
   rpart.plot::rpart.plot(
     extra = 100,
@@ -562,24 +544,16 @@ cstump_eq |>
   )
 ```
 
-
-Visualization of a classification stump fitted with normalized equal weights. Note that we simplified the visual output shown here by using the extra argument of the `rpart.plot()` function with a value set to 100.
-
-```{r}
-# Visualize
-tutplot_cstump(cstump, extra = 100)
-```
+::: {.callout-important title="Changed since submission"}
+- Two predictors, as in Listing 12; `cstump_eq` instead of overwriting `cstump`.
+- `weights = D`: the submitted `weight = D` relied on partial argument matching.
+- `rpart::rpart()`, `rpart.plot::rpart.plot()` and `viridis_tree()` instead of `library()` calls and `box.palette = "BuGy"`.
+:::
 
 #### Listing 16
 
 Code to show the sensitivity to observation weights by using normalized random
 weights from a uniform distribution.
-
-Visualization of a classification stump fitted with normalized random weights. Note that we simplified the visual output shown here by using the `extra` argument of the `rpart.plot()` function with a value set to `100`.
-
-:::{ .callout-note}
-The tutorila says: "one of the p-values", but now the variable doesn't change at all; the threshold does. (power.o < 0.9206, against 0.927 with equal weights)
-:::
 
 ```{r listing-16}
 # For reproducibility
@@ -591,19 +565,18 @@ D_raw <- runif(m)
 # Normalize (sum to 1)
 D <- D_raw / sum(D_raw)
 
-# Create decision stump
-# Note: the same two metrics as Listing 15, so only the weights differ
+# Fit classification stump
 cstump_ast <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train[, voi_nms],
   method = "class",
   maxdepth = 1,
+  # Random weights
   weights = D
 )
 
 # Visualize
 sty <- viridis_tree(cstump_ast)
-
 cstump_ast |>
   rpart.plot::rpart.plot(
     extra = 100,
@@ -612,6 +585,32 @@ cstump_ast |>
     col = sty$text
   )
 ```
+
+::: {.callout-note title="Add to tutorial"}
+With the random weights, the stump still splits on power, but at a different value: 0.921 instead of 0.927 (Figure 5). Each weighting scheme changes which split has the lowest weighted Gini impurity, so the decision rule moves with the weights. With more predictors, the split variable itself can change: on all four reviewer metrics, random weights make the stump split on the *p* value in about three of four random weightings and on power in the rest.
+:::
+
+::: {.callout-note title="Check in tutorial"}
+The paragraph before `lst:sensitive` says that with random weights "a different study characteristic now yields the lowest overall Gini impurity ... one of the p-values". That compared the two-predictor Figure 2 with a four-predictor stump. Replace it with the box above. Checked over seeds 1 to 1,000 with normalized `runif()` weights: with `power.o + n.o`, the stump always splits on power (cut 0.55 to 0.93); with all four predictors, it splits 716 times on the *p* value and 284 times on power.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `runif(m)` instead of `runif(107)`: the literal breaks whenever `train` has another size, the likely cause of the error in R2.C5. Module 1 now ends by restoring `altmext_splits`, so `train` is the same for every reader.
+- Two predictors, as in Listing 12; `weights = D` (submitted: `weight = D`).
+:::
+
+#### Figure 5
+
+A classification stump fitted with normalized random weights. The argument `extra = 100` of `rpart.plot()` simplifies the node labels.
+
+```{r figure-5}
+# The stump of Listing 16
+tutplot_cstump(cstump_ast, extra = 100)
+```
+
+::: {.callout-important title="Changed since submission"}
+- Drawn by `tutplot_cstump()`; splits on `power.o` at 0.921 (submitted: on `p_value.o`, from the four-predictor stump).
+:::
 
 # Module 3: AdaBoost
 
@@ -1037,7 +1036,7 @@ while the margin carries the ranking that measures like area under the receiving
 Visualization of the decision boundary of 1000 adaptively boosted shallow classification trees. The number of trees matches the Listings 24 and 25, but the trees were fitted to the training data using only two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
 
 ```{r figure-9}
-ada_int <- cstump_int |>
+ada_int <- cstump |>
   adaboost(n_iter = 1e3, eta = 1, verbose = FALSE)
 
 # Visualize
