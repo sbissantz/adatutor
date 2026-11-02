@@ -32,7 +32,7 @@
 #' @param verbose Whether to show progress. Defaults to `TRUE`.
 #'
 #' @return An object of class `adaboost`: a list with one element per round,
-#'   each holding the tree (`h`) and its model weight (`a`). Attributes store
+#'   each holding the tree (`h`) and its model weight (`alpha`). Attributes store
 #'   the training data, the formula, `n_iter`, `eta`, the tree control and the
 #'   splitting rule, so [logo_cv()] can refit the same recipe.
 #'
@@ -148,9 +148,9 @@ adaboost <- function(
     )
     correct <- y_train ==
       stats::predict(h_t, newdata = model_frame, type = "class")
-    a <- weigh_learner(sum(D[!correct]), eta)
-    D <- update_weights(D, correct, a)
-    H[[t]] <- list("h" = strip_tree(h_t, learner_terms), "a" = a)
+    alpha <- weigh_learner(sum(D[!correct]), eta)
+    D <- update_weights(D, correct, alpha)
+    H[[t]] <- list("h" = strip_tree(h_t, learner_terms), "alpha" = alpha)
 
     if (verbose) utils::setTxtProgressBar(progress, t)
   }
@@ -287,19 +287,19 @@ close_progress <- function(progress, finished) {
   }
 }
 
-#' Weigh a learner by its weighted error `e`
+#' Weigh a learner by its weighted error `epsilon`
 #' @noRd
-weigh_learner <- function(e, eta) {
-  # clamp so a perfect or useless learner keeps a finite weight; e > 0.5
+weigh_learner <- function(epsilon, eta) {
+  # clamp so a perfect or useless learner keeps a finite weight; epsilon > 0.5
   # gives a negative weight, which update_weights() handles
-  e <- min(max(e, 1e-10), 1 - 1e-10)
-  0.5 * log((1 - e) / e) * eta
+  epsilon <- min(max(epsilon, 1e-10), 1 - 1e-10)
+  0.5 * log((1 - epsilon) / epsilon) * eta
 }
 
 #' Shift weight toward the misclassified observations
 #' @noRd
-update_weights <- function(D, correct, a) {
-  D_raw <- D * exp(ifelse(correct, -a, a))
+update_weights <- function(D, correct, alpha) {
+  D_raw <- D * exp(ifelse(correct, -alpha, alpha))
   D_raw / sum(D_raw)
 }
 
@@ -317,7 +317,7 @@ strip_tree <- function(tree, learner_terms) {
 #' Predict from a boosted ensemble
 #'
 #' Combines the boosted trees into the weighted vote
-#' \deqn{H(x) = \sum_{t=1}^T a_t h_t(x)}{H(x) = sum over t of a_t h_t(x)}
+#' \deqn{H(x) = \sum_{t=1}^T \alpha_t h_t(x)}{H(x) = sum over t of alpha_t h_t(x)}
 #' and returns class labels or the vote itself, the margin.
 #'
 #' @section Prediction or retrodiction:
@@ -411,8 +411,8 @@ predict.adaboost <- function(
     color_message("Extract the model weights", color_code = ansi_dim)
     mark_done()
   }
-  a <- vapply(object, "[[", numeric(1), "a")
-  check_length(a)
+  alpha <- vapply(object, "[[", numeric(1), "alpha")
+  check_length(alpha)
 
   if (verbose) {
     color_message(paste0("Make ", kind, "\n"), color_code = ansi_dim)
@@ -436,7 +436,7 @@ predict.adaboost <- function(
 
   # rpart codes the classes 1 and 2; the vote needs -1 and 1
   votes <- 2 * codes - 3
-  margin <- as.vector(a %*% t(votes))
+  margin <- as.vector(alpha %*% t(votes))
 
   finished <- TRUE
 
