@@ -10,6 +10,12 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+# Introduction
+
+::: {.callout-note title="Add to tutorial"}
+Resources on boosting come in two kinds. Textbooks such as Hastie et al. [-@hastie2009] derive the algorithms mathematically, without code. Applied guides such as Boehmke and Greenwell [-@boehmke2019] and tutorials such as Pargent et al. [-@pargent2023] show how to call the implementations, without opening them. Kunapuli [-@kunapuli2023] builds the algorithms by hand, but in Python, for a general audience, and on toy data. This tutorial fills the gap between the two kinds for psychologists: it builds AdaBoost step by step in R, on a question from their own field, checks the result against a package, and evaluates it project by project, as the data demand. Pargent et al. [-@pargent2023] teach the machine-learning workflow; this tutorial opens the algorithm. Readers need both.
+:::
+
 # Prerequisites
 
 #### Listing 1
@@ -324,7 +330,7 @@ The adatutor package is built for teaching: its functions show the mechanics and
 
 #### Figure 1 
 
-Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. [-@holzmeister2024\; HOLZ, 26], is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
+Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. (HOLZ, 26), is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
 tutplot_logoscheme(
@@ -469,7 +475,7 @@ tutplot_boundary(
 
 #### Figure 4
 
-The Gini impurity for a two-class classification problem. The x-axis is the proportion of Class 1 (e.g., the proportion of successes in the empirical example). The y-axis is the Gini impurity. The Gini impurity is highest when both classes are equally frequent, that is, when the proportion of Class 1 is 0.5 and there are as many successes as failures. The more homogeneous a node becomes, the lower its impurity; it is zero when a node holds only one class (only successes or only failures).
+The Gini impurity for a two-class classification problem. The x-axis is the proportion of Class 1 (e.g., the proportion of successes in the empirical example). The y-axis is the Gini impurity. The Gini impurity is highest when both classes are equally frequent, that is, when the proportion of Class 1 is 0.5 and there are as many successes as failures. The more homogeneous a node becomes, the lower its impurity. It is zero when a node holds only one class (only successes or only failures).
 
 ```{r figure-4}
 # Visualize
@@ -497,7 +503,7 @@ which(round(adjmeans, 4) == 0.927)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- The cut is 0.927, at position 89 (submitted: 0.9305).
+- Because of the new data, the cut is 0.927, at position 89 (submitted: 0.9305).
 :::
 
 ```{r gini-byhand}
@@ -641,6 +647,14 @@ y_train[i]
 cbind(x_train, y_train)[i:m, ]
 ```
 
+::: {.callout-note title="Check in tutorial"}
+The prose cites line numbers for Listings 17 (Line 2; Lines 4 and 6), 20 (Lines 2 and 4) and 23 (Line 4; Lines 6 to 8). Renumber them after porting: the script's listings have blank lines, and Listing 17 now has one statement per line.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `pred_nms` and `out_nme` (`prednms`, `outnme`); one statement per line instead of `;`.
+:::
+
 #### Listing 18
 
 Code to generate initialization weights in the AdaBoost algorithm.
@@ -655,15 +669,21 @@ D1 <- rep(1, m) / m
 Code to fit a classification stump with the initialization weights.
 
 ```{r listing-19}
-# Fit classification stump
+# Fit classification stump with the initialization weights
 h1 <- rpart::rpart(
   replicate ~ .,
   data = train[, voi_nms],
   method = "class",
   maxdepth = 1,
+  parms = list(split = "gini"),
   weights = D1
 )
 ```
+
+::: {.callout-important title="Changed since submission"}
+- `maxdepth` and `parms` passed directly instead of `treehypar <- rpart.control(maxdepth = 1, split = "gini")`, which was wrong: `split` belongs in `parms`.
+- `rpart::rpart()` instead of `rpart()`. All four predictors, as submitted: this is the stump of the Listing 13 note (`p_value.o` at 0.0007, leaves 90 and 51).
+:::
 
 #### Listing 20
 
@@ -671,18 +691,22 @@ Code to calculate the classification stump's error.
 
 ```{r listing-20}
 # Retrodictions (training data)
-y_retro <- predict(h1, newdata = train[, voi_nms], type = "class")
+y_retro <- predict(h1, newdata = train[, pred_nms], type = "class")
 
 # Retrodictive error
 epsilon <- sum(D1 * (y_retro != y_train))
 ```
+
+::: {.callout-important title="Changed since submission"}
+- `y_retro` (`yretro`); `newdata = train[, pred_nms]` (`voinms`), as in Listing 24 and Module 5.
+:::
 
 #### Listing 21
 
 Code to calculate the classification stump's performance.
 
 ```{r listing-21}
-# Retrodicitve performance
+# Retrodictive performance
 perf <- sum(D1 * (y_retro == y_train))
 
 # Retrodictive error
@@ -698,20 +722,28 @@ Code to calculate the classification stump's weight assuming a learning rate eta
 eta <- 1
 
 # Model weight
-alpha1 <- 1 / 2 * log(perf / epsilon) * eta
+alpha1 <- 0.5 * log(perf / epsilon) * eta
 ```
+
+::: {.callout-important title="Changed since submission"}
+- `0.5` instead of `1/2`, as in Listing 24 and in the package.
+:::
 
 #### Figure 6
 
-Visualization of how the importance of a classification stump ($\alpha_t$) varies with its performance ($1-\epsilon_t$). Overall, the better the performance of a stump, the higher its weight. Put another way, the lower a stump's error ($\epsilon_t$), the higher its importance ($a_t$). The boosting hyperparameter ($\eta$) allows to further attenuate the weight of a classification stump. This could later help to improve the predictive performance of AdaBoost (see Module 4).
+The model weight of a classification stump ($\alpha_t$) as a function of its performance ($1-\epsilon_t$), for three learning rates ($\eta$). The better a stump performs, the larger its weight; equivalently, the lower its error ($\epsilon_t$), the larger its weight. The learning rate scales the weight: $\eta = 1$ leaves it as it is, smaller values shrink it. The dot marks the first stump of Listing 22, with a performance of 0.730 and a model weight of 0.499. Module 7 shows how to choose the learning rate.
+
+<!-- check the module numbers after the module split -->
 
 ```{r figure-6}
-# Learning rates
-eta_int <- c(eta, 0.5, 0.1)
-
-# Visualize
-tutplot_importance(eta = eta_int, marked_perf = perf, marked_eta = eta)
+# Model weight by performance, for three learning rates; the dot is h1
+tutplot_modelweight(eta = c(1, 0.5, 0.1), marked_perf = perf)
 ```
+
+::: {.callout-important title="Changed since submission"}
+- Drawn by `tutplot_modelweight()`; the dot marks the first stump (performance 0.730, model weight 0.499).
+- "Model weight" replaces "importance" on the y-axis and in the caption: Module 4 uses "importance" for predictors.
+:::
 
 #### Listing 23
 
@@ -731,133 +763,127 @@ Z1 <- sum(D2_raw)
 D2 <- D2_raw / Z1
 ```
 
+::: {.callout-important title="Changed since submission"}
+- `y_retro` (`yretro`).
+:::
+
 #### Figure 7
 
-Visualization of how the update factor ($e^{-\alpha\chi}$) varies depending on the classification result and the importance of the model ($\alpha_t$). If the classifier classifies an observation correctly, $\chi$ takes the value 1 and the weight or importance of the observation is reduced in the next iteration. In the case of a misclassification, $\chi$ takes the value -1 and the weight of the observation increases. The observation will be more important in the next iteration.
-
-**TODO** I use $a$ as model weight not alpha! Either a or alpha needs fixing. Switch to alpha?
+The update factor ($e^{-\alpha_t\chi_t}$) by classification result, for three model weights. A correctly classified study effect has $\chi_t = 1$, and its weight shrinks for the next round by a factor below 1 (right). A misclassified one has $\chi_t = -1$, and its weight grows by a factor above 1 (left). The heavier the model, the stronger the update in both directions. The middle curve uses the first stump's model weight of 0.499; the other two use 0.7 and 0.3.
 
 ```{r figure-7}
-# Model weights: yours in the middle, a heavier and a lighter one either
-# side. Taken relative to alpha1, so they follow it if you change eta
-alpha_int <- round(alpha1 * c(1.35, 1, 0.6), 3)
+# Three model weights: a heavier one, the first stump's, a lighter one
+alpha_int <- c(0.7, round(alpha1, 3), 0.3)
+
 # Visualize
-# Note: One curve per model weight
-tutplot_updatefactor(
-  # Model weights
-  alpha = alpha_int,
-  # Rise figure
-  pch = c(20, 17, 15),
-  lty = 3,
-  lwd = 1,
-  ylim = c(0.3, 2.2)
-)
+tutplot_updatefactor(alpha = alpha_int)
 ```
+
+::: {.callout-important title="Changed since submission"}
+- The curves sit at 0.7, $\alpha_1$ (0.499) and 0.3 (submitted: 0.719, 0.619, 0.519); the legend reads $\alpha_t$.
+:::
 
 #### Figure 8
 
-Visualization of the result of the weight updating process after Iteration 1 for the first 25 data points in the `altmext` training set. The gray initial weights $D_1$ increase or decrease depending on whether the first classification stump classified them correctly (green dot in the middle) or not (red dot in the middle). If the stump misclassifies an observation, its weight moves up and becomes larger, i.e., its importance increases. Correctly classified data points experience a weight decrease. They become less important in the next iteration. Visually, they move down and become smaller.
+The weights of the first 25 study effects in the training set before ($D_1$, purple) and after ($D_2$, teal) the first round. Every initial weight is 1/141. A study effect the first stump misclassified sits in a yellow band, and its weight grows; the weights of the others shrink. The dots are sized by weight, so heavier study effects are drawn larger.
 
 ```{r figure-8}
-# Visualize
-# Note: The band marks the points the first stump missed
+# Weights before and after round 1; the band marks the missed points
 tutplot_weightone(d1 = D1, d2 = D2, chi = chi1)
 ```
 
+::: {.callout-important title="Changed since submission"}
+- New drawing by `tutplot_weightone()`: dots sized by weight, $D_1$ purple and $D_2$ teal, a yellow band behind the misclassified study effects (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
+:::
 
 #### Listing 24
 
-Code to loop through the algorithmic steps.
-
-::: {.callout-note}
-The code can take several seconds to complete.
-:::
+Code to loop through the algorithmic steps. It takes a few seconds.
 
 ```{r listing-24}
-# Number of trees
-T <- 1000
+# Number of trees, T
+n_tree <- 1000
 
 # Learning rate
 eta <- 1
 
-# Lists for models and weights
-ada_diy <- vector("list", T)
+# List of models and weights
+ada_diy <- vector("list", n_tree)
 
 # Initial observation weights
 D <- rep(1, m) / m
 
 # Loop through steps
-for (t in seq_len(T)) {
+for (t in seq_len(n_tree)) {
   h <- rpart::rpart(
     replicate ~ .,
     data = train[, voi_nms],
     method = "class",
     maxdepth = 1,
-    # Turn off, surrogates stand in for missing values, but we have none.
-    # Leaving it on would put extra variables into each stump's
-    # `variable.importance` and pull the scores below apart.
-    maxsurrogate = 0,
     weights = D
   )
-  y_retro <- predict(object = h, newdata = train[, pred_nms], type = "class")
-  e <- sum(D * (y_retro != y_train))
-  a <- 0.5 * log((1 - e) / e) * eta
+  y_retro <- predict(h, newdata = train[, pred_nms], type = "class")
+  epsilon <- sum(D * (y_retro != y_train))
+  alpha <- 0.5 * log((1 - epsilon) / epsilon) * eta
   chi <- (y_retro == y_train) * 1 + (y_retro != y_train) * -1
-  D_raw <- (D * exp(-a * chi))
+  D_raw <- D * exp(-alpha * chi)
   D <- D_raw / sum(D_raw)
-  ada_diy[[t]] <- list("h" = h, "a" = a)
+  ada_diy[[t]] <- list(h = h, alpha = alpha)
 }
-names(ada_diy) <- paste0("t", seq_len(T))
+names(ada_diy) <- paste0("t", seq_len(n_tree))
 
-# Show first model weight
-cat("Model weight 1:", ada_diy$t1$a)
+# First model weight, as a check against Listing 22
+cat("Model weight 1:", ada_diy$t1$alpha)
 ```
+
+::: {.callout-note title="Check in tutorial"}
+Numbers to regenerate in Module 3's prose: 107 → 141 (three times in the Initialization Phase); the error 0.252 → 0.270 and the performance 0.748 → 0.730 (Step 2 and "A First Look at Performance"); $\alpha_1$ 0.544 → 0.499 (the Step 3 equation, twice in Step 4, the Figure 7 paragraph); $D_1(3)$ 0.009 → 0.007, $Z_1$ 0.869 → 0.887, $D_2(3)$ 0.006 → 0.005 and $D_2(2)$ 0.018 → 0.013 (the examples keep observations 3 and 2, and their signs). Also: the Listing 24 caption says "about a minute", now a few seconds; `fit` → `ada_diy` in the Loop and Result prose; "Retrodivitve" in Listing 21; $a_t$ → $\alpha_t$ in Eq. ensemble, Eq. ensemble2, the algorithm box (Step 3 and Result) and Exercise 3.2's update factor; "Module 4" (five mentions) → the hyperparameter module after the split.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `n_tree` instead of `T`, which is R's alias of `TRUE`; `ada_diy` instead of `fit`.
+- `epsilon` and `alpha` instead of `e` and `a`: the names of Listings 20 to 23 and the symbols of the equations; `list(h = h, alpha = alpha)`.
+- `maxdepth = 1` passed directly (no `treehypar`); `rpart::rpart()`; `predict(h, ...)` without `object =`; parentheses around `D * exp(-alpha * chi)` dropped.
+- Runtime: about 3 seconds, not "about a minute" (caption).
+:::
 
 #### The Package Solution [NEW]
 
 Code to fit the same ensemble with the adatutor package.
 
 ```{r listing-24-pkg}
-# Use stump as weak learner
+# The same stump, fitted without weights: adaboost() sets its own
 cstump_fit <- rpart::rpart(
   replicate ~ .,
   data = train[, voi_nms],
   method = "class",
-  # Tree hyperparameter
   maxdepth = 1,
-  # Keep the training data
-  model = TRUE,
-  parms = list(split = "gini")
+  parms = list(split = "gini"),
+  # Keep the training data: adaboost() refits the stump from it
+  model = TRUE
 )
 
-# Take the stump and boost it
-ada_fit <- cstump_fit |> adaboost(n_iter = T, eta = eta)
+# Boost it
+ada_fit <- cstump_fit |> adaboost(n_iter = n_tree, eta = eta)
 
-# Verification
-identical(sapply(ada_diy, "[[", "a"), sapply(ada_fit, "[[", "a"))
+# Verification: the model weights agree, round by round
+identical(sapply(ada_diy, "[[", "alpha"), sapply(ada_fit, "[[", "alpha"))
 ```
 
-**Add to tutorial**: As both are weight by weight identical, we will use the package solution in the following to save some typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function.
+::: {.callout-note title="Add to tutorial"}
+Both fits carry the same model weights, round by round. From here on, we therefore use `adaboost()`. It saves typing, and it adds checks and messages that support readers as they explore the algorithm: it shows its progress and refuses a tree it cannot refit as handed in, for example one fitted with `weights`. Readers who prefer their own code can continue with Listing 24.
 
-**Add to tutorial**: Furthermore, the signature l. 802 also makes explicit what is often taken for granted: the weak learner is a (classification) stump. In fact the algorithm is written to accept any weak learner, with a performance slighly better than guessing (we see this in Eq. xxx). So the weak learner is iself a choice (a free hyperparameter if you will) and in fact you can also boost other models as well, such as deep trees or single-layer perceptrons (if you want to get wild). That said, `adaboost()` only accepts trees as this tutorial introduced them in Module 2. Indeed, stumps are a convenient choice, especially because of their simplicity and thus explainability which we will discuss next.
+`adaboost()` takes the fitted stump as its first argument. This makes explicit what is often taken for granted: the weak learner is a classification stump. The algorithm itself accepts any weak learner that performs better than chance (Equation `Eq:perfgreat`). The weak learner is thus a hyperparameter in its own right, and other models can be boosted as well, from deeper trees to single-layer perceptrons. Because the learner is a fitted tree, its settings travel with it: `adaboost()` carries the tree's `maxdepth`, `cp` and the other `rpart.control()` values into every round, which is why it has no `maxdepth` argument of its own. It accepts only classification trees, the models Module 2 introduced. Stumps are a convenient choice: their simplicity keeps the ensemble interpretable, as Module 4 shows.
+:::
 
-**TODO** Remove, keep at a different place?
-::: {.callout-tip}
-## The tree depth belongs to the tree, not to the boosting
+::: {.callout-note title="Add to tutorial"}
+Repeat the handoff sentence after each later `identical()` check, with its listing: "The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing N." The places: Module 4 (`gauge()`, the importance loop), Module 5 (retrodictions, Listing 25; the margin; predictions, Listing 28), Module 6 (`logo_cv()`, the LOGO-CV loop) and Module 7 (`hypergrid`, the grid loop). Not after `auroc()` or `assess()`, which have no by-hand counterpart. A reader who stays fully by hand pastes Listing 24 into the loops of Modules 6 and 7.
+:::
 
-`adaboost()` takes a fitted learner, so there is only one place to set depth:
-the `rpart()` call that builds it. Everything in `h$control` is carried into
-every round -- `maxdepth`, `cp`, `minsplit`, `minbucket` -- so the tree you
-looked at is the tree that gets boosted.
+<!-- check the module numbers after the module split -->
 
-Two controls are overridden, and only those two. `xval` and `maxsurrogate` are
-forced to zero: ten internal cross-validations per weak learner that nothing
-reads cost about thirty per cent of the runtime, and neither setting changes
-the tree that comes out. Everything you chose, you keep.
-
-This is why AdaBoost has no `maxdepth` argument. The algorithm is defined over
-*any* weak learner whose weighted error stays below one half; a tree is one
-choice among many, and its settings are yours rather than the algorithm's.
+::: {.callout-important title="Changed since submission"}
+- New listing: `adaboost()` replaces the submitted `trainAda()` of Module 4's "Two Wrapper Functions", which the script drops. It takes the fitted stump, not `maxdepth`, and returns one element per round, `h` and `alpha`.
 :::
 
 # Module 4: A Glimpse at Feature Importance
@@ -886,7 +912,7 @@ for (t in seq_along(ada_diy)) {
   if (v == "<leaf>") {
     next
   }
-  imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a
+  imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$alpha
 }
 # relative importance: normalize and scale
 imp_diy <- imp_diy / sum(imp_diy) * 100
@@ -894,10 +920,10 @@ imp_diy <- imp_diy / sum(imp_diy) * 100
 sort(imp_diy, decreasing = TRUE)
 ```
 
-First, we start with storing the number of predictiors and initializing a named vector of zeros, one entry per predictor. The loop then starts from that vector and adds each stump's model weight to the entry of the predictor it splits on (`imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$a`).FOOTONOTE The `rpart()` functions stores that predictor in `frame`, which is the tree's table of nodes. Its first row is the root, so for a stump, `frame$var[1]` is the predictor it splits on. A stump may also not split at all; then `frame$var[1]` reads `<leaf>`, and `next` skips it. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages. 
+First, we start with storing the number of predictiors and initializing a named vector of zeros, one entry per predictor. The loop then starts from that vector and adds each stump's model weight to the entry of the predictor it splits on (`imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$alpha`).FOOTONOTE The `rpart()` functions stores that predictor in `frame`, which is the tree's table of nodes. Its first row is the root, so for a stump, `frame$var[1]` is the predictor it splits on. A stump may also not split at all; then `frame$var[1]` reads `<leaf>`, and `next` skips it. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages. 
 **TODO** Use line numbers in the tutorial later.
 
-FOOTNOTE: If you implement such functions yourself, we recommend to avoid partial matching with "`$`" and use explicit names in `[[` instead, for example, `[["a"]]` instead of `$a`.
+FOOTNOTE: If you implement such functions yourself, we recommend to avoid partial matching with "`$`" and use explicit names in `[[` instead, for example, `[["alpha"]]` instead of `$alpha`.
 Errors are then far more obvious then with hidden partial matches often easier to debug. We keep it here since most readers are familiar with the `$` operator and we ensured partical matching does not cause any problems here. In the box in Listing (deep tree importance) we give an example of what we mean.
 
 **TODO** Check in the implementation we dont use partial matchting meachnisms with "$" :D
@@ -921,7 +947,7 @@ important |> plot(top_n = 15)
 ::: {.callout-note}
 ## Deeper trees: split frequency meets gain
 
-Deeper trees can split on several predictors. Then each tree's model weight is shared among the predictors it uses, in proportion to how much each one's splits reduce impurity (gain). In our case, the impurity is the Gini impurity of Module 2. The measure becomes a mix: the model weight decides how much a tree counts, and the gain decides how its share is divided. This is a weighted version of the mean decrease in impurity. In code, one line changes: `share <- ada_deep[[t]]$a * vi / sum(vi)`.
+Deeper trees can split on several predictors. Then each tree's model weight is shared among the predictors it uses, in proportion to how much each one's splits reduce impurity (gain). In our case, the impurity is the Gini impurity of Module 2. The measure becomes a mix: the model weight decides how much a tree counts, and the gain decides how its share is divided. This is a weighted version of the mean decrease in impurity. In code, one line changes: `share <- ada_deep[[t]]$alpha * vi / sum(vi)`.
 
 ```{r importance-general}
 # Fit the weak learner: a depth-4 tree, not a stump
@@ -944,7 +970,7 @@ for (t in seq_along(ada_deep)) {
   }
   # Split the weight across the variables this tree used,
   # in proportion to each split's improvement
-  share <- ada_deep[[t]][["a"]] * vi / sum(vi)
+  share <- ada_deep[[t]][["alpha"]] * vi / sum(vi)
   imp_deep[names(share)] <- imp_deep[names(share)] + share
 }
 imp_deep <- 100 * imp_deep / sum(imp_deep)
@@ -969,7 +995,7 @@ Code to generate ensemble retrodictions.
 h_fit <- lapply(ada_fit, "[[", "h")
 
 # Model weights
-alpha_fit <- sapply(ada_fit, "[[", "a")
+alpha_fit <- sapply(ada_fit, "[[", "alpha")
 
 # Retrodictions from stumps
 y_retro_cstp <- sapply(
