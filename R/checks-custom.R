@@ -222,14 +222,16 @@ check_ada_fit <- function(fit) {
   }
   ok <- vapply(
     fit,
-    \(element) is.list(element) && !is.null(element$h) && !is.null(element$a),
+    \(element) {
+      is.list(element) && !is.null(element$h) && !is.null(element$alpha)
+    },
     logical(1)
   )
   if (!all(ok)) {
     stop(
       "`fit` element ",
       which(!ok)[1L],
-      " has no `h` and `a`. Pass the list returned by adaboost().",
+      " has no `h` and `alpha`. Pass the list returned by adaboost().",
       call. = FALSE
     )
   }

@@ -1,7 +1,7 @@
 #' Gauge the importance of each predictor
 #'
 #' Sums, for each predictor, the model weights of the trees that split on it,
-#' and scales the sums to 100. A stump gives its whole weight a_t to its one
+#' and scales the sums to 100. A stump gives its whole weight alpha_t to its one
 #' variable. A deeper tree splits its weight across its variables by rpart's
 #' improvement measure. A tree that never split adds nothing.
 #'
@@ -49,7 +49,7 @@ gauge <- function(fit) {
 
   for (t in seq_along(fit)) {
     tree <- fit[[t]]$h
-    weight <- fit[[t]]$a
+    weight <- fit[[t]]$alpha
 
     # rpart's improvement: NULL for a bare leaf, one entry for a stump
     improvement <- tree$variable.importance

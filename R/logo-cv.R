@@ -885,7 +885,7 @@ draw_logo_cv <- function(
   }
 
   widths <- seq(9, 2.2, length.out = length(levels))
-  alphas <- seq(1, 0.32, length.out = length(levels))
+  opacities <- seq(1, 0.32, length.out = length(levels))
   for (i in positions) {
     band <- bands[[i]]
     if (is.null(band)) {
@@ -898,7 +898,7 @@ draw_logo_cv <- function(
         i,
         band[2, k],
         lwd = widths[k],
-        col = grDevices::adjustcolor(colors[i], alpha.f = alphas[k])
+        col = grDevices::adjustcolor(colors[i], alpha.f = opacities[k])
       )
     }
   }
