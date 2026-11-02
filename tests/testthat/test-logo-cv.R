@@ -650,8 +650,8 @@ test_that("the learner's control reaches every boosted tree", {
   stumps <- rpart::rpart(fml, data = d, maxdepth = 1, cp = 0, model = TRUE) |>
     adaboost(n_iter = 20, eta = 0.55, verbose = FALSE, check_inputs = FALSE)
   expect_false(isTRUE(all.equal(
-    vapply(fit, function(z) z$a, numeric(1)),
-    vapply(stumps, function(z) z$a, numeric(1))
+    vapply(fit, function(z) z$alpha, numeric(1)),
+    vapply(stumps, function(z) z$alpha, numeric(1))
   )))
 })
 
@@ -667,7 +667,7 @@ test_that("model weights stay finite when a base learner refuses to split", {
     model = TRUE
   ) |>
     adaboost(n_iter = 300, eta = 0.55, verbose = FALSE, check_inputs = FALSE)
-  alphas <- vapply(fit, function(z) z$a, numeric(1))
+  alphas <- vapply(fit, function(z) z$alpha, numeric(1))
   rootonly <- vapply(fit, function(z) nrow(z$h$frame) == 1L, logical(1))
 
   expect_true(any(rootonly))

@@ -156,7 +156,7 @@ test_that("a custom palette is honored", {
       altmejd,
       resolution = 20,
       palette = c("red", "blue"),
-      alpha = 0.5
+      opacity = 0.5
     )
   )
   expect_equal(dim(g$z), c(20L, 20L))
@@ -220,12 +220,12 @@ test_that("the fill defaults to a weight suited to the shading", {
       resolution = 20,
       shade = "margin"
     ))
-    # an explicit alpha still wins
+    # an explicit opacity still wins
     expect_silent(tutplot_boundary(
       fit_ada(),
       altmejd,
       resolution = 20,
-      alpha = 0.4
+      opacity = 0.4
     ))
   })
 })

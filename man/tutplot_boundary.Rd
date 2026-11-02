@@ -11,7 +11,7 @@ tutplot_boundary(
   shade = "margin",
   resolution = 150,
   palette = NULL,
-  alpha = NULL,
+  opacity = NULL,
   show_points = TRUE,
   legend_pos = "top",
   add_colorbar = TRUE,
@@ -44,7 +44,7 @@ with its square.}
 \item{palette}{Two colors, for the negative and the positive class.
 Defaults to \code{viridisLite::viridis(2)}.}
 
-\item{alpha}{The opacity of the fill. Defaults to 0.18 for \code{"class"} and
+\item{opacity}{The opacity of the fill. Defaults to 0.18 for \code{"class"} and
 0.65 for \code{"margin"}.}
 
 \item{show_points}{Whether to draw the data. Defaults to \code{TRUE}.}

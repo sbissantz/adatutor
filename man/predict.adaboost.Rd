@@ -32,7 +32,7 @@ A numeric vector of class labels or margins, depending on \code{type}.
 }
 \description{
 Combines the boosted trees into the weighted vote
-\deqn{H(x) = \sum_{t=1}^T a_t h_t(x)}{H(x) = sum over t of a_t h_t(x)}
+\deqn{H(x) = \sum_{t=1}^T \alpha_t h_t(x)}{H(x) = sum over t of alpha_t h_t(x)}
 and returns class labels or the vote itself, the margin.
 }
 \section{Prediction or retrodiction}{

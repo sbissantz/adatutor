@@ -10,8 +10,8 @@ test_that("adaboost() and predict() work", {
     adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
 
   expect_length(fit, 10)
-  expect_equal(round(fit$t1$a, 1), 0.3)
-  expect_equal(round(fit$t10$a, 1), 0.5)
+  expect_equal(round(fit$t1$alpha, 1), 0.3)
+  expect_equal(round(fit$t10$alpha, 1), 0.5)
   expect_match(class(fit$t1$h), "rpart")
   expect_equal(attr(fit, "train"), as.name("iris"))
 
@@ -28,8 +28,8 @@ test_that("adaboost() and predict() work", {
     adaboost(n_iter = 10, eta = 1, verbose = TRUE, check_inputs = TRUE)
 
   expect_length(fit2, 10)
-  expect_equal(round(fit2$t1$a, 1), 0.3)
-  expect_equal(round(fit2$t10$a, 1), 0.5)
+  expect_equal(round(fit2$t1$alpha, 1), 0.3)
+  expect_equal(round(fit2$t10$alpha, 1), 0.5)
   expect_match(class(fit2$t1$h), "rpart")
   expect_equal(attr(fit2, "train"), as.name("iris"))
 

@@ -26,7 +26,7 @@ the size of the data; set \code{FALSE} when you save many fits.}
 }
 \value{
 An object of class \code{adaboost}: a list with one element per round,
-each holding the tree (\code{h}) and its model weight (\code{a}). Attributes store
+each holding the tree (\code{h}) and its model weight (\code{alpha}). Attributes store
 the training data, the formula, \code{n_iter}, \code{eta}, the tree control and the
 splitting rule, so \code{\link[=logo_cv]{logo_cv()}} can refit the same recipe.
 }

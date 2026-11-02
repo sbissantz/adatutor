@@ -26,7 +26,7 @@ feature, and returns \code{NULL} invisibly.
 }
 \description{
 Sums, for each predictor, the model weights of the trees that split on it,
-and scales the sums to 100. A stump gives its whole weight a_t to its one
+and scales the sums to 100. A stump gives its whole weight alpha_t to its one
 variable. A deeper tree splits its weight across its variables by rpart's
 improvement measure. A tree that never split adds nothing.
 }
