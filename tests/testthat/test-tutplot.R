@@ -232,45 +232,45 @@ test_that("tutplot_updatefactor() validates alpha and writes nothing by default"
   expect_identical(list.files(wd), character(0))
 })
 
-test_that("tutplot_importance() shows what its caption claims", {
+test_that("tutplot_modelweight() shows what its caption claims", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  imp <- tutplot_importance()
-  finite <- is.finite(imp$importance[, 1])
+  imp <- tutplot_modelweight()
+  finite <- is.finite(imp$weight[, 1])
 
-  # "the better the performance of a stump, the higher its weight"
+  # "the better a stump performs, the larger its weight"
   for (i in seq_along(imp$eta)) {
-    col <- imp$importance[finite, i]
+    col <- imp$weight[finite, i]
     expect_false(is.unsorted(col))
   }
-  # chance performance earns no importance at all
-  expect_equal(imp$importance[imp$performance == 0.5, ], rep(0, 3))
-  # "eta allows to further attenuate the weight": at any fixed performance the
-  # importance is proportional to it
+  # chance performance earns no weight at all
+  expect_equal(imp$weight[imp$performance == 0.5, ], rep(0, 3))
+  # "the learning rate scales the weight": at any fixed performance the
+  # weight is proportional to it
   at <- which(round(imp$performance, 3) == 0.9)
   expect_equal(
-    imp$importance[at, ] / imp$importance[at, 1],
+    imp$weight[at, ] / imp$weight[at, 1],
     imp$eta / imp$eta[1]
   )
 })
 
-test_that("tutplot_importance() sizes its panel from every curve", {
+test_that("tutplot_modelweight() sizes its panel from every curve", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
   # the default range is unchanged: descending eta means curve 1 is the widest
-  imp <- tutplot_importance()
-  expect_equal(round(max(imp$importance[is.finite(imp$importance)]), 3), 2.647)
+  imp <- tutplot_modelweight()
+  expect_equal(round(max(imp$weight[is.finite(imp$weight)]), 3), 2.647)
 
   # ascending eta used to clip, because R sized the panel from curve 1 alone
-  up <- tutplot_importance(eta = c(0.1, 1))
+  up <- tutplot_modelweight(eta = c(0.1, 1))
   usr <- graphics::par("usr")
-  tallest <- max(up$importance[is.finite(up$importance)])
+  tallest <- max(up$weight[is.finite(up$weight)])
   expect_gte(usr[4], tallest)
 })
 
-test_that("tutplot_importance() validates eta and writes nothing by default", {
+test_that("tutplot_modelweight() validates eta and writes nothing by default", {
   wd <- file.path(tempdir(), "tutplot-imp")
   dir.create(wd, showWarnings = FALSE)
   old <- setwd(wd)
@@ -284,8 +284,8 @@ test_that("tutplot_importance() validates eta and writes nothing by default", {
     add = TRUE
   )
 
-  expect_error(tutplot_importance(eta = "fast"))
-  tutplot_importance()
+  expect_error(tutplot_modelweight(eta = "fast"))
+  tutplot_modelweight()
   expect_identical(list.files(wd), character(0))
 })
 
@@ -364,7 +364,7 @@ test_that("run_round_one() reproduces the tutorial's D1 and D2", {
   expect_gt(r$alpha, 0)
 })
 
-test_that("tutplot_importance() marks the reader's own learner exactly", {
+test_that("tutplot_modelweight() marks the reader's own learner exactly", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
@@ -384,7 +384,7 @@ test_that("tutplot_importance() marks the reader's own learner exactly", {
   perf <- sum(d1 * (y_retro == y))
   alpha1 <- 1 / 2 * log(perf / (1 - perf)) * 1
 
-  marked <- tutplot_importance(marked_perf = perf)
+  marked <- tutplot_modelweight(marked_perf = perf)
 
   expect_equal(marked$alpha, alpha1)
   expect_equal(round(marked$alpha, 4), 0.5431)
@@ -394,15 +394,15 @@ test_that("the mark sits on the curve it belongs to", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # for a marked_eta that is one of the drawn curves, the marked importance must
+  # for a marked_eta that is one of the drawn curves, the marked weight must
   # equal that curve's value there -- it cannot float off its own line
   for (e in c(1, 0.5, 0.1)) {
-    m <- tutplot_importance(marked_perf = 0.8, marked_eta = e)
+    m <- tutplot_modelweight(marked_perf = 0.8, marked_eta = e)
     expect_equal(m$alpha, 1 / 2 * log(0.8 / 0.2) * e)
   }
   # and it moves when the learner does
-  a <- tutplot_importance(marked_perf = 0.6)$alpha
-  b <- tutplot_importance(marked_perf = 0.9)$alpha
+  a <- tutplot_modelweight(marked_perf = 0.6)$alpha
+  b <- tutplot_modelweight(marked_perf = 0.9)$alpha
   expect_lt(a, b)
 })
 
@@ -410,27 +410,27 @@ test_that("no mark leaves the figure exactly as it was", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  plain <- tutplot_importance()
-  marked <- tutplot_importance(marked_perf = 0.75)
+  plain <- tutplot_modelweight()
+  marked <- tutplot_modelweight(marked_perf = 0.75)
 
   expect_null(plain$alpha)
-  expect_identical(plain$importance, marked$importance)
+  expect_identical(plain$weight, marked$weight)
   expect_identical(plain$performance, marked$performance)
 })
 
-test_that("tutplot_importance() refuses a mark it could not draw", {
+test_that("tutplot_modelweight() refuses a mark it could not draw", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # worse than chance: the importance is negative and off the panel
-  expect_error(tutplot_importance(marked_perf = 0.3), "must be one value")
-  # perfect: the importance is infinite
-  expect_error(tutplot_importance(marked_perf = 1), "must be one value")
+  # worse than chance: the weight is negative and off the panel
+  expect_error(tutplot_modelweight(marked_perf = 0.3), "must be one value")
+  # perfect: the weight is infinite
+  expect_error(tutplot_modelweight(marked_perf = 1), "must be one value")
   expect_error(
-    tutplot_importance(marked_perf = c(0.6, 0.8)),
+    tutplot_modelweight(marked_perf = c(0.6, 0.8)),
     "must be one value"
   )
-  expect_error(tutplot_importance(marked_perf = "good"))
+  expect_error(tutplot_modelweight(marked_perf = "good"))
 })
 
 test_that("the tutorial's eta merge cannot duplicate or drop a curve", {
@@ -462,15 +462,15 @@ test_that("a duplicated eta draws the same curve twice, silently", {
   # pins what the unmerged call used to do: no error, no warning, two identical
   # columns and a doubled legend entry. A guard inside the function would be a
   # deliberate change, and this is what would catch it
-  dup <- expect_silent(tutplot_importance(eta = c(0.5, 0.5, 0.1)))
-  expect_identical(dup$importance[, 1], dup$importance[, 2])
+  dup <- expect_silent(tutplot_modelweight(eta = c(0.5, 0.5, 0.1)))
+  expect_identical(dup$weight[, 1], dup$weight[, 2])
 })
 
 test_that("four curves get four line types", {
   # `eta` merged with the three references can reach four, and `lty` is
   # recycled across them -- three entries would give curves 1 and 4 the same
   # line type, separable only by color on a color print
-  default <- eval(formals(tutplot_importance)$lty)
+  default <- eval(formals(tutplot_modelweight)$lty)
   expect_false(anyDuplicated(rep_len(default, 4)) > 0)
   # and the shipped three-curve figure is untouched by the fourth entry
   expect_identical(rep_len(default, 3), c(1, 2, 4))
@@ -485,7 +485,7 @@ test_that("the spliced call marks the reader's own alpha", {
   eta <- 0.75
   etas <- sort(unique(c(eta, 1, 0.5, 0.1)), decreasing = TRUE)
 
-  imp <- tutplot_importance(eta = etas, marked_perf = perf, marked_eta = eta)
+  imp <- tutplot_modelweight(eta = etas, marked_perf = perf, marked_eta = eta)
   expect_equal(imp$alpha, 1 / 2 * log(perf / (1 - perf)) * eta)
   # the marked rate is one of the drawn curves, so the crosshair sits on a line
   expect_true(eta %in% imp$eta)
@@ -601,13 +601,13 @@ test_that("the mark follows marked_eta, whatever the reader sets", {
   # 0.75 is deliberately not one of the drawn curves: the mark still belongs to
   # it, it simply sits between two of them
   for (e in c(1, 0.5, 0.1, 0.75)) {
-    m <- tutplot_importance(marked_perf = perf, marked_eta = e)
+    m <- tutplot_modelweight(marked_perf = perf, marked_eta = e)
     expect_equal(m$alpha, 1 / 2 * log(perf / epsilon) * e)
   }
 
   # the regression this fixes: omitting marked_eta pins the mark to eta[1], so a
   # reader who changes eta in Listing 22 would see a crosshair that lies
-  pinned <- tutplot_importance(marked_perf = perf)$alpha
+  pinned <- tutplot_modelweight(marked_perf = perf)$alpha
   expect_equal(pinned, 1 / 2 * log(perf / epsilon) * 1)
   expect_false(isTRUE(all.equal(
     pinned,
@@ -692,7 +692,11 @@ test_that("each figure asks for the margins it needs", {
     "set_figure_par(reserve_legend = FALSE)",
     fixed = TRUE
   )
-  for (f in list(tutplot_updatefactor, tutplot_importance, tutplot_weightone)) {
+  for (f in list(
+    tutplot_updatefactor,
+    tutplot_modelweight,
+    tutplot_weightone
+  )) {
     expect_match(
       body_of(f),
       "set_figure_par(reserve_legend = TRUE)",

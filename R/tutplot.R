@@ -7,7 +7,7 @@
 #' * `tutplot_gini()`: Gini impurity by class proportion.
 #' * `tutplot_updatefactor()`: the factor by which one round multiplies an
 #'   observation's weight.
-#' * `tutplot_importance()`: the model weight a stump earns, by its
+#' * `tutplot_modelweight()`: the model weight a stump earns, by its
 #'   performance.
 #' * `tutplot_weightone()`: observation weights before and after one round.
 #' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
@@ -274,7 +274,7 @@ tutplot_updatefactor <- function(
   draw_legend(
     as.expression(lapply(
       alpha,
-      \(value) bquote(a[t] * " = " * .(format(value)))
+      \(value) bquote(alpha[t] * " = " * .(format(value)))
     )),
     cex = 1,
     col = colors,
@@ -293,7 +293,7 @@ tutplot_updatefactor <- function(
 
 #' @rdname tutplot
 #' @export
-tutplot_importance <- function(
+tutplot_modelweight <- function(
   eta = c(1, 0.5, 0.1),
   lty = c(1, 2, 4, 5),
   lwd = 2,
@@ -333,12 +333,12 @@ tutplot_importance <- function(
   colors <- viridisLite::viridis(length(eta), end = tutplot_opts$viridis_end)
   lty <- rep_len(lty, length(eta))
 
-  # a stump's importance as a function of its performance
+  # a stump's model weight as a function of its performance
   weigh <- function(accuracy, eta) 1 / 2 * log(accuracy / (1 - accuracy)) * eta
 
   # stop short of the asymptote at 1: R drops the one infinite value
   performance <- seq(from, 1, length.out = 101)
-  importance <- vapply(
+  weight <- vapply(
     eta,
     \(rate) weigh(performance, rate),
     numeric(length(performance))
@@ -348,9 +348,9 @@ tutplot_importance <- function(
   plot(
     NULL,
     xlim = c(from, 1),
-    ylim = range(importance[is.finite(importance)]),
+    ylim = range(weight[is.finite(weight)]),
     xlab = "Performance",
-    ylab = "Importance"
+    ylab = "Model Weight"
   )
   graphics::grid()
 
@@ -387,7 +387,7 @@ tutplot_importance <- function(
   for (i in seq_along(eta)) {
     graphics::lines(
       performance,
-      importance[, i],
+      weight[, i],
       col = colors[i],
       lty = lty[i],
       lwd = lwd
@@ -410,7 +410,7 @@ tutplot_importance <- function(
   invisible(list(
     eta = eta,
     performance = performance,
-    importance = importance,
+    weight = weight,
     alpha = marked_alpha
   ))
 }
@@ -625,7 +625,7 @@ tutplot_weightone <- function(
 #'   with its square.
 #' @param palette Two colors, for the negative and the positive class.
 #'   Defaults to `viridisLite::viridis(2)`.
-#' @param alpha The opacity of the fill. Defaults to 0.18 for `"class"` and
+#' @param opacity The opacity of the fill. Defaults to 0.18 for `"class"` and
 #'   0.65 for `"margin"`.
 #' @param show_points Whether to draw the data. Defaults to `TRUE`.
 #' @param legend_pos Where to put the legend. The default, `"top"`, puts it
@@ -673,7 +673,7 @@ tutplot_boundary <- function(
   shade = "margin",
   resolution = 150,
   palette = NULL,
-  alpha = NULL,
+  opacity = NULL,
   show_points = TRUE,
   legend_pos = "top",
   add_colorbar = TRUE,
@@ -756,9 +756,9 @@ tutplot_boundary <- function(
     # the scale's two ends are the classes; nothing in between is claimed
     palette <- viridisLite::viridis(2)
   }
-  if (is.null(alpha)) {
+  if (is.null(opacity)) {
     # a flat tint only has to hint; a ramp has to be read, so it needs weight
-    alpha <- if (shade == "class") 0.18 else 0.65
+    opacity <- if (shade == "class") 0.18 else 0.65
   }
 
   # size the top margin from what is drawn: legend, sub-title and title
@@ -788,7 +788,7 @@ tutplot_boundary <- function(
       x1,
       x2,
       (z > 0) * 1,
-      col = grDevices::adjustcolor(palette, alpha.f = alpha),
+      col = grDevices::adjustcolor(palette, alpha.f = opacity),
       add = TRUE,
       useRaster = TRUE
     )
@@ -806,7 +806,7 @@ tutplot_boundary <- function(
       x1,
       x2,
       clamped,
-      col = grDevices::adjustcolor(ramp, alpha.f = alpha),
+      col = grDevices::adjustcolor(ramp, alpha.f = opacity),
       breaks = breaks,
       add = TRUE,
       useRaster = TRUE
@@ -923,7 +923,7 @@ tutplot_boundary <- function(
 
   if (shade == "margin" && isTRUE(add_colorbar) && !is.null(legend_pos)) {
     # the ramp's ends are the classes, so the bar is the legend
-    draw_colorbar(alpha, labels)
+    draw_colorbar(opacity, labels)
   }
 
   invisible(list(x1 = x1, x2 = x2, z = z, features = features))
@@ -995,7 +995,7 @@ read_class_labels <- function(data, outcome) {
 
 #' Draw the margin color bar above the panel
 #' @noRd
-draw_colorbar <- function(alpha, labels) {
+draw_colorbar <- function(opacity, labels) {
   # centered in the margin above the panel like the class legend; its ends
   # carry the class names, so no caption
   usr <- graphics::par("usr")
@@ -1015,7 +1015,7 @@ draw_colorbar <- function(alpha, labels) {
     top,
     col = grDevices::adjustcolor(
       viridisLite::viridis(n_colors),
-      alpha.f = alpha
+      alpha.f = opacity
     ),
     border = NA,
     xpd = NA
