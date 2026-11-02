@@ -5,7 +5,7 @@
 \alias{tutplot_cstump}
 \alias{tutplot_gini}
 \alias{tutplot_updatefactor}
-\alias{tutplot_importance}
+\alias{tutplot_modelweight}
 \alias{tutplot_weightone}
 \alias{tutplot_logocv}
 \alias{tutplot_logoscheme}
@@ -41,7 +41,7 @@ tutplot_updatefactor(
   pointsize = tutplot_opts$pointsize
 )
 
-tutplot_importance(
+tutplot_modelweight(
   eta = c(1, 0.5, 0.1),
   lty = c(1, 2, 4, 5),
   lwd = 2,
@@ -191,7 +191,7 @@ in a vignette, so every printed figure is documented and tested.
 \item \code{tutplot_gini()}: Gini impurity by class proportion.
 \item \code{tutplot_updatefactor()}: the factor by which one round multiplies an
 observation's weight.
-\item \code{tutplot_importance()}: the model weight a stump earns, by its
+\item \code{tutplot_modelweight()}: the model weight a stump earns, by its
 performance.
 \item \code{tutplot_weightone()}: observation weights before and after one round.
 \item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.

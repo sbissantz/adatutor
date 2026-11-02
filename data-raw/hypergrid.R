@@ -67,7 +67,7 @@ score_fold <- function(project, depth, eta) {
     verbose = FALSE,
     check_inputs = FALSE
   )
-  weights <- vapply(fit, `[[`, numeric(1), "a")
+  weights <- vapply(fit, `[[`, numeric(1), "alpha")
   votes <- vapply(
     fit,
     \(learner) {
