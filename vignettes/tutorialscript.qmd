@@ -888,96 +888,132 @@ Repeat the handoff sentence after each later `identical()` check, with its listi
 
 # Module 4: A Glimpse at Feature Importance
 
-#### Listing [NEW]?
+::: {.callout-note title="Check in tutorial"}
+The whole module is new (R1.C6). The "Add to tutorial" boxes hold the prose, the listing intros and the caption stay plain, and the two boxes marked "(box)" are manuscript boxes. Number the three listings and the figure when porting; the boundary figure of Module 5 becomes Figure 10. Decide then whether the walk-through cites line numbers. Numbers: 33.7, 23.6, 21.6 and 21.1 percent; 97 of 1,000 stumps; in the deep box 32.2, 26.0, 24.2 and 17.6 percent.
+:::
 
-**TODO**: Prompt to the tidymodels package? and link the resources and say we designed the package so it mimics the structure for easier transition?
+::: {.callout-note title="Add to tutorial"}
+In the Introduction, we set out to turn AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its parts, and rebuilding it in code. Now we put this knowledge to work and inspect the fitted ensemble: which predictors does it rely on as it learns? This is the question of feature importance, part of the wider field of interpretable machine learning. Because this tutorial is about AdaBoost, we only scratch the surface and develop one model-specific measure for boosted stumps. Model-agnostic methods, such as permutation importance and effect plots, reach further [see @molnar2025; @pargent2023].
 
-**TODO** New Module instead of only a new section?
-## NEW: Feature Importance
+Most importance measures for tree ensembles build on two quantities: how often a predictor is used to split (split frequency) and how much its splits reduce impurity (gain). For stumps, we build on the first and weight each split by the stump's model weight. The result is a *relative importance*: each predictor's share, in percent, of the model weight of all stumps that split. Two facts from earlier modules make this work. In Module 2, a stump asks one yes/no question of one predictor. In Module 3, each stump carries a model weight $\alpha_t$, which grows with its performance on the weighted data. So we group the stumps by the predictor they split on and sum their model weights. This makes sense because AdaBoost shifts weight toward the study effects the ensemble still gets wrong, so each new stump works on the ensemble's largest mistakes. A predictor that many stumps choose, and stumps with large model weights in particular, is one the ensemble relies on again and again for its corrections. The summed weight shows how much the ensemble relies on each predictor, relative to the others. The listing below puts this into code.
+:::
 
-In the introduction, we punchily stated that our goal is to turn AdaBoost into a "glass-box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts, and rebuilding it in code. Now we go one step further and put this knowledge to work. We build a tool that lets us inspect the fitted model and see which predictors the ensemble focuses on as it learns. This is the question of feature importance, part of the wider field of interpretable machine learning (IML). Because this tutorial focuses on AdaBoost, not on IML in general, we will only scratch the surface of what is possible. Specifically, we will develop a model-specific measure for boosted trees. Model-agnostic methods, such as permutation importance and effect plots, go much further and readers who want to learn more can find it in more specialized resources [see, e.g., @molnar2025; @pargent2023].
+#### Listing [NEW]
 
-Most importance measures for tree ensembles build on two quantities: how often a predictor is used to split (split frequency) and how much its splits reduce impurity (gain). For our stumps, we build on the first and weight each split by its stump's model weight. The result is a **relative importance** measure, which gives each predictor's share, in percent, of the model weight of all stumps that split. Two insights from earlier modules make this work: In Module 2 we showed that a stump splits (at most) once, on one predictor, and in Module 3 we taught that each stump carries a model weight `a`, which grows with the stump's accuracy on the weighted data. To get the importance score, we now simply group the stumps by the predictor they split on and sum their model weights. Why does this make sense? Well, AdaBoost shifts weight toward the observations the ensemble still gets wrong (or barely right), so each new stump works on the ensemble's biggest mistakes. A predictor that many stumps choose, especially stumps with high model weights, is one the ensemble relies on again and again for its corrections. The summed weight thus shows how much the ensemble relies on each predictor relative to the others. Listing xxx puts this into code.
+Code to compute the relative importance of each predictor from the boosted stumps.
 
-```{r importance-frame}
-n_preds <- length(pred_nms)
-# initialization: vector of zeros
-voz <- numeric(n_preds)
-imp_diy <- setNames(voz, pred_nms)
-for (t in seq_along(ada_diy)) {
-  # variable at the root (stumps)
-  h <- ada_diy[[t]]$h
-  v <- as.character(h$frame$var[1])
-  # if it does not split, skip it
-  if (v == "<leaf>") {
+```{r importance-diy}
+# One entry per predictor, starting at zero
+imp_diy <- setNames(numeric(length(pred_nms)), pred_nms)
+
+# Loop through stumps
+for (t in seq_along(ada_fit)) {
+  h <- ada_fit[[t]]$h
+  # The predictor at the root: the one the stump splits on
+  predictor <- h$frame$var[1]
+  # A stump that does not split has a leaf at the root: skip it
+  if (predictor == "<leaf>") {
     next
   }
-  imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$alpha
+  # Add the stump's model weight to its predictor
+  imp_diy[predictor] <- imp_diy[predictor] + ada_fit[[t]]$alpha
 }
-# relative importance: normalize and scale
+
+# Relative importance: each predictor's share, in percent
 imp_diy <- imp_diy / sum(imp_diy) * 100
-# highest importance first
+
+# Most important first
 sort(imp_diy, decreasing = TRUE)
 ```
 
-First, we start with storing the number of predictiors and initializing a named vector of zeros, one entry per predictor. The loop then starts from that vector and adds each stump's model weight to the entry of the predictor it splits on (`imp_diy[v] <- imp_diy[v] + ada_diy[[t]]$alpha`).FOOTONOTE The `rpart()` functions stores that predictor in `frame`, which is the tree's table of nodes. Its first row is the root, so for a stump, `frame$var[1]` is the predictor it splits on. A stump may also not split at all; then `frame$var[1]` reads `<leaf>`, and `next` skips it. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages. 
-**TODO** Use line numbers in the tutorial later.
+::: {.callout-note title="Add to tutorial"}
+The listing starts with a named vector of zeros, one entry per predictor. The loop then adds each stump's model weight, `ada_fit[[t]]$alpha`, to the entry of the predictor the stump splits on. `rpart()` stores that predictor in `frame`, the tree's table of nodes. Its first row is the root, so for a stump, `frame$var[1]` is the predictor it splits on. A stump may also not split at all. Then `frame$var[1]` reads `<leaf>`, and `next` skips the stump; the box below explains why this happens. Finally, we divide by the total and multiply by 100, so the scores sum to 100 and read as percentages. With our training data, the p value of the original study takes about a third of the weight; power, sample size, and effect size share the rest almost evenly. The loop runs unchanged on the ensemble of Listing 24, because both fits store `h` and `alpha` per round.
 
-FOOTNOTE: If you implement such functions yourself, we recommend to avoid partial matching with "`$`" and use explicit names in `[[` instead, for example, `[["alpha"]]` instead of `$alpha`.
-Errors are then far more obvious then with hidden partial matches often easier to debug. We keep it here since most readers are familiar with the `$` operator and we ensured partical matching does not cause any problems here. In the box in Listing (deep tree importance) we give an example of what we mean.
+Footnote, at `ada_fit[[t]]$alpha`: The listings use `$` because most readers know it. In functions of their own, readers are better served by `[[` with the full name, for example `[["alpha"]]` instead of `$alpha`. `$` completes partial names silently, so a typo such as `$alph` still returns the model weight instead of an error; `[["alph"]]` returns `NULL`, which is easy to spot. The listing in the box on deeper trees uses this form.
+:::
 
-**TODO** Check in the implementation we dont use partial matchting meachnisms with "$" :D
+::: {.callout-note title="Add to tutorial (box)"}
+**Why would a stump not split?** By default, `rpart()` keeps a split only if it decreases the overall lack of fit by at least a factor of the complexity parameter, `cp = 0.01`, and only if both leaves hold enough study effects (`minsplit`, `minbucket`). As the weights shift toward a few hard study effects, a split that passes may not exist. With our training data, 97 of the 1,000 stumps consist of a bare root. Such a stump has no predictor to credit, so the loop skips it.
+:::
 
-**TODO** Put in module 2 as a box after saying stumps split (*at most*) once? and then refer to it back here?
-Box?
-Why would a stump not split? By default, `rpart` only makes a split if it improves the fit by at least the complexity parameter, `cp = 0.01`, that is, 1 percent of the error at the root. With our training data, 97 of the 1,000 stumps found no such split, so we need to skip those cases when implementing it.
+::: {.callout-important title="Changed since submission"}
+- New listing (R1.C6). It loops over `ada_fit`, the fit the handoff after Listing 24 switched to.
+:::
 
-The `gauge()` function in the adatutor package computes the measure for trees of any depth (see box below) and we added a `plot()` function so readers can easily visualize the result.
+#### The Package Solution [NEW]
 
-```{r}
-#| label: importance
-important <- gauge(ada_fit)
-head(important, 10)
-imp <- setNames(important$importance, important$variable)
-identical(imp, imp_diy[names(imp)])
-# visualize
-important |> plot(top_n = 15)
+Code to compute the same importance with the adatutor package.
+
+```{r importance-pkg}
+# Relative importance from the package
+imp_fit <- gauge(ada_fit)
+imp_fit
+
+# The package's shares as a named vector, like imp_diy
+imp_vec <- setNames(imp_fit$importance, imp_fit$variable)
+
+# Verification: the same shares, most important first
+identical(sort(imp_diy, decreasing = TRUE), imp_vec)
 ```
 
-::: {.callout-note}
-## Deeper trees: split frequency meets gain
+::: {.callout-note title="Add to tutorial"}
+`gauge()` computes the same measure for the whole ensemble and returns a data frame with one row per predictor, most important first. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with the listing above. `gauge()` also handles deeper trees (see the box below), and its `plot()` method draws the result as a lollipop chart (Figure [NEW]).
 
-Deeper trees can split on several predictors. Then each tree's model weight is shared among the predictors it uses, in proportion to how much each one's splits reduce impurity (gain). In our case, the impurity is the Gini impurity of Module 2. The measure becomes a mix: the model weight decides how much a tree counts, and the gain decides how its share is divided. This is a weighted version of the mean decrease in impurity. In code, one line changes: `share <- ada_deep[[t]]$alpha * vi / sum(vi)`.
+The numbers are relative: they show how the ensemble divided its weight, not what a predictor is worth on its own. They carry no sign, so they do not say whether a high p value helps or hurts a replication. Correlated predictors share their weight, and the ranking changes with the hyperparameters and the training data.
+:::
 
-```{r importance-general}
-# Fit the weak learner: a depth-4 tree, not a stump
+::: {.callout-important title="Changed since submission"}
+- New listing (R1.C6): `gauge()` and its `plot()` method are new in the package.
+:::
+
+#### Figure [NEW]
+
+The relative importance of the four predictors in the 1,000 boosted stumps of Module 3. For each predictor, the line and dot show the summed model weights of the stumps that split on it, as a percentage of the total. The p value of the original study carries about a third of the weight. Power, sample size, and effect size share the rest, with between 21 and 24 percent each.
+
+```{r figure-importance}
+# Lollipop chart: one line and dot per predictor, most important at the top
+plot(imp_fit)
+```
+
+::: {.callout-important title="Changed since submission"}
+- New figure (R1.C6), drawn by `plot()` on the result of `gauge()`.
+:::
+
+::: {.callout-note title="Add to tutorial (box)"}
+**Deeper trees: split frequency meets gain.** Deeper trees can split on several predictors. Then each tree's model weight is shared among the predictors it uses, in proportion to how much their splits reduce the Gini impurity of Module 2 (the gain). The measure becomes a mix: the model weight decides how much a tree counts, and the gain decides how its share is divided. This is a weighted version of the mean decrease in impurity. The loop changes in two places: it reads `variable.importance`, rpart's gain per predictor, instead of the root's predictor, and it adds a share per predictor instead of the whole weight.
+
+```{r importance-deep}
+# A depth-4 tree instead of a stump, boosted for ten rounds
 ada_deep <- rpart::rpart(
   replicate ~ .,
   data = train[, voi_nms],
-  # going deep
+  method = "class",
   maxdepth = 4,
   model = TRUE
 ) |>
   adaboost(n_iter = 10, eta = 1)
 
-imp_deep <- setNames(voz, pred_nms)
+imp_deep <- setNames(numeric(length(pred_nms)), pred_nms)
 for (t in seq_along(ada_deep)) {
-  # rpart()'s built-in vi measure
   h <- ada_deep[[t]][["h"]]
-  vi <- h[["variable.importance"]]
-  if (is.null(vi)) {
+  # rpart's gain per predictor; NULL if the tree did not split
+  gain <- h[["variable.importance"]]
+  if (is.null(gain)) {
     next
   }
-  # Split the weight across the variables this tree used,
-  # in proportion to each split's improvement
-  share <- ada_deep[[t]][["alpha"]] * vi / sum(vi)
+  # Split the tree's model weight across its predictors, by their gain
+  share <- ada_deep[[t]][["alpha"]] * (gain / sum(gain))
   imp_deep[names(share)] <- imp_deep[names(share)] + share
 }
-imp_deep <- 100 * imp_deep / sum(imp_deep)
+imp_deep <- imp_deep / sum(imp_deep) * 100
 sort(imp_deep, decreasing = TRUE)
 ```
 
-Why do stumps lose the gain? In the line above, a stump's `vi` holds one number, so `vi / sum(vi)` is always 1. The gain still decides which predictor a stump picks, but not how much weight that predictor gets. The `gauge()` function in the `adatutor` package runs the general version, which is why it matches the stump loops exactly.
+For a stump, `gain` holds one number, so `gain / sum(gain)` is 1 and the whole model weight goes to its one predictor. The gain still decides which predictor a stump picks, but not how much weight it gets. `gauge()` runs this general version, which is why it matched the stump loop exactly. One caveat: rpart's `variable.importance` also credits surrogate splits, the stand-ins for missing values that `rpart()` fits by default. `adaboost()` fits none, so on its trees the loop above and `gauge()` agree. `gauge()` reads only the primary splits, so on trees fitted with rpart's defaults, such as those of Listing 24, it still matches the stump loop, while `variable.importance` does not.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New listing (R1.C6), inside a box: a depth-4 learner, ten rounds, the share loop. `method = "class"` as in Listing 19.
 :::
 
 # Module 5: Retrodictions and Predictions
@@ -1054,7 +1090,7 @@ y_retro_mgn <- predict(ada_fit, newdata = train[, pred_nms], type = "margin")
 identical(retro_mgn_diy, y_retro_mgn)
 ```
 
-Keep that in mind for Module 4: a hard label can only ever be right or wrong,
+Keep that in mind for Module 6: a hard label can only ever be right or wrong,
 while the margin carries the ranking that measures like area under the receiving operating curve need.
 
 #### Figure 9
@@ -1565,6 +1601,9 @@ c(
 ) |>
   round(3)
 ```
+
+**TODO**: Add a gradient bossting machine as comparison and benchmark "where to go once graduated"?
+
 
 ## Selecting versus Evaluating
 
