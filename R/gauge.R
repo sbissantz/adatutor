@@ -2,8 +2,9 @@
 #'
 #' Sums, for each predictor, the model weights of the trees that split on it,
 #' and scales the sums to 100. A stump gives its whole weight alpha_t to its one
-#' variable. A deeper tree splits its weight across its variables by rpart's
-#' improvement measure. A tree that never split adds nothing.
+#' variable. A deeper tree splits its weight across its variables by the gain
+#' of its primary splits, rpart's improvement measure; surrogate splits earn
+#' nothing. A tree that never split adds nothing.
 #'
 #' @section What it does not tell you:
 #' The numbers are relative: they show how the ensemble divided its weight,
@@ -17,9 +18,10 @@
 #' @param ... Ignored.
 #'
 #' @return `gauge()` returns a data frame of class `gauge` with the columns
-#'   `variable` and `importance` (a percentage), sorted from most to least
-#'   important. `plot()` draws a lollipop chart, a line and a dot per
-#'   feature, and returns `NULL` invisibly.
+#'   `variable` and `importance` (a percentage), one row per predictor of the
+#'   formula, sorted from most to least important; a predictor no tree split
+#'   on has 0. `plot()` draws a lollipop chart, a line and a dot per
+#'   predictor, and returns `NULL` invisibly.
 #'
 #' @family tutorial plots
 #'
@@ -45,33 +47,35 @@
 gauge <- function(fit) {
   check_ada_fit(fit)
 
-  totals <- list()
+  # every predictor of the formula, in its order: a predictor no tree split on
+  # keeps a zero, and the sums run in the order a by-hand loop uses, so the
+  # two agree to the last digit
+  predictors <- attr(fit[[1]]$h$terms, "term.labels")
+  totals <- setNames(numeric(length(predictors)), predictors)
 
   for (t in seq_along(fit)) {
     tree <- fit[[t]]$h
     weight <- fit[[t]]$alpha
 
-    # rpart's improvement: NULL for a bare leaf, one entry for a stump
-    improvement <- tree$variable.importance
+    # the gain of the tree's splits: NULL for a bare root, one entry for a stump
+    gain <- sum_primary_gain(tree)
 
-    if (is.null(improvement) || sum(improvement) == 0) {
+    if (is.null(gain) || sum(gain) == 0) {
       next
     }
 
-    # split the tree's model weight across its variables; a stump gets it all
-    share <- weight * improvement / sum(improvement)
+    # split the tree's model weight across its variables; a stump gets it all,
+    # exactly: gain / sum(gain) is 1 before the product
+    share <- weight * (gain / sum(gain))
 
-    for (variable in names(share)) {
-      if (is.null(totals[[variable]])) {
-        totals[[variable]] <- share[[variable]]
-      } else {
-        totals[[variable]] <- totals[[variable]] + share[[variable]]
-      }
-    }
+    # a variable the formula did not label still gets a slot
+    unlabeled <- setdiff(names(share), names(totals))
+    totals[unlabeled] <- 0
+    totals[names(share)] <- totals[names(share)] + share
   }
 
   # no tree in the ensemble split on anything
-  if (length(totals) == 0) {
+  if (sum(totals) == 0) {
     return(structure(
       data.frame(
         variable = character(0),
@@ -84,7 +88,7 @@ gauge <- function(fit) {
 
   importance <- data.frame(
     variable = names(totals),
-    importance = unlist(totals),
+    importance = unname(totals),
     stringsAsFactors = FALSE
   )
 
@@ -97,6 +101,32 @@ gauge <- function(fit) {
 
   # the class is what lets plot(gauge(fit)) find its method
   structure(importance, class = c("gauge", "data.frame"))
+}
+
+#' Sum the gain of a tree's primary splits, per variable
+#'
+#' Returns a named vector, or NULL for a tree that never split.
+#' @noRd
+sum_primary_gain <- function(tree) {
+  frame <- tree$frame
+
+  # not rpart's variable.importance: that also credits surrogate splits, which
+  # only stand in for missing values, so it depends on maxsurrogate. The measure
+  # credits the splits a tree makes, so it reads the primary rows of `splits`,
+  # as rpart's importance() does before it adds the surrogates
+  split_nodes <- which(frame$var != "<leaf>")
+  if (length(split_nodes) == 0L) {
+    return(NULL)
+  }
+
+  # each split node owns one primary row, then its competitors and surrogates
+  rows_per_node <- 1 +
+    frame$ncompete[split_nodes] +
+    frame$nsurrogate[split_nodes]
+  primary_rows <- 1 + cumsum(c(0, rows_per_node))[seq_along(split_nodes)]
+
+  gain <- tree$splits[primary_rows, "improve"]
+  c(tapply(gain, as.character(frame$var[split_nodes]), sum))
 }
 
 #' @rdname gauge
@@ -160,7 +190,8 @@ plot.gauge <- function(x, top_n = 15, ...) {
 
   graphics::axis(1)
   graphics::axis(2, at = rows, labels = shown$variable, las = 1, lwd = 0)
-  graphics::title(xlab = "Relative Importance (%)", main = "Feature Importance")
+  # no title: the caption carries it, as for the tutplot_*() figures
+  graphics::title(xlab = "Relative Importance (%)")
 
   invisible(NULL)
 }

@@ -20,15 +20,17 @@ gauge(fit)
 }
 \value{
 \code{gauge()} returns a data frame of class \code{gauge} with the columns
-\code{variable} and \code{importance} (a percentage), sorted from most to least
-important. \code{plot()} draws a lollipop chart, a line and a dot per
-feature, and returns \code{NULL} invisibly.
+\code{variable} and \code{importance} (a percentage), one row per predictor of the
+formula, sorted from most to least important; a predictor no tree split
+on has 0. \code{plot()} draws a lollipop chart, a line and a dot per
+predictor, and returns \code{NULL} invisibly.
 }
 \description{
 Sums, for each predictor, the model weights of the trees that split on it,
 and scales the sums to 100. A stump gives its whole weight alpha_t to its one
-variable. A deeper tree splits its weight across its variables by rpart's
-improvement measure. A tree that never split adds nothing.
+variable. A deeper tree splits its weight across its variables by the gain
+of its primary splits, rpart's improvement measure; surrogate splits earn
+nothing. A tree that never split adds nothing.
 }
 \section{What it does not tell you}{
 
