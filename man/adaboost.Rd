@@ -39,8 +39,11 @@ vote of those fits. The tree's depth, \code{cp} and other
 \section{What comes from \code{h}}{
 
 All of \code{h$control} is kept (\code{maxdepth}, \code{cp}, \code{minsplit}, \code{minbucket}),
-except \code{xval} and \code{maxsurrogate}. These are set to 0 to save time; they do
-not change the tree. The splitting rule is kept too.
+except \code{xval} and \code{maxsurrogate}. These are set to 0 to save time; neither
+changes the tree's splits. Without surrogates, a case whose split variable
+is missing goes with the majority of its node, rpart's fallback, so on data
+with missing values the trees route such cases differently from \code{h}. The
+splitting rule is kept too.
 
 \code{cp} is whatever \code{h} was fitted with: 0.01 for a plain \code{rpart()} call. The
 textbook advice is unpruned trees, \code{cp = 0} (Hastie, Tibshirani & Friedman,

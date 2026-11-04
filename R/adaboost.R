@@ -7,8 +7,11 @@
 #'
 #' @section What comes from `h`:
 #' All of `h$control` is kept (`maxdepth`, `cp`, `minsplit`, `minbucket`),
-#' except `xval` and `maxsurrogate`. These are set to 0 to save time; they do
-#' not change the tree. The splitting rule is kept too.
+#' except `xval` and `maxsurrogate`. These are set to 0 to save time; neither
+#' changes the tree's splits. Without surrogates, a case whose split variable
+#' is missing goes with the majority of its node, rpart's fallback, so on data
+#' with missing values the trees route such cases differently from `h`. The
+#' splitting rule is kept too.
 #'
 #' `cp` is whatever `h` was fitted with: 0.01 for a plain `rpart()` call. The
 #' textbook advice is unpruned trees, `cp = 0` (Hastie, Tibshirani & Friedman,
@@ -87,7 +90,7 @@ adaboost <- function(
   learner_terms <- h$terms
   attr(learner_terms, ".Environment") <- globalenv()
 
-  # drop xval and surrogates: they cost time and leave the tree unchanged
+  # drop xval and surrogates: they cost time and leave the splits unchanged
   control <- h$control
   control$xval <- 0
   control$maxsurrogate <- 0
