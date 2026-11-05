@@ -837,7 +837,7 @@ cat("Model weight 1:", ada_diy$t1$alpha)
 ```
 
 ::: {.callout-note title="Check in tutorial"}
-Numbers to regenerate in Module 3's prose: 107 → 141 (three times in the Initialization Phase); the error 0.252 → 0.270 and the performance 0.748 → 0.730 (Step 2 and "A First Look at Performance"); $\alpha_1$ 0.544 → 0.499 (the Step 3 equation, twice in Step 4, the Figure 7 paragraph); $D_1(3)$ 0.009 → 0.007, $Z_1$ 0.869 → 0.887, $D_2(3)$ 0.006 → 0.005 and $D_2(2)$ 0.018 → 0.013 (the examples keep observations 3 and 2, and their signs). Also: the Listing 24 caption says "about a minute", now a few seconds; `fit` → `ada_diy` in the Loop and Result prose; "Retrodivitve" in Listing 21; $a_t$ → $\alpha_t$ in Eq. ensemble, Eq. ensemble2, the algorithm box (Step 3 and Result) and Exercise 3.2's update factor; "Module 4" (five mentions) → the hyperparameter module after the split.
+Numbers to regenerate in Module 3's prose: 107 → 141 (three times in the Initialization Phase); the error 0.252 → 0.270 and the performance 0.748 → 0.730 (Step 2 and "A First Look at Performance"); $\alpha_1$ 0.544 → 0.499 (the Step 3 equation, twice in Step 4, the Figure 7 paragraph); $D_1(3)$ 0.009 → 0.007, $Z_1$ 0.869 → 0.887, $D_2(3)$ 0.006 → 0.005 and $D_2(2)$ 0.018 → 0.013 (the examples keep observations 3 and 2, and their signs). Also: the Listing 24 caption says "about a minute", now a few seconds; `fit` → `ada_diy` in the Loop and Result prose; "Retrodivitve" in Listing 21; $a_t$ → $\alpha_t$ in Eq. ensemble, Eq. ensemble2, the algorithm box (Step 3 and Result) and Exercise 3.2's update factor; "Module 4" (five mentions) → the hyperparameter module after the split. After the split, the algorithm box of the Epilogue closes Module 3; the ensemble equation ("Result") and the boundary figure move to Module 5.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -893,12 +893,10 @@ The whole module is new (R1.C6). The "Add to tutorial" boxes hold the prose, the
 :::
 
 ::: {.callout-note title="Add to tutorial"}
-In the Introduction, we set out to turn AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts, and rebuilding it in code. Now we put this knowledge to work and inspect the fitted ensemble: which predictors does it rely on as it learns? This is the question of feature importance, part of the wider field of interpretable machine learning. Because this tutorial is about AdaBoost, we only scratch the surface and develop one model-specific measure for boosted stumps. Model-agnostic methods, such as permutation importance and effect plots, go much further. Readers who want to learn more can start with @molnar2025 or @pargent2023.
+In the Introduction, we set out to turn AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts, and rebuilding it in code. Now we put this knowledge to work and inspect the fitted ensemble, asking which predictors does the model rely on as it learns? This is the question of feature importance, part of the wider field of interpretable machine learning. Because this tutorial is about AdaBoost, we only scratch the surface and develop one model-specific measure for boosted stumps. Model-agnostic methods, such as permutation importance and effect plots, go much further. Readers who want to learn more can start with @molnar2025 or @pargent2023.
 **TODO** tidy models book julia sige?
 
-Most importance measures for tree ensembles build on two quantities: how often a predictor is used to split (split frequency) and how much its splits reduce impurity (gain). For stumps, we build on the first and weight each split by the stump's model weight.
-
-The result is a *relative importance* score: each predictor's share, in percent, of the model weight of all stumps that split. Two facts from earlier modules make this work. In Module 2, we showed that a stump splits at most once, with one yes/no question about one predictor. In Module 3, we derived each stump's model weight $\alpha_t$, which grows with its performance on the weighted data. To get the importance score, we simply group the stumps by the predictor they split on and sum their model weights. Why does this make sense? AdaBoost shifts weight toward the study effects the ensemble still gets wrong, so each new stump works on the ensemble's largest mistakes. A predictor that many stumps choose, particularly stumps with large model weights, is one the ensemble relies on again and again for its corrections. Thus, the summed weight shows how much the ensemble relies on each predictor, relative to the others. Listing [NEW] puts this into code.
+Most importance measures for tree ensembles build on two quantities: how often a predictor is used to split (split frequency) and how much its splits reduce impurity (gain). For stumps, we build on the first and weight each split by the stump's model weight. The result is a *relative importance* score: each predictor's share, in percent, of the model weight of all stumps that split. Two facts from earlier modules make this work. In Module 2, we showed that a stump splits at most once, with one yes/no question about one predictor. In Module 3, we derived each stump's model weight $\alpha_t$, which grows with its performance on the weighted data. To get the importance score, we simply group the stumps by the predictor they split on and sum their model weights. Why does this make sense? AdaBoost shifts weight toward the study effects the ensemble still gets wrong, so each new stump works on the ensemble's largest mistakes. A predictor that many stumps choose, particularly stumps with large model weights, is one the ensemble relies on again and again for its corrections. Thus, the summed weight shows how much the ensemble relies on each predictor, relative to the others. Listing [NEW] puts this into code.
 :::
 
 #### Listing [NEW]
@@ -913,13 +911,13 @@ imp_diy <- setNames(numeric(length(pred_nms)), pred_nms)
 for (t in seq_along(ada_fit)) {
   h <- ada_fit[[t]]$h
   # The predictor at the root: the one the stump splits on
-  predictor <- h$frame$var[1]
+  pred_nme <- h$frame$var[1]
   # A stump that does not split has a leaf at the root: skip it
-  if (predictor == "<leaf>") {
+  if (pred_nme == "<leaf>") {
     next
   }
   # Add the stump's model weight to its predictor
-  imp_diy[predictor] <- imp_diy[predictor] + ada_fit[[t]]$alpha
+  imp_diy[pred_nme] <- imp_diy[pred_nme] + ada_fit[[t]]$alpha
 }
 
 # Relative importance: each predictor's share, in percent
@@ -950,7 +948,7 @@ Code to compute the same importance with the adatutor package.
 ```{r importance-pkg}
 # Relative importance from the package
 imp_fit <- gauge(ada_fit)
-imp_fit
+plot(imp_fit)
 
 # The package's shares as a named vector, like imp_diy
 imp_vec <- setNames(imp_fit$importance, imp_fit$variable)
@@ -974,12 +972,12 @@ The numbers are relative: they show how the ensemble divided its weight, not wha
 The relative importance of the four predictors in the 1,000 boosted stumps of Module 3. For each predictor, the line and dot show the summed model weights of the stumps that split on it, as a percentage of the total. The p value of the original study carries about a third of the weight. Power, sample size, and effect size share the rest, with between 21 and 24 percent each.
 
 ```{r figure-importance}
-# Lollipop chart: one line and dot per predictor, most important at the top
-plot(imp_fit)
+# The lollipop chart of plot(imp_fit), drawn by the package's figure function
+tutplot_importance(imp_fit)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New figure (R1.C6), drawn by `plot()` on the result of `gauge()`.
+- New figure (R1.C6), drawn by `tutplot_importance()` on the result of `gauge()`. The `plot()` call of the package listing draws the same chart.
 :::
 
 ::: {.callout-note title="Add to tutorial (box)"}
@@ -1021,13 +1019,18 @@ For a stump, `gain` holds one number, so `gain / sum(gain)` is 1 and the whole m
 
 # Module 5: Retrodictions and Predictions
 
+::: {.callout-note title="Check in tutorial"}
+Module 5 is carved from the submitted Module 3. It opens with the "Result" paragraph (Eq. ensemble) and takes the boundary figure float, which sits just before that paragraph, with it; the "Epilogue" paragraph and the algorithm box close Module 3 after the package handoff. Eq. ensemble and Eq. ensemble2: $a_t$ → $\alpha_t$ (they move with the prose). The evaluation goes to Module 6, as the findings proposed: Listings 27 and 29, "A First Look at Performance", the overfitting paragraph with its footnote, and the second paragraph of "A Second Look". The first paragraph of "A Second Look" (the move from the training to the test phase) stays here and introduces Listing 28. Figure 9 becomes Figure 10 everywhere, and the two package listings are numbered at port.
+
+- Listing 25 walk-through: `fit` → `ada_fit`; `fit$t1$h` and `fit$t2$a` → `ada_fit$t1$h` and `ada_fit$t2$alpha`; "T = 1000" → `n_tree`; "(see Listing lst:loop)" → Listing 24; the line references (Lines 2 and 4, Line 6, Line 10) recomputed from the final listing.
+- Listing 26 prose: "replace Line 10" → the matrix product and the sign; the loop now verifies itself.
+- Comparison paragraph: "Blue dots in a blue region … gray triangle" → the Figure 3 palette and the margin surface; "the tree ensemble in Figure dboundary" is a typo for boundaryada; 500 → 1,000 trees, and the figure regenerates. Its closing sentences judge the boundary by eye ("improves the retrodictive performance … fewer misclassifications"); keep them as the forward pointer to Module 6.
+- Listing 28 prose: the swap is stated backwards ("replacing `test[, prednms]` with `train[, prednms]`"); the submitted "Line 2" was already wrong (line 2 is `y_test`); recompute from the final listing and name both in the letter; `outnme` → `out_nme`.
+:::
+
 #### Listing 25
 
-TODO: Here we'll start the new module on prediction and retrodiction.
-
 Code to generate ensemble retrodictions.
-
-**TODO**: Switch from a to alpha!
 
 ```{r listing-25}
 # Boosted classification stumps
@@ -1044,7 +1047,7 @@ y_retro_cstp <- sapply(
   type = "vector"
 )
 
-# Transform values (-1,1)
+# Recode the classes 1 and 2 to -1 and 1
 y_retro_1m1 <- 2 * y_retro_cstp - 3
 
 # Weighted vote across all stumps
@@ -1054,74 +1057,79 @@ retro_mgn_diy <- as.vector(alpha_fit %*% t(y_retro_1m1))
 y_retro_diy <- sign(retro_mgn_diy)
 ```
 
+::: {.callout-important title="Changed since submission"}
+- `ada_fit`, `h_fit`, `alpha_fit` (was `fit`, `h`, `a`) and `pred_nms` (was `prednms`); `y_retro_cstp` and `y_retro_1m1` (was `yretro_stumps`, overwritten by the recode).
+- The vote in its own object, `retro_mgn_diy`, as a plain vector (`as.vector()`; the submitted `a %*% t(...)` left a 1-by-m matrix), and `y_retro_diy` as its sign (was `yretro_ada`). The `sapply()` call is spread over lines.
+:::
+
 #### Listing 26
 
 Code to replace matrix multiplication with a loop.
 
 ```{r listing-26}
-#for (m in seq_len(m)) {
-#y_retro_diy[m] <- sign(sum(a * y_retro_cstp[m, ]))
-#}
+# The same vote, one study effect at a time
+y_retro_loop <- numeric(m)
+for (i in seq_len(m)) {
+  y_retro_loop[i] <- sign(sum(alpha_fit * y_retro_1m1[i, ]))
+}
+
+# Verification
+identical(y_retro_loop, y_retro_diy)
 ```
+
+::: {.callout-important title="Changed since submission"}
+- The loop runs and verifies itself: `i` as the index (the submitted loop used `m` as both the count and the index), `alpha_fit` and `y_retro_1m1` (was `a`, `yretro_stumps`), and the result in `y_retro_loop` with an `identical()` check instead of overwriting the matrix product.
+:::
+
+::: {.callout-note title="Add to tutorial"}
+Equation `Eq:ensemble` takes the sign of a weighted sum. That sum has a name, the *margin*. The package's `predict()` returns either: `type = "class"` applies `sign()`, as Listing 25 does, and keeps only the direction of the vote; `type = "margin"` returns the sum itself, with its size, that is, how far the vote is from the tie at zero.
+:::
 
 #### The Package Solution [NEW]
 
-Code to generate the same retrodictions with the adatutor package.
+Code to generate the same retrodictions with the adatutor package, as class labels and as margins.
 
 ```{r listing-25-pkg}
-# Retrodictions from the full model
+# Retrodictions from the full model: class labels, the vote's sign
 y_retro_cls <- predict(ada_fit, newdata = train[, pred_nms], type = "class")
 
-# Verification
-identical(y_retro_diy, y_retro_cls)
-```
-
-As both are identical we will use the package solution in the following to save typing and support readers on their exploraiton of the algorithm with some additional sugar and safe guards we implemented in the package function. For instance, read the message the call printed. `predict()` noticed that the data it was asked to score is the data the model was trained on and notes that it is returning retrodictions, not predictions.
-
-**[NEW]**
-One more thing worth knowing before the next listing. `type = "class"` applies
-`sign()`, exactly as Listing 25 does, which throws away everything but the
-direction of the vote. The quantity *before* the sign is available too:
-
-```{r listing-25-margin}
-# The weighted vote from Listing 25 has a name: the margin. The package
-# returns it directly, before sign() discards its magnitude
-# Note: a retrodiction, so `y_retro_` -- Listing 28 scores the test set
+# The weighted vote itself, before sign(): the margin
 y_retro_mgn <- predict(ada_fit, newdata = train[, pred_nms], type = "margin")
 
 # Verification
+identical(y_retro_diy, y_retro_cls)
 identical(retro_mgn_diy, y_retro_mgn)
 ```
 
-Keep that in mind for Module 6: a hard label can only ever be right or wrong,
-while the margin carries the ranking that measures like area under the receiving operating curve need.
+::: {.callout-note title="Add to tutorial"}
+Both match, the class labels and the margins, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 25. Note the message both calls printed. `predict()` noticed that the data it scored are the data the ensemble was trained on, and says so: the outputs are retrodictions, not predictions. Keep the margin in mind for Module 6: a class label can only be right or wrong, while the margin carries the ranking that measures like the area under the receiver operating characteristic (ROC) curve need.
+:::
 
-#### Figure 9
+::: {.callout-important title="Changed since submission"}
+- New listing: `predict()` on the fit of `adaboost()`, with `type = "class"` for the labels and `type = "margin"` for the vote itself. It reports when the data it scores were also used for training.
+:::
 
-Visualization of the decision boundary of 1000 adaptively boosted shallow classification trees. The number of trees matches the Listings 24 and 25, but the trees were fitted to the training data using only two reviewer metrics: the power of the original study and the number of observations. The x-axis is the power of the original study effect. The y-axis is the number of observations. Note that the y-axis is not the outcome variable, but another study characteristic. The model predicts that any point in the gray region is a successful replication, while anything in the blue region is considered a failure. Gray triangles represent replications of study effects that actually succeeded (i.e., according to the replication metric), while blue circles represent replications that actually failed. Thus, gray triangles in the blue region are misclassifications, and vice versa.
+#### Figure 10
 
-```{r figure-9}
-ada_int <- cstump |>
-  adaboost(n_iter = 1e3, eta = 1, verbose = FALSE)
+The decision boundary of 1,000 boosted classification stumps: the stump of Figure 3, boosted as in Listing 24. The x-axis shows the power of the original study, the y-axis its sample size. So the y-axis does not show the outcome variable, but a second study characteristic. The shading shows the margin, the weighted vote of Listing 25, on the color scale above the panel: purple where the ensemble votes for failure, yellow where it votes for success, and teal in between, where the vote is close to a tie. The further a color sits from that middle, the larger the vote. The black lines are the boundary, where the margin is zero. Yellow dots are study effects that replicated, according to the replication metric; purple dots are those that failed. Where the stump of Figure 3 draws one vertical line, the ensemble cuts the plane into many rectangles, because each stump splits on one of the two predictors.
 
-# Visualize
-# Note: the same call as Figure 3, an ensemble in place of the stump
+```{r figure-10}
+# The two-predictor stump of Figure 3, boosted as in Listing 24
+ada_two <- cstump |> adaboost(n_iter = n_tree, eta = eta, verbose = FALSE)
+
+# The same call as Figure 3, with the ensemble in place of the stump
 tutplot_boundary(
-  ada_int,
+  ada_two,
   data = train,
   xlab = "Power (Original Study)",
   ylab = "Sample Size (Original Study)"
 )
 ```
 
-#### Listing 27
-
-Code to evaluate the retrodictive performance of the ensemble.
-
-```{r listing-27}
-# Confusion matrix
-table(y_train, y_retro_cls) # Perfect retrodictions
-```
+::: {.callout-important title="Changed since submission"}
+- New chunk: the submitted figure had no code. `ada_two` is the stump of Listing 12 boosted for `n_tree` rounds (submitted: 500 trees), drawn by `tutplot_boundary()` as Figure 3 is.
+- The margin surface with its color bar instead of two flat regions; viridis colors and axis labels (R1.C7). The caption follows (submitted: gray and blue regions, gray triangles and blue circles).
+:::
 
 #### Listing 28
 
@@ -1138,23 +1146,30 @@ y_pred_cstp <- sapply(
   newdata = test[, pred_nms],
   type = "vector"
 )
-# Transform values (-1,1)
-y_pred_cstp <- 2 * y_pred_cstp - 3
+
+# Recode the classes 1 and 2 to -1 and 1
+y_pred_1m1 <- 2 * y_pred_cstp - 3
 
 # Weighted vote across all stumps
-pred_mgn_diy <- as.vector(alpha_fit %*% t(y_pred_cstp))
+pred_mgn_diy <- as.vector(alpha_fit %*% t(y_pred_1m1))
 
 # Predictions from full model: the vote's sign
 y_pred_diy <- sign(pred_mgn_diy)
 ```
 
-#### Listing [New]
+::: {.callout-important title="Changed since submission"}
+- Mirrors Listing 25 line for line, with `test` as the data source: `out_nme` and `pred_nms` (was `outnme`, `prednms`); `h_fit`, `alpha_fit` (was `h`, `a`); `y_pred_cstp` and `y_pred_1m1` (was `ypred_stumps`, overwritten by the recode); `pred_mgn_diy` and `y_pred_diy` (was `ypred_ada`, a 1-by-m matrix).
+:::
 
-Introduce the wrapper function predict and show they are identical.
+#### The Package Solution [NEW]
+
+Code to generate the same predictions with the adatutor package, as class labels and as margins.
 
 ```{r listing-28-pkg}
-# The package's predictions, both types. Listing 31 scores these
+# Predictions from the full model: class labels, the vote's sign
 y_pred_cls <- predict(ada_fit, newdata = test[, pred_nms], type = "class")
+
+# The margin; Module 6 scores both
 y_pred_mgn <- predict(ada_fit, newdata = test[, pred_nms], type = "margin")
 
 # Verification
@@ -1162,16 +1177,51 @@ identical(y_pred_diy, y_pred_cls)
 identical(pred_mgn_diy, y_pred_mgn)
 ```
 
+::: {.callout-note title="Add to tutorial"}
+The two match again, for the class labels and for the margins. From here on, the test set is scored with `predict()`. Readers who prefer their own code can continue with Listing 28.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New listing: `predict()` on the test set, both types.
+:::
+
+# Module 6: Evaluating an Ensemble
+
+::: {.callout-note title="Check in tutorial"}
+Module 6 opens with the evaluation part of the submitted Module 3, as the findings proposed: "A First Look at Performance" with Listing 27, the overfitting paragraph with its footnote, and the second paragraph of "A Second Look" with Listing 29; then the submitted Module 4 begins. Number the two listings at port.
+
+- "A First Look": the error 0.252 → 0.270 and the performance 0.748 → 0.730 (also in Module 3's box); "At the beginning of Module 3" stays right. The retrodictive matrix quotes no counts; they are 74 and 67 on the diagonal.
+- Overfitting footnote: "In Module 4, we show an alternative" now points at this module, so the forward reference can go.
+- "A Second Look", second paragraph: "We will return to this point in the next module" → this module. The predictive matrix on the 31 test study effects: 11 and 8 right, 5 and 7 wrong; accuracy 0.613 if quoted.
+- Exercise 3.3 (confusion matrices under changing hyperparameters, then the validation set) goes with Module 6 or 7; decide at port, and renumber. Its listing range (lst:loop to lst:confusionpred) now spans Modules 3, 5 and 6.
+- Listing 31 recomputes the confusion matrix of Listing 29 with the arguments swapped (`table(y_pred_cls, y_test)` versus `table(y_test, y_pred_cls)`): resolve in the Module 6 pass.
+:::
+
+#### Listing 27
+
+Code to evaluate the retrodictive performance of the ensemble.
+
+```{r listing-27}
+# Confusion matrix
+table(y_train, y_retro_cls) # Perfect retrodictions
+```
+
+::: {.callout-important title="Changed since submission"}
+- `y_retro_cls` from the package listing (was `yretro_ada`); the comment on the same line.
+:::
+
 #### Listing 29
 
 Code to evaluate the predictive performance of the ensemble.
 
 ```{r listing-29}
 # Confusion matrix
-table(y_test, y_pred_cls) # Inperfect predictions
+table(y_test, y_pred_cls) # Imperfect predictions
 ```
 
-# Module 6: Evaluating an Ensemble
+::: {.callout-important title="Changed since submission"}
+- `y_pred_cls` from the package listing (was `ypred_ada`); the comment on the same line.
+:::
 
 **TODO** Can we remove this?
 ::: {.callout-note}
