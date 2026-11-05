@@ -789,11 +789,11 @@ The weights of the first 25 study effects in the training set before ($D_1$, pur
 
 ```{r figure-8}
 # Weights before and after round 1
-tutplot_weightone(d1 = D1, d2 = D2, chi = chi1)
+tutplot_weightupdate(d1 = D1, d2 = D2, chi = chi1)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New drawing by `tutplot_weightone()`: dots sized by weight, $D_1$ purple and $D_2$ teal, and no mark for the misclassified study effects, which are the dots that moved up (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
+- New drawing by `tutplot_weightupdate()`: dots sized by weight, $D_1$ purple and $D_2$ teal, and no mark for the misclassified study effects, which are the dots that moved up (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
 :::
 
 #### Listing 24
