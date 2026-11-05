@@ -289,11 +289,11 @@ test_that("tutplot_modelweight() validates eta and writes nothing by default", {
   expect_identical(list.files(wd), character(0))
 })
 
-test_that("tutplot_weightone() derives the misclassified set from the weights", {
+test_that("tutplot_weightupdate() derives the misclassified set from the weights", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  w <- tutplot_weightone()
+  w <- tutplot_weightupdate()
 
   # the algebra, checked rather than trusted: recompute the round the long way
   # the reviewer metrics only -- on the full frame `eid` identifies every row,
@@ -318,11 +318,11 @@ test_that("tutplot_weightone() derives the misclassified set from the weights", 
   expect_length(w$wrong, 7)
 })
 
-test_that("tutplot_weightone() shows the mechanism its caption describes", {
+test_that("tutplot_weightupdate() shows the mechanism its caption describes", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  w <- tutplot_weightone()
+  w <- tutplot_weightupdate()
   missed <- w$d2 > w$d1
 
   # a missed point gets more important, a hit gets less
@@ -333,11 +333,11 @@ test_that("tutplot_weightone() shows the mechanism its caption describes", {
   expect_equal(sum(w$d2), 1)
 })
 
-test_that("tutplot_weightone() takes its own weights and honors n", {
+test_that("tutplot_weightupdate() takes its own weights and honors n", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  ten <- tutplot_weightone(n = 10)
+  ten <- tutplot_weightupdate(n = 10)
   expect_identical(ten$n, 10)
   expect_true(all(ten$wrong <= 10))
 
@@ -345,11 +345,11 @@ test_that("tutplot_weightone() takes its own weights and honors n", {
   d1 <- rep(0.1, 10)
   d2 <- c(rep(0.05, 8), 0.3, 0.3)
   chi <- c(rep(1, 8), -1, -1)
-  own <- tutplot_weightone(d1 = d1, d2 = d2, chi = chi, n = 10)
+  own <- tutplot_weightupdate(d1 = d1, d2 = d2, chi = chi, n = 10)
   expect_identical(own$wrong, c(9L, 10L))
 
   expect_error(
-    tutplot_weightone(d1 = rep(0.1, 10), d2 = rep(0.1, 9), chi = rep(1, 10)),
+    tutplot_weightupdate(d1 = rep(0.1, 10), d2 = rep(0.1, 9), chi = rep(1, 10)),
     "same length"
   )
 })
@@ -491,7 +491,7 @@ test_that("the spliced call marks the reader's own alpha", {
   expect_true(eta %in% imp$eta)
 })
 
-test_that("tutplot_weightone() reports what `chi` says, not what the weights imply", {
+test_that("tutplot_weightupdate() reports what `chi` says, not what the weights imply", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
@@ -509,7 +509,7 @@ test_that("tutplot_weightone() reports what `chi` says, not what the weights imp
   # the trap: deriving would pick out the seven correct points
   expect_identical(which(d2 > d1), 14:20)
 
-  w <- tutplot_weightone(d1 = d1, d2 = d2, chi = chi, n = m)
+  w <- tutplot_weightupdate(d1 = d1, d2 = d2, chi = chi, n = m)
   expect_identical(w$wrong, 1:13)
   expect_false(identical(w$wrong, which(d2 > d1)))
 })
@@ -535,7 +535,7 @@ test_that("supplied weights must come with chi, because it cannot be inferred", 
   expect_lt(bad$grew, m / 2)
 
   expect_error(
-    tutplot_weightone(d1 = d1, d2 = bad$d2, n = m),
+    tutplot_weightupdate(d1 = d1, d2 = bad$d2, n = m),
     "cannot say which points were missed"
   )
 })
@@ -559,22 +559,22 @@ test_that("run_round_one() hands back a real chi, so nothing is derived", {
   expect_true(all(r$chi %in% c(-1, 1)))
 })
 
-test_that("tutplot_weightone() validates chi", {
+test_that("tutplot_weightupdate() validates chi", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
   d1 <- rep(0.1, 10)
   d2 <- c(rep(0.05, 8), 0.3, 0.3)
   expect_error(
-    tutplot_weightone(d1 = d1, d2 = d2, chi = rep(-1, 9), n = 10),
+    tutplot_weightupdate(d1 = d1, d2 = d2, chi = rep(-1, 9), n = 10),
     "one per weight"
   )
   expect_error(
-    tutplot_weightone(d1 = d1, d2 = d2, n = 10),
+    tutplot_weightupdate(d1 = d1, d2 = d2, n = 10),
     "`chi` is required"
   )
   expect_error(
-    tutplot_weightone(d1 = d1, d2 = d2, chi = rep(0, 10), n = 10),
+    tutplot_weightupdate(d1 = d1, d2 = d2, chi = rep(0, 10), n = 10),
     "must be \\+1 or -1"
   )
 })
@@ -697,7 +697,7 @@ test_that("each figure asks for the margins it needs", {
   for (f in list(
     tutplot_updatefactor,
     tutplot_modelweight,
-    tutplot_weightone
+    tutplot_weightupdate
   )) {
     expect_match(
       body_of(f),
@@ -915,7 +915,7 @@ test_that("axis labels are title case, as APA asks", {
   expect_match(txt(f), "Weight Update Factor")
   expect_no_match(txt(f), "Weight update factor")
 
-  tutplot_weightone(file = g)
+  tutplot_weightupdate(file = g)
   expect_match(txt(g), "Data Point")
   expect_no_match(txt(g), "Data point")
 })
