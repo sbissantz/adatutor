@@ -785,15 +785,15 @@ tutplot_updatefactor(alpha = alpha_int)
 
 #### Figure 8
 
-The weights of the first 25 study effects in the training set before ($D_1$, purple) and after ($D_2$, teal) the first round. Every initial weight is 1/141. A study effect the first stump misclassified sits in a yellow band, and its weight grows; the weights of the others shrink. The dots are sized by weight, so heavier study effects are drawn larger.
+The weights of the first 25 study effects in the training set before ($D_1$, purple) and after ($D_2$, teal) the first round. Every initial weight is 1/141. A study effect the first stump misclassified gains weight and moves up; the others lose weight and move down. The dots are sized by weight, so heavier study effects are drawn larger.
 
 ```{r figure-8}
-# Weights before and after round 1; the band marks the missed points
+# Weights before and after round 1
 tutplot_weightone(d1 = D1, d2 = D2, chi = chi1)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New drawing by `tutplot_weightone()`: dots sized by weight, $D_1$ purple and $D_2$ teal, a yellow band behind the misclassified study effects (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
+- New drawing by `tutplot_weightone()`: dots sized by weight, $D_1$ purple and $D_2$ teal, and no mark for the misclassified study effects, which are the dots that moved up (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
 :::
 
 #### Listing 24

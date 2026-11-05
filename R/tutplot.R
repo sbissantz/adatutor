@@ -535,9 +535,8 @@ tutplot_weightone <- function(
   old_par <- set_figure_par(reserve_legend = TRUE)
   on.exit(graphics::par(old_par), add = TRUE)
 
-  # `end = 0.5` keeps d2 teal, not a yellow-green that muddies on the band
+  # `end = 0.5` keeps d2 teal: yellow-green dots are faint on white
   colors <- viridisLite::viridis(2, end = 0.5)
-  band <- grDevices::adjustcolor(viridisLite::viridis(1, begin = 1), 0.35)
 
   # scale by area, not diameter: sqrt keeps a doubled weight at double the ink
   size_bubble <- function(weights) sqrt(weights / mean(d1)) * scaling
@@ -549,15 +548,6 @@ tutplot_weightone <- function(
     xaxt = "n",
     xlab = "Data Point",
     ylab = "Weight"
-  )
-  # band behind everything: a miss belongs to the point, not to a weight
-  graphics::rect(
-    missed - 0.42,
-    ylim[1],
-    missed + 0.42,
-    ylim[2],
-    col = band,
-    border = NA
   )
   graphics::box()
 
@@ -585,12 +575,14 @@ tutplot_weightone <- function(
     )
   }
 
+  # no mark for the missed points: after a round that beats chance they are
+  # the dots that moved up, and the caption says so
   draw_legend(
-    c(expression(D[1]), expression(D[2]), "misclassified"),
+    c(expression(D[1]), expression(D[2])),
     cex = 0.9,
-    pt.bg = c(colors, band),
-    col = c("white", "white", "grey60"),
-    pch = c(21, 21, 22),
+    pt.bg = colors,
+    col = c("white", "white"),
+    pch = c(21, 21),
     pt.cex = 1.3
   )
 

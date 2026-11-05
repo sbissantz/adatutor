@@ -491,7 +491,7 @@ test_that("the spliced call marks the reader's own alpha", {
   expect_true(eta %in% imp$eta)
 })
 
-test_that("tutplot_weightone() bands what `chi` says, not what the weights imply", {
+test_that("tutplot_weightone() reports what `chi` says, not what the weights imply", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
