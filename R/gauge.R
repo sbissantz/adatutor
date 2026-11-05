@@ -21,7 +21,8 @@
 #'   `variable` and `importance` (a percentage), one row per predictor of the
 #'   formula, sorted from most to least important; a predictor no tree split
 #'   on has 0. `plot()` draws a lollipop chart, a line and a dot per
-#'   predictor, and returns `NULL` invisibly.
+#'   predictor, by calling [tutplot_importance()], and returns `NULL`
+#'   invisibly.
 #'
 #' @family tutorial plots
 #'
@@ -132,66 +133,8 @@ sum_primary_gain <- function(tree) {
 #' @rdname gauge
 #' @export
 plot.gauge <- function(x, top_n = 15, ...) {
-  if (nrow(x) == 0L) {
-    stop(
-      "no variable was split on, so there is no importance to plot.",
-      call. = FALSE
-    )
-  }
-
-  # top_n features only, so the chart stays readable
-  n_shown <- min(top_n, nrow(x))
-  shown <- utils::head(x, n_shown)
-
-  # ascending, so the most important feature plots at the top
-  shown <- shown[order(shown$importance, decreasing = FALSE), ]
-  rows <- seq_len(n_shown)
-
-  # size the palette by the features drawn, so the gradient spans its full
-  # range; reversed, so the darkest color goes to the most important one
-  colors <- rev(viridisLite::viridis(n_shown))
-
-  # wide left margin for long variable names
-  old_par <- graphics::par(mar = c(5, 10, 4, 2) + 0.1)
-  on.exit(graphics::par(old_par), add = TRUE)
-
-  # headroom past the longest line: pretty() ticks can stop well below it
-  xmax <- min(max(shown$importance) + 5, 100)
-
-  graphics::plot.new()
-  graphics::plot.window(
-    xlim = c(0, xmax),
-    ylim = c(0.5, n_shown + 0.5),
-    xaxs = "i"
-  )
-
-  # faint grid at the ticks, drawn first so it stays behind the lollipops
-  graphics::abline(v = graphics::axTicks(1), col = "grey90", lwd = 0.8)
-
-  # one lollipop per feature: a line from zero and a dot at its share; xpd so
-  # a dot at 100 is not cut in half
-  graphics::segments(
-    0,
-    rows,
-    shown$importance,
-    rows,
-    col = colors,
-    lwd = 3,
-    lend = "butt"
-  )
-  graphics::points(
-    shown$importance,
-    rows,
-    pch = 19,
-    cex = 2.2,
-    col = colors,
-    xpd = NA
-  )
-
-  graphics::axis(1)
-  graphics::axis(2, at = rows, labels = shown$variable, las = 1, lwd = 0)
-  # no title: the caption carries it, as for the tutplot_*() figures
-  graphics::title(xlab = "Relative Importance (%)")
-
+  # the manuscript's figure function draws, so the listing's plot() and the
+  # printed figure are one picture
+  tutplot_importance(x, top_n = top_n)
   invisible(NULL)
 }
