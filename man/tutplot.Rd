@@ -7,6 +7,7 @@
 \alias{tutplot_updatefactor}
 \alias{tutplot_modelweight}
 \alias{tutplot_weightone}
+\alias{tutplot_importance}
 \alias{tutplot_logocv}
 \alias{tutplot_logoscheme}
 \title{Redraw the tutorial's manuscript figures}
@@ -62,6 +63,15 @@ tutplot_weightone(
   n = 25,
   scaling = 2,
   ylim = NULL,
+  file = NULL,
+  width = tutplot_opts$col[["width"]],
+  height = tutplot_opts$col[["height"]],
+  pointsize = tutplot_opts$pointsize
+)
+
+tutplot_importance(
+  importance,
+  top_n = 15,
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -140,6 +150,10 @@ the weights alone cannot show which points were missed.}
 
 \item{scaling}{The bubble size multiplier.}
 
+\item{importance}{A \code{gauge} object from \code{\link[=gauge]{gauge()}}.}
+
+\item{top_n}{The largest number of predictors to draw. Defaults to 15.}
+
 \item{res}{A result of \code{\link[=logo_cv]{logo_cv()}}.}
 
 \item{bootstrap}{Whether to draw bootstrap intervals. \code{FALSE} draws the
@@ -177,6 +191,7 @@ is shared by size. Defaults to 0.06; 0 gives exact proportions.}
 Invisibly, the facts the figure's caption states, so tests can
 check them. \code{tutplot_cstump()} returns the fit, the split variable, the
 cutpoint and the leaf sizes; \code{tutplot_gini()} the curve and its peak;
+\code{tutplot_importance()} the rows it drew, most important first;
 \code{tutplot_logoscheme()} the project sizes, their count, the order and the
 row heights; \code{tutplot_logocv()} one row per project with its estimate,
 the widest interval, and whether too many resamples were rejected.
@@ -194,6 +209,8 @@ observation's weight.
 \item \code{tutplot_modelweight()}: the model weight a stump earns, by its
 performance.
 \item \code{tutplot_weightone()}: observation weights before and after one round.
+\item \code{tutplot_importance()}: the relative importance of each predictor, as a
+lollipop chart.
 \item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.
 \item \code{tutplot_logocv()}: the leave-one-group-out estimates per project, with
 or without bootstrap intervals.
