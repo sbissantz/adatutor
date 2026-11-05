@@ -6,7 +6,7 @@
 \alias{tutplot_gini}
 \alias{tutplot_updatefactor}
 \alias{tutplot_modelweight}
-\alias{tutplot_weightone}
+\alias{tutplot_weightupdate}
 \alias{tutplot_importance}
 \alias{tutplot_logocv}
 \alias{tutplot_logoscheme}
@@ -55,7 +55,7 @@ tutplot_modelweight(
   pointsize = tutplot_opts$pointsize
 )
 
-tutplot_weightone(
+tutplot_weightupdate(
   data = altmejd_splits$train,
   d1 = NULL,
   d2 = NULL,
@@ -208,7 +208,7 @@ in a vignette, so every printed figure is documented and tested.
 observation's weight.
 \item \code{tutplot_modelweight()}: the model weight a stump earns, by its
 performance.
-\item \code{tutplot_weightone()}: observation weights before and after one round.
+\item \code{tutplot_weightupdate()}: observation weights before and after one round.
 \item \code{tutplot_importance()}: the relative importance of each predictor, as a
 lollipop chart.
 \item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.
