@@ -685,13 +685,15 @@ test_that("each figure asks for the margins it needs", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # gini has no legend above the panel; the other three do
+  # gini and importance have no legend above the panel; the other three do
   body_of <- function(f) paste(deparse(body(f)), collapse = " ")
-  expect_match(
-    body_of(tutplot_gini),
-    "set_figure_par(reserve_legend = FALSE)",
-    fixed = TRUE
-  )
+  for (f in list(tutplot_gini, tutplot_importance)) {
+    expect_match(
+      body_of(f),
+      "set_figure_par(reserve_legend = FALSE)",
+      fixed = TRUE
+    )
+  }
   for (f in list(
     tutplot_updatefactor,
     tutplot_modelweight,
@@ -1003,4 +1005,80 @@ test_that("tutplot_logocv() restores par() and writes a file", {
   tutplot_logocv(res, bootstrap = FALSE, file = f)
   expect_gt(file.size(f), 0)
   expect_error(tutplot_logocv(list()), "result of logo_cv")
+})
+
+# tutplot_importance(): the lollipop chart, shared with plot.gauge()
+boosted_stumps <- function(n_iter = 20) {
+  rpart::rpart(
+    replicate ~ power.o + n.o + effect_size.o + p_value.o,
+    data = altmejd_splits$train,
+    method = "class",
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = n_iter, eta = 1, verbose = FALSE)
+}
+
+test_that("tutplot_importance() draws the gauge rows, most important first", {
+  imp <- gauge(boosted_stumps())
+
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  expect_invisible(tutplot_importance(imp))
+  drawn <- tutplot_importance(imp)
+  expect_identical(drawn$variable, imp$variable)
+  expect_identical(drawn$importance, imp$importance)
+
+  top <- tutplot_importance(imp, top_n = 2)
+  expect_identical(top$variable, imp$variable[1:2])
+})
+
+test_that("tutplot_importance() restores par() and writes no file by default", {
+  wd <- file.path(tempdir(), "tutplot-importance")
+  dir.create(wd, showWarnings = FALSE)
+  old <- setwd(wd)
+  grDevices::pdf(NULL)
+  on.exit(
+    {
+      grDevices::dev.off()
+      setwd(old)
+      unlink(wd, recursive = TRUE)
+    },
+    add = TRUE
+  )
+  before <- graphics::par(c("mar", "mgp", "tcl", "cex.axis"))
+
+  tutplot_importance(gauge(boosted_stumps()))
+
+  expect_identical(graphics::par(c("mar", "mgp", "tcl", "cex.axis")), before)
+  expect_identical(list.files(wd), character(0))
+})
+
+test_that("tutplot_importance() writes one PDF and leaves the device stack intact", {
+  f <- tempfile(fileext = ".pdf")
+  on.exit(unlink(f), add = TRUE)
+
+  before <- length(grDevices::dev.list())
+  tutplot_importance(gauge(boosted_stumps()), file = f)
+
+  expect_true(file.exists(f))
+  expect_identical(length(grDevices::dev.list()), before)
+})
+
+test_that("tutplot_importance() refuses what gauge() did not make, or an empty gauge", {
+  expect_error(
+    tutplot_importance(data.frame(variable = "x", importance = 100)),
+    "gauge()",
+    fixed = TRUE
+  )
+
+  bare <- rpart::rpart(replicate ~ power.o, data = altmejd_splits$train, cp = 1)
+  empty <- gauge(list(t1 = list(h = bare, alpha = 0.5)))
+  expect_error(tutplot_importance(empty), "no variable was split on")
+})
+
+test_that("plot.gauge() draws through tutplot_importance(), so both are one picture", {
+  body_of <- function(f) paste(deparse(body(f)), collapse = " ")
+  expect_match(body_of(plot.gauge), "tutplot_importance(", fixed = TRUE)
 })
