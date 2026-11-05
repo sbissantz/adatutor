@@ -10,6 +10,8 @@
 #' * `tutplot_modelweight()`: the model weight a stump earns, by its
 #'   performance.
 #' * `tutplot_weightone()`: observation weights before and after one round.
+#' * `tutplot_importance()`: the relative importance of each predictor, as a
+#'   lollipop chart.
 #' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
 #' * `tutplot_logocv()`: the leave-one-group-out estimates per project, with
 #'   or without bootstrap intervals.
@@ -50,6 +52,8 @@
 #'   the weights alone cannot show which points were missed.
 #' @param n The number of data points to draw. 25 fits a column.
 #' @param scaling The bubble size multiplier.
+#' @param importance A `gauge` object from [gauge()].
+#' @param top_n The largest number of predictors to draw. Defaults to 15.
 #' @param group One project label per row, as [logo_cv()] takes it.
 #' @param proportional Whether to size the rows by project. `TRUE` (the
 #'   default) shows the imbalance: one project holds 59 percent of the rows.
@@ -79,6 +83,7 @@
 #' @return Invisibly, the facts the figure's caption states, so tests can
 #'   check them. `tutplot_cstump()` returns the fit, the split variable, the
 #'   cutpoint and the leaf sizes; `tutplot_gini()` the curve and its peak;
+#'   `tutplot_importance()` the rows it drew, most important first;
 #'   `tutplot_logoscheme()` the project sizes, their count, the order and the
 #'   row heights; `tutplot_logocv()` one row per project with its estimate,
 #'   the widest interval, and whether too many resamples were rejected.
@@ -1050,6 +1055,98 @@ draw_colorbar <- function(opacity, labels) {
     col = "grey25",
     xpd = NA
   )
+}
+
+#' @rdname tutplot
+#' @export
+tutplot_importance <- function(
+  importance,
+  top_n = 15,
+  file = NULL,
+  width = tutplot_opts$col[["width"]],
+  height = tutplot_opts$col[["height"]],
+  pointsize = tutplot_opts$pointsize
+) {
+  if (!inherits(importance, "gauge")) {
+    stop("`importance` must be the result of `gauge()`.", call. = FALSE)
+  }
+  if (nrow(importance) == 0L) {
+    stop(
+      "no variable was split on, so there is no importance to plot.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(file)) {
+    grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
+    on.exit(grDevices::dev.off(), add = TRUE)
+  }
+
+  # top_n predictors only, so the chart stays readable; gauge() sorts them
+  drawn <- utils::head(importance, min(top_n, nrow(importance)))
+  n_shown <- nrow(drawn)
+
+  # ascending, so the most important predictor plots at the top
+  shown <- drawn[order(drawn$importance, decreasing = FALSE), ]
+  rows <- seq_len(n_shown)
+
+  old_par <- set_figure_par(reserve_legend = FALSE)
+  on.exit(graphics::par(old_par), add = TRUE)
+
+  # the left margin fits the longest predictor name plus the tick label
+  # offset: the family's margin clips the names, a fixed wide one wastes panel
+  label_width <- max(graphics::strwidth(
+    shown$variable,
+    units = "inches",
+    cex = tutplot_opts$cex_axis
+  ))
+  mar <- graphics::par("mar")
+  mar[2] <- label_width / graphics::par("csi") + tutplot_opts$mgp[2] + 1
+  graphics::par(mar = mar)
+
+  # the family's palette, stopped before yellow; reversed, so the darkest
+  # color goes to the most important predictor
+  colors <- rev(viridisLite::viridis(n_shown, end = tutplot_opts$viridis_end))
+
+  # headroom past the longest line: pretty() ticks can stop well below it
+  xmax <- min(max(shown$importance) + 5, 100)
+
+  graphics::plot.new()
+  graphics::plot.window(
+    xlim = c(0, xmax),
+    ylim = c(0.5, n_shown + 0.5),
+    xaxs = "i"
+  )
+
+  # faint grid at the ticks, drawn first so it stays behind the lollipops
+  graphics::abline(v = graphics::axTicks(1), col = "grey90", lwd = 0.8)
+
+  # one lollipop per predictor: a line from zero and a dot at its share; xpd
+  # so a dot at 100 is not cut in half
+  graphics::segments(
+    0,
+    rows,
+    shown$importance,
+    rows,
+    col = colors,
+    lwd = 3,
+    lend = "butt"
+  )
+  graphics::points(
+    shown$importance,
+    rows,
+    pch = 19,
+    cex = 2.2,
+    col = colors,
+    xpd = NA
+  )
+
+  graphics::axis(1)
+  graphics::axis(2, at = rows, labels = shown$variable, las = 1, lwd = 0)
+  # no title: the caption carries it, as for every figure
+  graphics::title(xlab = "Relative Importance (%)")
+
+  invisible(drawn)
 }
 
 #' @rdname tutplot
