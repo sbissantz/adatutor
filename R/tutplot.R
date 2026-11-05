@@ -9,7 +9,7 @@
 #'   observation's weight.
 #' * `tutplot_modelweight()`: the model weight a stump earns, by its
 #'   performance.
-#' * `tutplot_weightone()`: observation weights before and after one round.
+#' * `tutplot_weightupdate()`: observation weights before and after one round.
 #' * `tutplot_importance()`: the relative importance of each predictor, as a
 #'   lollipop chart.
 #' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
@@ -421,7 +421,7 @@ tutplot_modelweight <- function(
 }
 
 # one round of AdaBoost on `data`, repeating Listings 17--22, so
-# tutplot_weightone() needs nothing from the reader's session
+# tutplot_weightupdate() needs nothing from the reader's session
 run_round_one <- function(
   data,
   predictors = c("power.o", "effect_size.o", "n.o", "p_value.o")
@@ -465,7 +465,7 @@ run_round_one <- function(
 
 #' @rdname tutplot
 #' @export
-tutplot_weightone <- function(
+tutplot_weightupdate <- function(
   data = altmejd_splits$train,
   d1 = NULL,
   d2 = NULL,
