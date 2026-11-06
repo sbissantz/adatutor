@@ -1,16 +1,41 @@
 #' Leave-one-group-out cross-validation
 #'
-#' Holds out each level of `group` in turn and trains on the rest, so the
-#' result is one performance estimate per group rather than a single number:
-#' leave-one-group-out cross-validation (LOGO-CV). In the tutorial the groups
-#' are the replication projects. Whole projects are held out because the
-#' study effects in a project share a design and a base rate.
+#' Holds out each level of `group` in turn, refits the model on the rest and
+#' scores the held-out rows, so the result is one performance estimate per
+#' group rather than a single number: leave-one-group-out cross-validation
+#' (LOGO-CV). In the tutorial the groups are the replication projects. Whole
+#' projects are held out because the study effects in a project share a design
+#' and a base rate.
 #'
-#' Pass a fit from [adaboost()] to cross-validate its recipe: `logo_cv()` reads
-#' the formula, tree settings, splitting rule, `n_iter` and `eta` off the fit
-#' and refits them once per project. The fit's own data are not used, because
-#' cross-validation evaluates the procedure, not one fitted model. Pass a
-#' formula instead to compare learners or search a grid.
+#' Pass a fitted model. `logo_cv()` reads the recipe off the fit and refits it
+#' once per group. The fit's own data are not used, because cross-validation
+#' evaluates the procedure, not one fitted model. To compare AdaBoost settings,
+#' pass the fit and a grid to [tune_cv()].
+#'
+#' @section What each method reads off the fit:
+#' * An [adaboost()] fit: the formula, the tree controls, the splitting rule,
+#'   `n_iter` and `eta`. Each refit grows the tree and boosts it, and is
+#'   scored on the margin.
+#' * A classification tree from [rpart::rpart()], a binomial [stats::glm()],
+#'   or a classification forest from [randomForest::randomForest()] fitted
+#'   with a formula: the call that made the fit. The call runs again with
+#'   `data` replaced by the training rows, so settings such as `control`,
+#'   `parms`, `family`, `ntree` or `mtry` carry over. Each refit is scored on
+#'   its predicted probability of the second class.
+#'
+#' Every model is scored on a continuous score, never on class labels.
+#'
+#' The call runs where its formula was made, so any other object it names,
+#' such as `weights = w` or `control = ctrl`, must still exist there. A
+#' variable named as a column of `data`, such as `weights = n.o`, travels with
+#' the rows. A random forest draws at random: set a seed to repeat a result.
+#'
+#' @section Holding out some groups only:
+#' `holdout` names the groups to hold out, in that order. The other groups
+#' are only ever trained on. One name gives a single split into training and
+#' test data: the final test on a project kept back from tuning, or one Monte
+#' Carlo draw whose test part is a level of a random column (see the
+#' examples).
 #'
 #' @section Reading the estimates:
 #' The estimates are returned per project and are not averaged. Describe their
@@ -19,58 +44,31 @@
 #' share most of their training data, so the usual standard error is too small
 #' (Bengio & Grandvalet, 2004).
 #'
-#' @section Nested cross-validation:
-#' Picking the best row of a grid and reporting its score is optimistic,
-#' because the same folds chose the winner and graded it. With
-#' `nested = TRUE`, each held-out project takes no part in the choice. The
-#' result estimates the procedure "search the grid, then fit the winner", not
-#' any one setting. It is slightly pessimistic, because each model trains on
-#' one project fewer. Expect the outer folds to choose different settings.
-#'
-#' @section Models:
-#' `"adaboost"` boosts a tree with [adaboost()] and is scored on the margin.
-#' `"stump"` and `"tree"` are rpart trees that differ only in depth. `"logit"`
-#' is a binomial [stats::glm()], and `"rf"` needs the randomForest package.
-#' Every model is scored on a continuous score, never on class labels.
-#'
-#' @param x A fit from [adaboost()], or a formula of the form
-#'   `outcome ~ predictors`.
+#' @param x A fitted model: a fit from [adaboost()], a classification tree
+#'   from [rpart::rpart()], a binomial [stats::glm()], or a classification
+#'   forest from [randomForest::randomForest()] fitted with a formula.
 #' @param data A data frame with the model's variables and the `group`
-#'   column, holding every project.
+#'   column, holding every group.
 #' @param group The name of the column that defines the folds, e.g. `"pid"`.
-#' @param model The learner: `"adaboost"`, `"stump"`, `"tree"`, `"logit"` or
-#'   `"rf"`.
-#' @param grid An optional data frame of settings, one row per setting.
-#'   Columns `n_iter`, `eta` and `depth` set those values; missing ones fall back to
-#'   the arguments below. A column named after an [rpart::rpart.control()]
-#'   setting, such as `cp` or `minbucket`, applies to its row only. Any other
-#'   column gives a warning.
-#' @param n_iter,eta,depth Settings used when `grid` is `NULL` or lacks the column.
-#'   `n_iter` and `eta` apply to `"adaboost"`, `depth` to the tree learners.
-#' @param treehypar An optional list of [rpart::rpart.control()] settings that
-#'   all tree learners share. Defaults to `xval = 0`, `maxsurrogate = 0` and
-#'   `cp = 0.01`. `maxdepth` is ignored here; use `depth`. A setting in `grid`
-#'   wins over the same setting here.
-#' @param nested Whether to nest the grid search. The default, `FALSE`, scores
-#'   every row of `grid` on every fold. `TRUE` needs a `grid` and at least
-#'   three groups.
-#' @param criterion The measure the inner search maximizes when
-#'   `nested = TRUE`. Defaults to `"auroc"`. Fix it in advance: it decides
-#'   which setting is chosen.
+#' @param holdout The levels of `group` to hold out, one fold each. Defaults
+#'   to `NULL`, which holds out every level once.
 #' @param verbose Whether to report progress. Defaults to `FALSE`.
-#' @param ... Ignored.
+#' @param ... Must be empty. The settings belong to the fit, so an argument
+#'   such as `n_iter` or `grid` is an error.
 #'
 #' @return An object of class `logo_cv`.
 #'   * `estimates`: an array of setting x project x metric, e.g.
 #'     `res$estimates[, , "auroc"]`. `as.data.frame()` gives the same values
 #'     as one long table. An `NA` cell is an undefined measure, not a failed
 #'     fit.
-#'   * `grid`: the settings, one row per setting.
+#'   * `grid`: the settings, one row per setting. `depth`, `n_iter` and `eta`
+#'     are `NA` where the learner has no such setting.
 #'   * `projects`: each fold's `n` and `base_rate`.
 #'   * `scores`: the held-out scores, one row per study and setting, which
 #'     [bootstrap()] resamples.
-#'   * `selected`: when nested, the setting each outer fold chose. `estimates`
-#'     is then project x metric.
+#'   * `model`: the learner, `"adaboost"`, `"rpart"`, `"glm"` or `"rf"`.
+#'   * `nested`, `criterion` and `selected`: set by [tune_cv()] when it nests
+#'     the search.
 #'
 #' @family cross-validation
 #'
@@ -89,123 +87,337 @@
 #'   maxdepth = 1,
 #'   model = TRUE
 #' )
-#' res <- h |>
-#'   adaboost(n_iter = 10, eta = 1, verbose = FALSE) |>
-#'   logo_cv(data = altmejd, group = "pid")
+#' fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
+#' res <- logo_cv(fit, data = altmejd, group = "pid")
 #' res
 #' plot(res)
 #'
-#' # the formula interface compares learners and searches grids
-#' logo_cv(
+#' # another learner: pass its fit
+#' glm(
 #'   replicate ~ power.o + effect_size.o + n.o + p_value.o,
 #'   data = altmejd,
-#'   group = "pid",
-#'   model = "logit"
+#'   family = binomial
+#' ) |>
+#'   logo_cv(data = altmejd, group = "pid")
+#'
+#' # random five-fold cross-validation: random folds as the groups
+#' set.seed(1)
+#' altmejd$fold <- sample(rep(1:5, length.out = nrow(altmejd)))
+#' logo_cv(fit, data = altmejd, group = "fold")
+#'
+#' # one Monte Carlo draw: a random split, holding out the test part only
+#' altmejd$part <- sample(
+#'   c("train", "test"),
+#'   nrow(altmejd),
+#'   replace = TRUE,
+#'   prob = c(0.7, 0.3)
 #' )
+#' logo_cv(fit, data = altmejd, group = "part", holdout = "test")
+#'
+#' # the final test on HOLZ, the project kept back from tuning
+#' data(altmext)
+#' logo_cv(fit, data = altmext, group = "pid", holdout = "holz")
 #'
 #' @export
-logo_cv <- function(x, ...) {
+logo_cv <- function(x, data, group, holdout = NULL, verbose = FALSE, ...) {
   UseMethod("logo_cv")
 }
 
 #' @rdname logo_cv
 #' @export
-logo_cv.formula <- function(
+logo_cv.adaboost <- function(
   x,
   data,
   group,
-  model = c("adaboost", "stump", "tree", "logit", "rf"),
-  grid = NULL,
-  n_iter = 10,
-  eta = 1,
-  depth = 1,
-  treehypar = NULL,
-  nested = FALSE,
-  criterion = "auroc",
+  holdout = NULL,
   verbose = FALSE,
   ...
 ) {
-  model <- match.arg(model)
-  treehypar <- normalize_treehypar(treehypar)
-  folds <- read_folds(data, group)
-  if (model == "rf" && !requireNamespace("randomForest", quietly = TRUE)) {
-    stop(
-      "model = \"rf\" needs the randomForest package. ",
-      "Install it with install.packages(\"randomForest\").",
-      call. = FALSE
-    )
-  }
-
-  if (nested) {
-    if (is.null(grid)) {
-      stop(
-        "`nested = TRUE` needs a `grid`: with nothing to choose between, ",
-        "there is no selection step to protect against.",
-        call. = FALSE
-      )
-    }
-    if (length(folds) < 3L) {
-      stop(
-        "`nested = TRUE` needs at least three groups: one is held out and the ",
-        "inner search needs two or more of the rest.",
-        call. = FALSE
-      )
-    }
-    return(cross_validate_nested(
-      formula = x,
-      data = data,
-      group = group,
-      model = model,
-      grid = normalize_grid(grid, n_iter = n_iter, eta = eta, depth = depth),
-      treehypar = treehypar,
-      folds = folds,
-      criterion = criterion,
-      verbose = verbose
-    ))
-  }
-
-  cross_validate(
-    formula = x,
+  check_dots_empty(...)
+  # one recipe is a grid of one row, the fit's own
+  tune_cv(
+    x,
+    grid = read_setting(x),
     data = data,
     group = group,
-    model = model,
-    grid = normalize_grid(grid, n_iter = n_iter, eta = eta, depth = depth),
-    treehypar = treehypar,
-    folds = folds,
+    holdout = holdout,
     verbose = verbose
   )
 }
 
 #' @rdname logo_cv
 #' @export
-logo_cv.adaboost <- function(x, data, group, verbose = FALSE, ...) {
-  check_ada_fit(x)
-  control <- attr(x, "control")
-  folds <- read_folds(data, group)
-  # the fit's settings, not its data: cross-validation refits the recipe
+logo_cv.rpart <- function(
+  x,
+  data,
+  group,
+  holdout = NULL,
+  verbose = FALSE,
+  ...
+) {
+  check_dots_empty(...)
+  if (!identical(x$method, "class")) {
+    stop(
+      "`x` must be a classification tree, fitted with `method = \"class\"`: ",
+      "logo_cv() scores its predicted probabilities.",
+      call. = FALSE
+    )
+  }
   cross_validate(
-    formula = attr(x, "formula"),
+    x,
     data = data,
     group = group,
-    model = "adaboost",
+    # depth is the one setting of the grid a tree has
     grid = data.frame(
-      n_iter = attr(x, "n_iter"),
-      eta = attr(x, "eta"),
-      depth = control$maxdepth
+      depth = x$control$maxdepth,
+      n_iter = NA_real_,
+      eta = NA_real_
     ),
-    treehypar = normalize_treehypar(
-      control[setdiff(names(control), "maxdepth")]
-    ),
-    folds = folds,
-    # fits made before the split attribute existed used gini
-    split = attr(x, "split") %||% "gini",
+    folds = read_folds(data, group, holdout),
+    model = "rpart",
+    holdout = holdout,
     verbose = verbose
   )
 }
 
-#' Check `data` and `group`, and return the folds
+#' @rdname logo_cv
+#' @export
+logo_cv.glm <- function(
+  x,
+  data,
+  group,
+  holdout = NULL,
+  verbose = FALSE,
+  ...
+) {
+  check_dots_empty(...)
+  if (!x$family$family %in% c("binomial", "quasibinomial")) {
+    stop(
+      "`x` must be a logistic regression, fitted with `family = binomial`: ",
+      "logo_cv() scores its predicted probabilities.",
+      call. = FALSE
+    )
+  }
+  cross_validate(
+    x,
+    data = data,
+    group = group,
+    grid = data.frame(depth = NA_real_, n_iter = NA_real_, eta = NA_real_),
+    folds = read_folds(data, group, holdout),
+    model = "glm",
+    holdout = holdout,
+    verbose = verbose
+  )
+}
+
+#' @rdname logo_cv
+#' @export
+logo_cv.randomForest <- function(
+  x,
+  data,
+  group,
+  holdout = NULL,
+  verbose = FALSE,
+  ...
+) {
+  check_dots_empty(...)
+  if (!requireNamespace("randomForest", quietly = TRUE)) {
+    stop(
+      "A random forest needs the randomForest package. ",
+      "Install it with install.packages(\"randomForest\").",
+      call. = FALSE
+    )
+  }
+  if (!identical(x$type, "classification")) {
+    stop(
+      "`x` must be a classification forest, fitted on a factor outcome: ",
+      "logo_cv() scores its predicted probabilities.",
+      call. = FALSE
+    )
+  }
+  if (is.null(x$terms)) {
+    stop(
+      "`x` must be fitted with a formula, as in ",
+      "randomForest(replicate ~ ., data = d): logo_cv() refits its call on ",
+      "each fold's rows.",
+      call. = FALSE
+    )
+  }
+  cross_validate(
+    x,
+    data = data,
+    group = group,
+    grid = data.frame(depth = NA_real_, n_iter = NA_real_, eta = NA_real_),
+    folds = read_folds(data, group, holdout),
+    model = "rf",
+    holdout = holdout,
+    verbose = verbose
+  )
+}
+
+#' @rdname logo_cv
+#' @export
+logo_cv.default <- function(
+  x,
+  data,
+  group,
+  holdout = NULL,
+  verbose = FALSE,
+  ...
+) {
+  stop(
+    "`x` must be a fitted model: a fit from adaboost(), rpart(), glm() or ",
+    "randomForest(), not an object of class `",
+    class(x)[1L],
+    "`. Fit the model first, then pass the fit; to search a grid of AdaBoost ",
+    "settings, use tune_cv().",
+    call. = FALSE
+  )
+}
+
+#' Tune AdaBoost settings by leave-one-group-out cross-validation
+#'
+#' Cross-validates an [adaboost()] fit at every row of a grid of settings,
+#' with the folds of [logo_cv()]: each level of `group` is held out in turn,
+#' or only the levels in `holdout`. Each row changes the recipe read off the
+#' fit, so the result has one estimate per setting and group.
+#'
+#' @section Grid columns:
+#' `depth`, `n_iter` and `eta` set the depth of the boosted tree, the number
+#' of rounds and the learning rate. A column named after an
+#' [rpart::rpart.control()] setting, such as `cp` or `minbucket`, sets that
+#' control for its row. A column the grid lacks takes the fit's own value, so
+#' `data.frame(n_iter = c(10, 100))` varies the rounds and keeps the fit's
+#' depth and rate. Any other column is an error.
+#'
+#' @section Nested cross-validation:
+#' Picking the best row of a grid and reporting its score is optimistic,
+#' because the same folds chose the winner and graded it. With
+#' `nested = TRUE`, each held-out group takes no part in the choice: a search
+#' on the other groups picks the row with the highest mean `criterion`, and
+#' only that row is scored on the held-out group. The result estimates the
+#' procedure "search the grid, then fit the winner", not any one setting. It
+#' is slightly pessimistic, because each model trains on one group fewer.
+#' Expect the outer folds to choose different settings.
+#'
+#' @param x A fit from [adaboost()]. The grid varies its settings; its
+#'   formula, other tree controls and splitting rule stay.
+#' @param grid A data frame of settings, one row per setting. See the section
+#'   on grid columns.
+#' @inheritParams logo_cv
+#' @param nested Whether to nest the search. The default, `FALSE`, scores
+#'   every row of `grid` on every fold. `TRUE` needs two or more rows and at
+#'   least three groups.
+#' @param criterion The measure the inner search maximizes when
+#'   `nested = TRUE`. Defaults to `"auroc"`. Fix it in advance: it decides
+#'   which setting is chosen.
+#'
+#' @return An object of class `logo_cv`, as from [logo_cv()], with one
+#'   setting per row of `grid`. When nested, `estimates` is project x metric,
+#'   and `selected` gives the setting each outer fold chose, with the inner
+#'   mean of `criterion`.
+#'
+#' @family cross-validation
+#' @seealso [hypergrid], a grid of 2,640 settings already scored on the six
+#'   tuning projects of [altmext].
+#'
+#' @examples
+#' data(altmejd)
+#' fit <- rpart::rpart(
+#'   replicate ~ power.o + effect_size.o + n.o + p_value.o,
+#'   data = altmejd,
+#'   maxdepth = 1,
+#'   model = TRUE
+#' ) |>
+#'   adaboost(n_iter = 10, eta = 1, verbose = FALSE)
+#'
+#' # the rounds vary; depth and rate stay the fit's
+#' res <- tune_cv(
+#'   fit,
+#'   grid = data.frame(n_iter = c(5, 10)),
+#'   data = altmejd,
+#'   group = "pid"
+#' )
+#' summary(res)
+#'
+#' # nested: each held-out project takes no part in the choice
+#' grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
+#' tune_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
+#'
+#' @export
+tune_cv <- function(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  verbose = FALSE
+) {
+  if (!inherits(x, "adaboost")) {
+    stop(
+      "`x` must be a fit from adaboost(): tuning grids are for adaboost fits. ",
+      "Pass another learner's fit to logo_cv().",
+      call. = FALSE
+    )
+  }
+  check_ada_fit(x)
+  grid <- normalize_grid(grid, x)
+  folds <- read_folds(data, group, holdout)
+
+  if (!nested) {
+    return(cross_validate(
+      x,
+      data = data,
+      group = group,
+      grid = grid,
+      folds = folds,
+      model = "adaboost",
+      holdout = holdout,
+      verbose = verbose
+    ))
+  }
+
+  if (nrow(grid) < 2L) {
+    stop(
+      "`nested = TRUE` needs a `grid` with two or more rows: with nothing to ",
+      "choose between, there is no selection step to protect against.",
+      call. = FALSE
+    )
+  }
+  # the inner search runs on every group but the held-out one, not only on
+  # those in `holdout`
+  if (length(unique(as.character(data[[group]]))) < 3L) {
+    stop(
+      "`nested = TRUE` needs at least three groups: one is held out and the ",
+      "inner search needs two or more of the rest.",
+      call. = FALSE
+    )
+  }
+  if (length(criterion) != 1L || !criterion %in% list_measures()) {
+    stop(
+      "`criterion` \"",
+      paste(criterion, collapse = ", "),
+      "\" is not one of the measures returned by assess().",
+      call. = FALSE
+    )
+  }
+  cross_validate_nested(
+    x,
+    data = data,
+    group = group,
+    grid = grid,
+    folds = folds,
+    criterion = criterion,
+    holdout = holdout,
+    verbose = verbose
+  )
+}
+
+#' Check `data`, `group` and `holdout`, and return the folds
 #' @noRd
-read_folds <- function(data, group) {
+read_folds <- function(data, group, holdout = NULL) {
   check_df(data)
   check_length(data)
   if (!is.character(group) || length(group) != 1L) {
@@ -221,23 +433,66 @@ read_folds <- function(data, group) {
       call. = FALSE
     )
   }
-  folds
+  if (is.null(holdout)) {
+    return(folds)
+  }
+
+  if (!is.atomic(holdout) || length(holdout) == 0L) {
+    stop("`holdout` must name one or more levels of `group`.", call. = FALSE)
+  }
+  holdout <- as.character(holdout)
+  if (anyDuplicated(holdout)) {
+    stop("`holdout` names a level more than once.", call. = FALSE)
+  }
+  unknown <- setdiff(holdout, folds)
+  if (length(unknown)) {
+    stop(
+      "`holdout` names level(s) not found in `",
+      group,
+      "`: ",
+      paste(unknown, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+  # the order given, not the order in the data
+  holdout
+}
+
+#' Read the fit's own setting as a one-row grid
+#' @noRd
+read_setting <- function(fit) {
+  data.frame(
+    depth = attr(fit, "control")$maxdepth,
+    n_iter = attr(fit, "n_iter"),
+    eta = attr(fit, "eta")
+  )
+}
+
+#' Read the formula of a fit, with any `.` expanded
+#' @noRd
+read_formula <- function(fit) {
+  if (inherits(fit, "adaboost")) {
+    return(attr(fit, "formula"))
+  }
+  # through terms(), which strips the attributes a refit must not inherit,
+  # such as `predvars` computed on the fit's own data
+  stats::formula(stats::terms(fit))
 }
 
 #' Score every setting on every fold, keeping the held-out scores
 #' @noRd
 cross_validate <- function(
-  formula,
+  fit,
   data,
   group,
-  model,
   grid,
-  treehypar,
   folds,
-  split = "gini",
+  model,
+  holdout = NULL,
   verbose = FALSE
 ) {
-  outcome <- all.vars(formula)[1L]
+  outcome <- all.vars(read_formula(fit))[1L]
 
   # allocate the setting x project x metric cube up front
   measure_names <- list_measures()
@@ -270,14 +525,11 @@ cross_validate <- function(
       train <- data[!held_out, , drop = FALSE]
       test <- data[held_out, , drop = FALSE]
 
-      score <- score_fold(
-        formula = formula,
+      score <- refit_score(
+        fit,
         train = train,
         test = test,
-        model = model,
-        setting = grid[i, , drop = FALSE],
-        treehypar = treehypar,
-        split = split
+        setting = grid[i, , drop = FALSE]
       )
 
       actual <- test[[outcome]]
@@ -306,8 +558,7 @@ cross_validate <- function(
   structure(
     list(
       estimates = estimates,
-      # after the loop, which fits from these columns
-      grid = mask_unused(grid, model),
+      grid = grid,
       projects = projects,
       scores = do.call(rbind, scores),
       model = model,
@@ -315,24 +566,27 @@ cross_validate <- function(
       criterion = NA_character_,
       selected = NULL
     ),
-    class = "logo_cv"
+    class = "logo_cv",
+    # an attribute, not an element, so the elements stay as bootstrap() and
+    # the plots read them
+    holdout = if (!is.null(holdout)) folds
   )
 }
 
-#' Run the outer loop of nested LOGO-CV, calling logo_cv() for each inner search
+#' Run the outer loop of nested LOGO-CV, calling tune_cv() for each inner
+#' search
 #' @noRd
 cross_validate_nested <- function(
-  formula,
+  fit,
   data,
   group,
-  model,
   grid,
-  treehypar,
   folds,
   criterion,
-  verbose
+  holdout = NULL,
+  verbose = FALSE
 ) {
-  outcome <- all.vars(formula)[1L]
+  outcome <- all.vars(read_formula(fit))[1L]
   measure_names <- list_measures()
 
   # no setting dimension: each outer fold selects its own (see `selected`)
@@ -362,44 +616,31 @@ cross_validate_nested <- function(
     train <- data[!held_out, , drop = FALSE]
     test <- data[held_out, , drop = FALSE]
 
-    inner_cv <- logo_cv(
-      formula,
+    inner_cv <- tune_cv(
+      fit,
+      grid = grid,
       data = train,
       group = group,
-      model = model,
-      grid = grid,
-      treehypar = treehypar,
       verbose = FALSE
     )
 
-    if (!criterion %in% dimnames(inner_cv$estimates)$metric) {
-      stop(
-        "`criterion` \"",
-        criterion,
-        "\" is not one of the measures returned by assess().",
-        call. = FALSE
-      )
-    }
-
     # the mean over the inner folds ranks settings; it is not an estimate
-    # (see ?logo_cv)
+    # (see ?tune_cv)
     inner_means <- rowMeans(
       inner_cv$estimates[,, criterion, drop = FALSE],
       na.rm = TRUE
     )
     winner <- unname(which.max(inner_means))
 
-    score <- score_fold(
-      formula = formula,
+    score <- refit_score(
+      fit,
       train = train,
       test = test,
-      model = model,
-      setting = grid[winner, , drop = FALSE],
-      treehypar = treehypar
+      setting = grid[winner, , drop = FALSE]
     )
 
     actual <- test[[outcome]]
-    measures <- assess(actual, score, threshold = choose_threshold(model))
+    measures <- assess(actual, score, threshold = choose_threshold("adaboost"))
 
     # keep the whole grid row, so a control tuned in the grid travels along;
     # depth, n_iter and eta keep fixed positions
@@ -432,15 +673,16 @@ cross_validate_nested <- function(
   structure(
     list(
       estimates = estimates,
-      grid = mask_unused(grid, model),
+      grid = grid,
       projects = projects,
       scores = do.call(rbind, scores),
-      model = model,
+      model = "adaboost",
       nested = TRUE,
       criterion = criterion,
       selected = do.call(rbind, selected)
     ),
-    class = "logo_cv"
+    class = "logo_cv",
+    holdout = if (!is.null(holdout)) folds
   )
 }
 
@@ -457,20 +699,6 @@ choose_threshold <- function(model) {
   if (model == "adaboost") 0 else 0.5
 }
 
-#' Set the hyperparameters a learner ignores to NA
-#' @noRd
-mask_unused <- function(grid, model) {
-  # NA, not a stale default that reads as if it were used
-  if (model %in% c("logit", "rf")) {
-    grid$depth <- NA_real_
-  }
-  if (model != "adaboost") {
-    grid$n_iter <- NA_real_
-    grid$eta <- NA_real_
-  }
-  grid
-}
-
 #' List the tree controls a grid row may set
 #' @noRd
 list_tree_controls <- function() {
@@ -478,93 +706,46 @@ list_tree_controls <- function() {
   setdiff(names(formals(rpart::rpart.control)), c("maxdepth", "..."))
 }
 
-#' Fill in the grid's missing columns and warn about unknown ones
+#' Check the grid's columns and fill in missing ones from the fit
 #' @noRd
-normalize_grid <- function(grid, n_iter, eta, depth) {
-  if (is.null(grid)) {
-    return(data.frame(n_iter = n_iter, eta = eta, depth = depth))
-  }
+normalize_grid <- function(grid, fit) {
   grid <- as.data.frame(grid)
   if (nrow(grid) == 0L) {
     stop("`grid` has no rows.", call. = FALSE)
   }
-  if (is.null(grid$n_iter)) {
-    grid$n_iter <- n_iter
-  }
-  if (is.null(grid$eta)) {
-    grid$eta <- eta
-  }
-  if (is.null(grid$depth)) {
-    grid$depth <- depth
-  }
-  # read extra columns as rpart controls; warn once about the rest instead of
-  # dropping a column meant to tune something
-  unknown <- setdiff(
-    names(grid),
-    c("n_iter", "eta", "depth", list_tree_controls())
-  )
+  # an error, not a warning: a grid that also holds results would otherwise
+  # hide a column meant to tune something
+  allowed <- c("depth", "n_iter", "eta", list_tree_controls())
+  unknown <- setdiff(names(grid), allowed)
   if (length(unknown)) {
-    warning(
-      "grid column(s) not used for fitting: ",
+    stop(
+      "grid column(s) ",
       paste(unknown, collapse = ", "),
-      ". Beyond `n_iter`, `eta` and `depth`, only rpart controls are read (",
+      " set nothing. A grid may hold `depth`, `n_iter`, `eta` and the rpart ",
+      "controls (",
       paste(list_tree_controls(), collapse = ", "),
       ").",
       call. = FALSE
     )
   }
+  own <- read_setting(fit)
+  for (column in setdiff(names(own), names(grid))) {
+    grid[[column]] <- own[[column]]
+  }
   grid
 }
 
-#' Build the one tree control that all tree learners share
+#' Refit a model on one fold and score the held-out rows
 #' @noRd
-normalize_treehypar <- function(treehypar, setting = NULL) {
-  # one control for every tree learner, so they differ only in depth
-  control <- rpart::rpart.control(xval = 0, maxsurrogate = 0, cp = 0.01)
-  if (!is.null(treehypar)) {
-    if (!is.list(treehypar)) {
-      stop(
-        "`treehypar` must be a list of rpart control parameters.",
-        call. = FALSE
-      )
-    }
-    if (!is.null(treehypar$maxdepth)) {
-      warning(
-        "`treehypar$maxdepth` is ignored: depth is the tuned dimension, so it ",
-        "comes from `depth` or `grid$depth`.",
-        call. = FALSE
-      )
-      treehypar$maxdepth <- NULL
-    }
-    control <- utils::modifyList(control, treehypar)
-  }
-  # a grid-row control wins over `treehypar`: the row is more specific
-  if (!is.null(setting)) {
-    row_controls <- intersect(names(setting), list_tree_controls())
-    if (length(row_controls)) {
-      control <- utils::modifyList(
-        control,
-        as.list(setting[, row_controls, drop = FALSE])
-      )
-    }
-  }
-  # depth is supplied per grid row, never here
-  control$maxdepth <- NULL
-  control
+refit_score <- function(fit, train, test, setting) {
+  UseMethod("refit_score")
 }
 
-#' Fit one learner on one fold and score the held-out rows
+#' Boost the fit's recipe at one grid row and score the margin
+#' @exportS3Method NULL
 #' @noRd
-score_fold <- function(
-  formula,
-  train,
-  test,
-  model,
-  setting,
-  treehypar = NULL,
-  split = "gini"
-) {
-  treehypar <- normalize_treehypar(treehypar, setting = setting)
+refit_score.adaboost <- function(fit, train, test, setting) {
+  formula <- attr(fit, "formula")
   outcome <- all.vars(formula)[1L]
   predictors <- all.vars(formula)[-1L]
   if (identical(predictors, ".")) {
@@ -572,61 +753,93 @@ score_fold <- function(
   }
   variables <- c(predictors, outcome)
 
-  if (model == "adaboost") {
-    # build the weak learner like the stump branch; model = TRUE carries the
-    # data adaboost() needs
-    h <- rpart::rpart(
-      formula,
-      data = train[, variables, drop = FALSE],
-      method = "class",
-      control = utils::modifyList(treehypar, list(maxdepth = setting$depth)),
-      parms = list(split = split),
-      model = TRUE
-    )
-    fit <- adaboost(
-      h,
-      n_iter = setting$n_iter,
-      eta = setting$eta,
-      # each fit is thrown away, so keep no data for retrodictions
-      keep_data = FALSE,
-      verbose = FALSE,
-      check_inputs = FALSE
-    )
-    # the margin, not labels: labels collapse auroc onto balanced accuracy
-    return(stats::predict(
-      fit,
-      test[, predictors, drop = FALSE],
-      type = "margin",
-      verbose = FALSE,
-      check_inputs = FALSE
-    ))
-  }
-
-  if (model %in% c("stump", "tree")) {
-    maxdepth <- if (model == "stump") 1 else setting$depth
-    fit <- rpart::rpart(
-      formula,
-      data = train[, variables, drop = FALSE],
-      method = "class",
-      control = utils::modifyList(treehypar, list(maxdepth = maxdepth))
-    )
-    prob <- stats::predict(fit, newdata = test, type = "prob")
-    return(prob[, ncol(prob)])
-  }
-
-  if (model == "logit") {
-    train_coded <- train[, variables, drop = FALSE]
-    train_coded[[outcome]] <- as_binary(train_coded[[outcome]])
-    fit <- stats::glm(formula, data = train_coded, family = stats::binomial)
-    return(stats::predict(fit, newdata = test, type = "response"))
-  }
-
-  fit <- randomForest::randomForest(
-    formula,
-    data = train[, variables, drop = FALSE]
+  # the fit's control, then the row's rpart controls, then the row's depth
+  control <- attr(fit, "control")
+  row_controls <- intersect(names(setting), list_tree_controls())
+  control <- utils::modifyList(
+    control,
+    as.list(setting[, row_controls, drop = FALSE])
   )
-  prob <- stats::predict(fit, newdata = test, type = "prob")
+  control$maxdepth <- setting[["depth"]]
+
+  # model = TRUE carries the data adaboost() needs
+  h <- rpart::rpart(
+    formula,
+    data = train[, variables, drop = FALSE],
+    method = "class",
+    control = control,
+    # fits made before the split attribute existed used gini
+    parms = list(split = attr(fit, "split") %||% "gini"),
+    model = TRUE
+  )
+  refit <- adaboost(
+    h,
+    n_iter = setting[["n_iter"]],
+    eta = setting[["eta"]],
+    # each fit is thrown away, so keep no data for retrodictions
+    keep_data = FALSE,
+    verbose = FALSE,
+    check_inputs = FALSE
+  )
+  # the margin, not labels: labels collapse auroc onto balanced accuracy
+  stats::predict(
+    refit,
+    test[, predictors, drop = FALSE],
+    type = "margin",
+    verbose = FALSE,
+    check_inputs = FALSE
+  )
+}
+
+#' Refit a tree's call and score the probability of the second class
+#' @exportS3Method NULL
+#' @noRd
+refit_score.rpart <- function(fit, train, test, setting) {
+  refit <- refit_call(fit, train)
+  prob <- stats::predict(refit, newdata = test, type = "prob")
   prob[, ncol(prob)]
+}
+
+#' Refit a logistic regression's call and score its probability
+#' @exportS3Method NULL
+#' @noRd
+refit_score.glm <- function(fit, train, test, setting) {
+  # code the outcome 0/1 as for the other learners; an expression such as
+  # I(y == "a") is left for glm() to read
+  outcome <- read_formula(fit)[[2L]]
+  if (is.name(outcome)) {
+    outcome <- as.character(outcome)
+    train[[outcome]] <- as_binary(train[[outcome]])
+  }
+  refit <- refit_call(fit, train)
+  stats::predict(refit, newdata = test, type = "response")
+}
+
+#' Refit a forest's call and score the probability of the second class
+#' @exportS3Method NULL
+#' @noRd
+refit_score.randomForest <- function(fit, train, test, setting) {
+  # the stored call names randomForest() bare, which needs it attached
+  refit <- refit_call(fit, train, fun = quote(randomForest::randomForest))
+  prob <- stats::predict(refit, newdata = test, type = "prob")
+  prob[, ncol(prob)]
+}
+
+#' Run a fit's own call again on other rows
+#' @noRd
+refit_call <- function(fit, rows, fun = NULL) {
+  formula <- read_formula(fit)
+  call <- stats::getCall(fit)
+  if (!is.null(fun)) {
+    call[[1L]] <- fun
+  }
+  # the expanded formula, so a `.` cannot reach the group column; the rows
+  # themselves, so the call needs no name for them
+  call$formula <- formula
+  call$data <- rows
+  # not update(), which runs the call in this package: here the call's other
+  # names resolve where they did for the original fit
+  eval(call, environment(formula))
 }
 
 #' Methods for logo_cv objects
@@ -661,6 +874,10 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
   )
   cat("  model:   ", x$model, "\n", sep = "")
   cat("  settings:", nrow(x$grid), "\n")
+  holdout <- attr(x, "holdout")
+  if (!is.null(holdout)) {
+    cat("  holdout: ", paste(holdout, collapse = ", "), "\n", sep = "")
+  }
   if (nested) {
     cat("  selected on: ", x$criterion, " (inner loop)\n", sep = "")
   }
