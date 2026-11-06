@@ -60,6 +60,7 @@ vapply(three, nrow, integer(1))
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},
 \code{\link[=logo_cv]{logo_cv()}},
-\code{\link{logo_cv_methods}}
+\code{\link{logo_cv_methods}},
+\code{\link[=tune_cv]{tune_cv()}}
 }
 \concept{cross-validation}

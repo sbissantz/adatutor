@@ -55,6 +55,7 @@ when \code{x} carries intervals from \code{\link[=bootstrap]{bootstrap()}}.
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},
 \code{\link[=logo_cv]{logo_cv()}},
-\code{\link[=partition]{partition()}}
+\code{\link[=partition]{partition()}},
+\code{\link[=tune_cv]{tune_cv()}}
 }
 \concept{cross-validation}

@@ -2,67 +2,42 @@
 % Please edit documentation in R/logo-cv.R
 \name{logo_cv}
 \alias{logo_cv}
-\alias{logo_cv.formula}
 \alias{logo_cv.adaboost}
+\alias{logo_cv.rpart}
+\alias{logo_cv.glm}
+\alias{logo_cv.randomForest}
+\alias{logo_cv.default}
 \title{Leave-one-group-out cross-validation}
 \usage{
-logo_cv(x, ...)
+logo_cv(x, data, group, holdout = NULL, verbose = FALSE, ...)
 
-\method{logo_cv}{formula}(
-  x,
-  data,
-  group,
-  model = c("adaboost", "stump", "tree", "logit", "rf"),
-  grid = NULL,
-  n_iter = 10,
-  eta = 1,
-  depth = 1,
-  treehypar = NULL,
-  nested = FALSE,
-  criterion = "auroc",
-  verbose = FALSE,
-  ...
-)
+\method{logo_cv}{adaboost}(x, data, group, holdout = NULL, verbose = FALSE, ...)
 
-\method{logo_cv}{adaboost}(x, data, group, verbose = FALSE, ...)
+\method{logo_cv}{rpart}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+
+\method{logo_cv}{glm}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+
+\method{logo_cv}{randomForest}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+
+\method{logo_cv}{default}(x, data, group, holdout = NULL, verbose = FALSE, ...)
 }
 \arguments{
-\item{x}{A fit from \code{\link[=adaboost]{adaboost()}}, or a formula of the form
-\code{outcome ~ predictors}.}
-
-\item{...}{Ignored.}
+\item{x}{A fitted model: a fit from \code{\link[=adaboost]{adaboost()}}, a classification tree
+from \code{\link[rpart:rpart]{rpart::rpart()}}, a binomial \code{\link[stats:glm]{stats::glm()}}, or a classification
+forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted with a formula.}
 
 \item{data}{A data frame with the model's variables and the \code{group}
-column, holding every project.}
+column, holding every group.}
 
 \item{group}{The name of the column that defines the folds, e.g. \code{"pid"}.}
 
-\item{model}{The learner: \code{"adaboost"}, \code{"stump"}, \code{"tree"}, \code{"logit"} or
-\code{"rf"}.}
-
-\item{grid}{An optional data frame of settings, one row per setting.
-Columns \code{n_iter}, \code{eta} and \code{depth} set those values; missing ones fall back to
-the arguments below. A column named after an \code{\link[rpart:rpart.control]{rpart::rpart.control()}}
-setting, such as \code{cp} or \code{minbucket}, applies to its row only. Any other
-column gives a warning.}
-
-\item{n_iter, eta, depth}{Settings used when \code{grid} is \code{NULL} or lacks the column.
-\code{n_iter} and \code{eta} apply to \code{"adaboost"}, \code{depth} to the tree learners.}
-
-\item{treehypar}{An optional list of \code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings that
-all tree learners share. Defaults to \code{xval = 0}, \code{maxsurrogate = 0} and
-\code{cp = 0.01}. \code{maxdepth} is ignored here; use \code{depth}. A setting in \code{grid}
-wins over the same setting here.}
-
-\item{nested}{Whether to nest the grid search. The default, \code{FALSE}, scores
-every row of \code{grid} on every fold. \code{TRUE} needs a \code{grid} and at least
-three groups.}
-
-\item{criterion}{The measure the inner search maximizes when
-\code{nested = TRUE}. Defaults to \code{"auroc"}. Fix it in advance: it decides
-which setting is chosen.}
+\item{holdout}{The levels of \code{group} to hold out, one fold each. Defaults
+to \code{NULL}, which holds out every level once.}
 
 \item{verbose}{Whether to report progress. Defaults to \code{FALSE}.}
+
+\item{...}{Must be empty. The settings belong to the fit, so an argument
+such as \code{n_iter} or \code{grid} is an error.}
 }
 \value{
 An object of class \code{logo_cv}.
@@ -71,28 +46,61 @@ An object of class \code{logo_cv}.
 \code{res$estimates[, , "auroc"]}. \code{as.data.frame()} gives the same values
 as one long table. An \code{NA} cell is an undefined measure, not a failed
 fit.
-\item \code{grid}: the settings, one row per setting.
+\item \code{grid}: the settings, one row per setting. \code{depth}, \code{n_iter} and \code{eta}
+are \code{NA} where the learner has no such setting.
 \item \code{projects}: each fold's \code{n} and \code{base_rate}.
 \item \code{scores}: the held-out scores, one row per study and setting, which
 \code{\link[=bootstrap]{bootstrap()}} resamples.
-\item \code{selected}: when nested, the setting each outer fold chose. \code{estimates}
-is then project x metric.
+\item \code{model}: the learner, \code{"adaboost"}, \code{"rpart"}, \code{"glm"} or \code{"rf"}.
+\item \code{nested}, \code{criterion} and \code{selected}: set by \code{\link[=tune_cv]{tune_cv()}} when it nests
+the search.
 }
 }
 \description{
-Holds out each level of \code{group} in turn and trains on the rest, so the
-result is one performance estimate per group rather than a single number:
-leave-one-group-out cross-validation (LOGO-CV). In the tutorial the groups
-are the replication projects. Whole projects are held out because the
-study effects in a project share a design and a base rate.
+Holds out each level of \code{group} in turn, refits the model on the rest and
+scores the held-out rows, so the result is one performance estimate per
+group rather than a single number: leave-one-group-out cross-validation
+(LOGO-CV). In the tutorial the groups are the replication projects. Whole
+projects are held out because the study effects in a project share a design
+and a base rate.
 }
 \details{
-Pass a fit from \code{\link[=adaboost]{adaboost()}} to cross-validate its recipe: \code{logo_cv()} reads
-the formula, tree settings, splitting rule, \code{n_iter} and \code{eta} off the fit
-and refits them once per project. The fit's own data are not used, because
-cross-validation evaluates the procedure, not one fitted model. Pass a
-formula instead to compare learners or search a grid.
+Pass a fitted model. \code{logo_cv()} reads the recipe off the fit and refits it
+once per group. The fit's own data are not used, because cross-validation
+evaluates the procedure, not one fitted model. To compare AdaBoost settings,
+pass the fit and a grid to \code{\link[=tune_cv]{tune_cv()}}.
 }
+\section{What each method reads off the fit}{
+
+\itemize{
+\item An \code{\link[=adaboost]{adaboost()}} fit: the formula, the tree controls, the splitting rule,
+\code{n_iter} and \code{eta}. Each refit grows the tree and boosts it, and is
+scored on the margin.
+\item A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}, a binomial \code{\link[stats:glm]{stats::glm()}},
+or a classification forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted
+with a formula: the call that made the fit. The call runs again with
+\code{data} replaced by the training rows, so settings such as \code{control},
+\code{parms}, \code{family}, \code{ntree} or \code{mtry} carry over. Each refit is scored on
+its predicted probability of the second class.
+}
+
+Every model is scored on a continuous score, never on class labels.
+
+The call runs where its formula was made, so any other object it names,
+such as \code{weights = w} or \code{control = ctrl}, must still exist there. A
+variable named as a column of \code{data}, such as \code{weights = n.o}, travels with
+the rows. A random forest draws at random: set a seed to repeat a result.
+}
+
+\section{Holding out some groups only}{
+
+\code{holdout} names the groups to hold out, in that order. The other groups
+are only ever trained on. One name gives a single split into training and
+test data: the final test on a project kept back from tuning, or one Monte
+Carlo draw whose test part is a level of a random column (see the
+examples).
+}
+
 \section{Reading the estimates}{
 
 The estimates are returned per project and are not averaged. Describe their
@@ -100,24 +108,6 @@ spread, but do not turn it into a standard error or a confidence interval.
 The folds differ in size (10 to 90 study effects in \code{altmejd}), and they
 share most of their training data, so the usual standard error is too small
 (Bengio & Grandvalet, 2004).
-}
-
-\section{Nested cross-validation}{
-
-Picking the best row of a grid and reporting its score is optimistic,
-because the same folds chose the winner and graded it. With
-\code{nested = TRUE}, each held-out project takes no part in the choice. The
-result estimates the procedure "search the grid, then fit the winner", not
-any one setting. It is slightly pessimistic, because each model trains on
-one project fewer. Expect the outer folds to choose different settings.
-}
-
-\section{Models}{
-
-\code{"adaboost"} boosts a tree with \code{\link[=adaboost]{adaboost()}} and is scored on the margin.
-\code{"stump"} and \code{"tree"} are rpart trees that differ only in depth. \code{"logit"}
-is a binomial \code{\link[stats:glm]{stats::glm()}}, and \code{"rf"} needs the randomForest package.
-Every model is scored on a continuous score, never on class labels.
 }
 
 \examples{
@@ -131,19 +121,36 @@ h <- rpart::rpart(
   maxdepth = 1,
   model = TRUE
 )
-res <- h |>
-  adaboost(n_iter = 10, eta = 1, verbose = FALSE) |>
-  logo_cv(data = altmejd, group = "pid")
+fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
+res <- logo_cv(fit, data = altmejd, group = "pid")
 res
 plot(res)
 
-# the formula interface compares learners and searches grids
-logo_cv(
+# another learner: pass its fit
+glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
   data = altmejd,
-  group = "pid",
-  model = "logit"
+  family = binomial
+) |>
+  logo_cv(data = altmejd, group = "pid")
+
+# random five-fold cross-validation: random folds as the groups
+set.seed(1)
+altmejd$fold <- sample(rep(1:5, length.out = nrow(altmejd)))
+logo_cv(fit, data = altmejd, group = "fold")
+
+# one Monte Carlo draw: a random split, holding out the test part only
+altmejd$part <- sample(
+  c("train", "test"),
+  nrow(altmejd),
+  replace = TRUE,
+  prob = c(0.7, 0.3)
 )
+logo_cv(fit, data = altmejd, group = "part", holdout = "test")
+
+# the final test on HOLZ, the project kept back from tuning
+data(altmext)
+logo_cv(fit, data = altmext, group = "pid", holdout = "holz")
 
 }
 \references{
@@ -155,6 +162,7 @@ variance of k-fold cross-validation. \emph{Journal of Machine Learning Research,
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},
 \code{\link{logo_cv_methods}},
-\code{\link[=partition]{partition()}}
+\code{\link[=partition]{partition()}},
+\code{\link[=tune_cv]{tune_cv()}}
 }
 \concept{cross-validation}
