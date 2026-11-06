@@ -291,18 +291,19 @@ res |>
   plot()
 ```
 
-To compare AdaBoost with another learner, pass a formula and a `model`
-instead of a fit. Here is a logistic regression on the same predictors:
+To compare AdaBoost with another learner, pass a fitted model instead of the
+ensemble. `logo_cv()` refits it once per project, as it did the ensemble. Here
+is a logistic regression on the same predictors:
 
 ```{r}
 #| label: logo-cv-logit
 # LOGO-CV for a logistic regression
-logit <- logo_cv(
+logit <- glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
   data = df,
-  group = "pid",
-  model = "logit"
-)
+  family = binomial
+) |>
+  logo_cv(data = df, group = "pid")
 logit
 ```
 
