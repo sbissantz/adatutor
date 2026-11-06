@@ -56,6 +56,6 @@ Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},
 \code{\link[=logo_cv]{logo_cv()}},
 \code{\link[=partition]{partition()}},
-\code{\link[=tune_cv]{tune_cv()}}
+\code{\link[=tune_logo_cv]{tune_logo_cv()}}
 }
 \concept{cross-validation}

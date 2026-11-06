@@ -127,6 +127,6 @@ Other cross-validation:
 \code{\link[=logo_cv]{logo_cv()}},
 \code{\link{logo_cv_methods}},
 \code{\link[=partition]{partition()}},
-\code{\link[=tune_cv]{tune_cv()}}
+\code{\link[=tune_logo_cv]{tune_logo_cv()}}
 }
 \concept{cross-validation}

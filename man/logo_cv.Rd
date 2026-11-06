@@ -52,8 +52,8 @@ are \code{NA} where the learner has no such setting.
 \item \code{scores}: the held-out scores, one row per study and setting, which
 \code{\link[=bootstrap]{bootstrap()}} resamples.
 \item \code{model}: the learner, \code{"adaboost"}, \code{"rpart"}, \code{"glm"} or \code{"rf"}.
-\item \code{nested}, \code{criterion} and \code{selected}: set by \code{\link[=tune_cv]{tune_cv()}} when it nests
-the search.
+\item \code{nested}, \code{criterion} and \code{selected}: set by \code{\link[=tune_logo_cv]{tune_logo_cv()}} when it
+nests the search.
 }
 }
 \description{
@@ -68,7 +68,7 @@ and a base rate.
 Pass a fitted model. \code{logo_cv()} reads the recipe off the fit and refits it
 once per group. The fit's own data are not used, because cross-validation
 evaluates the procedure, not one fitted model. To compare AdaBoost settings,
-pass the fit and a grid to \code{\link[=tune_cv]{tune_cv()}}.
+pass the fit and a grid to \code{\link[=tune_logo_cv]{tune_logo_cv()}}.
 }
 \section{What each method reads off the fit}{
 
@@ -163,6 +163,6 @@ Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},
 \code{\link{logo_cv_methods}},
 \code{\link[=partition]{partition()}},
-\code{\link[=tune_cv]{tune_cv()}}
+\code{\link[=tune_logo_cv]{tune_logo_cv()}}
 }
 \concept{cross-validation}

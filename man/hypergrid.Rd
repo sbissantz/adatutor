@@ -20,7 +20,8 @@ Every setting of an AdaBoost grid, scored by leave-one-group-out
 cross-validation on the six tuning projects of \link{altmext}: each project is
 held out in turn and scored by the model trained on the other five. HOLZ,
 the newest project, takes no part; the tutorial keeps it for the final
-test. Made by \code{data-raw/hypergrid.R}.
+test. The grid is one \code{\link[=tune_logo_cv]{tune_logo_cv()}} call with \code{cores = 4}, which takes
+about an hour; the script is \code{data-raw/hypergrid.R}.
 }
 \details{
 The scores are project-level only, with no means and no rankings: which
