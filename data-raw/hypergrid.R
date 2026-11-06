@@ -2,7 +2,7 @@
 # AdaBoost hyperparameter grid (LOGO-CV) #
 ##########################################
 
-# Run `pkgload::load_all()` first. One tune_logo_cv() call, about an hour on 4
+# Run `pkgload::load_all()` first. One tune_logo_cv() call, about 40 minutes on 4
 # cores. `cores = 4` forks on macOS and Linux; on Windows it runs on one core,
 # about four times as long. data-raw/cache/ holds slices of an earlier build
 # that this script no longer reads.
@@ -86,9 +86,14 @@ hypergrid <- lapply(setNames(measures, measures), function(measure) {
     row.names = NULL
   )
 })
-attr(hypergrid, "projects") <- `rownames<-`(
-  res$projects[match(projects, res$projects$project), ],
-  NULL
+info <- res$projects[match(projects, res$projects$project), ]
+# a fresh data.frame(): its attribute order is the shipped file's, so an
+# unchanged grid saves to the same bytes
+attr(hypergrid, "projects") <- data.frame(
+  project = info$project,
+  n = info$n,
+  base_rate = info$base_rate,
+  row.names = NULL
 )
 
 # Listing 33's settings, fitted directly, must match the tables
