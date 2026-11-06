@@ -20,6 +20,7 @@ Imports:
     utils (>= 4.5),
     stats (>= 4.5),
     graphics (>= 4.5),
+    parallel (>= 4.5),
     PRROC (>= 1.3),
     rpart (>= 4.1),
     rpart.plot (>= 3.1),
