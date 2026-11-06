@@ -746,7 +746,7 @@ test_that("tutplot_boundary() takes either learner, and writes no file", {
   expect_identical(dim(one$z), c(40L, 40L))
   expect_length(unique(as.vector(one$z)), 2L)
 
-  # an ensemble: the same call, and the margin takes many values. `T` is small
+  # an ensemble: the same call, and the margin takes many values. `n_iter` is small
   # because this is about the wrapper, not about boosting
   ens <- rpart::rpart(
     replicate ~ .,
@@ -943,7 +943,7 @@ logocv_res <- function() {
     replicate ~ power.o + effect_size.o + n.o + p_value.o,
     data = altmejd,
     group = "pid",
-    T = 5,
+    n_iter = 5,
     eta = 1
   )
 }

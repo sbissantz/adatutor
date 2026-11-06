@@ -9,7 +9,7 @@ A list of 17 data frames, one per measure of \code{\link[=assess]{assess()}}, fr
 to \code{patk}. Each has one row per setting, 2,640 in all, and these columns:
 \itemize{
 \item \code{depth}: The depth of the tree that is boosted, 1 to 8.
-\item \code{T}: The number of boosting rounds, 10 to 3,000.
+\item \code{n_iter}: The number of boosting rounds, 10 to 3,000.
 \item \code{eta}: The learning rate, 0.0025 to 1.
 \item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The measure on that project,
 held out.
@@ -40,7 +40,7 @@ auc <- hypergrid$auroc
 projects <- attr(hypergrid, "projects")$project
 
 # one setting, project by project
-auc[auc$depth == 1 & auc$T == 1000 & auc$eta == 0.1, ]
+auc[auc$depth == 1 & auc$n_iter == 1000 & auc$eta == 0.1, ]
 
 # a summary of your choice: mean minus SD across the projects
 x <- as.matrix(auc[projects])

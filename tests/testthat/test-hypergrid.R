@@ -3,9 +3,9 @@ test_that("hypergrid holds one table per measure, a row per setting", {
   projects <- c("eerp", "ml1", "ml2", "ml3", "rpp", "ssrp")
   expect_named(hypergrid, list_measures())
   for (table in hypergrid) {
-    expect_named(table, c("depth", "T", "eta", projects))
+    expect_named(table, c("depth", "n_iter", "eta", projects))
     expect_equal(nrow(table), 2640)
-    expect_false(anyDuplicated(table[c("depth", "T", "eta")]) > 0)
+    expect_false(anyDuplicated(table[c("depth", "n_iter", "eta")]) > 0)
   }
   expect_identical(hypergrid$auroc[1:3], hypergrid$patk[1:3])
 })
@@ -41,6 +41,6 @@ test_that("a stored hypergrid score matches a direct fit", {
   fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
   margin <- predict(fit, test[, predictors], type = "margin", verbose = FALSE)
   auc <- hypergrid$auroc
-  stored <- auc$ml3[auc$depth == 1 & auc$T == 10 & auc$eta == 1]
+  stored <- auc$ml3[auc$depth == 1 & auc$n_iter == 10 & auc$eta == 1]
   expect_equal(stored, auroc(test$replicate, margin))
 })

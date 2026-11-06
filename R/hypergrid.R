@@ -12,7 +12,7 @@
 #' @format A list of 17 data frames, one per measure of [assess()], from `tp`
 #'   to `patk`. Each has one row per setting, 2,640 in all, and these columns:
 #' * `depth`: The depth of the tree that is boosted, 1 to 8.
-#' * `T`: The number of boosting rounds, 10 to 3,000.
+#' * `n_iter`: The number of boosting rounds, 10 to 3,000.
 #' * `eta`: The learning rate, 0.0025 to 1.
 #' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The measure on that project,
 #'   held out.
@@ -34,7 +34,7 @@
 #' projects <- attr(hypergrid, "projects")$project
 #'
 #' # one setting, project by project
-#' auc[auc$depth == 1 & auc$T == 1000 & auc$eta == 0.1, ]
+#' auc[auc$depth == 1 & auc$n_iter == 1000 & auc$eta == 0.1, ]
 #'
 #' # a summary of your choice: mean minus SD across the projects
 #' x <- as.matrix(auc[projects])

@@ -14,7 +14,7 @@ logo_cv(x, ...)
   group,
   model = c("adaboost", "stump", "tree", "logit", "rf"),
   grid = NULL,
-  T = 10,
+  n_iter = 10,
   eta = 1,
   depth = 1,
   treehypar = NULL,
@@ -41,13 +41,13 @@ column, holding every project.}
 \code{"rf"}.}
 
 \item{grid}{An optional data frame of settings, one row per setting.
-Columns \code{T}, \code{eta} and \code{depth} set those values; missing ones fall back to
+Columns \code{n_iter}, \code{eta} and \code{depth} set those values; missing ones fall back to
 the arguments below. A column named after an \code{\link[rpart:rpart.control]{rpart::rpart.control()}}
 setting, such as \code{cp} or \code{minbucket}, applies to its row only. Any other
 column gives a warning.}
 
-\item{T, eta, depth}{Settings used when \code{grid} is \code{NULL} or lacks the column.
-\code{T} and \code{eta} apply to \code{"adaboost"}, \code{depth} to the tree learners.}
+\item{n_iter, eta, depth}{Settings used when \code{grid} is \code{NULL} or lacks the column.
+\code{n_iter} and \code{eta} apply to \code{"adaboost"}, \code{depth} to the tree learners.}
 
 \item{treehypar}{An optional list of \code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings that
 all tree learners share. Defaults to \code{xval = 0}, \code{maxsurrogate = 0} and

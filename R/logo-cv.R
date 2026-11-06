@@ -41,12 +41,12 @@
 #' @param model The learner: `"adaboost"`, `"stump"`, `"tree"`, `"logit"` or
 #'   `"rf"`.
 #' @param grid An optional data frame of settings, one row per setting.
-#'   Columns `T`, `eta` and `depth` set those values; missing ones fall back to
+#'   Columns `n_iter`, `eta` and `depth` set those values; missing ones fall back to
 #'   the arguments below. A column named after an [rpart::rpart.control()]
 #'   setting, such as `cp` or `minbucket`, applies to its row only. Any other
 #'   column gives a warning.
-#' @param T,eta,depth Settings used when `grid` is `NULL` or lacks the column.
-#'   `T` and `eta` apply to `"adaboost"`, `depth` to the tree learners.
+#' @param n_iter,eta,depth Settings used when `grid` is `NULL` or lacks the column.
+#'   `n_iter` and `eta` apply to `"adaboost"`, `depth` to the tree learners.
 #' @param treehypar An optional list of [rpart::rpart.control()] settings that
 #'   all tree learners share. Defaults to `xval = 0`, `maxsurrogate = 0` and
 #'   `cp = 0.01`. `maxdepth` is ignored here; use `depth`. A setting in `grid`
@@ -116,7 +116,7 @@ logo_cv.formula <- function(
   group,
   model = c("adaboost", "stump", "tree", "logit", "rf"),
   grid = NULL,
-  T = 10,
+  n_iter = 10,
   eta = 1,
   depth = 1,
   treehypar = NULL,
@@ -156,7 +156,7 @@ logo_cv.formula <- function(
       data = data,
       group = group,
       model = model,
-      grid = normalize_grid(grid, T = T, eta = eta, depth = depth),
+      grid = normalize_grid(grid, n_iter = n_iter, eta = eta, depth = depth),
       treehypar = treehypar,
       folds = folds,
       criterion = criterion,
@@ -169,7 +169,7 @@ logo_cv.formula <- function(
     data = data,
     group = group,
     model = model,
-    grid = normalize_grid(grid, T = T, eta = eta, depth = depth),
+    grid = normalize_grid(grid, n_iter = n_iter, eta = eta, depth = depth),
     treehypar = treehypar,
     folds = folds,
     verbose = verbose
@@ -189,7 +189,7 @@ logo_cv.adaboost <- function(x, data, group, verbose = FALSE, ...) {
     group = group,
     model = "adaboost",
     grid = data.frame(
-      T = attr(x, "n_iter"),
+      n_iter = attr(x, "n_iter"),
       eta = attr(x, "eta"),
       depth = control$maxdepth
     ),
@@ -402,10 +402,10 @@ cross_validate_nested <- function(
     measures <- assess(actual, score, threshold = choose_threshold(model))
 
     # keep the whole grid row, so a control tuned in the grid travels along;
-    # depth, T and eta keep fixed positions
+    # depth, n_iter and eta keep fixed positions
     choice <- grid[winner, , drop = FALSE]
     choice <- choice[,
-      union(c("depth", "T", "eta"), names(choice)),
+      union(c("depth", "n_iter", "eta"), names(choice)),
       drop = FALSE
     ]
     selected[[k]] <- data.frame(
@@ -465,7 +465,7 @@ mask_unused <- function(grid, model) {
     grid$depth <- NA_real_
   }
   if (model != "adaboost") {
-    grid$T <- NA_real_
+    grid$n_iter <- NA_real_
     grid$eta <- NA_real_
   }
   grid
@@ -480,16 +480,16 @@ list_tree_controls <- function() {
 
 #' Fill in the grid's missing columns and warn about unknown ones
 #' @noRd
-normalize_grid <- function(grid, T, eta, depth) {
+normalize_grid <- function(grid, n_iter, eta, depth) {
   if (is.null(grid)) {
-    return(data.frame(T = T, eta = eta, depth = depth))
+    return(data.frame(n_iter = n_iter, eta = eta, depth = depth))
   }
   grid <- as.data.frame(grid)
   if (nrow(grid) == 0L) {
     stop("`grid` has no rows.", call. = FALSE)
   }
-  if (is.null(grid$T)) {
-    grid$T <- T
+  if (is.null(grid$n_iter)) {
+    grid$n_iter <- n_iter
   }
   if (is.null(grid$eta)) {
     grid$eta <- eta
@@ -499,12 +499,15 @@ normalize_grid <- function(grid, T, eta, depth) {
   }
   # read extra columns as rpart controls; warn once about the rest instead of
   # dropping a column meant to tune something
-  unknown <- setdiff(names(grid), c("T", "eta", "depth", list_tree_controls()))
+  unknown <- setdiff(
+    names(grid),
+    c("n_iter", "eta", "depth", list_tree_controls())
+  )
   if (length(unknown)) {
     warning(
       "grid column(s) not used for fitting: ",
       paste(unknown, collapse = ", "),
-      ". Beyond `T`, `eta` and `depth`, only rpart controls are read (",
+      ". Beyond `n_iter`, `eta` and `depth`, only rpart controls are read (",
       paste(list_tree_controls(), collapse = ", "),
       ").",
       call. = FALSE
@@ -582,7 +585,7 @@ score_fold <- function(
     )
     fit <- adaboost(
       h,
-      n_iter = setting$T,
+      n_iter = setting$n_iter,
       eta = setting$eta,
       # each fit is thrown away, so keep no data for retrodictions
       keep_data = FALSE,
@@ -670,7 +673,15 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
     return(invisible(x))
   }
 
-  columns <- c("depth", "T", "eta", "project", "n", "base_rate", "estimate")
+  columns <- c(
+    "depth",
+    "n_iter",
+    "eta",
+    "project",
+    "n",
+    "base_rate",
+    "estimate"
+  )
   columns <- columns[vapply(
     rows[columns],
     \(column) !all(is.na(column)),
@@ -704,7 +715,7 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
 summary.logo_cv <- function(object, metric = "auroc", ...) {
   long <- as.data.frame(object)
   rows <- long[long$metric == metric, , drop = FALSE]
-  rows[order(rows$depth, rows$T, rows$eta, rows$project), , drop = FALSE]
+  rows[order(rows$depth, rows$n_iter, rows$eta, rows$project), , drop = FALSE]
 }
 
 #' @rdname logo_cv_methods
@@ -712,7 +723,7 @@ summary.logo_cv <- function(object, metric = "auroc", ...) {
 as.data.frame.logo_cv <- function(x, ...) {
   cube <- x$estimates
   dim_names <- dimnames(cube)
-  core_columns <- c("depth", "T", "eta")
+  core_columns <- c("depth", "n_iter", "eta")
 
   # aperm() then as.vector() order rows metric fastest, then project, then
   # setting, matching expand.grid() below

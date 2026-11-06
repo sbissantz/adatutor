@@ -75,11 +75,11 @@ score_fold <- function(project, depth, eta) {
     },
     numeric(nrow(test))
   )
-  # One fit gives every T: column T is the margin after T rounds
+  # One fit gives every n_iter: column n is the margin after n rounds
   margins <- t(apply(sweep(votes, 2, weights, `*`), 1, cumsum))
   t(vapply(
     rounds,
-    \(T) assess(test$replicate, score = margins[, T])[measures],
+    \(n) assess(test$replicate, score = margins[, n])[measures],
     numeric(length(measures))
   ))
 }
@@ -90,11 +90,14 @@ dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
 run_depth <- function(depth) {
   file <- file.path(cache_dir, sprintf("depth%d.rds", depth))
   if (file.exists(file)) {
-    return(readRDS(file))
+    slice <- readRDS(file)
+    # caches written before the column T was renamed
+    names(slice$settings)[names(slice$settings) == "T"] <- "n_iter"
+    return(slice)
   }
   started <- Sys.time()
-  # T varies fastest, in the row order of score_fold()
-  settings <- expand.grid(T = rounds, eta = etas)
+  # n_iter varies fastest, in the row order of score_fold()
+  settings <- expand.grid(n_iter = rounds, eta = etas)
   scores <- array(
     NA_real_,
     dim = c(nrow(settings), length(projects), length(measures)),
@@ -136,7 +139,7 @@ if (any(failed)) {
 settings <- do.call(rbind, lapply(slices, `[[`, "settings"))
 hypergrid <- lapply(setNames(measures, measures), function(measure) {
   values <- do.call(rbind, lapply(slices, \(slice) slice$scores[,, measure]))
-  data.frame(settings[c("depth", "T", "eta")], values, row.names = NULL)
+  data.frame(settings[c("depth", "n_iter", "eta")], values, row.names = NULL)
 })
 attr(hypergrid, "projects") <- data.frame(
   project = projects,
@@ -148,12 +151,12 @@ attr(hypergrid, "projects") <- data.frame(
 )
 
 # Listing 33's settings, fitted directly, must match the staged scores
-listing <- expand.grid(depth = 1:3, T = c(10, 100, 1000), eta = c(1, 0.1))
+listing <- expand.grid(depth = 1:3, n_iter = c(10, 100, 1000), eta = c(1, 0.1))
 for (i in seq_len(nrow(listing))) {
   setting <- listing[i, ]
   row <- which(
     hypergrid$auroc$depth == setting$depth &
-      hypergrid$auroc$T == setting$T &
+      hypergrid$auroc$n_iter == setting$n_iter &
       hypergrid$auroc$eta == setting$eta
   )
   stopifnot(length(row) == 1)
@@ -166,7 +169,12 @@ for (i in seq_len(nrow(listing))) {
       maxdepth = setting$depth,
       model = TRUE
     )
-    fit <- adaboost(h, n_iter = setting$T, eta = setting$eta, verbose = FALSE)
+    fit <- adaboost(
+      h,
+      n_iter = setting$n_iter,
+      eta = setting$eta,
+      verbose = FALSE
+    )
     margin <- predict(fit, test[, predictors], type = "margin", verbose = FALSE)
     direct <- assess(test$replicate, score = margin)[measures]
     staged <- vapply(measures, \(m) hypergrid[[m]][row, project], numeric(1))
