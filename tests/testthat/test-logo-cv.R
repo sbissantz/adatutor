@@ -571,6 +571,22 @@ test_that("on Windows, cores above 1 run on one core and say so once", {
   expect_length(messages, 1L)
 })
 
+test_that("a grid row without rounds is an error, not a score", {
+  # sharing a fit with longer rows, a 0-round row would score a margin of 0
+  data(altmejd)
+  for (bad in list(c(0, 5), c(NA, 5), c("5", "10"))) {
+    expect_error(
+      tune_logo_cv(
+        fit_ada(),
+        data.frame(n_iter = bad),
+        data = altmejd,
+        group = "pid"
+      ),
+      "`n_iter` must be numbers of 1 or more"
+    )
+  }
+})
+
 test_that("cores must be one whole number, 1 or more", {
   data(altmejd)
   fit <- fit_ada()
