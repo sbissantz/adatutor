@@ -868,6 +868,10 @@ normalize_grid <- function(grid, fit) {
   for (column in setdiff(names(own), names(grid))) {
     grid[[column]] <- own[[column]]
   }
+  # rows share a fit, so a row without rounds would score 0 rather than fail
+  if (!is.numeric(grid$n_iter) || anyNA(grid$n_iter) || any(grid$n_iter < 1)) {
+    stop("grid column `n_iter` must be numbers of 1 or more.", call. = FALSE)
+  }
   grid
 }
 
