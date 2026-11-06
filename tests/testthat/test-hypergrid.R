@@ -44,3 +44,31 @@ test_that("a stored hypergrid score matches a direct fit", {
   stored <- auc$ml3[auc$depth == 1 & auc$n_iter == 10 & auc$eta == 1]
   expect_equal(stored, auroc(test$replicate, margin))
 })
+
+test_that("tune_logo_cv() reproduces stored settings on every measure", {
+  data(hypergrid)
+  data(altmext)
+  tune <- altmext[altmext$pid != "holz", ]
+  projects <- attr(hypergrid, "projects")$project
+  recipe <- rpart::rpart(
+    replicate ~ power.o + effect_size.o + n.o + p_value.o,
+    data = tune,
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 10, eta = 1, verbose = FALSE)
+
+  # three settings drawn among those up to 100 rounds, which keeps it fast
+  settings <- hypergrid$auroc[c("depth", "n_iter", "eta")]
+  set.seed(2026)
+  rows <- sample(which(settings$n_iter <= 100), 3)
+  res <- tune_logo_cv(recipe, settings[rows, ], data = tune, group = "pid")
+
+  for (measure in names(hypergrid)) {
+    expect_equal(
+      unname(res$estimates[, projects, measure]),
+      unname(as.matrix(hypergrid[[measure]][rows, projects])),
+      label = measure
+    )
+  }
+})

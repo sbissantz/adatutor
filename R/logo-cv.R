@@ -10,7 +10,7 @@
 #' Pass a fitted model. `logo_cv()` reads the recipe off the fit and refits it
 #' once per group. The fit's own data are not used, because cross-validation
 #' evaluates the procedure, not one fitted model. To compare AdaBoost settings,
-#' pass the fit and a grid to [tune_cv()].
+#' pass the fit and a grid to [tune_logo_cv()].
 #'
 #' @section What each method reads off the fit:
 #' * An [adaboost()] fit: the formula, the tree controls, the splitting rule,
@@ -67,8 +67,8 @@
 #'   * `scores`: the held-out scores, one row per study and setting, which
 #'     [bootstrap()] resamples.
 #'   * `model`: the learner, `"adaboost"`, `"rpart"`, `"glm"` or `"rf"`.
-#'   * `nested`, `criterion` and `selected`: set by [tune_cv()] when it nests
-#'     the search.
+#'   * `nested`, `criterion` and `selected`: set by [tune_logo_cv()] when it
+#'     nests the search.
 #'
 #' @family cross-validation
 #'
@@ -135,7 +135,7 @@ logo_cv.adaboost <- function(
 ) {
   check_dots_empty(...)
   # one recipe is a grid of one row, the fit's own
-  tune_cv(
+  tune_logo_cv(
     x,
     grid = read_setting(x),
     data = data,
@@ -270,7 +270,7 @@ logo_cv.default <- function(
     "randomForest(), not an object of class `",
     class(x)[1L],
     "`. Fit the model first, then pass the fit; to search a grid of AdaBoost ",
-    "settings, use tune_cv().",
+    "settings, use tune_logo_cv().",
     call. = FALSE
   )
 }
@@ -300,6 +300,14 @@ logo_cv.default <- function(
 #' is slightly pessimistic, because each model trains on one group fewer.
 #' Expect the outer folds to choose different settings.
 #'
+#' @section Speed:
+#' Rows of `grid` that differ only in `n_iter` share one fit per fold. The
+#' tree is boosted once, to the largest `n_iter` among them, and each row is
+#' scored on the margin after its own number of rounds. The first rounds of a
+#' longer run are the shorter run, so the result equals refitting each row. A
+#' grid of many round counts therefore costs about as much as its largest one;
+#' each value of `depth`, `eta` or an rpart control costs a fit of its own.
+#'
 #' @param x A fit from [adaboost()]. The grid varies its settings; its
 #'   formula, other tree controls and splitting rule stay.
 #' @param grid A data frame of settings, one row per setting. See the section
@@ -311,6 +319,11 @@ logo_cv.default <- function(
 #' @param criterion The measure the inner search maximizes when
 #'   `nested = TRUE`. Defaults to `"auroc"`. Fix it in advance: it decides
 #'   which setting is chosen.
+#' @param cores The number of cores to use. Defaults to 1. On macOS and
+#'   Linux, the work is spread over that many forked R processes with
+#'   [parallel::mclapply()]. Windows cannot fork, so there a value above 1
+#'   runs on one core and says so. The results are the same at any number of
+#'   cores. Progress messages from `verbose` appear only on one core.
 #'
 #' @return An object of class `logo_cv`, as from [logo_cv()], with one
 #'   setting per row of `grid`. When nested, `estimates` is project x metric,
@@ -332,7 +345,7 @@ logo_cv.default <- function(
 #'   adaboost(n_iter = 10, eta = 1, verbose = FALSE)
 #'
 #' # the rounds vary; depth and rate stay the fit's
-#' res <- tune_cv(
+#' res <- tune_logo_cv(
 #'   fit,
 #'   grid = data.frame(n_iter = c(5, 10)),
 #'   data = altmejd,
@@ -342,10 +355,10 @@ logo_cv.default <- function(
 #'
 #' # nested: each held-out project takes no part in the choice
 #' grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
-#' tune_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
+#' tune_logo_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
 #'
 #' @export
-tune_cv <- function(
+tune_logo_cv <- function(
   x,
   grid,
   data,
@@ -353,6 +366,7 @@ tune_cv <- function(
   holdout = NULL,
   nested = FALSE,
   criterion = "auroc",
+  cores = 1,
   verbose = FALSE
 ) {
   if (!inherits(x, "adaboost")) {
@@ -365,6 +379,9 @@ tune_cv <- function(
   check_ada_fit(x)
   grid <- normalize_grid(grid, x)
   folds <- read_folds(data, group, holdout)
+  cores <- choose_cores(cores)
+  # messages from forked workers would interleave
+  verbose <- verbose && cores == 1L
 
   if (!nested) {
     return(cross_validate(
@@ -375,6 +392,7 @@ tune_cv <- function(
       folds = folds,
       model = "adaboost",
       holdout = holdout,
+      cores = cores,
       verbose = verbose
     ))
   }
@@ -411,7 +429,102 @@ tune_cv <- function(
     folds = folds,
     criterion = criterion,
     holdout = holdout,
+    cores = cores,
     verbose = verbose
+  )
+}
+
+#' Check `cores` and return how many to use
+#' @noRd
+choose_cores <- function(cores) {
+  if (
+    !is.numeric(cores) ||
+      length(cores) != 1L ||
+      !is.finite(cores) ||
+      cores < 1 ||
+      cores != round(cores)
+  ) {
+    stop("`cores` must be one whole number, 1 or more.", call. = FALSE)
+  }
+  # forking, not a socket cluster: the workers share this session, so they
+  # need no installed copy of the package and nothing exported to them
+  if (cores > 1 && read_os_type() == "windows") {
+    message(
+      "Running on one core: `cores` above 1 needs forked processes, which ",
+      "Windows does not have."
+    )
+    return(1L)
+  }
+  as.integer(cores)
+}
+
+#' Read the operating system type, a seam for tests
+#' @noRd
+read_os_type <- function() {
+  .Platform$OS.type
+}
+
+#' Run tasks, forked over `cores` on Unix-like systems; keep their order
+#' @noRd
+run_tasks <- function(n_tasks, run_task, cores = 1L) {
+  if (cores == 1L || n_tasks == 1L) {
+    return(lapply(seq_len(n_tasks), run_task))
+  }
+  # a fresh fork per task: tasks differ in cost (depth, largest n_iter), and
+  # handing them out as cores free up balances the load
+  results <- parallel::mclapply(
+    seq_len(n_tasks),
+    run_task,
+    mc.cores = min(cores, n_tasks),
+    mc.preschedule = FALSE
+  )
+  for (result in results) {
+    if (inherits(result, "try-error")) {
+      stop(conditionMessage(attr(result, "condition")), call. = FALSE)
+    }
+  }
+  # a worker that was killed, e.g. for lack of memory, returns NULL
+  if (any(vapply(results, is.null, logical(1)))) {
+    stop(
+      "A parallel worker returned no result. Rerun with fewer `cores`.",
+      call. = FALSE
+    )
+  }
+  results
+}
+
+#' Group the grid rows that one fit scores: those that differ only in
+#' `n_iter`
+#' @noRd
+group_settings <- function(grid, model) {
+  rows <- seq_len(nrow(grid))
+  # only AdaBoost has rounds to read off a longer fit
+  if (model != "adaboost") {
+    return(as.list(rows))
+  }
+  shared <- grid[setdiff(names(grid), "n_iter")]
+  # match() compares values exactly; factor levels or pasted numbers round
+  codes <- lapply(shared, \(column) match(column, unique(column)))
+  key <- do.call(paste, c(unname(codes), sep = "-"))
+  unname(split(rows, factor(key, levels = unique(key))))
+}
+
+#' Describe a task's settings for a progress message
+#' @noRd
+describe_settings <- function(rows, n_settings) {
+  if (length(rows) == 1L) {
+    return(paste0("setting ", rows, "/", n_settings))
+  }
+  contiguous <- identical(rows, seq(rows[1L], rows[length(rows)]))
+  paste0(
+    "settings ",
+    if (contiguous) {
+      paste0(rows[1L], "-", rows[length(rows)])
+    } else {
+      paste(rows, collapse = ",")
+    },
+    "/",
+    n_settings
   )
 }
 
@@ -490,77 +603,98 @@ cross_validate <- function(
   folds,
   model,
   holdout = NULL,
+  cores = 1L,
   verbose = FALSE
 ) {
   outcome <- all.vars(read_formula(fit))[1L]
+  n_settings <- nrow(grid)
+  held_out <- lapply(folds, \(fold) as.character(data[[group]]) == fold)
+  groups <- group_settings(grid, model)
+
+  # one task per group of settings and fold, the fold varying fastest; each
+  # returns the held-out scores, one column per setting of its group
+  tasks <- expand.grid(fold = seq_along(folds), group = seq_along(groups))
+  run_task <- function(k) {
+    rows <- groups[[tasks$group[k]]]
+    in_fold <- held_out[[tasks$fold[k]]]
+    if (verbose) {
+      message(
+        describe_settings(rows, n_settings),
+        " | fold ",
+        folds[tasks$fold[k]]
+      )
+    }
+    score <- refit_score(
+      fit,
+      train = data[!in_fold, , drop = FALSE],
+      test = data[in_fold, , drop = FALSE],
+      setting = grid[rows, , drop = FALSE]
+    )
+    # the other learners score one setting, as a vector
+    matrix(score, ncol = length(rows))
+  }
+  results <- run_tasks(nrow(tasks), run_task, cores)
+
+  # where each setting's scores sit: the task of its group on a fold, and the
+  # column within that task
+  task_of <- matrix(seq_len(nrow(tasks)), nrow = length(folds))
+  group_of <- rep(seq_along(groups), lengths(groups))[order(unlist(groups))]
+  column_of <- sequence(lengths(groups))[order(unlist(groups))]
 
   # allocate the setting x project x metric cube up front
   measure_names <- list_measures()
   estimates <- array(
     NA_real_,
-    dim = c(nrow(grid), length(folds), length(measure_names)),
+    dim = c(n_settings, length(folds), length(measure_names)),
     dimnames = list(
-      setting = as.character(seq_len(nrow(grid))),
+      setting = as.character(seq_len(n_settings)),
       project = folds,
       metric = measure_names
     )
   )
+  actuals <- lapply(held_out, \(in_fold) data[[outcome]][in_fold])
   # n and base_rate describe a project, so store them once per project
   projects <- data.frame(
     project = folds,
-    n = NA_integer_,
-    base_rate = NA_real_,
+    n = vapply(held_out, sum, integer(1)),
+    base_rate = vapply(actuals, \(actual) mean(as_binary(actual)), numeric(1)),
     row.names = NULL,
     stringsAsFactors = FALSE
   )
-  scores <- list()
 
-  for (i in seq_len(nrow(grid))) {
-    for (fold in folds) {
-      if (verbose) {
-        message("setting ", i, "/", nrow(grid), " | fold ", fold)
-      }
-
-      held_out <- as.character(data[[group]]) == fold
-      train <- data[!held_out, , drop = FALSE]
-      test <- data[held_out, , drop = FALSE]
-
-      score <- refit_score(
-        fit,
-        train = train,
-        test = test,
-        setting = grid[i, , drop = FALSE]
+  # setting, then project, then the held-out rows in data order
+  score_parts <- vector("list", n_settings * length(folds))
+  for (i in seq_len(n_settings)) {
+    for (j in seq_along(folds)) {
+      score <- results[[task_of[j, group_of[i]]]][, column_of[i]]
+      measures <- assess(
+        actuals[[j]],
+        score,
+        threshold = choose_threshold(model)
       )
-
-      actual <- test[[outcome]]
-      measures <- assess(actual, score, threshold = choose_threshold(model))
-
-      estimates[i, fold, names(measures)] <- unname(measures)
-      # keep the held-out scores, so bootstrap() needs no refit
-      scores[[length(scores) + 1L]] <- data.frame(
-        setting = i,
-        project = fold,
-        actual = actual,
-        score = unname(score),
-        row.names = NULL,
-        stringsAsFactors = FALSE
-      )
-
-      # the same for every setting, so record it once
-      if (i == 1L) {
-        j <- match(fold, projects$project)
-        projects$n[j] <- nrow(test)
-        projects$base_rate[j] <- mean(as_binary(actual))
-      }
+      estimates[i, j, names(measures)] <- unname(measures)
+      score_parts[[(i - 1L) * length(folds) + j]] <- score
     }
   }
+  # keep the held-out scores, so bootstrap() needs no refit
+  scores <- data.frame(
+    setting = rep(seq_len(n_settings), each = sum(projects$n)),
+    project = rep(rep(folds, projects$n), times = n_settings),
+    actual = data[[outcome]][rep(
+      unlist(lapply(held_out, which)),
+      times = n_settings
+    )],
+    score = unlist(score_parts),
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
 
   structure(
     list(
       estimates = estimates,
       grid = grid,
       projects = projects,
-      scores = do.call(rbind, scores),
+      scores = scores,
       model = model,
       nested = FALSE,
       criterion = NA_character_,
@@ -573,7 +707,7 @@ cross_validate <- function(
   )
 }
 
-#' Run the outer loop of nested LOGO-CV, calling tune_cv() for each inner
+#' Run the outer loop of nested LOGO-CV, calling tune_logo_cv() for each inner
 #' search
 #' @noRd
 cross_validate_nested <- function(
@@ -584,6 +718,7 @@ cross_validate_nested <- function(
   folds,
   criterion,
   holdout = NULL,
+  cores = 1L,
   verbose = FALSE
 ) {
   outcome <- all.vars(read_formula(fit))[1L]
@@ -616,16 +751,17 @@ cross_validate_nested <- function(
     train <- data[!held_out, , drop = FALSE]
     test <- data[held_out, , drop = FALSE]
 
-    inner_cv <- tune_cv(
+    inner_cv <- tune_logo_cv(
       fit,
       grid = grid,
       data = train,
       group = group,
+      cores = cores,
       verbose = FALSE
     )
 
     # the mean over the inner folds ranks settings; it is not an estimate
-    # (see ?tune_cv)
+    # (see ?tune_logo_cv)
     inner_means <- rowMeans(
       inner_cv$estimates[,, criterion, drop = FALSE],
       na.rm = TRUE
@@ -637,7 +773,7 @@ cross_validate_nested <- function(
       train = train,
       test = test,
       setting = grid[winner, , drop = FALSE]
-    )
+    )[, 1L]
 
     actual <- test[[outcome]]
     measures <- assess(actual, score, threshold = choose_threshold("adaboost"))
@@ -736,12 +872,16 @@ normalize_grid <- function(grid, fit) {
 }
 
 #' Refit a model on one fold and score the held-out rows
+#'
+#' The adaboost method scores a group of grid rows and returns one column per
+#' row; the other methods score one row and return a vector.
 #' @noRd
 refit_score <- function(fit, train, test, setting) {
   UseMethod("refit_score")
 }
 
-#' Boost the fit's recipe at one grid row and score the margin
+#' Boost the fit's recipe once for grid rows that differ only in `n_iter`,
+#' and score the margin after each row's `n_iter`
 #' @exportS3Method NULL
 #' @noRd
 refit_score.adaboost <- function(fit, train, test, setting) {
@@ -753,14 +893,16 @@ refit_score.adaboost <- function(fit, train, test, setting) {
   }
   variables <- c(predictors, outcome)
 
-  # the fit's control, then the row's rpart controls, then the row's depth
+  # the fit's control, then the rows' rpart controls, then their depth; the
+  # rows share all three, so the first row speaks for the group
+  shared <- setting[1L, , drop = FALSE]
   control <- attr(fit, "control")
-  row_controls <- intersect(names(setting), list_tree_controls())
+  row_controls <- intersect(names(shared), list_tree_controls())
   control <- utils::modifyList(
     control,
-    as.list(setting[, row_controls, drop = FALSE])
+    as.list(shared[, row_controls, drop = FALSE])
   )
-  control$maxdepth <- setting[["depth"]]
+  control$maxdepth <- shared[["depth"]]
 
   # model = TRUE carries the data adaboost() needs
   h <- rpart::rpart(
@@ -772,23 +914,47 @@ refit_score.adaboost <- function(fit, train, test, setting) {
     parms = list(split = attr(fit, "split") %||% "gini"),
     model = TRUE
   )
+  # round t depends only on the rounds before it, so the first n rounds of
+  # the longest run are the n-round run
+  n_iter <- setting[["n_iter"]]
   refit <- adaboost(
     h,
-    n_iter = setting[["n_iter"]],
-    eta = setting[["eta"]],
+    n_iter = max(n_iter),
+    eta = shared[["eta"]],
     # each fit is thrown away, so keep no data for retrodictions
     keep_data = FALSE,
     verbose = FALSE,
     check_inputs = FALSE
   )
-  # the margin, not labels: labels collapse auroc onto balanced accuracy
-  stats::predict(
-    refit,
-    test[, predictors, drop = FALSE],
-    type = "margin",
-    verbose = FALSE,
-    check_inputs = FALSE
+
+  # each tree's vote on each held-out row, coded as predict.adaboost() codes
+  # it; matrix() keeps a single held-out row a row
+  newdata <- test[, predictors, drop = FALSE]
+  n_rows <- nrow(newdata)
+  codes <- matrix(
+    vapply(
+      refit,
+      \(round) stats::predict(round$h, newdata = newdata, type = "vector"),
+      numeric(n_rows)
+    ),
+    nrow = n_rows
   )
+  votes <- 2 * codes - 3
+  alpha <- vapply(refit, `[[`, numeric(1), "alpha")
+
+  # the margin, not labels: labels collapse auroc onto balanced accuracy.
+  # The product predict.adaboost() takes, not a running sum, so each column
+  # is identical to a refit's margin: cumsum() accumulates in extended
+  # precision on some platforms and differs in the last digits.
+  margins <- vapply(
+    n_iter,
+    \(n) {
+      used <- seq_len(min(n, length(alpha)))
+      as.vector(alpha[used] %*% t(votes[, used, drop = FALSE]))
+    },
+    numeric(n_rows)
+  )
+  matrix(margins, nrow = n_rows)
 }
 
 #' Refit a tree's call and score the probability of the second class

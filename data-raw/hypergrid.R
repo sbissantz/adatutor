@@ -2,8 +2,10 @@
 # AdaBoost hyperparameter grid (LOGO-CV) #
 ##########################################
 
-# Run `pkgload::load_all()` first. About an hour on 4 cores; finished depths
-# are cached and skipped on a rerun.
+# Run `pkgload::load_all()` first. One tune_logo_cv() call, about an hour on 4
+# cores. `cores = 4` forks on macOS and Linux; on Windows it runs on one core,
+# about four times as long. data-raw/cache/ holds slices of an earlier build
+# that this script no longer reads.
 
 data("altmext")
 
@@ -56,101 +58,40 @@ rounds <- c(
   3000
 )
 
-score_fold <- function(project, depth, eta) {
-  train <- tune[tune$pid != project, c(predictors, "replicate")]
-  test <- tune[tune$pid == project, ]
-  h <- rpart::rpart(replicate ~ ., data = train, maxdepth = depth, model = TRUE)
-  fit <- adaboost(
-    h,
-    n_iter = max(rounds),
-    eta = eta,
-    verbose = FALSE,
-    check_inputs = FALSE
-  )
-  weights <- vapply(fit, `[[`, numeric(1), "alpha")
-  votes <- vapply(
-    fit,
-    \(learner) {
-      ifelse(predict(learner$h, test, type = "class") == "success", 1, -1)
-    },
-    numeric(nrow(test))
-  )
-  # One fit gives every n_iter: column n is the margin after n rounds
-  margins <- t(apply(sweep(votes, 2, weights, `*`), 1, cumsum))
-  t(vapply(
-    rounds,
-    \(n) assess(test$replicate, score = margins[, n])[measures],
-    numeric(length(measures))
-  ))
-}
+# The recipe: a stump on the four predictors with rpart's defaults. The grid
+# replaces its depth, rounds and rate and keeps the rest (cp = 0.01).
+recipe <- rpart::rpart(
+  replicate ~ power.o + effect_size.o + n.o + p_value.o,
+  data = tune,
+  maxdepth = 1,
+  model = TRUE
+) |>
+  adaboost(n_iter = 10, eta = 1, verbose = FALSE)
 
-cache_dir <- file.path("data-raw", "cache", "hypergrid-t3000")
-dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+# n_iter varies fastest, then eta, then depth: the row order of the tables.
+# Rows that differ only in n_iter share one fit per fold.
+grid <- expand.grid(n_iter = rounds, eta = etas, depth = depths)
+started <- Sys.time()
+res <- tune_logo_cv(recipe, grid, data = tune, group = "pid", cores = 4)
+message(sprintf(
+  "tune_logo_cv(): %.1f min",
+  as.numeric(difftime(Sys.time(), started, units = "mins"))
+))
 
-run_depth <- function(depth) {
-  file <- file.path(cache_dir, sprintf("depth%d.rds", depth))
-  if (file.exists(file)) {
-    slice <- readRDS(file)
-    # caches written before the column T was renamed
-    names(slice$settings)[names(slice$settings) == "T"] <- "n_iter"
-    return(slice)
-  }
-  started <- Sys.time()
-  # n_iter varies fastest, in the row order of score_fold()
-  settings <- expand.grid(n_iter = rounds, eta = etas)
-  scores <- array(
-    NA_real_,
-    dim = c(nrow(settings), length(projects), length(measures)),
-    dimnames = list(NULL, projects, measures)
-  )
-  for (eta in etas) {
-    rows <- which(settings$eta == eta)
-    for (project in projects) {
-      scores[rows, project, ] <- score_fold(project, depth, eta)
-    }
-  }
-  slice <- list(settings = cbind(depth = depth, settings), scores = scores)
-  saveRDS(slice, file)
-  message(sprintf(
-    "depth %d: %.1f min",
-    depth,
-    as.numeric(difftime(Sys.time(), started, units = "mins"))
-  ))
-  slice
-}
-
-cores <- 4
-slices <- parallel::mclapply(
-  depths,
-  run_depth,
-  mc.cores = cores,
-  mc.preschedule = FALSE
-)
-failed <- vapply(slices, inherits, logical(1), "try-error")
-if (any(failed)) {
-  stop(
-    "depth ",
-    paste(depths[failed], collapse = ", "),
-    " failed: ",
-    slices[[which(failed)[1]]]
-  )
-}
-
-settings <- do.call(rbind, lapply(slices, `[[`, "settings"))
+# the result orders projects by first appearance in the data, so index by name
 hypergrid <- lapply(setNames(measures, measures), function(measure) {
-  values <- do.call(rbind, lapply(slices, \(slice) slice$scores[,, measure]))
-  data.frame(settings[c("depth", "n_iter", "eta")], values, row.names = NULL)
+  data.frame(
+    grid[c("depth", "n_iter", "eta")],
+    res$estimates[, projects, measure],
+    row.names = NULL
+  )
 })
-attr(hypergrid, "projects") <- data.frame(
-  project = projects,
-  n = as.integer(table(tune$pid)[projects]),
-  base_rate = as.numeric(tapply(tune$replicate == "success", tune$pid, mean)[
-    projects
-  ]),
-  row.names = NULL
+attr(hypergrid, "projects") <- `rownames<-`(
+  res$projects[match(projects, res$projects$project), ],
+  NULL
 )
 
-# Listing 33's settings, fitted directly, must match the staged scores
+# Listing 33's settings, fitted directly, must match the tables
 listing <- expand.grid(depth = 1:3, n_iter = c(10, 100, 1000), eta = c(1, 0.1))
 for (i in seq_len(nrow(listing))) {
   setting <- listing[i, ]
@@ -190,5 +131,32 @@ stopifnot(
   ),
   !anyNA(hypergrid$auroc)
 )
+
+# The tables must equal those of the script this one replaced, which boosted
+# and scored by hand. Drop this check when the grid itself changes.
+shipped <- new.env()
+load(file.path("data", "hypergrid.rda"), envir = shipped)
+differ <- measures[
+  !vapply(
+    measures,
+    \(m) isTRUE(all.equal(hypergrid[[m]], shipped$hypergrid[[m]])),
+    logical(1)
+  )
+]
+if (
+  !isTRUE(all.equal(
+    attr(hypergrid, "projects"),
+    attr(shipped$hypergrid, "projects")
+  ))
+) {
+  differ <- c(differ, "the projects attribute")
+}
+if (length(differ)) {
+  stop(
+    "The rebuilt grid differs from data/hypergrid.rda in: ",
+    paste(differ, collapse = ", "),
+    call. = FALSE
+  )
+}
 
 usethis::use_data(hypergrid, overwrite = TRUE)

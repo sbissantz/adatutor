@@ -252,7 +252,7 @@ check_dots_empty <- function(...) {
     "logo_cv() does not take ",
     paste(labels, collapse = ", "),
     ": the settings belong to the fit. Refit the model with other settings, ",
-    "or search a grid of AdaBoost settings with tune_cv().",
+    "or search a grid of AdaBoost settings with tune_logo_cv().",
     call. = FALSE
   )
 }

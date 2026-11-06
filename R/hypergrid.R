@@ -4,7 +4,8 @@
 #' cross-validation on the six tuning projects of [altmext]: each project is
 #' held out in turn and scored by the model trained on the other five. HOLZ,
 #' the newest project, takes no part; the tutorial keeps it for the final
-#' test. Made by `data-raw/hypergrid.R`.
+#' test. The grid is one [tune_logo_cv()] call with `cores = 4`, which takes
+#' about an hour; the script is `data-raw/hypergrid.R`.
 #'
 #' The scores are project-level only, with no means and no rankings: which
 #' summary to use is your choice (see the examples).
