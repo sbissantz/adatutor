@@ -1492,7 +1492,7 @@ df_noholz$fold <- sample(rep(1:5, length.out = nrow(df_noholz)))
 logo_cv(ada_fit, data = df_noholz, group = "fold")
 ```
 
-Monte Carlo cross-validation is a random train-test split, repeated. With `logo_cv()` the split is a column with two levels, and the row of the test part is the estimate. Leave-one-group-out holds each level out once, so the call also trains on the 30 percent and scores the 70, the row named "train". That row is thrown away, and it doubles the cost. A `holdout` argument that names the levels to hold out removes it and makes the final test of Module 8, one project held out, the same call.
+Monte Carlo cross-validation is a random train-test split, repeated. With `logo_cv()` the split is a column with two levels, and the row of the test part is the estimate. Leave-one-group-out would hold each level out once, so the first call also trains on the 30 percent and scores the 70, the row named "train", which is thrown away. The `holdout` argument names the levels to hold out and skips the rest; it also makes the final test of Module 8, one project held out, the same call.
 
 ```{r mc-one}
 # One draw: a random 30 percent of the study effects as the test part
@@ -1517,7 +1517,7 @@ for (r in seq_len(20)) {
     nrow(df_noholz),
     round(0.3 * nrow(df_noholz))
   )] <- "test"
-  res_mc <- logo_cv(ada_fit, data = df_noholz, group = "part")
+  res_mc <- logo_cv(ada_fit, data = df_noholz, group = "part", holdout = "test")
   auc_mc[r] <- res_mc$estimates[1, "test", "auroc"]
 }
 quantile(auc_mc, c(0.025, 0.5, 0.975))
@@ -1532,7 +1532,7 @@ The two designs answer different questions. Random folds hold out study effects 
 
 ::: {.callout-note title="Check in tutorial"}
 - This box and Exercise 1 cover the same ground. If the box is printed, Exercise 1 is dropped or shrinks to what the box does not do, the split ratios and the other learners; if the box stays out, Exercise 1 stays. One decision at port.
-- `mc-repeat` calls `logo_cv()` without `holdout`, so each draw fits twice; switch to `holdout = "test"` once the package item lands, and drop the sentence on the thrown-away row.
+- `mc-repeat` uses `holdout = "test"` (package item 9, 6 Nov); `mc-one` shows the two-row result on purpose.
 - The accuracy leak under random folds is from findings §2 (plain accuracy about 0.04 optimistic at 10 rounds); the box states it without a number.
 :::
 
@@ -1544,11 +1544,11 @@ The two designs answer different questions. Random folds hold out study effects 
 - "A Fourth Look at Performance" is rewritten (box below). The winner of the 18-setting grid changed: submitted, Model 1 (a stump, 10 trees, learning rate 1) by the average "AUC", which was a balanced accuracy on five projects; now a stump with 1,000 rounds at a rate of 0.1 by stability on six projects. AR.R1.C1 says so, because the reviewer quotes the submitted winner.
 - "Finalizing an Ensemble" with Listing 35, and "A Fifth Look at Performance" (savant models, stacking, @boehmke2019) move to Module 8.
 - Exercise 4.2 is dropped: the random search is in the main text, and its runtime question is in the Random Search box. Exercise 3.3 goes with Module 6 or 7 at the exercises pass.
-- The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the random-search listing, where the one-call form appears, and the by-hand version is the box after Listing 34.
-- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the stability columns, the by-hand box, the random-search listing with the one-call form, and the `hypergrid` listings.
+- The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_cv()`), and the by-hand versions are the box after it.
+- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the stability columns, the package listing with `tune_cv()`, the by-hand box, the random-search listing, and the `hypergrid` listings.
 - `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script (about an hour on four cores).
 - The by-hand box after Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) is drafted as a box: decide at port whether the paper prints it or points to the online script.
-- The Module 7 handoff sentence (Random Search box) opens with "The drawn rows match their rows in Listing 34" in place of "The two match"; the rest is the template of the Module 3 box.
+- The Module 7 handoff sentence is in the package listing's box, in the template wording of the Module 3 box.
 - Module 8's Listing 35 reads `best` (`depth`, `n_iter`, `eta`) from the last hypergrid listing.
 - Bib keys the module cites: `bischl2023` (copied to the vignette bib from the manuscript bib); this box names `boehmke2019` for the moved "Fifth Look".
 - Run time of Listing 34: about 3 minutes on this machine, the same as submitted (2.5 minutes without the throwaway fit of the pipeline).
@@ -1642,6 +1642,33 @@ Listing 34 wraps one loop around the cross-validation of Module 6. The loop visi
 - Stability (mean minus SD) ranks the settings (submitted: the plain mean); the summary columns are computed after the loop in snake_case (submitted: `auc.mean` inside the loop).
 - The progress line is one `cat()` with the setting's index.
 - Run time: about 3 minutes on this machine, as submitted.
+:::
+
+#### The Package Solution [NEW]
+
+Code to search the whole grid with the adatutor package.
+
+```{r listing-34-pkg}
+# The whole grid in one call: tune_cv() takes the ensemble of Module 3 as
+# the recipe and runs the LOGO-CV of Listing 32 for every row of the grid
+logo_grid <- tune_cv(
+  ada_fit,
+  hgrid[, c("depth", "n_iter", "eta")],
+  data = df_noholz,
+  group = "pid"
+)
+
+# The AUROC per setting and project, as in Listing 34
+auc_pkg <- logo_grid$estimates[, proj_nms, "auroc"]
+all.equal(unname(auc_pkg), unname(as.matrix(hgrid[proj_nms])))
+```
+
+::: {.callout-note title="Add to tutorial"}
+`tune_cv()` folds the loop of Listing 34 as well. It takes the ensemble of Module 3 as the recipe, the formula, the tree settings and the splitting rule, and a grid whose columns name the hyperparameters to vary: the row's depth goes to the tree, its rounds and learning rate to the boosting, and the rest comes from the recipe. It then runs the LOGO-CV of Listing 32 for every row and keeps the AUROC of every setting on every project in `estimates`, an array of setting by project by measure. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 34.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New listing: the one-call grid search through `tune_cv()`, checked against Listing 34 with `all.equal()`. `tune_cv()` is new in the package.
 :::
 
 ::: {.callout-note title="Add to tutorial (box, decide at port)"}
@@ -1747,7 +1774,7 @@ all.equal(hgrid_diy_full[proj_nms], hgrid[proj_nms])
 ## Random Search
 
 ::: {.callout-note title="Add to tutorial"}
-A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 2,640. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `logo_cv()` in one call. Here the function takes the formula and the grid in place of a fitted ensemble, because the grid supplies what the ensemble would. Given a grid, it loops over its rows as Listing 34 did, so the second loop is folded as well, and the result keeps the AUROC of every drawn setting on every project. The drawn rows match their rows in Listing 34, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 34. The seed makes the draw reproducible. The run time is the budget: the eight settings took about 70 s against about 3 minutes for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (stability 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
+A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 2,640. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `tune_cv()`, which scores them as the package listing scored the full grid. The drawn rows match their rows in Listing 34. The seed makes the draw reproducible. The run time is the budget: the eight settings took about 70 s against about 3 minutes for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (stability 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
 :::
 
 #### Listing [NEW]
@@ -1760,16 +1787,9 @@ set.seed(112)
 rnd_smpl <- sample(nrow(hgrid), 8)
 hgrid_rnd <- hgrid[rnd_smpl, c("depth", "n_iter", "eta")]
 
-# Score the drawn settings in one call: given a grid, logo_cv() loops over
-# its rows as Listing 34 did
+# Score the drawn settings in one call, as the package listing did
 runtime_rnd <- system.time({
-  # Hyperparameter optimization: LOGO-CV
-  logo_rnd <- logo_cv(
-    replicate ~ power.o + effect_size.o + n.o + p_value.o,
-    data = df_noholz,
-    group = "pid",
-    grid = hgrid_rnd
-  )
+  logo_rnd <- tune_cv(ada_fit, hgrid_rnd, data = df_noholz, group = "pid")
 })
 runtime_rnd[["elapsed"]]
 
@@ -1786,7 +1806,7 @@ hgrid_rnd[order(-hgrid_rnd$auc_stable), ] |> round(2)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New listing. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; this listing does it, and Exercise 4.2, which asked readers to implement it, is dropped. The one-call form of `logo_cv()`, its `grid` argument, appears here once, checked against Listing 34's rows; there is no separate package listing for the full grid.
+- New listing. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; this listing does it, and Exercise 4.2, which asked readers to implement it, is dropped. The drawn rows are checked against Listing 34's rows.
 :::
 
 ## A Larger Grid
@@ -1954,7 +1974,7 @@ a test project, or when the stability of the choice is itself the question.
 ::: {.callout-note}
 ## Nested LOGO-CV picks by the mean
 
-`logo_cv(nested = TRUE)` lets each inner search pick the setting with the
+`tune_cv(nested = TRUE)` lets each inner search pick the setting with the
 highest mean AUROC (`criterion = "auroc"`), not the highest mean minus SD that
 Listing 34 uses. Listing 36 ranks by the mean as well, so its two versions agree
 with each other, but not with the stability rule of the main thread. To nest
@@ -2044,12 +2064,12 @@ runtime <- system.time({
     train <- df[!(df$pid %in% rp), ]
 
     # INNER loop: selects. This is the same grid search as Listing 34, run on
-    # the training projects only -- so we can hand it to logo_cv().
-    inner <- logo_cv(
-      replicate ~ power.o + effect_size.o + n.o + p_value.o,
+    # the training projects only -- so we can hand it to tune_cv().
+    inner <- tune_cv(
+      ada_fit,
+      hgrid[, c("depth", "n_iter", "eta")],
       data = train,
-      group = "pid",
-      grid = hgrid[, c("depth", "n_iter", "eta")]
+      group = "pid"
     )
 
     # Rank the settings by their mean over the inner folds. Here the mean is a
@@ -2101,11 +2121,11 @@ again -- the single change is that it now sees `train` instead of `df_noholz`.
 The whole procedure is also one call:
 
 ```{r listing-36-oneline}
-nested <- logo_cv(
-  replicate ~ power.o + effect_size.o + n.o + p_value.o,
+nested <- tune_cv(
+  ada_fit,
+  hgrid[, c("depth", "n_iter", "eta")],
   data = df,
   group = "pid",
-  grid = hgrid[, c("depth", "n_iter", "eta")],
   nested = TRUE,
   criterion = "auroc"
 )
