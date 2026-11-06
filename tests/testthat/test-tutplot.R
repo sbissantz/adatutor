@@ -939,13 +939,15 @@ test_that("tutplot_logoscheme() leaves the figure's title to the caption", {
 
 logocv_res <- function() {
   data(altmejd)
-  logo_cv(
+  fit <- rpart::rpart(
     replicate ~ power.o + effect_size.o + n.o + p_value.o,
     data = altmejd,
-    group = "pid",
-    n_iter = 5,
-    eta = 1
-  )
+    method = "class",
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
+  logo_cv(fit, data = altmejd, group = "pid")
 }
 
 test_that("tutplot_logocv(bootstrap = FALSE) draws estimates without resampling", {
