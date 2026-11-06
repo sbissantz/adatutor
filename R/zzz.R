@@ -1,4 +1,4 @@
-# lazy data used as a default (tutplot_weightone), and the `x` that curve()
+# lazy data used as a default (tutplot_weightupdate), and the `x` that curve()
 # creates for its expression (tutplot_updatefactor)
 utils::globalVariables(c("altmejd_splits", "x"))
 
