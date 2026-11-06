@@ -236,3 +236,23 @@ check_ada_fit <- function(fit) {
     )
   }
 }
+
+#' Stop when logo_cv() gets arguments its methods do not take
+#'
+#' A setting passed here would otherwise be dropped without a word, and the
+#' fit's own setting used instead.
+#' @noRd
+check_dots_empty <- function(...) {
+  if (...length() == 0L) {
+    return(invisible(NULL))
+  }
+  labels <- ...names() %||% rep("", ...length())
+  labels <- ifelse(nzchar(labels), paste0("`", labels, "`"), "an unnamed value")
+  stop(
+    "logo_cv() does not take ",
+    paste(labels, collapse = ", "),
+    ": the settings belong to the fit. Refit the model with other settings, ",
+    "or search a grid of AdaBoost settings with tune_cv().",
+    call. = FALSE
+  )
+}
