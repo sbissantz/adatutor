@@ -1544,8 +1544,8 @@ The two designs answer different questions. Random folds hold out study effects 
 - "A Fourth Look at Performance" is rewritten (box below). The winner of the 18-setting grid changed: submitted, Model 1 (a stump, 10 trees, learning rate 1) by the average "AUC", which was a balanced accuracy on five projects; now a stump with 1,000 rounds at a rate of 0.1 by stability on six projects. AR.R1.C1 says so, because the reviewer quotes the submitted winner.
 - "Finalizing an Ensemble" with Listing 35, and "A Fifth Look at Performance" (savant models, stacking, @boehmke2019) move to Module 8.
 - Exercise 4.2 is dropped: the random search is in the main text, and its runtime question is in the Random Search box. Exercise 3.3 goes with Module 6 or 7 at the exercises pass.
-- The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_cv()`), and the by-hand versions are the box after it.
-- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the stability columns, the package listing with `tune_cv()`, the by-hand box, the random-search listing, and the `hypergrid` listings.
+- The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_logo_cv()`), and the by-hand versions are the box after it.
+- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the stability columns, the package listing with `tune_logo_cv()`, the by-hand box, the random-search listing, and the `hypergrid` listings.
 - `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script (about an hour on four cores).
 - The by-hand box after Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) is drafted as a box: decide at port whether the paper prints it or points to the online script.
 - The Module 7 handoff sentence is in the package listing's box, in the template wording of the Module 3 box.
@@ -1649,9 +1649,9 @@ Listing 34 wraps one loop around the cross-validation of Module 6. The loop visi
 Code to search the whole grid with the adatutor package.
 
 ```{r listing-34-pkg}
-# The whole grid in one call: tune_cv() takes the ensemble of Module 3 as
+# The whole grid in one call: tune_logo_cv() takes the ensemble of Module 3 as
 # the recipe and runs the LOGO-CV of Listing 32 for every row of the grid
-logo_grid <- tune_cv(
+logo_grid <- tune_logo_cv(
   ada_fit,
   hgrid[, c("depth", "n_iter", "eta")],
   data = df_noholz,
@@ -1664,11 +1664,11 @@ all.equal(unname(auc_pkg), unname(as.matrix(hgrid[proj_nms])))
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-`tune_cv()` folds the loop of Listing 34 as well. It takes the ensemble of Module 3 as the recipe, the formula, the tree settings and the splitting rule, and a grid whose columns name the hyperparameters to vary: the row's depth goes to the tree, its rounds and learning rate to the boosting, and the rest comes from the recipe. It then runs the LOGO-CV of Listing 32 for every row and keeps the AUROC of every setting on every project in `estimates`, an array of setting by project by measure. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 34.
+`tune_logo_cv()` folds the loop of Listing 34 as well. It takes the ensemble of Module 3 as the recipe, the formula, the tree settings and the splitting rule, and a grid whose columns name the hyperparameters to vary: the row's depth goes to the tree, its rounds and learning rate to the boosting, and the rest comes from the recipe. It then runs the LOGO-CV of Listing 32 for every row and keeps the AUROC of every setting on every project in `estimates`, an array of setting by project by measure. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 34.
 :::
 
 ::: {.callout-important title="Changed since submission"}
-- New listing: the one-call grid search through `tune_cv()`, checked against Listing 34 with `all.equal()`. `tune_cv()` is new in the package.
+- New listing: the one-call grid search through `tune_logo_cv()`, checked against Listing 34 with `all.equal()`. `tune_logo_cv()` is new in the package.
 :::
 
 ::: {.callout-note title="Add to tutorial (box, decide at port)"}
@@ -1774,7 +1774,7 @@ all.equal(hgrid_diy_full[proj_nms], hgrid[proj_nms])
 ## Random Search
 
 ::: {.callout-note title="Add to tutorial"}
-A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 2,640. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `tune_cv()`, which scores them as the package listing scored the full grid. The drawn rows match their rows in Listing 34. The seed makes the draw reproducible. The run time is the budget: the eight settings took about 70 s against about 3 minutes for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (stability 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
+A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 2,640. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The drawn rows match their rows in Listing 34. The seed makes the draw reproducible. The run time is the budget: the eight settings took about 70 s against about 3 minutes for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (stability 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
 :::
 
 #### Listing [NEW]
@@ -1789,7 +1789,7 @@ hgrid_rnd <- hgrid[rnd_smpl, c("depth", "n_iter", "eta")]
 
 # Score the drawn settings in one call, as the package listing did
 runtime_rnd <- system.time({
-  logo_rnd <- tune_cv(ada_fit, hgrid_rnd, data = df_noholz, group = "pid")
+  logo_rnd <- tune_logo_cv(ada_fit, hgrid_rnd, data = df_noholz, group = "pid")
 })
 runtime_rnd[["elapsed"]]
 
@@ -1974,7 +1974,7 @@ a test project, or when the stability of the choice is itself the question.
 ::: {.callout-note}
 ## Nested LOGO-CV picks by the mean
 
-`tune_cv(nested = TRUE)` lets each inner search pick the setting with the
+`tune_logo_cv(nested = TRUE)` lets each inner search pick the setting with the
 highest mean AUROC (`criterion = "auroc"`), not the highest mean minus SD that
 Listing 34 uses. Listing 36 ranks by the mean as well, so its two versions agree
 with each other, but not with the stability rule of the main thread. To nest
@@ -2064,8 +2064,8 @@ runtime <- system.time({
     train <- df[!(df$pid %in% rp), ]
 
     # INNER loop: selects. This is the same grid search as Listing 34, run on
-    # the training projects only -- so we can hand it to tune_cv().
-    inner <- tune_cv(
+    # the training projects only -- so we can hand it to tune_logo_cv().
+    inner <- tune_logo_cv(
       ada_fit,
       hgrid[, c("depth", "n_iter", "eta")],
       data = train,
@@ -2121,7 +2121,7 @@ again -- the single change is that it now sees `train` instead of `df_noholz`.
 The whole procedure is also one call:
 
 ```{r listing-36-oneline}
-nested <- tune_cv(
+nested <- tune_logo_cv(
   ada_fit,
   hgrid[, c("depth", "n_iter", "eta")],
   data = df,
