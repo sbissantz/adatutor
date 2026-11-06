@@ -1,6 +1,6 @@
 test_that("adaboost() and predict() work", {
   # Test 1: Silent and no input checks
-  # Notice: No need to pass treehypar; the fast defaults handle it natively
+  # Notice: the tree's own control travels with it; no extra settings needed
   fit <- rpart::rpart(
     Species ~ .,
     data = iris,
