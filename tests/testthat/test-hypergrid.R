@@ -3,7 +3,10 @@ test_that("hypergrid holds one table per measure, a row per setting", {
   projects <- c("eerp", "ml1", "ml2", "ml3", "rpp", "ssrp")
   expect_named(hypergrid, list_measures())
   for (table in hypergrid) {
-    expect_named(table, c("depth", "n_iter", "eta", projects))
+    expect_named(
+      table,
+      c("depth", "n_iter", "eta", projects, "mean", "sd", "min", "max")
+    )
     expect_equal(nrow(table), 2640)
     expect_false(anyDuplicated(table[c("depth", "n_iter", "eta")]) > 0)
   }
@@ -21,6 +24,28 @@ test_that("hypergrid's projects are altmext without HOLZ", {
     info$base_rate,
     as.vector(tapply(tune$replicate == "success", tune$pid, mean)[info$project])
   )
+})
+
+test_that("hypergrid's mean, sd, min and max summarize the projects", {
+  data(hypergrid)
+  projects <- attr(hypergrid, "projects")$project
+  for (measure in names(hypergrid)) {
+    table <- hypergrid[[measure]]
+    scores <- as.matrix(table[projects])
+    expect_equal(table$mean, apply(scores, 1, mean), label = measure)
+    expect_equal(table$sd, apply(scores, 1, sd), label = measure)
+    expect_equal(table$min, apply(scores, 1, min), label = measure)
+    expect_equal(table$max, apply(scores, 1, max), label = measure)
+  }
+
+  # An NA project makes all four NA: ML3 in every row of patk_5, and only there
+  summaries <- c("mean", "sd", "min", "max")
+  expect_true(all(is.na(hypergrid$patk_5$ml3)))
+  expect_true(all(is.na(hypergrid$patk_5[summaries])))
+  for (measure in setdiff(names(hypergrid), "patk_5")) {
+    expect_false(anyNA(hypergrid[[measure]][summaries]), label = measure)
+  }
+  expect_length(hypergrid, 17)
 })
 
 test_that("hypergrid's AUROC is complete and between 0 and 1", {
