@@ -32,7 +32,8 @@ Suggests:
     randomForest,
     remotes,
     rsample,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    xgboost
 VignetteBuilder: quarto
 Config/testthat/edition: 3
 URL: https://sbissantz.github.io/adatutor/
