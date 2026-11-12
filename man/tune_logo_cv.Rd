@@ -2,7 +2,12 @@
 % Please edit documentation in R/logo-cv.R
 \name{tune_logo_cv}
 \alias{tune_logo_cv}
-\title{Tune AdaBoost settings by leave-one-group-out cross-validation}
+\alias{tune_logo_cv.adaboost}
+\alias{tune_logo_cv.rpart}
+\alias{tune_logo_cv.randomForest}
+\alias{tune_logo_cv.xgboost}
+\alias{tune_logo_cv.default}
+\title{Tune a model's settings by leave-one-group-out cross-validation}
 \usage{
 tune_logo_cv(
   x,
@@ -13,12 +18,82 @@ tune_logo_cv(
   nested = FALSE,
   criterion = "auroc",
   cores = 1,
-  verbose = FALSE
+  verbose = FALSE,
+  ...
+)
+
+\method{tune_logo_cv}{adaboost}(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+)
+
+\method{tune_logo_cv}{rpart}(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+)
+
+\method{tune_logo_cv}{randomForest}(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+)
+
+\method{tune_logo_cv}{xgboost}(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  outcome,
+  ...
+)
+
+\method{tune_logo_cv}{default}(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
 )
 }
 \arguments{
-\item{x}{A fit from \code{\link[=adaboost]{adaboost()}}. The grid varies its settings; its
-formula, other tree controls and splitting rule stay.}
+\item{x}{A fitted model: a fit from \code{\link[=adaboost]{adaboost()}}, a classification tree
+from \code{\link[rpart:rpart]{rpart::rpart()}}, a classification forest from
+\code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted with a formula, or an XGBoost fit
+from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}. The grid varies its settings; everything else
+the fit was made with stays.}
 
 \item{grid}{A data frame of settings, one row per setting. See the section
 on grid columns.}
@@ -31,11 +106,11 @@ column, holding every group.}
 \item{holdout}{The levels of \code{group} to hold out, one fold each. Defaults
 to \code{NULL}, which holds out every level once.}
 
-\item{nested}{Whether to nest the search. The default, \code{FALSE}, scores
-every row of \code{grid} on every fold. \code{TRUE} needs two or more rows and at
-least three groups.}
+\item{nested}{Whether to nest the search, for an \code{\link[=adaboost]{adaboost()}} fit only.
+The default, \code{FALSE}, scores every row of \code{grid} on every fold. \code{TRUE}
+needs two or more rows and at least three groups.}
 
-\item{criterion}{The measure the inner search maximizes when
+\item{criterion}{The metric the inner search maximizes when
 \code{nested = TRUE}. Defaults to \code{"auroc"}. Fix it in advance: it decides
 which setting is chosen.}
 
@@ -46,6 +121,13 @@ runs on one core and says so. The results are the same at any number of
 cores. Progress messages from \code{verbose} appear only on one core.}
 
 \item{verbose}{Whether to report progress. Defaults to \code{FALSE}.}
+
+\item{...}{Must be empty. An argument the method does not take is an
+error, not ignored.}
+
+\item{outcome}{The name of the outcome column in \code{data}, e.g.
+\code{"replicate"}, for an XGBoost fit, which needs it. Such a fit keeps no
+formula, so its predictors are the columns named by its feature names.}
 }
 \value{
 An object of class \code{logo_cv}, as from \code{\link[=logo_cv]{logo_cv()}}, with one
@@ -54,19 +136,35 @@ and \code{selected} gives the setting each outer fold chose, with the inner
 mean of \code{criterion}.
 }
 \description{
-Cross-validates an \code{\link[=adaboost]{adaboost()}} fit at every row of a grid of settings,
-with the folds of \code{\link[=logo_cv]{logo_cv()}}: each level of \code{group} is held out in turn,
-or only the levels in \code{holdout}. Each row changes the recipe read off the
+Cross-validates a fitted model at every row of a grid of settings, with
+the folds of \code{\link[=logo_cv]{logo_cv()}}: each level of \code{group} is held out in turn, or
+only the levels in \code{holdout}. Each row changes the recipe read off the
 fit, so the result has one estimate per setting and group.
 }
 \section{Grid columns}{
 
-\code{depth}, \code{n_iter} and \code{eta} set the depth of the boosted tree, the number
-of rounds and the learning rate. A column named after an
-\code{\link[rpart:rpart.control]{rpart::rpart.control()}} setting, such as \code{cp} or \code{minbucket}, sets that
-control for its row. A column the grid lacks takes the fit's own value, so
-\code{data.frame(n_iter = c(10, 100))} varies the rounds and keeps the fit's
-depth and rate. Any other column is an error.
+The columns a grid may hold depend on the fit. A column the grid lacks
+takes the fit's own value, and a column not listed for the fit is an
+error.
+\itemize{
+\item An \code{\link[=adaboost]{adaboost()}} fit: \code{depth}, \code{n_iter} and \code{eta} set the depth of the
+boosted tree, the number of rounds and the learning rate. A column named
+after an \code{\link[rpart:rpart.control]{rpart::rpart.control()}} setting, such as \code{cp} or \code{minbucket},
+sets that control for its row. So \code{data.frame(n_iter = c(10, 100))}
+varies the rounds and keeps the fit's depth and rate.
+\item A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}: \code{depth} sets the tree's
+\code{maxdepth}, and the same rpart controls set theirs.
+\item A classification forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}}: \code{mtry},
+\code{nodesize}, \code{ntree} and \code{maxnodes} set those arguments. A forest stores
+only its \code{mtry} and \code{ntree}, so a grid without \code{nodesize} or \code{maxnodes}
+leaves them as the fit's call set them.
+\item An XGBoost fit from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}: \code{depth}, \code{eta} and \code{n_iter} set
+\code{max_depth}, \code{learning_rate} and \code{nrounds}, and \code{min_child_weight} and
+\code{lambda} set \code{min_child_weight} and \code{reg_lambda}. Where the fit left a
+setting at its default, the grid takes xgboost's default. Fit it with
+\code{nthreads = 1}: each refit runs on as many threads as the fit, and
+\code{cores} above 1 runs several refits at once.
+}
 }
 
 \section{Nested cross-validation}{
@@ -78,14 +176,27 @@ on the other groups picks the row with the highest mean \code{criterion}, and
 only that row is scored on the held-out group. The result estimates the
 procedure "search the grid, then fit the winner", not any one setting. It
 is slightly pessimistic, because each model trains on one group fewer.
-Expect the outer folds to choose different settings.
+Expect the outer folds to choose different settings. Nesting is for
+\code{\link[=adaboost]{adaboost()}} fits only.
+}
+
+\section{Random forests}{
+
+A forest draws at random. Before it refits, the tuner draws one seed per
+fold from the session's random-number stream, and it sets a fold's seed
+before each refit on that fold. So the result repeats after \code{\link[=set.seed]{set.seed()}},
+and it is the same at any number of cores. Since \code{\link[=logo_cv]{logo_cv()}} draws a
+forest's refits from the session's stream itself, a forest's result from
+the tuner differs from its result from \code{logo_cv()} after the same seed,
+even for the fit's own setting.
 }
 
 \section{Speed}{
 
 Rows of \code{grid} that differ only in \code{n_iter} share one fit per fold. The
-tree is boosted once, to the largest \code{n_iter} among them, and each row is
-scored on the margin after its own number of rounds. The first rounds of a
+model is boosted once, to the largest \code{n_iter} among them, and each row is
+scored after its own number of rounds: AdaBoost on the margin, XGBoost on
+the probability. The first rounds of a
 longer run are the shorter run, so the result equals refitting each row. A
 grid of many round counts therefore costs about as much as its largest one;
 each value of \code{depth}, \code{eta} or an rpart control costs a fit of its own.
@@ -108,7 +219,8 @@ res <- tune_logo_cv(
   data = altmejd,
   group = "pid"
 )
-summary(res)
+# the settings, ranked by their worst project, ties broken by stability
+summary(res, sort_by = c("min", "stable"))
 
 # nested: each held-out project takes no part in the choice
 grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
