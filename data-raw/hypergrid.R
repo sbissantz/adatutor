@@ -4,8 +4,7 @@
 
 # Run `pkgload::load_all()` first. One tune_logo_cv() call, about 40 minutes on 4
 # cores. `cores = 4` forks on macOS and Linux; on Windows it runs on one core,
-# about four times as long. data-raw/cache/ holds slices of an earlier build
-# that this script no longer reads.
+# about four times as long.
 
 data("altmext")
 
@@ -85,6 +84,16 @@ hypergrid <- lapply(setNames(measures, measures), function(measure) {
     res$estimates[, projects, measure],
     row.names = NULL
   )
+})
+# Each row's mean, SD, minimum and maximum across the projects, for ranking
+# the settings; an NA project gives NA in all four
+hypergrid <- lapply(hypergrid, function(table) {
+  scores <- as.matrix(table[projects])
+  table$mean <- rowMeans(scores)
+  table$sd <- apply(scores, 1, sd)
+  table$min <- apply(scores, 1, min)
+  table$max <- apply(scores, 1, max)
+  table
 })
 info <- res$projects[match(projects, res$projects$project), ]
 # a fresh data.frame(): its attribute order is the shipped file's, so an
