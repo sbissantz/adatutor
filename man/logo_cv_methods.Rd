@@ -10,7 +10,7 @@
 \usage{
 \method{print}{logo_cv}(x, metric = "auroc", ...)
 
-\method{summary}{logo_cv}(object, metric = "auroc", ...)
+\method{summary}{logo_cv}(object, metric = "auroc", sort_by = NULL, ...)
 
 \method{as.data.frame}{logo_cv}(x, ...)
 
@@ -26,9 +26,16 @@
 \arguments{
 \item{x, object}{An object of class \code{logo_cv}.}
 
-\item{metric}{The measure to show. Defaults to \code{"auroc"}.}
+\item{metric}{The performance metric to show. Defaults to \code{"auroc"}.}
 
 \item{...}{Ignored.}
+
+\item{sort_by}{The columns of the summary to sort by, as a character vector,
+or \code{NULL}, the default, to keep the grid order. Rows go highest first on
+every column, and later columns break ties in earlier ones. Rows that tie
+on all of them keep their grid order, and rows with \code{NA} go last. For
+example, \code{c("min", "stable")} puts first the setting whose worst project
+scores highest.}
 
 \item{levels}{The band widths, widest last. Defaults to 0.50, 0.80 and
 0.95.}
@@ -46,10 +53,25 @@ of draws get a star and a footnote. Defaults to 0.05.}
 \code{as.data.frame()} return data frames.
 }
 \description{
-\code{print()} shows the per-project estimates of one measure, \code{summary()}
-returns them as a data frame, and \code{as.data.frame()} flattens all estimates
-into one long table. \code{plot()} draws the estimates per project, with bands
-when \code{x} carries intervals from \code{\link[=bootstrap]{bootstrap()}}.
+\code{print()} shows the per-project estimates of one metric, \code{summary()}
+returns their mean, SD, minimum and maximum per setting, and
+\code{as.data.frame()} flattens all estimates into one long table. \code{plot()}
+draws the estimates per project, with bands when \code{x} carries intervals from
+\code{\link[=bootstrap]{bootstrap()}}.
+}
+\details{
+\code{print()} lists each project's size and base rate once, then one row per
+setting: the setting's hyperparameters and its estimate on each project.
+Above 20 settings, it shows the first 10. A nested result shows one row
+per outer fold instead, with the setting that fold selected.
+
+\code{summary()} returns one row per setting, in grid order unless \code{sort_by}
+sorts them: the hyperparameters, then the \code{mean}, \code{sd}, \code{min} and \code{max} of
+the setting's estimates across the projects, and \code{stable}, the mean minus
+the SD. These columns rank settings; they are not estimates of performance
+on a new project, and \code{sd} is not a standard error. A statistic is \code{NA} if
+a project is \code{NA}. The row names are the settings' row numbers in the grid.
+A nested result gives one row, over the outer folds.
 }
 \seealso{
 Other cross-validation:
