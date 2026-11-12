@@ -22,11 +22,21 @@
 #'   `data` replaced by the training rows, so settings such as `control`,
 #'   `parms`, `family`, `ntree` or `mtry` carry over. Each refit is scored on
 #'   its predicted probability of the second class.
+#' * An XGBoost fit from [xgboost::xgboost()], version 3.0 or later, made with
+#'   a data frame of predictors and a factor outcome: its stored parameters,
+#'   its number of rounds and the names of its predictors. Each refit runs
+#'   `xgboost()` afresh with those parameters on the training rows, takes the
+#'   outcome from the column named by `outcome`, and is scored on its
+#'   predicted probability of the second level. The stored parameters do not
+#'   keep `weights`, `base_margin`, `eval_set`, `early_stopping_rounds` or
+#'   `feature_weights`, so a fit made with any of them is an error. Fit it
+#'   with `nthreads = 1`: each refit runs on as many threads as the fit, and
+#'   [tune_logo_cv()] can run several refits at once.
 #'
 #' Every model is scored on a continuous score, never on class labels.
 #'
 #' The call runs where its formula was made, so any other object it names,
-#' such as `weights = w` or `control = ctrl`, must still exist there. A
+#' such as `weights = w`, must still exist there. A
 #' variable named as a column of `data`, such as `weights = n.o`, travels with
 #' the rows. A random forest draws at random: set a seed to repeat a result.
 #'
@@ -45,28 +55,33 @@
 #' (Bengio & Grandvalet, 2004).
 #'
 #' @param x A fitted model: a fit from [adaboost()], a classification tree
-#'   from [rpart::rpart()], a binomial [stats::glm()], or a classification
-#'   forest from [randomForest::randomForest()] fitted with a formula.
+#'   from [rpart::rpart()], a binomial [stats::glm()], a classification forest
+#'   from [randomForest::randomForest()] fitted with a formula, or an XGBoost
+#'   fit from [xgboost::xgboost()].
 #' @param data A data frame with the model's variables and the `group`
 #'   column, holding every group.
 #' @param group The name of the column that defines the folds, e.g. `"pid"`.
 #' @param holdout The levels of `group` to hold out, one fold each. Defaults
 #'   to `NULL`, which holds out every level once.
 #' @param verbose Whether to report progress. Defaults to `FALSE`.
+#' @param outcome The name of the outcome column in `data`, e.g.
+#'   `"replicate"`, for an XGBoost fit, which needs it. Such a fit keeps no
+#'   formula, so its predictors are the columns named by its feature names.
 #' @param ... Must be empty. The settings belong to the fit, so an argument
 #'   such as `n_iter` or `grid` is an error.
 #'
 #' @return An object of class `logo_cv`.
 #'   * `estimates`: an array of setting x project x metric, e.g.
 #'     `res$estimates[, , "auroc"]`. `as.data.frame()` gives the same values
-#'     as one long table. An `NA` cell is an undefined measure, not a failed
+#'     as one long table. An `NA` cell is an undefined metric, not a failed
 #'     fit.
 #'   * `grid`: the settings, one row per setting. `depth`, `n_iter` and `eta`
 #'     are `NA` where the learner has no such setting.
 #'   * `projects`: each fold's `n` and `base_rate`.
 #'   * `scores`: the held-out scores, one row per study and setting, which
 #'     [bootstrap()] resamples.
-#'   * `model`: the learner, `"adaboost"`, `"rpart"`, `"glm"` or `"rf"`.
+#'   * `model`: the learner, `"adaboost"`, `"rpart"`, `"glm"`, `"rf"` or
+#'     `"xgboost"`.
 #'   * `nested`, `criterion` and `selected`: set by [tune_logo_cv()] when it
 #'     nests the search.
 #'
@@ -156,13 +171,7 @@ logo_cv.rpart <- function(
   ...
 ) {
   check_dots_empty(...)
-  if (!identical(x$method, "class")) {
-    stop(
-      "`x` must be a classification tree, fitted with `method = \"class\"`: ",
-      "logo_cv() scores its predicted probabilities.",
-      call. = FALSE
-    )
-  }
+  check_tree_fit(x, "logo_cv()")
   cross_validate(
     x,
     data = data,
@@ -221,28 +230,7 @@ logo_cv.randomForest <- function(
   ...
 ) {
   check_dots_empty(...)
-  if (!requireNamespace("randomForest", quietly = TRUE)) {
-    stop(
-      "A random forest needs the randomForest package. ",
-      "Install it with install.packages(\"randomForest\").",
-      call. = FALSE
-    )
-  }
-  if (!identical(x$type, "classification")) {
-    stop(
-      "`x` must be a classification forest, fitted on a factor outcome: ",
-      "logo_cv() scores its predicted probabilities.",
-      call. = FALSE
-    )
-  }
-  if (is.null(x$terms)) {
-    stop(
-      "`x` must be fitted with a formula, as in ",
-      "randomForest(replicate ~ ., data = d): logo_cv() refits its call on ",
-      "each fold's rows.",
-      call. = FALSE
-    )
-  }
+  check_forest_fit(x, "logo_cv()")
   cross_validate(
     x,
     data = data,
@@ -257,6 +245,34 @@ logo_cv.randomForest <- function(
 
 #' @rdname logo_cv
 #' @export
+logo_cv.xgboost <- function(
+  x,
+  data,
+  group,
+  holdout = NULL,
+  verbose = FALSE,
+  outcome,
+  ...
+) {
+  check_dots_empty(...)
+  check_xgb_fit(x, "logo_cv()")
+  folds <- read_folds(data, group, holdout)
+  check_xgb_data(x, data, outcome)
+  cross_validate(
+    x,
+    data = data,
+    group = group,
+    grid = read_xgb_setting(x),
+    folds = folds,
+    model = "xgboost",
+    holdout = holdout,
+    verbose = verbose,
+    outcome = outcome
+  )
+}
+
+#' @rdname logo_cv
+#' @export
 logo_cv.default <- function(
   x,
   data,
@@ -265,9 +281,10 @@ logo_cv.default <- function(
   verbose = FALSE,
   ...
 ) {
+  check_not_booster(x)
   stop(
-    "`x` must be a fitted model: a fit from adaboost(), rpart(), glm() or ",
-    "randomForest(), not an object of class `",
+    "`x` must be a fitted model: a fit from adaboost(), rpart(), glm(), ",
+    "randomForest() or xgboost(), not an object of class `",
     class(x)[1L],
     "`. Fit the model first, then pass the fit; to search a grid of AdaBoost ",
     "settings, use tune_logo_cv().",
@@ -275,20 +292,34 @@ logo_cv.default <- function(
   )
 }
 
-#' Tune AdaBoost settings by leave-one-group-out cross-validation
+#' Tune a model's settings by leave-one-group-out cross-validation
 #'
-#' Cross-validates an [adaboost()] fit at every row of a grid of settings,
-#' with the folds of [logo_cv()]: each level of `group` is held out in turn,
-#' or only the levels in `holdout`. Each row changes the recipe read off the
+#' Cross-validates a fitted model at every row of a grid of settings, with
+#' the folds of [logo_cv()]: each level of `group` is held out in turn, or
+#' only the levels in `holdout`. Each row changes the recipe read off the
 #' fit, so the result has one estimate per setting and group.
 #'
 #' @section Grid columns:
-#' `depth`, `n_iter` and `eta` set the depth of the boosted tree, the number
-#' of rounds and the learning rate. A column named after an
-#' [rpart::rpart.control()] setting, such as `cp` or `minbucket`, sets that
-#' control for its row. A column the grid lacks takes the fit's own value, so
-#' `data.frame(n_iter = c(10, 100))` varies the rounds and keeps the fit's
-#' depth and rate. Any other column is an error.
+#' The columns a grid may hold depend on the fit. A column the grid lacks
+#' takes the fit's own value, and a column not listed for the fit is an
+#' error.
+#' * An [adaboost()] fit: `depth`, `n_iter` and `eta` set the depth of the
+#'   boosted tree, the number of rounds and the learning rate. A column named
+#'   after an [rpart::rpart.control()] setting, such as `cp` or `minbucket`,
+#'   sets that control for its row. So `data.frame(n_iter = c(10, 100))`
+#'   varies the rounds and keeps the fit's depth and rate.
+#' * A classification tree from [rpart::rpart()]: `depth` sets the tree's
+#'   `maxdepth`, and the same rpart controls set theirs.
+#' * A classification forest from [randomForest::randomForest()]: `mtry`,
+#'   `nodesize`, `ntree` and `maxnodes` set those arguments. A forest stores
+#'   only its `mtry` and `ntree`, so a grid without `nodesize` or `maxnodes`
+#'   leaves them as the fit's call set them.
+#' * An XGBoost fit from [xgboost::xgboost()]: `depth`, `eta` and `n_iter` set
+#'   `max_depth`, `learning_rate` and `nrounds`, and `min_child_weight` and
+#'   `lambda` set `min_child_weight` and `reg_lambda`. Where the fit left a
+#'   setting at its default, the grid takes xgboost's default. Fit it with
+#'   `nthreads = 1`: each refit runs on as many threads as the fit, and
+#'   `cores` above 1 runs several refits at once.
 #'
 #' @section Nested cross-validation:
 #' Picking the best row of a grid and reporting its score is optimistic,
@@ -298,25 +329,39 @@ logo_cv.default <- function(
 #' only that row is scored on the held-out group. The result estimates the
 #' procedure "search the grid, then fit the winner", not any one setting. It
 #' is slightly pessimistic, because each model trains on one group fewer.
-#' Expect the outer folds to choose different settings.
+#' Expect the outer folds to choose different settings. Nesting is for
+#' [adaboost()] fits only.
+#'
+#' @section Random forests:
+#' A forest draws at random. Before it refits, the tuner draws one seed per
+#' fold from the session's random-number stream, and it sets a fold's seed
+#' before each refit on that fold. So the result repeats after [set.seed()],
+#' and it is the same at any number of cores. Since [logo_cv()] draws a
+#' forest's refits from the session's stream itself, a forest's result from
+#' the tuner differs from its result from `logo_cv()` after the same seed,
+#' even for the fit's own setting.
 #'
 #' @section Speed:
 #' Rows of `grid` that differ only in `n_iter` share one fit per fold. The
-#' tree is boosted once, to the largest `n_iter` among them, and each row is
-#' scored on the margin after its own number of rounds. The first rounds of a
+#' model is boosted once, to the largest `n_iter` among them, and each row is
+#' scored after its own number of rounds: AdaBoost on the margin, XGBoost on
+#' the probability. The first rounds of a
 #' longer run are the shorter run, so the result equals refitting each row. A
 #' grid of many round counts therefore costs about as much as its largest one;
 #' each value of `depth`, `eta` or an rpart control costs a fit of its own.
 #'
-#' @param x A fit from [adaboost()]. The grid varies its settings; its
-#'   formula, other tree controls and splitting rule stay.
+#' @param x A fitted model: a fit from [adaboost()], a classification tree
+#'   from [rpart::rpart()], a classification forest from
+#'   [randomForest::randomForest()] fitted with a formula, or an XGBoost fit
+#'   from [xgboost::xgboost()]. The grid varies its settings; everything else
+#'   the fit was made with stays.
 #' @param grid A data frame of settings, one row per setting. See the section
 #'   on grid columns.
 #' @inheritParams logo_cv
-#' @param nested Whether to nest the search. The default, `FALSE`, scores
-#'   every row of `grid` on every fold. `TRUE` needs two or more rows and at
-#'   least three groups.
-#' @param criterion The measure the inner search maximizes when
+#' @param nested Whether to nest the search, for an [adaboost()] fit only.
+#'   The default, `FALSE`, scores every row of `grid` on every fold. `TRUE`
+#'   needs two or more rows and at least three groups.
+#' @param criterion The metric the inner search maximizes when
 #'   `nested = TRUE`. Defaults to `"auroc"`. Fix it in advance: it decides
 #'   which setting is chosen.
 #' @param cores The number of cores to use. Defaults to 1. On macOS and
@@ -324,6 +369,8 @@ logo_cv.default <- function(
 #'   [parallel::mclapply()]. Windows cannot fork, so there a value above 1
 #'   runs on one core and says so. The results are the same at any number of
 #'   cores. Progress messages from `verbose` appear only on one core.
+#' @param ... Must be empty. An argument the method does not take is an
+#'   error, not ignored.
 #'
 #' @return An object of class `logo_cv`, as from [logo_cv()], with one
 #'   setting per row of `grid`. When nested, `estimates` is project x metric,
@@ -351,7 +398,8 @@ logo_cv.default <- function(
 #'   data = altmejd,
 #'   group = "pid"
 #' )
-#' summary(res)
+#' # the settings, ranked by their worst project, ties broken by stability
+#' summary(res, sort_by = c("min", "stable"))
 #'
 #' # nested: each held-out project takes no part in the choice
 #' grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
@@ -367,17 +415,34 @@ tune_logo_cv <- function(
   nested = FALSE,
   criterion = "auroc",
   cores = 1,
-  verbose = FALSE
+  verbose = FALSE,
+  ...
 ) {
-  if (!inherits(x, "adaboost")) {
-    stop(
-      "`x` must be a fit from adaboost(): tuning grids are for adaboost fits. ",
-      "Pass another learner's fit to logo_cv().",
-      call. = FALSE
-    )
-  }
+  UseMethod("tune_logo_cv")
+}
+
+#' @rdname tune_logo_cv
+#' @export
+tune_logo_cv.adaboost <- function(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+) {
+  check_dots_empty(...)
   check_ada_fit(x)
-  grid <- normalize_grid(grid, x)
+  grid <- normalize_grid(
+    grid,
+    own = read_setting(x),
+    settings = c("depth", "n_iter", "eta"),
+    controls = list_tree_controls()
+  )
   folds <- read_folds(data, group, holdout)
   cores <- choose_cores(cores)
   # messages from forked workers would interleave
@@ -417,7 +482,7 @@ tune_logo_cv <- function(
     stop(
       "`criterion` \"",
       paste(criterion, collapse = ", "),
-      "\" is not one of the measures returned by assess().",
+      "\" is not one of the metrics returned by assess().",
       call. = FALSE
     )
   }
@@ -432,6 +497,187 @@ tune_logo_cv <- function(
     cores = cores,
     verbose = verbose
   )
+}
+
+#' @rdname tune_logo_cv
+#' @export
+tune_logo_cv.rpart <- function(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+) {
+  check_dots_empty(...)
+  check_tree_fit(x, "tune_logo_cv()")
+  check_not_nested(nested)
+  grid <- normalize_grid(
+    grid,
+    own = data.frame(
+      depth = x$control$maxdepth,
+      n_iter = NA_real_,
+      eta = NA_real_
+    ),
+    settings = "depth",
+    controls = list_tree_controls()
+  )
+  folds <- read_folds(data, group, holdout)
+  cores <- choose_cores(cores)
+  cross_validate(
+    x,
+    data = data,
+    group = group,
+    grid = grid,
+    folds = folds,
+    model = "rpart",
+    holdout = holdout,
+    cores = cores,
+    # messages from forked workers would interleave
+    verbose = verbose && cores == 1L
+  )
+}
+
+#' @rdname tune_logo_cv
+#' @export
+tune_logo_cv.randomForest <- function(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+) {
+  check_dots_empty(...)
+  check_forest_fit(x, "tune_logo_cv()")
+  check_not_nested(nested)
+  grid <- normalize_grid(
+    grid,
+    own = data.frame(
+      depth = NA_real_,
+      n_iter = NA_real_,
+      eta = NA_real_,
+      mtry = x$mtry,
+      ntree = x$ntree
+    ),
+    settings = list_forest_settings()
+  )
+  folds <- read_folds(data, group, holdout)
+  cores <- choose_cores(cores)
+
+  # one seed per fold, drawn before any refit: a row's forests then depend on
+  # the session's seed, the fold and the row, not on the grid's order or size
+  # or on `cores`
+  seeds <- sample.int(.Machine$integer.max, length(folds))
+  # set.seed() on one core would move the session's stream and forked
+  # workers would not, so put it back where the draw left it
+  stream <- get(".Random.seed", envir = globalenv())
+  on.exit(assign(".Random.seed", stream, envir = globalenv()), add = TRUE)
+
+  cross_validate(
+    x,
+    data = data,
+    group = group,
+    grid = grid,
+    folds = folds,
+    model = "rf",
+    holdout = holdout,
+    cores = cores,
+    verbose = verbose && cores == 1L,
+    seeds = seeds
+  )
+}
+
+#' @rdname tune_logo_cv
+#' @export
+tune_logo_cv.xgboost <- function(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  outcome,
+  ...
+) {
+  check_dots_empty(...)
+  check_xgb_fit(x, "tune_logo_cv()")
+  check_not_nested(nested)
+  folds <- read_folds(data, group, holdout)
+  check_xgb_data(x, data, outcome)
+  grid <- normalize_grid(
+    grid,
+    own = read_xgb_setting(x),
+    settings = names(list_xgb_settings())
+  )
+  cores <- choose_cores(cores)
+  cross_validate(
+    x,
+    data = data,
+    group = group,
+    grid = grid,
+    folds = folds,
+    model = "xgboost",
+    holdout = holdout,
+    cores = cores,
+    # messages from forked workers would interleave
+    verbose = verbose && cores == 1L,
+    outcome = outcome
+  )
+}
+
+#' @rdname tune_logo_cv
+#' @export
+tune_logo_cv.default <- function(
+  x,
+  grid,
+  data,
+  group,
+  holdout = NULL,
+  nested = FALSE,
+  criterion = "auroc",
+  cores = 1,
+  verbose = FALSE,
+  ...
+) {
+  if (inherits(x, "glm")) {
+    stop(
+      "`x` is a glm fit, which has no settings to tune. ",
+      "Cross-validate it with logo_cv().",
+      call. = FALSE
+    )
+  }
+  check_not_booster(x)
+  stop(
+    "`x` must be a fit from adaboost(), rpart(), randomForest() or xgboost(), ",
+    "not an object of class `",
+    class(x)[1L],
+    "`. Fit the model first, then pass the fit and a grid of its settings.",
+    call. = FALSE
+  )
+}
+
+#' Stop when a search that cannot be nested is asked to nest
+#' @noRd
+check_not_nested <- function(nested) {
+  if (isTRUE(nested)) {
+    stop(
+      "`nested = TRUE` is for adaboost() fits only. ",
+      "Search this fit's grid with `nested = FALSE`.",
+      call. = FALSE
+    )
+  }
 }
 
 #' Check `cores` and return how many to use
@@ -498,8 +744,8 @@ run_tasks <- function(n_tasks, run_task, cores = 1L) {
 #' @noRd
 group_settings <- function(grid, model) {
   rows <- seq_len(nrow(grid))
-  # only AdaBoost has rounds to read off a longer fit
-  if (model != "adaboost") {
+  # only boosted models have rounds to read off a longer fit
+  if (!model %in% c("adaboost", "xgboost")) {
     return(as.list(rows))
   }
   shared <- grid[setdiff(names(grid), "n_iter")]
@@ -582,6 +828,25 @@ read_setting <- function(fit) {
   )
 }
 
+#' Read an XGBoost fit's own setting as a one-row grid
+#' @noRd
+read_xgb_setting <- function(fit) {
+  params <- attr(fit, "params")
+  # a setting left at its default is not among the stored parameters; the
+  # booster's config holds it as float32 text, such as "0.300000012"
+  config <- xgboost::xgb.config(fit)$learner$gradient_booster$tree_train_param
+  read_value <- function(name) {
+    params[[name]] %||% signif(as.numeric(config[[name]]), 7)
+  }
+  data.frame(
+    depth = read_value("max_depth"),
+    n_iter = xgboost::xgb.get.num.boosted.rounds(fit),
+    eta = read_value("learning_rate"),
+    min_child_weight = read_value("min_child_weight"),
+    lambda = read_value("reg_lambda")
+  )
+}
+
 #' Read the formula of a fit, with any `.` expanded
 #' @noRd
 read_formula <- function(fit) {
@@ -604,9 +869,12 @@ cross_validate <- function(
   model,
   holdout = NULL,
   cores = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  outcome = all.vars(read_formula(fit))[1L],
+  seeds = NULL
 ) {
-  outcome <- all.vars(read_formula(fit))[1L]
+  # a fit without a formula passes the name of its outcome column
+  force(outcome)
   n_settings <- nrow(grid)
   held_out <- lapply(folds, \(fold) as.character(data[[group]]) == fold)
   groups <- group_settings(grid, model)
@@ -624,11 +892,16 @@ cross_validate <- function(
         folds[tasks$fold[k]]
       )
     }
+    # the fold's seed, the same in any task and on any core
+    if (!is.null(seeds)) {
+      set.seed(seeds[tasks$fold[k]])
+    }
     score <- refit_score(
       fit,
       train = data[!in_fold, , drop = FALSE],
       test = data[in_fold, , drop = FALSE],
-      setting = grid[rows, , drop = FALSE]
+      setting = grid[rows, , drop = FALSE],
+      outcome = outcome
     )
     # the other learners score one setting, as a vector
     matrix(score, ncol = length(rows))
@@ -842,45 +1115,78 @@ list_tree_controls <- function() {
   setdiff(names(formals(rpart::rpart.control)), c("maxdepth", "..."))
 }
 
-#' Check the grid's columns and fill in missing ones from the fit
+#' List the forest arguments a grid row may set
 #' @noRd
-normalize_grid <- function(grid, fit) {
+list_forest_settings <- function() {
+  c("mtry", "nodesize", "ntree", "maxnodes")
+}
+
+#' List the grid columns of an XGBoost fit, each named by its xgboost()
+#' argument
+#' @noRd
+list_xgb_settings <- function() {
+  c(
+    depth = "max_depth",
+    n_iter = "nrounds",
+    eta = "learning_rate",
+    min_child_weight = "min_child_weight",
+    lambda = "reg_lambda"
+  )
+}
+
+#' Check the grid's columns and fill in missing ones from the fit
+#'
+#' `own` is the fit's own setting as a one-row grid, `settings` the columns a
+#' grid may hold for the model, and `controls` the rpart controls it may set.
+#' @noRd
+normalize_grid <- function(grid, own, settings, controls = character()) {
   grid <- as.data.frame(grid)
   if (nrow(grid) == 0L) {
     stop("`grid` has no rows.", call. = FALSE)
   }
   # an error, not a warning: a grid that also holds results would otherwise
   # hide a column meant to tune something
-  allowed <- c("depth", "n_iter", "eta", list_tree_controls())
-  unknown <- setdiff(names(grid), allowed)
+  unknown <- setdiff(names(grid), c(settings, controls))
   if (length(unknown)) {
+    allowed <- paste0("`", settings, "`")
+    if (length(controls)) {
+      allowed <- c(
+        allowed,
+        paste0("the rpart controls (", paste(controls, collapse = ", "), ")")
+      )
+    }
     stop(
       "grid column(s) ",
       paste(unknown, collapse = ", "),
-      " set nothing. A grid may hold `depth`, `n_iter`, `eta` and the rpart ",
-      "controls (",
-      paste(list_tree_controls(), collapse = ", "),
-      ").",
+      " set nothing. A grid may hold ",
+      paste(allowed[-length(allowed)], collapse = ", "),
+      " and ",
+      allowed[length(allowed)],
+      ".",
       call. = FALSE
     )
   }
-  own <- read_setting(fit)
   for (column in setdiff(names(own), names(grid))) {
     grid[[column]] <- own[[column]]
   }
-  # rows share a fit, so a row without rounds would score 0 rather than fail
-  if (!is.numeric(grid$n_iter) || anyNA(grid$n_iter) || any(grid$n_iter < 1)) {
-    stop("grid column `n_iter` must be numbers of 1 or more.", call. = FALSE)
+  if ("n_iter" %in% settings) {
+    # rows share a fit, so a row without rounds would score 0 rather than fail
+    n_iter <- grid$n_iter
+    if (!is.numeric(n_iter) || anyNA(n_iter) || any(n_iter < 1)) {
+      stop("grid column `n_iter` must be numbers of 1 or more.", call. = FALSE)
+    }
   }
   grid
 }
 
 #' Refit a model on one fold and score the held-out rows
 #'
-#' The adaboost method scores a group of grid rows and returns one column per
-#' row; the other methods score one row and return a vector.
+#' The adaboost and xgboost methods score a group of grid rows and return one
+#' column per row; the other methods score one row and return a vector.
+#' `...` carries `outcome`, the name of the outcome column, for a fit without
+#' a formula.
 #' @noRd
-refit_score <- function(fit, train, test, setting) {
+refit_score <- function(fit, train, test, setting, ...) {
   UseMethod("refit_score")
 }
 
@@ -888,7 +1194,7 @@ refit_score <- function(fit, train, test, setting) {
 #' and score the margin after each row's `n_iter`
 #' @exportS3Method NULL
 #' @noRd
-refit_score.adaboost <- function(fit, train, test, setting) {
+refit_score.adaboost <- function(fit, train, test, setting, ...) {
   formula <- attr(fit, "formula")
   outcome <- all.vars(formula)[1L]
   predictors <- all.vars(formula)[-1L]
@@ -961,11 +1267,21 @@ refit_score.adaboost <- function(fit, train, test, setting) {
   matrix(margins, nrow = n_rows)
 }
 
-#' Refit a tree's call and score the probability of the second class
+#' Refit a tree's call with the row's depth and controls, and score the
+#' probability of the second class
 #' @exportS3Method NULL
 #' @noRd
-refit_score.rpart <- function(fit, train, test, setting) {
-  refit <- refit_call(fit, train)
+refit_score.rpart <- function(fit, train, test, setting, ...) {
+  # rpart() lets a control list override its direct arguments, so the row
+  # goes into the fit's full control list; the fit's own values give back
+  # its own call
+  row_controls <- intersect(names(setting), list_tree_controls())
+  control <- utils::modifyList(
+    fit$control,
+    as.list(setting[1L, row_controls, drop = FALSE])
+  )
+  control$maxdepth <- setting[["depth"]]
+  refit <- refit_call(fit, train, args = list(control = control))
   prob <- stats::predict(refit, newdata = test, type = "prob")
   prob[, ncol(prob)]
 }
@@ -973,7 +1289,7 @@ refit_score.rpart <- function(fit, train, test, setting) {
 #' Refit a logistic regression's call and score its probability
 #' @exportS3Method NULL
 #' @noRd
-refit_score.glm <- function(fit, train, test, setting) {
+refit_score.glm <- function(fit, train, test, setting, ...) {
   # code the outcome 0/1 as for the other learners; an expression such as
   # I(y == "a") is left for glm() to read
   outcome <- read_formula(fit)[[2L]]
@@ -985,19 +1301,68 @@ refit_score.glm <- function(fit, train, test, setting) {
   stats::predict(refit, newdata = test, type = "response")
 }
 
-#' Refit a forest's call and score the probability of the second class
+#' Refit a forest's call with the row's arguments, and score the probability
+#' of the second class
 #' @exportS3Method NULL
 #' @noRd
-refit_score.randomForest <- function(fit, train, test, setting) {
+refit_score.randomForest <- function(fit, train, test, setting, ...) {
+  # an NA keeps the call's own value; the grid of logo_cv() is all NA, so
+  # there the call runs as it was
+  values <- as.list(
+    setting[1L, intersect(names(setting), list_forest_settings()), drop = FALSE]
+  )
   # the stored call names randomForest() bare, which needs it attached
-  refit <- refit_call(fit, train, fun = quote(randomForest::randomForest))
+  refit <- refit_call(
+    fit,
+    train,
+    fun = quote(randomForest::randomForest),
+    args = values[!is.na(values)]
+  )
   prob <- stats::predict(refit, newdata = test, type = "prob")
   prob[, ncol(prob)]
 }
 
-#' Run a fit's own call again on other rows
+#' Fit XGBoost once from the fit's stored parameters for grid rows that
+#' differ only in `n_iter`, and score the probability of the second level
+#' after each row's `n_iter`
+#' @exportS3Method NULL
 #' @noRd
-refit_call <- function(fit, rows, fun = NULL) {
+refit_score.xgboost <- function(fit, train, test, setting, outcome, ...) {
+  # not the stored call, whose objects may be gone by now
+  params <- attr(fit, "params")
+  # xgboost() names it `nthreads`; validate_parameters is xgb.train()'s own
+  names(params)[names(params) == "nthread"] <- "nthreads"
+  params$validate_parameters <- NULL
+  # the rows share all but n_iter, so the first row speaks for the group
+  arguments <- list_xgb_settings()
+  shared <- setdiff(names(arguments), "n_iter")
+  params[arguments[shared]] <- as.list(setting[1L, shared, drop = FALSE])
+  n_iter <- setting[["n_iter"]]
+  params$nrounds <- max(n_iter)
+
+  features <- xgboost::getinfo(fit, "feature_name")
+  refit <- do.call(
+    xgboost::xgboost,
+    c(list(x = train[, features, drop = FALSE], y = train[[outcome]]), params)
+  )
+  # the first n rounds of the longest run are the n-round run. The name is
+  # iteration_range: predict() takes iterationrange into `...` for this class
+  # and returns the full run
+  newdata <- test[, features, drop = FALSE]
+  n_rows <- nrow(newdata)
+  probs <- vapply(
+    n_iter,
+    \(n) unname(stats::predict(refit, newdata, iteration_range = c(1, n))),
+    numeric(n_rows)
+  )
+  # matrix() keeps a single held-out row a row
+  matrix(probs, nrow = n_rows)
+}
+
+#' Run a fit's own call again on other rows, with `args` replacing its
+#' arguments of those names
+#' @noRd
+refit_call <- function(fit, rows, fun = NULL, args = list()) {
   formula <- read_formula(fit)
   call <- stats::getCall(fit)
   if (!is.null(fun)) {
@@ -1007,6 +1372,9 @@ refit_call <- function(fit, rows, fun = NULL) {
   # themselves, so the call needs no name for them
   call$formula <- formula
   call$data <- rows
+  for (name in names(args)) {
+    call[[name]] <- args[[name]]
+  }
   # not update(), which runs the call in this package: here the call's other
   # names resolve where they did for the original fit
   eval(call, environment(formula))
@@ -1014,13 +1382,33 @@ refit_call <- function(fit, rows, fun = NULL) {
 
 #' Methods for logo_cv objects
 #'
-#' `print()` shows the per-project estimates of one measure, `summary()`
-#' returns them as a data frame, and `as.data.frame()` flattens all estimates
-#' into one long table. `plot()` draws the estimates per project, with bands
-#' when `x` carries intervals from [bootstrap()].
+#' `print()` shows the per-project estimates of one metric, `summary()`
+#' returns their mean, SD, minimum and maximum per setting, and
+#' `as.data.frame()` flattens all estimates into one long table. `plot()`
+#' draws the estimates per project, with bands when `x` carries intervals from
+#' [bootstrap()].
+#'
+#' `print()` lists each project's size and base rate once, then one row per
+#' setting: the setting's hyperparameters and its estimate on each project.
+#' Above 20 settings, it shows the first 10. A nested result shows one row
+#' per outer fold instead, with the setting that fold selected.
+#'
+#' `summary()` returns one row per setting, in grid order unless `sort_by`
+#' sorts them: the hyperparameters, then the `mean`, `sd`, `min` and `max` of
+#' the setting's estimates across the projects, and `stable`, the mean minus
+#' the SD. These columns rank settings; they are not estimates of performance
+#' on a new project, and `sd` is not a standard error. A statistic is `NA` if
+#' a project is `NA`. The row names are the settings' row numbers in the grid.
+#' A nested result gives one row, over the outer folds.
 #'
 #' @param x,object An object of class `logo_cv`.
-#' @param metric The measure to show. Defaults to `"auroc"`.
+#' @param metric The performance metric to show. Defaults to `"auroc"`.
+#' @param sort_by The columns of the summary to sort by, as a character vector,
+#'   or `NULL`, the default, to keep the grid order. Rows go highest first on
+#'   every column, and later columns break ties in earlier ones. Rows that tie
+#'   on all of them keep their grid order, and rows with `NA` go last. For
+#'   example, `c("min", "stable")` puts first the setting whose worst project
+#'   scores highest.
 #' @param ... Ignored.
 #'
 #' @return `print()` and `plot()` return `x` invisibly; `summary()` and
@@ -1051,30 +1439,18 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
   if (nested) {
     cat("  selected on: ", x$criterion, " (inner loop)\n", sep = "")
   }
-  cat("  measure: ", metric, "\n\n", sep = "")
+  cat("  metric: ", metric, "\n\n", sep = "")
 
-  long <- as.data.frame(x)
-  rows <- long[long$metric == metric, , drop = FALSE]
-  if (nrow(rows) == 0L) {
+  if (length(metric) != 1L || !metric %in% dimnames(x$estimates)$metric) {
     cat("no estimates for `", metric, "`\n", sep = "")
     return(invisible(x))
   }
 
-  columns <- c(
-    "depth",
-    "n_iter",
-    "eta",
-    "project",
-    "n",
-    "base_rate",
-    "estimate"
-  )
-  columns <- columns[vapply(
-    rows[columns],
-    \(column) !all(is.na(column)),
-    logical(1)
-  )]
-  print(format(rows[, columns, drop = FALSE], digits = 3), row.names = FALSE)
+  if (nested) {
+    print_by_fold(x, metric)
+  } else {
+    print_by_setting(x, metric)
+  }
 
   # no mean or SE across folds: shared training data bias the naive SE down
   # (Bengio & Grandvalet, 2004)
@@ -1099,10 +1475,141 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
 
 #' @rdname logo_cv_methods
 #' @export
-summary.logo_cv <- function(object, metric = "auroc", ...) {
-  long <- as.data.frame(object)
+summary.logo_cv <- function(object, metric = "auroc", sort_by = NULL, ...) {
+  metrics <- dimnames(object$estimates)$metric
+  if (length(metric) != 1L || !metric %in% metrics) {
+    stop(
+      "`metric` must be a single name among the metrics of the result: ",
+      paste(metrics, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  estimates <- read_estimates(object, metric)
+  # no na.rm: a project without an estimate makes all four NA, as in hypergrid
+  out <- data.frame(
+    mean = rowMeans(estimates),
+    sd = apply(estimates, 1L, stats::sd),
+    min = apply(estimates, 1L, min),
+    max = apply(estimates, 1L, max)
+  )
+  out$stable <- out$mean - out$sd
+  if (!isTRUE(object$nested)) {
+    out <- cbind(read_hyperparameters(object), out)
+  }
+  # the setting's row number, not the row names the caller's grid carried
+  rownames(out) <- seq_len(nrow(out))
+
+  if (is.null(sort_by)) {
+    return(out)
+  }
+  if (
+    !is.character(sort_by) ||
+      length(sort_by) == 0L ||
+      anyNA(sort_by) ||
+      anyDuplicated(sort_by) > 0L ||
+      !all(sort_by %in% names(out))
+  ) {
+    stop(
+      "`sort_by` must name one or more columns of the summary, each once: ",
+      paste(names(out), collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+  # a stable sort: rows that tie on every column keep their grid order
+  keys <- unname(as.list(out[sort_by]))
+  sorted <- do.call(
+    order,
+    c(keys, decreasing = TRUE, na.last = TRUE, method = "radix")
+  )
+  out[sorted, , drop = FALSE]
+}
+
+#' Take one metric's estimates as a setting x project matrix
+#' @noRd
+read_estimates <- function(x, metric) {
+  cube <- x$estimates
+  if (isTRUE(x$nested)) {
+    # project x metric: the outer folds make one row
+    return(matrix(
+      cube[, as.character(metric)],
+      nrow = 1L,
+      dimnames = list(NULL, rownames(cube))
+    ))
+  }
+  # not cube[, , metric], which drops to a vector for one setting or project
+  array(
+    cube[,, as.character(metric)],
+    dim = dim(cube)[1:2],
+    dimnames = dimnames(cube)[1:2]
+  )
+}
+
+#' Keep the grid columns that hold a value in at least one row
+#' @noRd
+read_hyperparameters <- function(x) {
+  # a learner records NA for a setting it lacks, such as a glm's depth
+  x$grid[vapply(x$grid, \(column) !all(is.na(column)), logical(1))]
+}
+
+#' Print the projects once, then one row of estimates per setting
+#' @noRd
+print_by_setting <- function(x, metric) {
+  estimates <- read_estimates(x, metric)
+  info <- x$projects[match(colnames(estimates), x$projects$project), ]
+  projects <- rbind(
+    n = format(info$n),
+    `base rate` = format(round(info$base_rate, 2), nsmall = 2)
+  )
+  colnames(projects) <- colnames(estimates)
+  print(noquote(projects), right = TRUE)
+  cat("\n")
+
+  # three decimals throughout, so 0.62 prints as 0.620; counts such as tp
+  # stay whole
+  estimates <- round(estimates, 3)
+  whole <- all(estimates == round(estimates), na.rm = TRUE)
+  # the settings unrounded, so a rate such as 0.0025 prints in full
+  table <- data.frame(
+    read_hyperparameters(x),
+    format(estimates, nsmall = if (whole) 0L else 3L),
+    check.names = FALSE
+  )
+  # the head of a long grid; ranking it is the job of summary()
+  n_shown <- if (nrow(table) > 20L) 10L else nrow(table)
+  print(table[seq_len(n_shown), , drop = FALSE], row.names = FALSE)
+  if (n_shown < nrow(table)) {
+    cat(
+      "... and ",
+      format(nrow(table) - n_shown, big.mark = ","),
+      " more settings; summary() ranks them.\n",
+      sep = ""
+    )
+  }
+}
+
+#' Print one row per outer fold, with the setting that fold selected
+#' @noRd
+print_by_fold <- function(x, metric) {
+  long <- as.data.frame(x)
   rows <- long[long$metric == metric, , drop = FALSE]
-  rows[order(rows$depth, rows$n_iter, rows$eta, rows$project), , drop = FALSE]
+  columns <- c(
+    "depth",
+    "n_iter",
+    "eta",
+    "project",
+    "n",
+    "base_rate",
+    "estimate"
+  )
+  columns <- columns[vapply(
+    rows[columns],
+    \(column) !all(is.na(column)),
+    logical(1)
+  )]
+  print(format(rows[, columns, drop = FALSE], digits = 3), row.names = FALSE)
 }
 
 #' @rdname logo_cv_methods
