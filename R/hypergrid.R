@@ -7,8 +7,10 @@
 #' test. The grid is one [tune_logo_cv()] call with `cores = 4`, which takes
 #' about 40 minutes on four cores; the script is `data-raw/hypergrid.R`.
 #'
-#' The scores are project-level only, with no means and no rankings: which
-#' summary to use is your choice (see the examples).
+#' Each row also holds the mean, SD, minimum and maximum of its six project
+#' scores. These four columns rank settings; they are not estimates of
+#' performance on a new project. The rows are in grid order, and which column
+#' to rank by is the modeler's choice (see the examples).
 #'
 #' @format A list of 17 data frames, one per measure of [assess()], from `tp`
 #'   to `patk`. Each has one row per setting, 2,640 in all, and these columns:
@@ -17,6 +19,8 @@
 #' * `eta`: The learning rate, 0.0025 to 1.
 #' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The measure on that project,
 #'   held out.
+#' * `mean`, `sd`, `min`, `max`: The mean, standard deviation, minimum and
+#'   maximum of the six project columns. They are `NA` if a project is `NA`.
 #'
 #' @details
 #' `attr(hypergrid, "projects")` gives each project's `n` and `base_rate`.
@@ -32,19 +36,16 @@
 #' @examples
 #' data(hypergrid)
 #' auc <- hypergrid$auroc
-#' projects <- attr(hypergrid, "projects")$project
 #'
 #' # one setting, project by project
 #' auc[auc$depth == 1 & auc$n_iter == 1000 & auc$eta == 0.1, ]
 #'
-#' # a summary of your choice: mean minus SD across the projects
-#' x <- as.matrix(auc[projects])
-#' auc$stable <- rowMeans(x) - apply(x, 1, sd)
+#' # stability: the mean minus the SD across the projects
+#' auc$stable <- auc$mean - auc$sd
 #' head(auc[order(-auc$stable), ], 3)
 #'
 #' # or the worst project, ties broken by stability
-#' auc$worst <- apply(x, 1, min)
-#' head(auc[order(-auc$worst, -auc$stable), ], 3)
+#' head(auc[order(-auc$min, -auc$stable), ], 3)
 #'
 #' @name hypergrid
 #' @docType data
