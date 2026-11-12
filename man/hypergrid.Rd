@@ -13,6 +13,8 @@ to \code{patk}. Each has one row per setting, 2,640 in all, and these columns:
 \item \code{eta}: The learning rate, 0.0025 to 1.
 \item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The measure on that project,
 held out.
+\item \code{mean}, \code{sd}, \code{min}, \code{max}: The mean, standard deviation, minimum and
+maximum of the six project columns. They are \code{NA} if a project is \code{NA}.
 }
 }
 \description{
@@ -24,8 +26,10 @@ test. The grid is one \code{\link[=tune_logo_cv]{tune_logo_cv()}} call with \cod
 about 40 minutes on four cores; the script is \code{data-raw/hypergrid.R}.
 }
 \details{
-The scores are project-level only, with no means and no rankings: which
-summary to use is your choice (see the examples).
+Each row also holds the mean, SD, minimum and maximum of its six project
+scores. These four columns rank settings; they are not estimates of
+performance on a new project. The rows are in grid order, and which column
+to rank by is the modeler's choice (see the examples).
 
 \code{attr(hypergrid, "projects")} gives each project's \code{n} and \code{base_rate}.
 
@@ -38,19 +42,16 @@ the top five is undefined.
 \examples{
 data(hypergrid)
 auc <- hypergrid$auroc
-projects <- attr(hypergrid, "projects")$project
 
 # one setting, project by project
 auc[auc$depth == 1 & auc$n_iter == 1000 & auc$eta == 0.1, ]
 
-# a summary of your choice: mean minus SD across the projects
-x <- as.matrix(auc[projects])
-auc$stable <- rowMeans(x) - apply(x, 1, sd)
+# stability: the mean minus the SD across the projects
+auc$stable <- auc$mean - auc$sd
 head(auc[order(-auc$stable), ], 3)
 
 # or the worst project, ties broken by stability
-auc$worst <- apply(x, 1, min)
-head(auc[order(-auc$worst, -auc$stable), ], 3)
+head(auc[order(-auc$min, -auc$stable), ], 3)
 
 }
 \seealso{
@@ -60,6 +61,7 @@ Other datasets:
 \code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
+\code{\link{benchmark}},
 \code{\link{holz1026}},
 \code{\link{mltwo1026}},
 \code{\link{ssrp1026}},
