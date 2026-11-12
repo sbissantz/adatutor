@@ -1,7 +1,7 @@
-#' Bootstrap confidence intervals for performance measures
+#' Bootstrap confidence intervals for performance metrics
 #'
 #' Resamples the test cases and scores each resample with [assess()], so
-#' every measure gets an interval from the same draws. The model stays fixed:
+#' every metric gets an interval from the same draws. The model stays fixed:
 #' the interval shows how much an estimate would move if the project had
 #' drawn different study effects.
 #'
@@ -37,7 +37,7 @@
 #'   `grid` to bootstrap.
 #' @param ... Ignored.
 #'
-#' @return The default method returns a data frame with one row per measure
+#' @return The default method returns a data frame with one row per metric
 #'   and the columns `metric`, `estimate` (from the observed data), `lower`,
 #'   `upper` and `drop`. Attributes record the settings and keep the draws.
 #'
@@ -112,7 +112,7 @@ bootstrap.default <- function(
   if (stratified) {
     note <- paste0(
       "stratified = TRUE holds the class balance fixed, so intervals for the ",
-      "prevalence-dependent measures (auprc, ppv, npv, f1, acc, mcc) are ",
+      "prevalence-dependent metrics (auprc, ppv, npv, f1, acc, mcc) are ",
       "understated. auroc and bacc are unaffected."
     )
     notes <- c(notes, note)

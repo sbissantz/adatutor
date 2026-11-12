@@ -1,7 +1,7 @@
 #' Assess classification performance
 #'
-#' Computes performance measures from true labels and continuous scores. Most
-#' measures come from one confusion matrix, made by cutting the scores at
+#' Computes performance metrics from true labels and continuous scores. Most
+#' metrics come from one confusion matrix, made by cutting the scores at
 #' `threshold`. The rest (`auroc`, `auprc` and the `patk` family) use the
 #' whole ranking of the scores, so a confusion matrix cannot give them.
 #'
@@ -10,7 +10,7 @@
 #' curve shrinks to a single point and `auroc` quietly becomes balanced
 #' accuracy. With [predict.adaboost()], use `type = "margin"`.
 #'
-#' @section Measures:
+#' @section Metrics:
 #' At the threshold, from the counts `tp`, `tn`, `fp` and `fn`:
 #' * `sens`: TP / (TP + FN). Also called true positive rate, recall or hit
 #'   rate.
@@ -44,7 +44,7 @@
 #' not 0.5. `auroc` and `bacc` ignore the base rate; `ppv` and `mcc` do not.
 #'
 #' @section Missing values:
-#' A measure is `NA` when the data cannot support it. That happens to `auroc`
+#' A metric is `NA` when the data cannot support it. That happens to `auroc`
 #' and `auprc` when only one class is present, to `ppv` when nothing is
 #' predicted positive, to `npv` when nothing is predicted negative, and to
 #' `patk` when `k` is larger than the number of positives. `f1` is 0 when
@@ -64,11 +64,11 @@
 #' @param ... Ignored.
 #'
 #' @return A named numeric vector of class `assessment`. By default it has 17
-#'   measures, in the order listed above; the `confusion` method returns the
+#'   metrics, in the order listed above; the `confusion` method returns the
 #'   first 12. `print()` shows them grouped by cut and rounds only the
 #'   display.
 #'
-#' @family performance measures
+#' @family performance metrics
 #'
 #' @references
 #' Chicco, D., & Jurman, G. (2020). The advantages of the Matthews correlation
@@ -116,7 +116,7 @@
 #' # fewer decimals; the stored values stay exact
 #' print(assess(test$replicate, margin), digits = 2)
 #'
-#' # the same measures from a confusion matrix, without the ranking ones
+#' # the same metrics from a confusion matrix, without the ranking ones
 #' cm <- confusion(test$replicate, margin)
 #' assess(cm)
 #'
@@ -319,7 +319,7 @@ format_confusion <- function(cm, width) {
 #'
 #' Cuts `score` at `threshold` and counts the four cells of the 2x2 table:
 #' true positives, true negatives, false positives and false negatives.
-#' [assess()] computes every threshold measure from these counts.
+#' [assess()] computes every threshold metric from these counts.
 #'
 #' @param actual The true labels: a two-level factor (the second level is the
 #'   positive class), 0/1, -1/1, or logical.
@@ -333,7 +333,7 @@ format_confusion <- function(cm, width) {
 #' @return A named integer vector of class `confusion` with `tp`, `tn`, `fp`
 #'   and `fn`. The threshold is stored as an attribute.
 #'
-#' @family performance measures
+#' @family performance metrics
 #'
 #' @examples
 #' confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
@@ -406,7 +406,7 @@ divide_safely <- function(numerator, denominator) {
 #'
 #' @return A number, or `NA` if `actual` has only one class.
 #'
-#' @family performance measures
+#' @family performance metrics
 #'
 #' @references Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing
 #'   and visualizing precision-recall and receiver operating characteristic
@@ -437,7 +437,7 @@ auroc <- function(actual, score) {
 #'
 #' @return A number, or `NA` if `actual` has only one class.
 #'
-#' @family performance measures
+#' @family performance metrics
 #'
 #' @references
 #' Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
@@ -491,7 +491,7 @@ auprc <- function(actual, score) {
 #'
 #' @return A number for a single `k`. For several, a vector named by `k`.
 #'
-#' @family performance measures
+#' @family performance metrics
 #'
 #' @examples
 #' # three positives, so the default budget is the top three

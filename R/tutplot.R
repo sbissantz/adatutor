@@ -73,7 +73,7 @@
 #'   not standard errors.
 #' @param n_resample The number of resamples per project, when `bootstrap`
 #'   has to resample. Defaults to 1000.
-#' @param metric The measure to draw. Defaults to `"auroc"`.
+#' @param metric The performance metric to draw. Defaults to `"auroc"`.
 #' @param bands The interval widths, widest last. Defaults to 0.50, 0.80 and
 #'   0.95.
 #' @param ylab The axis label. Defaults to `metric` in capitals.

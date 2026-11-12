@@ -8,13 +8,13 @@
 #' HOLZ, the project the tutorial keeps back for the final test. The script is
 #' `data-raw/benchmark.R`; it runs in about a minute.
 #'
-#' @format A list of 17 data frames, one per measure of [assess()], from `tp`
+#' @format A list of 17 data frames, one per metric of [assess()], from `tp`
 #'   to `patk`. Each has one row per model and these columns:
 #' * `model`: The model: `"logit"`, `"tree"`, `"rf"`, `"adaboost"` or
 #'   `"xgboost"`.
-#' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The measure on that project,
+#' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The metric on that project,
 #'   held out and scored by the model trained on the other five.
-#' * `holz`: The measure on HOLZ, scored by the model trained on all six
+#' * `holz`: The metric on HOLZ, scored by the model trained on all six
 #'   tuning projects.
 #'
 #' @details
@@ -31,7 +31,7 @@
 #' * `adaboost`: The tutorial's ensemble, trees of depth 2 boosted for 2,000
 #'   rounds at a learning rate of 0.02, chosen from [hypergrid] by the rule
 #'   below.
-#' * `xgboost`: Gradient boosting from `xgboost::xgb.train()` with the
+#' * `xgboost`: Gradient boosting from `xgboost::xgboost()` with the
 #'   logistic loss, tuned by the rule below over 180 settings: depths 1, 2
 #'   and 4; learning rates 0.1, 0.05 and 0.01; `min_child_weight` 1 and 5;
 #'   `lambda` 1 and 10; and 50, 100, 200, 500 and 1,000 rounds. The choice is
@@ -43,7 +43,7 @@
 #' in any choice.
 #'
 #' Every model is scored on a continuous score: AdaBoost on its margin, the
-#' others on the predicted probability of success. The measures that need a
+#' others on the predicted probability of success. The metrics that need a
 #' threshold cut the margin at 0 and the probabilities at 0.5.
 #'
 #' `attr(benchmark, "projects")` gives each project's `n` and `base_rate`.

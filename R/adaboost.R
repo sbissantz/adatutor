@@ -334,7 +334,7 @@ strip_tree <- function(tree, learner_terms) {
 #' @param object A fit from [adaboost()].
 #' @param newdata A data frame with the predictors the model was trained on.
 #' @param type `"class"` for class labels (-1 or 1), or `"margin"` for the
-#'   continuous score. Use `"margin"` for ranking measures such as [auroc()].
+#'   continuous score. Use `"margin"` for ranking metrics such as [auroc()].
 #' @param check_inputs Whether to check the inputs. Defaults to `TRUE`.
 #' @param verbose Whether to show progress. Defaults to `TRUE`.
 #' @param ... Ignored.

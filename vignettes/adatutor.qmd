@@ -218,11 +218,11 @@ A confusion matrix can help us evaluate the prediction accuracy:
 table(ypred, test[, outnme])
 ```
 
-### Performance Measures
+### Performance Metrics
 
 Class labels say only whether a prediction was right. The *margin*, the
 weighted vote before its sign is taken, also says how sure the model was, and
-every measure that reads a ranking needs that. So we score the margin:
+every metric that reads a ranking needs that. So we score the margin:
 
 ```{r}
 #| label: margin
@@ -235,19 +235,19 @@ margin <- predict(
 )
 ```
 
-`assess()` computes the usual measures in one call:
+`assess()` computes the usual metrics in one call:
 
 ```{r}
 #| label: assess
-# Performance measures
+# Performance metrics
 assess(test[, outnme], score = margin)
 ```
 
-The printout shows the confusion matrix at a threshold of 0, then the measures
+The printout shows the confusion matrix at a threshold of 0, then the metrics
 at that threshold. Next comes the precision among the top 3, the top 5 and the
 top k scores, where k is the number of actual successes. Last are the areas
 under the ROC and precision-recall curves, which use every threshold.
-`?assess` lists the formulas and the other names each measure goes by (for
+`?assess` lists the formulas and the other names each metric goes by (for
 example, `sens` is also called recall).
 
 ## Leave-One-Group-Out Cross-Validation
