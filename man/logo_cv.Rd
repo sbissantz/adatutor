@@ -6,6 +6,7 @@
 \alias{logo_cv.rpart}
 \alias{logo_cv.glm}
 \alias{logo_cv.randomForest}
+\alias{logo_cv.xgboost}
 \alias{logo_cv.default}
 \title{Leave-one-group-out cross-validation}
 \usage{
@@ -19,12 +20,15 @@ logo_cv(x, data, group, holdout = NULL, verbose = FALSE, ...)
 
 \method{logo_cv}{randomForest}(x, data, group, holdout = NULL, verbose = FALSE, ...)
 
+\method{logo_cv}{xgboost}(x, data, group, holdout = NULL, verbose = FALSE, outcome, ...)
+
 \method{logo_cv}{default}(x, data, group, holdout = NULL, verbose = FALSE, ...)
 }
 \arguments{
 \item{x}{A fitted model: a fit from \code{\link[=adaboost]{adaboost()}}, a classification tree
-from \code{\link[rpart:rpart]{rpart::rpart()}}, a binomial \code{\link[stats:glm]{stats::glm()}}, or a classification
-forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted with a formula.}
+from \code{\link[rpart:rpart]{rpart::rpart()}}, a binomial \code{\link[stats:glm]{stats::glm()}}, a classification forest
+from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted with a formula, or an XGBoost
+fit from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}.}
 
 \item{data}{A data frame with the model's variables and the \code{group}
 column, holding every group.}
@@ -38,20 +42,25 @@ to \code{NULL}, which holds out every level once.}
 
 \item{...}{Must be empty. The settings belong to the fit, so an argument
 such as \code{n_iter} or \code{grid} is an error.}
+
+\item{outcome}{The name of the outcome column in \code{data}, e.g.
+\code{"replicate"}, for an XGBoost fit, which needs it. Such a fit keeps no
+formula, so its predictors are the columns named by its feature names.}
 }
 \value{
 An object of class \code{logo_cv}.
 \itemize{
 \item \code{estimates}: an array of setting x project x metric, e.g.
 \code{res$estimates[, , "auroc"]}. \code{as.data.frame()} gives the same values
-as one long table. An \code{NA} cell is an undefined measure, not a failed
+as one long table. An \code{NA} cell is an undefined metric, not a failed
 fit.
 \item \code{grid}: the settings, one row per setting. \code{depth}, \code{n_iter} and \code{eta}
 are \code{NA} where the learner has no such setting.
 \item \code{projects}: each fold's \code{n} and \code{base_rate}.
 \item \code{scores}: the held-out scores, one row per study and setting, which
 \code{\link[=bootstrap]{bootstrap()}} resamples.
-\item \code{model}: the learner, \code{"adaboost"}, \code{"rpart"}, \code{"glm"} or \code{"rf"}.
+\item \code{model}: the learner, \code{"adaboost"}, \code{"rpart"}, \code{"glm"}, \code{"rf"} or
+\code{"xgboost"}.
 \item \code{nested}, \code{criterion} and \code{selected}: set by \code{\link[=tune_logo_cv]{tune_logo_cv()}} when it
 nests the search.
 }
@@ -82,12 +91,22 @@ with a formula: the call that made the fit. The call runs again with
 \code{data} replaced by the training rows, so settings such as \code{control},
 \code{parms}, \code{family}, \code{ntree} or \code{mtry} carry over. Each refit is scored on
 its predicted probability of the second class.
+\item An XGBoost fit from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}, version 3.0 or later, made with
+a data frame of predictors and a factor outcome: its stored parameters,
+its number of rounds and the names of its predictors. Each refit runs
+\code{xgboost()} afresh with those parameters on the training rows, takes the
+outcome from the column named by \code{outcome}, and is scored on its
+predicted probability of the second level. The stored parameters do not
+keep \code{weights}, \code{base_margin}, \code{eval_set}, \code{early_stopping_rounds} or
+\code{feature_weights}, so a fit made with any of them is an error. Fit it
+with \code{nthreads = 1}: each refit runs on as many threads as the fit, and
+\code{\link[=tune_logo_cv]{tune_logo_cv()}} can run several refits at once.
 }
 
 Every model is scored on a continuous score, never on class labels.
 
 The call runs where its formula was made, so any other object it names,
-such as \code{weights = w} or \code{control = ctrl}, must still exist there. A
+such as \code{weights = w}, must still exist there. A
 variable named as a column of \code{data}, such as \code{weights = n.o}, travels with
 the rows. A random forest draws at random: set a seed to repeat a result.
 }
