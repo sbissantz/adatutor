@@ -237,7 +237,163 @@ check_ada_fit <- function(fit) {
   }
 }
 
-#' Stop when logo_cv() gets arguments its methods do not take
+#' Stop unless `x` is a classification tree; `fn` names the caller
+#' @noRd
+check_tree_fit <- function(x, fn) {
+  if (!identical(x$method, "class")) {
+    stop(
+      "`x` must be a classification tree, fitted with `method = \"class\"`: ",
+      fn,
+      " scores its predicted probabilities.",
+      call. = FALSE
+    )
+  }
+}
+
+#' Stop unless `x` is a classification forest fitted with a formula and
+#' randomForest is installed; `fn` names the caller
+#' @noRd
+check_forest_fit <- function(x, fn) {
+  if (!requireNamespace("randomForest", quietly = TRUE)) {
+    stop(
+      "A random forest needs the randomForest package. ",
+      "Install it with install.packages(\"randomForest\").",
+      call. = FALSE
+    )
+  }
+  if (!identical(x$type, "classification")) {
+    stop(
+      "`x` must be a classification forest, fitted on a factor outcome: ",
+      fn,
+      " scores its predicted probabilities.",
+      call. = FALSE
+    )
+  }
+  if (is.null(x$terms)) {
+    stop(
+      "`x` must be fitted with a formula, as in ",
+      "randomForest(replicate ~ ., data = d): ",
+      fn,
+      " refits its call on each fold's rows.",
+      call. = FALSE
+    )
+  }
+}
+
+#' Stop unless `x` is an XGBoost fit that a refit from its stored parameters
+#' can repeat and xgboost is installed; `fn` names the caller
+#' @noRd
+check_xgb_fit <- function(x, fn) {
+  if (!requireNamespace("xgboost", quietly = TRUE)) {
+    stop(
+      "An XGBoost fit needs the xgboost package. ",
+      "Install it with install.packages(\"xgboost\").",
+      call. = FALSE
+    )
+  }
+  if (!identical(attr(x, "params")$objective, "binary:logistic")) {
+    stop(
+      "`x` must be fitted with the objective \"binary:logistic\", which ",
+      "xgboost() chooses for a factor outcome with two levels: ",
+      fn,
+      " scores its predicted probabilities.",
+      call. = FALSE
+    )
+  }
+  if (is.null(xgboost::getinfo(x, "feature_name"))) {
+    stop(
+      "`x` has no feature names. Fit it on a data frame, as in ",
+      "xgboost(x = d[, predictors], y = d$replicate): ",
+      fn,
+      " finds the predictors in `data` by those names.",
+      call. = FALSE
+    )
+  }
+  # arguments outside the stored parameters, which a refit would drop
+  lost <- intersect(
+    names(attr(x, "call")),
+    c(
+      "weights",
+      "base_margin",
+      "eval_set",
+      "early_stopping_rounds",
+      "feature_weights"
+    )
+  )
+  if (length(lost)) {
+    stop(
+      "`x` was fitted with ",
+      paste0("`", lost, "`", collapse = ", "),
+      ", which its stored parameters do not keep: ",
+      fn,
+      " refits from those parameters on each fold's rows. ",
+      "Fit the model without them.",
+      call. = FALSE
+    )
+  }
+}
+
+#' Stop unless `outcome` names a factor column of `data` with the levels of
+#' the XGBoost fit `x`, and `data` holds the fit's predictors
+#' @noRd
+check_xgb_data <- function(x, data, outcome) {
+  if (missing(outcome)) {
+    stop(
+      "`outcome` is missing. An XGBoost fit keeps no formula, so name the ",
+      "outcome column of `data`, as in `outcome = \"replicate\"`.",
+      call. = FALSE
+    )
+  }
+  if (!is.character(outcome) || length(outcome) != 1L || is.na(outcome)) {
+    stop("`outcome` must be a single column name.", call. = FALSE)
+  }
+  if (!outcome %in% names(data)) {
+    stop(
+      "`outcome` column `",
+      outcome,
+      "` not found in `data`.",
+      call. = FALSE
+    )
+  }
+  levels <- attr(x, "metadata")$y_levels
+  if (
+    !is.factor(data[[outcome]]) || !identical(levels(data[[outcome]]), levels)
+  ) {
+    stop(
+      "`outcome` column `",
+      outcome,
+      "` must be a factor with the levels the fit was trained on, ",
+      paste0("\"", levels, "\"", collapse = " and "),
+      ", in that order.",
+      call. = FALSE
+    )
+  }
+  absent <- setdiff(xgboost::getinfo(x, "feature_name"), names(data))
+  if (length(absent)) {
+    stop(
+      "`data` lacks the fit's predictor column(s): ",
+      paste(absent, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+}
+
+#' Stop when `x` is an XGBoost fit that is not from xgboost()
+#' @noRd
+check_not_booster <- function(x) {
+  # xgb.train() returns this class alone; xgboost() adds "xgboost" in front
+  if (inherits(x, "xgb.Booster")) {
+    stop(
+      "`x` is an xgb.Booster, as xgb.train() returns. Fit the model with ",
+      "xgboost::xgboost(x = <data frame>, y = <factor>) instead, from ",
+      "xgboost 3.0 or later.",
+      call. = FALSE
+    )
+  }
+}
+
+#' Stop when a method gets arguments it does not take
 #'
 #' A setting passed here would otherwise be dropped without a word, and the
 #' fit's own setting used instead.
@@ -249,10 +405,10 @@ check_dots_empty <- function(...) {
   labels <- ...names() %||% rep("", ...length())
   labels <- ifelse(nzchar(labels), paste0("`", labels, "`"), "an unnamed value")
   stop(
-    "logo_cv() does not take ",
+    "Unused argument(s): ",
     paste(labels, collapse = ", "),
-    ": the settings belong to the fit. Refit the model with other settings, ",
-    "or search a grid of AdaBoost settings with tune_logo_cv().",
+    ". A fit's settings belong to the fit: refit the model with other ",
+    "settings, or put settings to compare in the `grid` of tune_logo_cv().",
     call. = FALSE
   )
 }
