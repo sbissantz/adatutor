@@ -12,12 +12,12 @@
 #' performance on a new project. The rows are in grid order, and which column
 #' to rank by is the modeler's choice (see the examples).
 #'
-#' @format A list of 17 data frames, one per measure of [assess()], from `tp`
+#' @format A list of 17 data frames, one per metric of [assess()], from `tp`
 #'   to `patk`. Each has one row per setting, 2,640 in all, and these columns:
 #' * `depth`: The depth of the tree that is boosted, 1 to 8.
 #' * `n_iter`: The number of boosting rounds, 10 to 3,000.
 #' * `eta`: The learning rate, 0.0025 to 1.
-#' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The measure on that project,
+#' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The metric on that project,
 #'   held out.
 #' * `mean`, `sd`, `min`, `max`: The mean, standard deviation, minimum and
 #'   maximum of the six project columns. They are `NA` if a project is `NA`.
