@@ -56,6 +56,7 @@ Other datasets:
 \code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
+\code{\link{benchmark}},
 \code{\link{hypergrid}},
 \code{\link{mltwo1026}},
 \code{\link{ssrp1026}},
