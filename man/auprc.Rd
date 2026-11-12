@@ -37,10 +37,10 @@ visualizing precision-recall and receiver operating characteristic curves in
 R. \emph{Bioinformatics}, 31(15), 2595-2597.
 }
 \seealso{
-Other performance measures:
+Other performance metrics:
 \code{\link[=assess]{assess()}},
 \code{\link[=auroc]{auroc()}},
 \code{\link[=confusion]{confusion()}},
 \code{\link[=patk]{patk()}}
 }
-\concept{performance measures}
+\concept{performance metrics}

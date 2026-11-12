@@ -50,10 +50,10 @@ patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2), k = c(1, 2))
 
 }
 \seealso{
-Other performance measures:
+Other performance metrics:
 \code{\link[=assess]{assess()}},
 \code{\link[=auprc]{auprc()}},
 \code{\link[=auroc]{auroc()}},
 \code{\link[=confusion]{confusion()}}
 }
-\concept{performance measures}
+\concept{performance metrics}

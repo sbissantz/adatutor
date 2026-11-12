@@ -30,17 +30,17 @@ and \code{fn}. The threshold is stored as an attribute.
 \description{
 Cuts \code{score} at \code{threshold} and counts the four cells of the 2x2 table:
 true positives, true negatives, false positives and false negatives.
-\code{\link[=assess]{assess()}} computes every threshold measure from these counts.
+\code{\link[=assess]{assess()}} computes every threshold metric from these counts.
 }
 \examples{
 confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
 
 }
 \seealso{
-Other performance measures:
+Other performance metrics:
 \code{\link[=assess]{assess()}},
 \code{\link[=auprc]{auprc()}},
 \code{\link[=auroc]{auroc()}},
 \code{\link[=patk]{patk()}}
 }
-\concept{performance measures}
+\concept{performance metrics}

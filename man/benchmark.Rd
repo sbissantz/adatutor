@@ -5,14 +5,14 @@
 \alias{benchmark}
 \title{Benchmark models by leave-one-group-out cross-validation and on HOLZ}
 \format{
-A list of 17 data frames, one per measure of \code{\link[=assess]{assess()}}, from \code{tp}
+A list of 17 data frames, one per metric of \code{\link[=assess]{assess()}}, from \code{tp}
 to \code{patk}. Each has one row per model and these columns:
 \itemize{
 \item \code{model}: The model: \code{"logit"}, \code{"tree"}, \code{"rf"}, \code{"adaboost"} or
 \code{"xgboost"}.
-\item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The measure on that project,
+\item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The metric on that project,
 held out and scored by the model trained on the other five.
-\item \code{holz}: The measure on HOLZ, scored by the model trained on all six
+\item \code{holz}: The metric on HOLZ, scored by the model trained on all six
 tuning projects.
 }
 }
@@ -40,7 +40,7 @@ to 112 before each call that fits it.
 \item \code{adaboost}: The tutorial's ensemble, trees of depth 2 boosted for 2,000
 rounds at a learning rate of 0.02, chosen from \link{hypergrid} by the rule
 below.
-\item \code{xgboost}: Gradient boosting from \code{xgboost::xgb.train()} with the
+\item \code{xgboost}: Gradient boosting from \code{xgboost::xgboost()} with the
 logistic loss, tuned by the rule below over 180 settings: depths 1, 2
 and 4; learning rates 0.1, 0.05 and 0.01; \code{min_child_weight} 1 and 5;
 \code{lambda} 1 and 10; and 50, 100, 200, 500 and 1,000 rounds. The choice is
@@ -53,7 +53,7 @@ stability, the mean across the projects minus their SD. HOLZ takes no part
 in any choice.
 
 Every model is scored on a continuous score: AdaBoost on its margin, the
-others on the predicted probability of success. The measures that need a
+others on the predicted probability of success. The metrics that need a
 threshold cut the margin at 0 and the probabilities at 0.5.
 
 \code{attr(benchmark, "projects")} gives each project's \code{n} and \code{base_rate}.

@@ -19,7 +19,7 @@
 \item{newdata}{A data frame with the predictors the model was trained on.}
 
 \item{type}{\code{"class"} for class labels (-1 or 1), or \code{"margin"} for the
-continuous score. Use \code{"margin"} for ranking measures such as \code{\link[=auroc]{auroc()}}.}
+continuous score. Use \code{"margin"} for ranking metrics such as \code{\link[=auroc]{auroc()}}.}
 
 \item{check_inputs}{Whether to check the inputs. Defaults to \code{TRUE}.}
 

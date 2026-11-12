@@ -5,13 +5,13 @@
 \alias{hypergrid}
 \title{AdaBoost hyperparameter grid by leave-one-group-out cross-validation}
 \format{
-A list of 17 data frames, one per measure of \code{\link[=assess]{assess()}}, from \code{tp}
+A list of 17 data frames, one per metric of \code{\link[=assess]{assess()}}, from \code{tp}
 to \code{patk}. Each has one row per setting, 2,640 in all, and these columns:
 \itemize{
 \item \code{depth}: The depth of the tree that is boosted, 1 to 8.
 \item \code{n_iter}: The number of boosting rounds, 10 to 3,000.
 \item \code{eta}: The learning rate, 0.0025 to 1.
-\item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The measure on that project,
+\item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The metric on that project,
 held out.
 \item \code{mean}, \code{sd}, \code{min}, \code{max}: The mean, standard deviation, minimum and
 maximum of the six project columns. They are \code{NA} if a project is \code{NA}.

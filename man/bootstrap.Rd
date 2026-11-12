@@ -4,7 +4,7 @@
 \alias{bootstrap}
 \alias{bootstrap.default}
 \alias{bootstrap.logo_cv}
-\title{Bootstrap confidence intervals for performance measures}
+\title{Bootstrap confidence intervals for performance metrics}
 \usage{
 bootstrap(x, ...)
 
@@ -53,7 +53,7 @@ and 0.5 for probabilities. The \code{logo_cv} method picks it from the model.}
 \code{grid} to bootstrap.}
 }
 \value{
-The default method returns a data frame with one row per measure
+The default method returns a data frame with one row per metric
 and the columns \code{metric}, \code{estimate} (from the observed data), \code{lower},
 \code{upper} and \code{drop}. Attributes record the settings and keep the draws.
 
@@ -62,7 +62,7 @@ frame per project in \code{x$ci}.
 }
 \description{
 Resamples the test cases and scores each resample with \code{\link[=assess]{assess()}}, so
-every measure gets an interval from the same draws. The model stays fixed:
+every metric gets an interval from the same draws. The model stays fixed:
 the interval shows how much an estimate would move if the project had
 drawn different study effects.
 }

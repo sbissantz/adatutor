@@ -35,13 +35,13 @@ positives. Budgets you pass are named by their value, e.g. \code{patk_10}.}
 }
 \value{
 A named numeric vector of class \code{assessment}. By default it has 17
-measures, in the order listed above; the \code{confusion} method returns the
+metrics, in the order listed above; the \code{confusion} method returns the
 first 12. \code{print()} shows them grouped by cut and rounds only the
 display.
 }
 \description{
-Computes performance measures from true labels and continuous scores. Most
-measures come from one confusion matrix, made by cutting the scores at
+Computes performance metrics from true labels and continuous scores. Most
+metrics come from one confusion matrix, made by cutting the scores at
 \code{threshold}. The rest (\code{auroc}, \code{auprc} and the \code{patk} family) use the
 whole ranking of the scores, so a confusion matrix cannot give them.
 }
@@ -52,7 +52,7 @@ curve shrinks to a single point and \code{auroc} quietly becomes balanced
 accuracy. With \code{\link[=predict.adaboost]{predict.adaboost()}}, use \code{type = "margin"}.
 }
 
-\section{Measures}{
+\section{Metrics}{
 
 At the threshold, from the counts \code{tp}, \code{tn}, \code{fp} and \code{fn}:
 \itemize{
@@ -95,7 +95,7 @@ not 0.5. \code{auroc} and \code{bacc} ignore the base rate; \code{ppv} and \code
 
 \section{Missing values}{
 
-A measure is \code{NA} when the data cannot support it. That happens to \code{auroc}
+A metric is \code{NA} when the data cannot support it. That happens to \code{auroc}
 and \code{auprc} when only one class is present, to \code{ppv} when nothing is
 predicted positive, to \code{npv} when nothing is predicted negative, and to
 \code{patk} when \code{k} is larger than the number of positives. \code{f1} is 0 when
@@ -129,7 +129,7 @@ assess(test$replicate, margin)
 # fewer decimals; the stored values stay exact
 print(assess(test$replicate, margin), digits = 2)
 
-# the same measures from a confusion matrix, without the ranking ones
+# the same metrics from a confusion matrix, without the ranking ones
 cm <- confusion(test$replicate, margin)
 assess(cm)
 
@@ -155,10 +155,10 @@ common language effect size statistics of McGraw and Wong. \emph{Journal of
 Educational and Behavioral Statistics}, 25(2), 101-132.
 }
 \seealso{
-Other performance measures:
+Other performance metrics:
 \code{\link[=auprc]{auprc()}},
 \code{\link[=auroc]{auroc()}},
 \code{\link[=confusion]{confusion()}},
 \code{\link[=patk]{patk()}}
 }
-\concept{performance measures}
+\concept{performance metrics}

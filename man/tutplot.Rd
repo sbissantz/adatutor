@@ -165,7 +165,7 @@ not standard errors.}
 \item{n_resample}{The number of resamples per project, when \code{bootstrap}
 has to resample. Defaults to 1000.}
 
-\item{metric}{The measure to draw. Defaults to \code{"auroc"}.}
+\item{metric}{The performance metric to draw. Defaults to \code{"auroc"}.}
 
 \item{bands}{The interval widths, widest last. Defaults to 0.50, 0.80 and
 0.95.}
