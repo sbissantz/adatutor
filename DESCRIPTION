@@ -33,7 +33,7 @@ Suggests:
     remotes,
     rsample,
     testthat (>= 3.0.0),
-    xgboost
+    xgboost (>= 3.0.0)
 VignetteBuilder: quarto
 Config/testthat/edition: 3
 URL: https://sbissantz.github.io/adatutor/
