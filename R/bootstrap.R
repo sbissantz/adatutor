@@ -152,7 +152,7 @@ bootstrap.default <- function(
       next
     }
     kept <- kept + 1L
-    # one assess() call per draw keeps the intervals of all measures coherent;
+    # one assess() call per draw keeps the intervals of all metrics coherent;
     # the scale check already ran on the observed data, so mute it per draw
     draws[kept, ] <- withCallingHandlers(
       assess(y[rows], score[rows], threshold = threshold, k = k),
