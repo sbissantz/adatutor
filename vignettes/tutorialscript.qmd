@@ -1528,7 +1528,6 @@ The two designs answer different questions. Random folds hold out study effects 
 # Module 7: Hyperparameter Optimization
 
 ::: {.callout-note title="Check in tutorial"}
-- The submitted intro of "Hyperparameter Optimization" (the strategies, @bischl2023, the grid as the simplest) stays with light edits and is followed by the box below; its promise that "the method can be easily adapted to do a random grid search" is now kept by the Random Search listing.
 - Module 2's definition of hyperparameters ("external parameters set by the user", tex l. 964): add R2.C7's sentence that hyperparameters can also be chosen from the data, with a forward reference to Module 7.
 - "A Fourth Look at Performance" is rewritten (box below). The winner of the 18-setting grid changed: submitted, Model 1 (a stump, 10 trees, learning rate 1) by the average "AUC", which was a balanced accuracy on five projects; now a stump with 1,000 rounds at a rate of 0.1 by `lower`, the mean minus the SD, on six projects. AR.R1.C1 says so, because the reviewer quotes the submitted winner.
 - "Finalizing an Ensemble" with Listing 35, and "A Fifth Look at Performance" (savant models, stacking, @boehmke2019) move to Module 8.
@@ -1536,7 +1535,6 @@ The two designs answer different questions. Random folds hold out study effects 
 - The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_logo_cv()`), and the by-hand versions are the box after it.
 - The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the summary columns `mean`, `sd` and `lower`, the package listing with `tune_logo_cv()`, the by-hand box, the random-search listing, and the `hypergrid` listing.
 - `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script, one `tune_logo_cv()` call with `cores = 4` (about 22 minutes).
-- The letter says how the shipped grid came to be: the search first ran to depth 8. After that run was seen, the grid was cut to depths 1 to 4, because the tutorial teaches shallow trees. The tree and XGBoost benchmarks of Module 8 were then picked again by the highest `lower`. XGBoost's pick moved because of the rule. The tree's pick moved because its search was cut to depths 1 to 4 as well: over depths 1 to 8, the rule still picks depth 5. The old picks had HOLZ scores on record before the re-pick (tree 0.717, XGBoost 0.789; now 0.711 and 0.744), and the re-pick used the six tuning projects only.
 - The by-hand box after Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) is drafted as a box: decide at port whether the paper prints it or points to the online script.
 - The Module 7 handoff sentence is in the package listing's box, in the template wording of the Module 3 box.
 - Module 8's Listing 35 reads `ada_best` (`depth`, `n_iter`, `eta`) from the `hypergrid` listing.
@@ -1944,9 +1942,9 @@ bootstrap(ada_holz, n_resample = 1000)
 ::: {.callout-note title="Add to tutorial"}
 An AUROC of 0.77 says little on its own. It might reflect AdaBoost, or it might reflect what any model can get out of four reviewer metrics. Benchmarks tell the two apart: other models, trained on the same data and scored the same way. We compare AdaBoost with four other models. Logistic regression is the usual first model for a binary outcome. A single classification tree is the weak learner of AdaBoost, grown deeper. A random forest averages many deep trees [@breiman2001; @liaw2002]. Each tree grows on a bootstrap sample of the data and tries a random subset of the predictors at each split. XGBoost is a widely used library for gradient boosting [@chen2016].
 
-Each benchmark gets the treatment AdaBoost got, as far as it applies. The logistic regression has nothing to tune (note: you might consider using product terms between predictior or interactions, but we got little out of it). We choose the tree's depth from 1 to 4 by the rule of Module 7, on the same six folds, and the rule picks depth 4. The forest runs at its defaults, 500 trees with two predictors tried per split. We did not tune it, because its pick moved with its randomness: another seed chose another setting. We tune XGBoost by the rule of Module 7, on a grid of its own hyperparameters. All five models are trained on the same six projects and scored once on HOLZ. Each is scored on a continuous score, AdaBoost on its margin and the others on their predicted probability of success. The AUROC is rank-based, so margins and probabilities compare directly. The package ships the results as the dataset `benchmark`, with all 17 performance metrics of `assess()`. Listing [NEW] loads it, and `data-raw/benchmark.R` holds the code that built it.
+Each benchmark gets the treatment AdaBoost got, as far as it applies. The logistic regression has nothing to tune (note: you might consider using product terms between predictior or interactions, but we got little out of it). We choose the tree's depth from 1 to 4 by the rule of Module 7, on the same six folds, and the rule picks depth 4. The forest runs at its defaults, 500 trees with two predictors tried per split. We did not tune it, because its pick moved with its randomness: another seed chose another setting. We tune XGBoost on a grid of its own hyperparameters, with a rule of its own: the best worst project, ties broken by `lower`. All five models are trained on the same six projects and scored once on HOLZ. Each is scored on a continuous score, AdaBoost on its margin and the others on their predicted probability of success. The AUROC is rank-based, so margins and probabilities compare directly. The package ships the results as the dataset `benchmark`, with all 17 performance metrics of `assess()`. Listing [NEW] loads it, and `data-raw/benchmark.R` holds the code that built it.
 
-On HOLZ, AdaBoost (0.77) is on par with the forest (0.76) and XGBoost (0.74), and ahead of the logistic regression and the tree (both 0.71). None of these differences is firm: all four scores lie well inside AdaBoost's own 95 percent interval on HOLZ, 0.54 to 0.94. On the six tuning projects, no model leads everywhere.
+On HOLZ, AdaBoost (0.77) is on par with the forest (0.76) and XGBoost (0.79), and ahead of the logistic regression and the tree (both 0.71). None of these differences is firm: all four scores lie well inside AdaBoost's own 95 percent interval on HOLZ, 0.54 to 0.94. On the six tuning projects, no model leads everywhere.
 
 :::
 
@@ -2013,6 +2011,14 @@ Our nested run differs from the main thread in two ways. First, it searches the 
 :::
 
 ## Nested LOGO-CV
+
+If projects are sparse (what they are).
+
+A held-out project as we did and nested cross-validation are two answers to the same problem. The first costs a project and grades your one model. The second uses every project and grades the procedure. 
+
+"Nested LOGO-CV estimates the generalization performance (or error) of the underlying *procedure* which includes the model and the hyperparameter search."
+Cawley and Talbot? Cawley, G.C.; Talbot, N.L.C. On over-fitting in model selection and subsequent selection bias in performance evaluation. J. Mach. Learn. Res 2010,11, 2079-2107. 
+
 
 ::: {.callout-note title="Add to tutorial"}
 Nested LOGO-CV runs the whole of Module 7 seven times, once with each project removed. With a project set aside, the grid search of Listing 34 runs on the other six, picks a winner, the winner is refit on those six, and the set-aside project is scored once. Seven numbers come out, each from a model whose setting was chosen without the project it is scored on. That is what the final test on HOLZ did once; nesting does it for every project, so no project is spent on the test alone.
@@ -2246,7 +2252,7 @@ identical(do.call(rbind, winners_diy_full), do.call(rbind, winners_diy))
 
 The cross-validation part goes pretty far, but the finess of the algorithm is limited. But nothing holds more advanced reader to explore the worflow in a diy fashion or use, xgb with our package.
 
-**XGBoost by the same workflow.** XGBoost has `logo_cv()` and `tune_logo_cv()` methods as well, so this box runs the search of the tree's box in Module 8 on a grid of XGBoost's own. The grid crosses depths 1, 2 and 4, learning rates 0.1, 0.05 and 0.01, `min_child_weight` 1 and 5, `lambda` 1 and 10, and 50, 100, 200, 500 and 1,000 rounds. That makes 180 settings. The fit from `xgboost::xgboost()` is the recipe. It keeps no formula, so `outcome` names the outcome column. As for AdaBoost, the settings that differ only in their rounds share one fit per fold, and the shorter fits are read off it. The rule of Module 7, the highest `lower`, picks depth 1, 50 rounds, a learning rate of 0.1, `min_child_weight` 5 and `lambda` 1. `xgboost::xgboost()` then refits the pick on the six tuning projects, and `logo_cv()` with `holdout = "holz"` scores it once on HOLZ. The box needs the xgboost package. It runs in about 20 seconds, and its result matches the last row of `benchmark$auroc`.
+**XGBoost by the same workflow.** XGBoost has `logo_cv()` and `tune_logo_cv()` methods as well, so this box runs the search of the tree's box in Module 8 on a grid of XGBoost's own. The grid crosses depths 1, 2 and 4, learning rates 0.1, 0.05 and 0.01, `min_child_weight` 1 and 5, `lambda` 1 and 10, and 50, 100, 200, 500 and 1,000 rounds. That makes 180 settings. The fit from `xgboost::xgboost()` is the recipe. It keeps no formula, so `outcome` names the outcome column. As for AdaBoost, the settings that differ only in their rounds share one fit per fold, and the shorter fits are read off it. XGBoost has a rule of its own, not the highest `lower` of Module 7: the best worst project, with ties broken by `lower`. It picks depth 4, 200 rounds, a learning rate of 0.05, `min_child_weight` 5 and `lambda` 10. `xgboost::xgboost()` then refits the pick on the six tuning projects, and `logo_cv()` with `holdout = "holz"` scores it once on HOLZ. The box needs the xgboost package. It runs in about 20 seconds, and its result matches the last row of `benchmark$auroc`.
 
 ```{r benchmark-xgb}
 # Four hyperparameters crossed with five numbers of rounds
@@ -2274,7 +2280,7 @@ xgb_tune <- tune_logo_cv(
 xgb_best <- summary(
   xgb_tune,
   "auroc",
-  sort_by = "lower"
+  sort_by = c("min", "lower")
 )[1, ]
 xgb_best |> round(2)
 
@@ -2365,7 +2371,7 @@ The adatutor package is built for teaching: its functions show the mechanics and
 
 Why AdaBoost, then? No algorithm wins on every problem [@wolpert1997]. With the small samples and noisy predictors of psychology, simpler models often match more flexible ones [@speck2026]. The aim of this tutorial was to learn one algorithm from the inside, on a real and hard problem, not to win a benchmark. AdaBoost serves that aim. It is simple enough to build by hand, and it holds its own against the alternatives.
 
-XGBoost is the next place to go. It boosts trees by gradient steps, as the Conclusion explains, and it adds two regularizers that AdaBoost lacks. `min_child_weight` blocks a split that would leave a leaf with too little data. `lambda` shrinks the leaf values toward zero, an L2 penalty. On the six tuning projects, XGBoost reaches a higher `lower`: the best of its 180 settings has 0.71, the best of AdaBoost's 1,320 has 0.67. The first regularizer seems to matter: the ten XGBoost settings with the highest `lower` all set `min_child_weight` to 5. The second shows no clear pattern: seven of the ten set `lambda` to 10, but the pick sets it to 1. The higher `lower`, not the score on HOLZ, is the reason to move on; on HOLZ, XGBoost scores below AdaBoost (0.74 against 0.77). The same search runs in [tidymodels](https://www.tidymodels.org), the framework the rsample package of Module 1 belongs to. The comparison is not fully even, though: XGBoost was tuned over five hyperparameters, AdaBoost over three.
+XGBoost is the next place to go. It boosts trees by gradient steps, as the Conclusion explains, and it adds two regularizers that AdaBoost lacks. `min_child_weight` blocks a split that would leave a leaf with too little data. `lambda` shrinks the leaf values toward zero, an L2 penalty. On the six tuning projects, XGBoost has the higher floor, the score on the hardest projects. By the highest `lower`, the best of its 180 settings beats the best of AdaBoost's 1,320 (0.71 against 0.67). By the best worst project, its grid beats AdaBoost's as well (0.71 against 0.68). The first regularizer seems to matter: the ten XGBoost settings with the highest `lower`, and the ten with the best worst project, all set `min_child_weight` to 5. The second shows no clear pattern: at `lambda` 1 and at 10, the best `lower` and the best worst project differ by less than 0.01. The higher floor, not the score on HOLZ, is the reason to move on. The same search runs in [tidymodels](https://www.tidymodels.org), the framework the rsample package of Module 1 belongs to. The comparison is not fully even, though: XGBoost was tuned over five hyperparameters, AdaBoost over three.
 
 Note: Min child weight in xgb can be emulated with minbucket (round(minsplit / 3) about 7)
 minsplit: minimum number of observations that must exist in a parent node before `rpart` we attempt a split
