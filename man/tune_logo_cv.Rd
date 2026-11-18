@@ -106,9 +106,9 @@ column, holding every group.}
 \item{holdout}{The levels of \code{group} to hold out, one fold each. Defaults
 to \code{NULL}, which holds out every level once.}
 
-\item{nested}{Whether to nest the search, for an \code{\link[=adaboost]{adaboost()}} fit only.
-The default, \code{FALSE}, scores every row of \code{grid} on every fold. \code{TRUE}
-needs two or more rows and at least three groups.}
+\item{nested}{Whether to nest the search, which is currently only supported
+with \code{\link[=adaboost]{adaboost()}}. The default, \code{FALSE}, scores every row of \code{grid} on
+every fold. \code{TRUE} needs two or more rows and at least three groups.}
 
 \item{criterion}{The metric the inner search maximizes when
 \code{nested = TRUE}. Defaults to \code{"auroc"}. Fix it in advance: it decides
@@ -176,8 +176,8 @@ on the other groups picks the row with the highest mean \code{criterion}, and
 only that row is scored on the held-out group. The result estimates the
 procedure "search the grid, then fit the winner", not any one setting. It
 is slightly pessimistic, because each model trains on one group fewer.
-Expect the outer folds to choose different settings. Nesting is for
-\code{\link[=adaboost]{adaboost()}} fits only.
+Expect the outer folds to choose different settings. Nesting is currently
+only supported with \code{\link[=adaboost]{adaboost()}}.
 }
 
 \section{Random forests}{
@@ -196,10 +196,11 @@ even for the fit's own setting.
 Rows of \code{grid} that differ only in \code{n_iter} share one fit per fold. The
 model is boosted once, to the largest \code{n_iter} among them, and each row is
 scored after its own number of rounds: AdaBoost on the margin, XGBoost on
-the probability. The first rounds of a
-longer run are the shorter run, so the result equals refitting each row. A
-grid of many round counts therefore costs about as much as its largest one;
-each value of \code{depth}, \code{eta} or an rpart control costs a fit of its own.
+the probability. The first rounds of a longer run are the shorter run, so
+the result equals refitting each row. A grid of many round counts therefore
+costs about as much as its largest one. Each distinct combination of the
+other columns costs one fit per fold, and so does every row of a tree or a
+forest.
 }
 
 \examples{
@@ -219,16 +220,24 @@ res <- tune_logo_cv(
   data = altmejd,
   group = "pid"
 )
-# the settings, ranked by their worst project, ties broken by stability
-summary(res, sort_by = c("min", "stable"))
+# the settings, ranked by the mean across the projects minus their SD
+summary(res, sort_by = "lower")
 
 # nested: each held-out project takes no part in the choice
 grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
 tune_logo_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
 
+# a classification tree: the depth varies
+tree <- rpart::rpart(
+  replicate ~ power.o + effect_size.o + n.o + p_value.o,
+  data = altmejd,
+  method = "class"
+)
+tune_logo_cv(tree, data.frame(depth = c(1, 3, 5)), data = altmejd, group = "pid")
+
 }
 \seealso{
-\link{hypergrid}, a grid of 2,640 settings already scored on the six
+\link{hypergrid}, a grid of 1,320 settings already scored on the six
 tuning projects of \link{altmext}.
 
 Other cross-validation:

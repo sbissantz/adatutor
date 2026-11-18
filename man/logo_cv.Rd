@@ -76,8 +76,8 @@ and a base rate.
 \details{
 Pass a fitted model. \code{logo_cv()} reads the recipe off the fit and refits it
 once per group. The fit's own data are not used, because cross-validation
-evaluates the procedure, not one fitted model. To compare AdaBoost settings,
-pass the fit and a grid to \code{\link[=tune_logo_cv]{tune_logo_cv()}}.
+evaluates the procedure, not one fitted model. To compare settings of a
+model, pass its fit and a grid to \code{\link[=tune_logo_cv]{tune_logo_cv()}}.
 }
 \section{What each method reads off the fit}{
 
@@ -105,10 +105,11 @@ with \code{nthreads = 1}: each refit runs on as many threads as the fit, and
 
 Every model is scored on a continuous score, never on class labels.
 
-The call runs where its formula was made, so any other object it names,
-such as \code{weights = w}, must still exist there. A
-variable named as a column of \code{data}, such as \code{weights = n.o}, travels with
-the rows. A random forest draws at random: set a seed to repeat a result.
+For a tree, a glm or a forest, the call runs where its formula was made,
+so any other object it names, such as \code{weights = w}, must still exist
+there. A variable named as a column of \code{data}, such as \code{weights = n.o},
+travels with the rows. A random forest draws at random: set a seed to
+repeat a result.
 }
 
 \section{Holding out some groups only}{

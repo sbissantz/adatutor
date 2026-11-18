@@ -34,8 +34,8 @@
 or \code{NULL}, the default, to keep the grid order. Rows go highest first on
 every column, and later columns break ties in earlier ones. Rows that tie
 on all of them keep their grid order, and rows with \code{NA} go last. For
-example, \code{c("min", "stable")} puts first the setting whose worst project
-scores highest.}
+example, \code{"lower"} puts first the setting with the highest mean minus
+SD.}
 
 \item{levels}{The band widths, widest last. Defaults to 0.50, 0.80 and
 0.95.}
@@ -53,25 +53,28 @@ of draws get a star and a footnote. Defaults to 0.05.}
 \code{as.data.frame()} return data frames.
 }
 \description{
-\code{print()} shows the per-project estimates of one metric, \code{summary()}
-returns their mean, SD, minimum and maximum per setting, and
-\code{as.data.frame()} flattens all estimates into one long table. \code{plot()}
-draws the estimates per project, with bands when \code{x} carries intervals from
-\code{\link[=bootstrap]{bootstrap()}}.
+\code{print()} shows the per-project estimates of one metric. \code{summary()}
+returns one row per setting: the \code{mean}, \code{sd}, \code{min} and \code{max} of the
+setting's estimates across the projects, and right after \code{sd} the column
+\code{lower}, the mean minus the SD, which is the lower end of the band of one
+SD around the mean. These columns rank settings; they are not estimates of
+performance on a new project. \code{as.data.frame()} flattens all estimates
+into one long table.
+\code{plot()} draws the estimates per project, with bands when \code{x} carries
+intervals from \code{\link[=bootstrap]{bootstrap()}}.
 }
 \details{
 \code{print()} lists each project's size and base rate once, then one row per
 setting: the setting's hyperparameters and its estimate on each project.
 Above 20 settings, it shows the first 10. A nested result shows one row
-per outer fold instead, with the setting that fold selected.
+per outer fold instead, with the setting that fold selected. A result from
+\code{\link[=bootstrap]{bootstrap()}} also shows each project's interval and its number of dropped
+draws.
 
-\code{summary()} returns one row per setting, in grid order unless \code{sort_by}
-sorts them: the hyperparameters, then the \code{mean}, \code{sd}, \code{min} and \code{max} of
-the setting's estimates across the projects, and \code{stable}, the mean minus
-the SD. These columns rank settings; they are not estimates of performance
-on a new project, and \code{sd} is not a standard error. A statistic is \code{NA} if
-a project is \code{NA}. The row names are the settings' row numbers in the grid.
-A nested result gives one row, over the outer folds.
+\code{summary()} keeps the grid order unless \code{sort_by} sorts the rows, and puts
+the hyperparameters first. \code{sd} is not a standard error. A statistic is
+\code{NA} if a project is \code{NA}. The row names are the settings' row numbers in
+the grid. A nested result gives one row, over the outer folds.
 }
 \seealso{
 Other cross-validation:
