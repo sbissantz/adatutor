@@ -139,7 +139,7 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
     )
   }
 
-  # cut once; the confusion method does every measure a matrix supports
+  # cut once; the confusion method does every metric a matrix supports
   cm <- confusion(y, score, threshold)
 
   # two small fixed budgets, then R-precision, which keeps the name `patk`
@@ -163,7 +163,7 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
 #' @rdname assess
 #' @export
 assess.confusion <- function(x, ...) {
-  # one function per measure, so each formula is written once
+  # one function per metric, so each formula is written once
   measures <- c(
     tp = x[["tp"]],
     tn = x[["tn"]],
@@ -385,7 +385,7 @@ print.confusion <- function(x, ...) {
 
 #' Divide, returning NA for a zero denominator
 #'
-#' `NA`, not `NaN`: the measure has no value for this data, rather than a
+#' `NA`, not `NaN`: the metric has no value for this data, rather than a
 #' failed calculation. logo_cv() stores such cells as undefined.
 #'
 #' @noRd
@@ -528,10 +528,10 @@ patk <- function(actual, score, k = NULL) {
   precision
 }
 
-#' Measures from a confusion matrix
+#' Metrics from a confusion matrix
 #'
 #' Each takes the counts from confusion() and returns one number; the formulas
-#' are listed in ?assess. They take the table, not raw data, so every measure
+#' are listed in ?assess. They take the table, not raw data, so every metric
 #' in a report shares one cutoff. Not exported: assess(cm) returns them all.
 #'
 #' @noRd
