@@ -283,7 +283,7 @@ mapply(identical, strat_diy, strat_split)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-For applied work, we recommend `partition()` or the `rsample` package (Listing 10) over the code of Listings 4 to 8. `partition()` checks its inputs and avoids a pitfall of `sample()`: `sample(x, k)` reads a single number `x` as `1:x`. Listings 4 and 5 sample row positions, so with one row left they would draw a row that does not exist. (Listings 7 and 8 sample the character ids in `eid`, which are safe.) `partition()` draws positions with `sample.int()`, which has no such special case.
+For applied work, we recommend `partition()` over the code of Listings 4 to 8. `partition()` checks its inputs and avoids a pitfall of `sample()`: `sample(x, k)` reads a single number `x` as `1:x`. Listings 4 and 5 sample row positions, so with one row left they would draw a row that does not exist. (Listings 7 and 8 sample the character ids in `eid`, which are safe.) `partition()` draws positions with `sample.int()`, which has no such special case.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -291,42 +291,6 @@ For applied work, we recommend `partition()` or the `rsample` package (Listing 1
 - The stratified split is now 70/15/15, with a check against Listing 8.
 :::
 
-#### Listing 10
-
-Code to do a 70/30 simple random split and a 70/15/15 stratified split with the `rsample` package.
-
-```{r listing-10}
-# Install once: install.packages("rsample")
-
-# Simple random split (two way)
-set.seed(112)
-rand_split_pkg <- rsample::initial_split(df, prop = 0.7)
-train_pkg <- rsample::training(rand_split_pkg)
-test_pkg <- rsample::testing(rand_split_pkg)
-
-# Stratified split (three way)
-set.seed(112)
-strat_split_pkg <- rsample::initial_validation_split(
-  df,
-  prop = c(0.7, 0.15),
-  strata = "replicate"
-)
-
-# Training, validation, and test sets
-train_pkg <- rsample::training(strat_split_pkg)
-valid_pkg <- rsample::validation(strat_split_pkg)
-test_pkg <- rsample::testing(strat_split_pkg)
-```
-
-::: {.callout-note title="Add to tutorial"}
-The adatutor package is built for teaching: its functions show the mechanics and stay small, even though `partition()` is fast. For applied work, a full machine-learning infrastructure such as tidymodels [@tidymodels] is the better home. It offers cross-validation, bootstraps, and nested resampling through `rsample` [@rsample], many more models through `parsnip`, and tuning workflows around them. The move is short, because adatutor follows the same conventions: `initial_split()` takes the same `prop` and `strata` arguments as `partition()`, models are fitted with a formula and a data frame, and predictions come from `predict()` with a `type` argument.
-:::
-
-::: {.callout-important title="Changed since submission"}
-- `rsample::` calls instead of `library(rsample)`, with an install line.
-- The stratified split is now 70/15/15, with `initial_validation_split()`, as in Listing 9; each split re-seeded.
-- Object names `rand_split_pkg`, `strat_split_pkg`, `train_pkg`, `valid_pkg`, `test_pkg` instead of `randsplit`, `stratsplit`, `train`, `testvalid`.
-:::
 
 #### Figure 1 
 
@@ -618,6 +582,17 @@ tutplot_cstump(cstump_ast, extra = 100)
 - Drawn by `tutplot_cstump()`; splits on `power.o` at 0.921 (submitted: on `p_value.o`, from the four-predictor stump).
 :::
 
+##### TODO: Moving beyond classification stump Add trees 
+A stump splits the data once. A deeper classification tree repeats this step: it splits each of the two groups again, by the same rule, using only the study effects in that group. A tree of depth 2 thus asks up to two questions in a row and ends in up to four leaves. A tree of depth 3 asks up to three. In rpart(), the argument maxdepth sets how often the tree may split in a row. We continue with stumps, the classic weak learner for AdaBoost, (easier to understand and implement) but challenge this assumption, returning to tree depth as a hyperparameter in Module 7.
+(1) Add a code with maxdepth 2
+(2) Add code for plot 
+(3) Add a tutplot?
+Note: Add a tutplot? with the tree and show the code?
+
+You can apply all these principles to a node two grow deeper trees. Just ask a secon question, such as "among those study effects with a power below 0.927, which ones have a sample size below 50?"
+
+Note what happens: the variables (power.o) and (n.o) start to interact. So you move from a main effect to an interaction effect. Or this is how stumpts grow to trees and from a modeling perspective we transition from main to interactions effects and the resons why trees allow to model such interactions. (Kumar et al.,  p.)
+
 # Module 3: AdaBoost
 
 #### Listing 17
@@ -853,7 +828,7 @@ Code to fit the same ensemble with the adatutor package.
 
 ```{r listing-24-pkg}
 # The same stump, fitted without weights: adaboost() sets its own
-cstump_fit <- rpart::rpart(
+ada_fit <- rpart::rpart(
   replicate ~ .,
   data = train[, voi_nms],
   method = "class",
@@ -861,10 +836,8 @@ cstump_fit <- rpart::rpart(
   parms = list(split = "gini"),
   # Keep the training data: adaboost() refits the stump from it
   model = TRUE
-)
-
-# Boost it
-ada_fit <- cstump_fit |> adaboost(n_iter = n_tree, eta = eta)
+) |> # Boost it
+  adaboost(n_iter = n_tree, eta = eta)
 
 # Verification: the model weights agree, round by round
 identical(sapply(ada_diy, "[[", "alpha"), sapply(ada_fit, "[[", "alpha"))
@@ -894,7 +867,7 @@ The whole module is new (R1.C6). The "Add to tutorial" boxes hold the prose, the
 
 ::: {.callout-note title="Add to tutorial"}
 In the Introduction, we set out to turn AdaBoost into a "glass box" tool for applied work. So far, this meant taking the algorithm apart, inspecting its nuts and bolts, and rebuilding it in code. Now we put this knowledge to work and inspect the fitted ensemble, asking which predictors does the model rely on as it learns? This is the question of feature importance, part of the wider field of interpretable machine learning. Because this tutorial is about AdaBoost, we only scratch the surface and develop one model-specific measure for boosted stumps. Model-agnostic methods, such as permutation importance and effect plots, go much further. Readers who want to learn more can start with @molnar2025 or @pargent2023.
-**TODO** tidy models book julia sige?
+**TODO**: We actually have an attention measure, right?
 
 Most importance measures for tree ensembles build on two quantities: how often a predictor is used to split (split frequency) and how much its splits reduce impurity (gain). For stumps, we build on the first and weight each split by the stump's model weight. The result is a *relative importance* score: each predictor's share, in percent, of the model weight of all stumps that split. Two facts from earlier modules make this work. In Module 2, we showed that a stump splits at most once, with one yes/no question about one predictor. In Module 3, we derived each stump's model weight $\alpha_t$, which grows with its performance on the weighted data. To get the importance score, we simply group the stumps by the predictor they split on and sum their model weights. Why does this make sense? AdaBoost shifts weight toward the study effects the ensemble still gets wrong, so each new stump works on the ensemble's largest mistakes. A predictor that many stumps choose, particularly stumps with large model weights, is one the ensemble relies on again and again for its corrections. Thus, the summed weight shows how much the ensemble relies on each predictor, relative to the others. Listing [NEW] puts this into code.
 :::
@@ -1102,7 +1075,7 @@ identical(retro_mgn_diy, y_retro_mgn)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-Both match, the class labels and the margins, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 25. Note the message both calls printed. `predict()` noticed that the data it scored are the data the ensemble was trained on, and says so: the outputs are retrodictions, not predictions. Keep the margin in mind for Module 6: a class label can only be right or wrong, while the margin carries the ranking that measures like the area under the receiver operating characteristic (ROC) curve need.
+Both match, the class labels and the margins, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 25. Note the message both calls printed. `predict()` noticed that the data it scored are the data the ensemble was trained on, and says so: the outputs are retrodictions, not predictions. Keep the margin in mind for Module 6: a class label can only be right or wrong, while the margin carries the ranking that performance metrics like the area under the receiver operating characteristic (ROC) curve need.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -1115,7 +1088,12 @@ The decision boundary of 1,000 boosted classification stumps: the stump of Figur
 
 ```{r figure-10}
 # The two-predictor stump of Figure 3, boosted as in Listing 24
-ada_two <- cstump |> adaboost(n_iter = n_tree, eta = eta, verbose = FALSE)
+ada_two <- cstump |>
+  adaboost(
+    n_iter = n_tree,
+    eta = eta,
+    verbose = FALSE
+  )
 
 # The same call as Figure 3, with the ensemble in place of the stump
 tutplot_boundary(
@@ -1167,10 +1145,18 @@ Code to generate the same predictions with the adatutor package, as class labels
 
 ```{r listing-28-pkg}
 # Predictions from the full model: class labels, the vote's sign
-y_pred_cls <- predict(ada_fit, newdata = test[, pred_nms], type = "class")
+y_pred_cls <- predict(
+  ada_fit,
+  newdata = test[, pred_nms],
+  type = "class"
+)
 
 # The margin; Module 6 scores both
-y_pred_mgn <- predict(ada_fit, newdata = test[, pred_nms], type = "margin")
+y_pred_mgn <- predict(
+  ada_fit,
+  newdata = test[, pred_nms],
+  type = "margin"
+)
 
 # Verification
 identical(y_pred_diy, y_pred_cls)
@@ -1188,18 +1174,19 @@ The two match again, for the class labels and for the margins. From here on, the
 # Module 6: Evaluating an Ensemble
 
 ::: {.callout-note title="Check in tutorial"}
-Module 6 opens with the evaluation part of the submitted Module 3, as the findings proposed: "A First Look at Performance" with Listing 27, the overfitting paragraph with its footnote, and the second paragraph of "A Second Look" with Listing 29. Then come the measures (the submitted "Evaluating Model Performance" without "Two Wrapper Functions"), LOGO-CV, and the bootstrap per project. From here on the tutorial says leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups; Module 1's motivation and the Conclusion take the same term at port, and the letter notes the rename. Number the new listings and the figure at port.
+Module 6 opens with the evaluation part of the submitted Module 3, as the findings proposed: "A First Look at Performance" with Listing 27, the overfitting paragraph with its footnote, and the second paragraph of "A Second Look" with Listing 29. Then come the performance metrics (the submitted "Evaluating Model Performance" without "Two Wrapper Functions"), LOGO-CV, and the bootstrap per project. From here on the tutorial says leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups; Module 1's motivation and the Conclusion take the same term at port, and the letter notes the rename. Number the new listings and the figure at port.
 
 - "A First Look": the error 0.252 → 0.270 and the performance 0.748 → 0.730 (also in Module 3's box); "At the beginning of Module 3" stays right. The retrodictive matrix quotes no counts; they are 74 and 67 on the diagonal.
 - Overfitting footnote: "In Module 4, we show an alternative" now points at this module, so the forward reference can go.
 - "A Second Look", second paragraph: "We will return to this point in the next module" → this module. The predictive matrix on the 31 test study effects: 11 and 8 right, 5 and 7 wrong; accuracy 0.613 if quoted.
 - Exercise 3.3 (confusion matrices under changing hyperparameters, then the validation set) goes with Module 6 or 7; decide at port, and renumber. Its listing range (lst:loop to lst:confusionpred) now spans Modules 3, 5 and 6. Exercise 4.1 explores `trainAda()` and `testAda()`, which are gone: rewrite or drop at the exercises pass.
-- The Module 4 intro of the tex: "the `AUC` package" → PRROC [@grau2015]; "accuracy and the area under the receiver operation" → the measures of Listing 31.
+- The Module 4 intro of the tex: "the `AUC` package" → PRROC [@grau2015]; "accuracy and the area under the receiver operation" → the performance metrics of Listing 31.
 - "Evaluating Model Performance": the two submitted paragraphs on accuracy and the AUC are replaced by the box below; their numbers (ACC 0.696, AUC 0.685, average base rate 0.53) go with them, and so does the "solid starting point" sentence with its two citations. The footnote on Chicco & Jurman stays; add Li (2024) if the bib gets it.
 - Module 1 (the LPO-CV motivation): "On average, these estimates give an indication of how we might expect the model to perform in a new replication project" holds for a fixed model only, and the mean is no longer reported; say LOGO-CV; Figure 1's placement is decided at the split.
 - "Leave-Project-Out Cross-Validation": the two submitted paragraphs are replaced by the box below; the walk-through of Listing 32 is rewritten for the new listing (line numbers recomputed from the final listing). The run time: about 26 s per run on this machine (submitted: about 2 minutes).
 - "A Third Look": the submitted values were balanced accuracies, not AUCs (findings §1), on five projects without ML2 and HOLZ; the six corrected AUROCs are in the box below, read against each project's base rate, with no mean.
 - Bib keys the script cites: `pargent2023`, `roberts2017`, `grau2015`, `bengio2004`, `bradley1997`, `holzmeister2024`; the manuscript bib lacks `roberts2017` and `grau2015`.
+- Wording: the submitted manuscript (`~/projects/adatutorial/adatutorial.tex`) says "measure(s)" for performance metrics; at port these become "performance metric(s)", or "metric(s)" where the sentence already names performance, as in this script. Lines: 332 ("a measure of retrodictive performance"), 2244 ("A standard measure of performance"), 2251 ("other performance measures"), 2258 ("the standard measure for evaluation") and the Listing 31 caption at 2270 ("different measures").
 :::
 
 #### Listing 27
@@ -1228,17 +1215,17 @@ table(y_test, y_pred_cls) # Imperfect predictions
 - `y_pred_cls` from the package listing (was `ypred_ada`); the comment on the same line.
 :::
 
-## Performance Measures
+## Performance Metrics
 
 ::: {.callout-note title="Add to tutorial"}
-After predicting the test set, we can evaluate the ensemble by comparing its predictions with the observed outcomes. The confusion matrix of Listing 29 is the starting point. A first measure is *accuracy*, the share of correct predictions: the sum of the main diagonal divided by the sum of all entries. Accuracy needs a baseline, however. The *base rate* of the test set, the share of its study effects that replicated, is 0.48, so a model that always predicts failure is right 52 percent of the time without having learned anything. Remember also that the dataset is imbalanced: more study effects failed than replicated, and accuracy hides which class the errors fall on. *Balanced accuracy* corrects for this. It is the mean of *sensitivity*, the share of successes the ensemble predicts as successes, and *specificity*, the share of failures it predicts as failures [see @pargent2023, who warn that the error rate alone says little under imbalance].
+After predicting the test set, we can evaluate the ensemble by comparing its predictions with the observed outcomes. The confusion matrix of Listing 29 is the starting point. A first metric is *accuracy*, the share of correct predictions: the sum of the main diagonal divided by the sum of all entries. Accuracy needs a baseline, however. The *base rate* of the test set, the share of its study effects that replicated, is 0.48, so a model that always predicts failure is right 52 percent of the time without having learned anything. Remember also that the dataset is imbalanced: more study effects failed than replicated, and accuracy hides which class the errors fall on. *Balanced accuracy* corrects for this. It is the mean of *sensitivity*, the share of successes the ensemble predicts as successes, and *specificity*, the share of failures it predicts as failures [see @pargent2023, who warn that the error rate alone says little under imbalance].
 
-These measures read the class labels, so they judge one decision: the sign of the vote. The margin of Module 5 carries more, namely how far each study effect sits from the tie, and with it a ranking of the study effects. Two measures read that ranking. The *area under the receiver operating characteristic curve* (AUROC, often just AUC) is the chance that a randomly drawn success scores higher than a randomly drawn failure [@bradley1997]. A random ranking scores 0.5, a perfect one 1, and the base rate plays no part. The *area under the precision-recall curve* (AUPRC) asks how pure the top of the ranking is at every cutoff. Here the base rate does play a part: a random ranking scores about the base rate, not 0.5. A third view is a budget. When only a few replications can be run, what matters is the *precision among the top k*, the share of successes among the k study effects with the highest margins. Listing 31 computes each measure once. The last three need the margin. Class labels have only two values, so the ROC curve collapses to a single point, and the AUROC quietly becomes the balanced accuracy. Listing 31 shows it.
+These metrics read the class labels, so they judge one decision: the sign of the vote. The margin of Module 5 carries more, namely how far each study effect sits from the tie, and with it a ranking of the study effects. Two metrics read that ranking. The *area under the receiver operating characteristic curve* (AUROC, often just AUC) is the chance that a randomly drawn success scores higher than a randomly drawn failure [@bradley1997]. A random ranking scores 0.5, a perfect one 1, and the base rate plays no part. The *area under the precision-recall curve* (AUPRC) asks how pure the top of the ranking is at every cutoff. Here the base rate does play a part: a random ranking scores about the base rate, not 0.5. A third view is a budget. When only a few replications can be run, what matters is the *precision among the top k*, the share of successes among the k study effects with the highest margins. Listing 31 computes each metric once. The last three need the margin. Class labels have only two values, so the ROC curve collapses to a single point, and the AUROC quietly becomes the balanced accuracy. Listing 31 shows it.
 :::
 
 #### Listing 31
 
-Code showing different measures to evaluate the predictive performance of the ensemble.
+Code showing different metrics to evaluate the predictive performance of the ensemble.
 
 ```{r listing-31}
 # Confusion matrix, as in Listing 29
@@ -1264,12 +1251,6 @@ auroc(y_test, y_pred_cls)
 
 # Area under the ROC curve, scored on the margin
 auroc(y_test, y_pred_mgn)
-
-# Area under the precision-recall curve
-auprc(y_test, y_pred_mgn)
-
-# Precision among the five highest margins
-patk(y_test, y_pred_mgn, k = 5)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
@@ -1284,15 +1265,15 @@ With 1,000 stumps and a learning rate of 1, the ensemble predicts 19 of the 31 t
 
 #### The Package Solution [NEW]
 
-Code to compute the same measures with the adatutor package.
+Code to compute the same metrics with the adatutor package.
 
 ```{r listing-31-pkg}
-# Every measure in one call, scored on the margin
+# Every metric in one call, scored on the margin
 assess(y_test, score = y_pred_mgn)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-`assess()` computes all of these, and a few more, from the labels and the margins. The printout groups them: the measures at the threshold of zero first, then the precision among the top k, then the two areas, which use every threshold. The values match those of Listing 31. `?assess` lists the formulas and the other names each measure goes by; sensitivity, for example, is also called recall.
+`assess()` computes all of these, and a few more, from the labels and the margins. The printout groups them: the metrics at the threshold of zero first, then the precision among the top k, then the two areas, which use every threshold. The values match those of Listing 31. `?assess` lists the formulas and the other names each metric goes by; sensitivity, for example, is also called recall.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -1370,7 +1351,7 @@ sapply(scores, \(s) mean(s$actual == "success"))
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-**A Third Look at Performance.** The AUROC runs from 0.48 in ML3 (base rate 0.30) to 0.91 in ML1 (base rate 0.85). In ML3, with 10 study effects, the ensemble ranks no better than chance. In EERP and ML1 it ranks well, and RPP, the largest project, sits at 0.63. So some projects are indeed harder to predict from the reviewer metrics than others, and the base rates differ as much as the estimates do: in ML1, 85 percent of the study effects replicated, in ML3 only 30 percent. This matters for every measure that cuts the margin at zero, because the ensemble cuts at the threshold it learned on training data with a base rate near 0.47, far from ML1's 0.85 or ML3's 0.30. Before we ask whether other hyperparameters do better (Module 7), we ask how firm each estimate is.
+**A Third Look at Performance.** The AUROC runs from 0.48 in ML3 (base rate 0.30) to 0.91 in ML1 (base rate 0.85). In ML3, with 10 study effects, the ensemble ranks no better than chance. In EERP and ML1 it ranks well, and RPP, the largest project, sits at 0.63. So some projects are indeed harder to predict from the reviewer metrics than others, and the base rates differ as much as the estimates do: in ML1, 85 percent of the study effects replicated, in ML3 only 30 percent. This matters for every performance metric that cuts the margin at zero, because the ensemble cuts at the threshold it learned on training data with a base rate near 0.47, far from ML1's 0.85 or ML3's 0.30. Before we ask whether other hyperparameters do better (Module 7), we ask how firm each estimate is.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -1382,14 +1363,18 @@ sapply(scores, \(s) mean(s$actual == "success"))
 Code to do the same leave-one-group-out cross-validation with the adatutor package.
 
 ```{r listing-32-pkg}
-# LOGO-CV with the recipe of the ensemble of Module 3: logo_cv() reads the
-# formula, the tree settings, n_iter and eta off the fit and refits them
-# once per project; the fit's own data play no part
-logo_ada <- logo_cv(ada_fit, data = df_noholz, group = "pid")
-logo_ada
-?logo_cv
+# LOGO-CV with the ensemble of Module 3
+ada_logo <- logo_cv(
+  ada_fit,
+  data = df_noholz,
+  group = "pid"
+)
+
 # Verification
-all.equal(logo_ada$estimates[1, names(auc_cv), "auroc"], auc_cv)
+all.equal(
+  ada_logo$estimates[1, names(auc_cv), "auroc"],
+  auc_cv
+)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
@@ -1437,15 +1422,19 @@ Code to bootstrap every held-out project with the adatutor package.
 ```{r listing-boot-pkg}
 # Bootstrap every held-out project; the intervals attach to the result
 set.seed(112)
-logo_boot <- bootstrap(logo_ada, n_resample = 1000)
-
-# AUROC per project with its 95 percent interval and the number of
-# dropped draws
-do.call(rbind, lapply(logo_boot$ci, \(ci) ci[ci$metric == "auroc", ]))
+ada_boot <- bootstrap(ada_logo, n_resample = 1000)
+ada_boot
+plot(ada_boot)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-`bootstrap()` resamples each held-out project in turn and keeps the intervals with the result, for every measure of `assess()`. The EERP row matches Listing [NEW], because both start from the same seed and EERP is resampled first. Figure [NEW] draws the six estimates with their bands.
+`bootstrap()` resamples each held-out project in turn and keeps the intervals with the result, for every metric of `assess()`. The EERP column matches Listing [NEW], because both start from the same seed and EERP is resampled first. Figure [NEW] draws the six estimates with their bands.
+
+The six AUROCs are uncertain at two levels. The first level is the project: the estimates differ from project to project, from 0.48 on ML3 to 0.91 on ML1, and this spread tells us what to expect from a new project. The second level is the study effect: each estimate rests on between 10 and 90 study effects, and a different set of studies would have given a different number. The bootstrap measures this second level. It resamples the study effects of one project, with the ensemble held fixed.
+
+Figure [NEW] shows both levels: the dots are the projects, the bands the study effects. Read together, they separate what the data support from what they do not. They support the main claim: the ensemble ranks study effects better than chance. Five of the six estimates lie above 0.5, and in three projects the whole 95 percent interval does. They do not support fine comparisons. ML3 has 10 study effects, and its interval runs from 0 to 1, so its low estimate is no evidence that the ensemble fails there. We therefore read the six estimates as a spread around a clear signal, and we do not interpret the gap between any two projects.
+
+The ensemble here is still untuned: it is the stump ensemble of Module 3. Module 7 tunes it, and the chosen setting scores at least 0.68 on every tuning project.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -1457,8 +1446,8 @@ do.call(rbind, lapply(logo_boot$ci, \(ci) ci[ci$metric == "auroc", ]))
 The AUROC of the ensemble in leave-one-group-out cross-validation, one column per project, with the project's size above it. The dot is the estimate on the held-out project; the bands are its bootstrap intervals at 50, 80 and 95 percent from 1,000 resamples of the project's study effects, with the ensemble held fixed. The dashed line at 0.5 marks a random ranking. In ML1, 12 percent of the draws held successes only and were dropped, so its interval is optimistic.
 
 ```{r figure-logocv}
-# The six estimates with the bands of logo_boot
-tutplot_logocv(logo_boot)
+# The six estimates with the bands of ada_boot
+tutplot_logocv(ada_boot)
 ```
 
 ::: {.callout-important title="Changed since submission"}
@@ -1482,7 +1471,7 @@ Measured at 10 stumps and a learning rate of 1 on the five submitted projects (f
 ## Beyond Projects as Groups
 
 ::: {.callout-note title="Add to tutorial (box, decide at port)"}
-**Beyond projects as groups.** Leave-one-group-out does not care how the groups were made, so `logo_cv()` also runs the two designs most readers know. A random five-fold cross-validation is a fold column drawn at random and used as the group. Each fold is held out once, so the result has five rows, as the project version has six.
+**Beyond projects as groups.** Leave-one-group-out does not care how the groups were made, so `logo_cv()` also runs the two designs most readers know. A random five-fold cross-validation is a fold column drawn at random and used as the group. Each fold is held out once, so the result has five estimates, as the project version has six.
 
 ```{r kfold-random}
 # Every study effect gets a fold number 1 to 5, at random; each fold is
@@ -1492,7 +1481,7 @@ df_noholz$fold <- sample(rep(1:5, length.out = nrow(df_noholz)))
 logo_cv(ada_fit, data = df_noholz, group = "fold")
 ```
 
-Monte Carlo cross-validation is a random train-test split, repeated. With `logo_cv()` the split is a column with two levels, and the row of the test part is the estimate. Leave-one-group-out would hold each level out once, so the first call also trains on the 30 percent and scores the 70, the row named "train", which is thrown away. The `holdout` argument names the levels to hold out and skips the rest; it also makes the final test of Module 8, one project held out, the same call.
+Monte Carlo cross-validation is a random train-test split, repeated. With `logo_cv()` the split is a column with two levels, and the column of the test part is the estimate. Leave-one-group-out would hold each level out once, so the first call also trains on the 30 percent and scores the 70, the column named "train", which is thrown away. The `holdout` argument names the levels to hold out and skips the rest; it also makes the final test of Module 8, one project held out, the same call.
 
 ```{r mc-one}
 # One draw: a random 30 percent of the study effects as the test part
@@ -1500,15 +1489,15 @@ set.seed(112)
 df_noholz$part <- "train"
 df_noholz$part[sample(nrow(df_noholz), round(0.3 * nrow(df_noholz)))] <- "test"
 
-# Train on the 70 percent, score the 30 percent: the row named "test"
+# Train on the 70 percent, score the 30 percent: the column named "test"
 res_mc <- logo_cv(ada_fit, data = df_noholz, group = "part")
 res_mc$estimates[1, "test", "auroc"]
 ```
 
-Repeating the draw and keeping the test row each time gives the distribution of the Monte Carlo estimate. Over twenty draws its median is 0.68, and its 2.5 and 97.5 percent quantiles are 0.55 and 0.75. That spread shows how much one estimate depends on the luck of the split, which the project folds, being fixed, cannot show.
+Repeating the draw and keeping the test column each time gives the distribution of the Monte Carlo estimate. Over twenty draws its median is 0.68, and its 2.5 and 97.5 percent quantiles are 0.55 and 0.75. That spread shows how much one estimate depends on the luck of the split, which the project folds, being fixed, cannot show.
 
 ```{r mc-repeat}
-# Twenty draws, the test row of each
+# Twenty draws, the test column of each
 set.seed(112)
 auc_mc <- numeric(20)
 for (r in seq_len(20)) {
@@ -1527,12 +1516,12 @@ df_noholz$fold <- NULL
 df_noholz$part <- NULL
 ```
 
-The two designs answer different questions. Random folds hold out study effects drawn from all projects, so every project is in the training data, and the estimate says how the ensemble fares on a new study effect from a project it has seen. Project folds hold out a whole project, and the estimate says how the ensemble fares on a new replication project, with its own design and base rate, the question Module 1 raised. Replication efforts come in projects, so LOGO-CV is the design the rest of the tutorial uses. The case for it is the question, not an inflated number: the AUROC is rank-based and blind to the shift in base rates between projects, so random folds and project folds land close for this ensemble, while a threshold measure such as accuracy does leak under random folds.
+The two designs answer different questions. Random folds hold out study effects drawn from all projects, so every project is in the training data, and the estimate says how the ensemble fares on a new study effect from a project it has seen. Project folds hold out a whole project, and the estimate says how the ensemble fares on a new replication project, with its own design and base rate, the question Module 1 raised. Replication efforts come in projects, so LOGO-CV is the design the rest of the tutorial uses. The case for it is the question, not an inflated number: the AUROC is rank-based and blind to the shift in base rates between projects, so random folds and project folds land close for this ensemble, while a threshold metric such as accuracy does leak under random folds.
 :::
 
 ::: {.callout-note title="Check in tutorial"}
 - This box and Exercise 1 cover the same ground. If the box is printed, Exercise 1 is dropped or shrinks to what the box does not do, the split ratios and the other learners; if the box stays out, Exercise 1 stays. One decision at port.
-- `mc-repeat` uses `holdout = "test"` (package item 9, 6 Nov); `mc-one` shows the two-row result on purpose.
+- `mc-repeat` uses `holdout = "test"` (package item 9, 6 Nov); `mc-one` shows the two-column result on purpose.
 - The accuracy leak under random folds is from findings §2 (plain accuracy about 0.04 optimistic at 10 rounds); the box states it without a number.
 :::
 
@@ -1541,16 +1530,17 @@ The two designs answer different questions. Random folds hold out study effects 
 ::: {.callout-note title="Check in tutorial"}
 - The submitted intro of "Hyperparameter Optimization" (the strategies, @bischl2023, the grid as the simplest) stays with light edits and is followed by the box below; its promise that "the method can be easily adapted to do a random grid search" is now kept by the Random Search listing.
 - Module 2's definition of hyperparameters ("external parameters set by the user", tex l. 964): add R2.C7's sentence that hyperparameters can also be chosen from the data, with a forward reference to Module 7.
-- "A Fourth Look at Performance" is rewritten (box below). The winner of the 18-setting grid changed: submitted, Model 1 (a stump, 10 trees, learning rate 1) by the average "AUC", which was a balanced accuracy on five projects; now a stump with 1,000 rounds at a rate of 0.1 by stability on six projects. AR.R1.C1 says so, because the reviewer quotes the submitted winner.
+- "A Fourth Look at Performance" is rewritten (box below). The winner of the 18-setting grid changed: submitted, Model 1 (a stump, 10 trees, learning rate 1) by the average "AUC", which was a balanced accuracy on five projects; now a stump with 1,000 rounds at a rate of 0.1 by `lower`, the mean minus the SD, on six projects. AR.R1.C1 says so, because the reviewer quotes the submitted winner.
 - "Finalizing an Ensemble" with Listing 35, and "A Fifth Look at Performance" (savant models, stacking, @boehmke2019) move to Module 8.
 - Exercise 4.2 is dropped: the random search is in the main text, and its runtime question is in the Random Search box. Exercise 3.3 goes with Module 6 or 7 at the exercises pass.
 - The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_logo_cv()`), and the by-hand versions are the box after it.
-- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the stability columns, the package listing with `tune_logo_cv()`, the by-hand box, the random-search listing, and the `hypergrid` listings.
-- `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script, one `tune_logo_cv()` call with `cores = 4` (about 40 minutes).
+- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the summary columns `mean`, `sd` and `lower`, the package listing with `tune_logo_cv()`, the by-hand box, the random-search listing, and the `hypergrid` listing.
+- `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script, one `tune_logo_cv()` call with `cores = 4` (about 22 minutes).
+- The letter says how the shipped grid came to be: the search first ran to depth 8. After that run was seen, the grid was cut to depths 1 to 4, because the tutorial teaches shallow trees. The tree and XGBoost benchmarks of Module 8 were then picked again by the highest `lower`. XGBoost's pick moved because of the rule. The tree's pick moved because its search was cut to depths 1 to 4 as well: over depths 1 to 8, the rule still picks depth 5. The old picks had HOLZ scores on record before the re-pick (tree 0.717, XGBoost 0.789; now 0.711 and 0.744), and the re-pick used the six tuning projects only.
 - The by-hand box after Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) is drafted as a box: decide at port whether the paper prints it or points to the online script.
 - The Module 7 handoff sentence is in the package listing's box, in the template wording of the Module 3 box.
-- Module 8's Listing 35 reads `best` (`depth`, `n_iter`, `eta`) from the last hypergrid listing.
-- Bib keys the module cites: `bischl2023` (copied to the vignette bib from the manuscript bib); this box names `boehmke2019` for the moved "Fifth Look".
+- Module 8's Listing 35 reads `ada_best` (`depth`, `n_iter`, `eta`) from the `hypergrid` listing.
+- Bib keys the module cites: `bischl2023` (copied to the vignette bib from the manuscript bib) and `mease2008` (the box after the `hypergrid` listing); this box names `boehmke2019` for the moved "Fifth Look".
 - Run time of Listing 34: about 3 minutes on this machine, the same as submitted (2.5 minutes without the throwaway fit of the pipeline).
 :::
 
@@ -1566,7 +1556,7 @@ Code to define a hypergrid.
 
 ```{r listing-33}
 # The grid: every combination of three hyperparameters
-hgrid <- expand.grid(
+ada_hgrid <- expand.grid(
   # Tree level: the maximum depth
   depth = 1:3,
   # Boosting level: the number of rounds
@@ -1576,8 +1566,8 @@ hgrid <- expand.grid(
 )
 
 # Containers: the AUROC per tuning project and the run time per setting
-hgrid[proj_nms] <- NA_real_
-hgrid$runtime <- NA_real_
+ada_hgrid[proj_nms] <- NA_real_
+ada_hgrid$runtime <- NA_real_
 ```
 
 ::: {.callout-important title="Changed since submission"}
@@ -1591,9 +1581,9 @@ Code to do hyperparameter optimization using leave-one-group-out cross-validatio
 
 ```{r listing-34}
 # Hyperparameter optimization: one LOGO-CV per setting
-for (i in seq_len(nrow(hgrid))) {
+for (i in seq_len(nrow(ada_hgrid))) {
   # Progress report, overwritten in place
-  cat("\rSetting", i, "of", nrow(hgrid))
+  cat("\rSetting", i, "of", nrow(ada_hgrid))
   runtime <- system.time({
     # The pipeline of Modules 2, 3 and 6 at this setting: the depth goes to
     # the tree, the rounds and the learning rate to the boosting
@@ -1601,13 +1591,13 @@ for (i in seq_len(nrow(hgrid))) {
       replicate ~ .,
       data = df_noholz[, voi_nms],
       method = "class",
-      maxdepth = hgrid$depth[i],
+      maxdepth = ada_hgrid$depth[i],
       parms = list(split = "gini"),
       model = TRUE
     ) |>
       adaboost(
-        n_iter = hgrid$n_iter[i],
-        eta = hgrid$eta[i],
+        n_iter = ada_hgrid$n_iter[i],
+        eta = ada_hgrid$eta[i],
         verbose = FALSE
       ) |>
       logo_cv(
@@ -1616,30 +1606,30 @@ for (i in seq_len(nrow(hgrid))) {
       )
   })
   # The AUROC per held-out project and the run time in seconds
-  hgrid[i, proj_nms] <- logo_i$estimates[1, proj_nms, "auroc"]
-  hgrid$runtime[i] <- runtime[["elapsed"]]
+  ada_hgrid[i, proj_nms] <- logo_i$estimates[1, proj_nms, "auroc"]
+  ada_hgrid$runtime[i] <- runtime[["elapsed"]]
 }
 
-# Stability: the mean across projects minus their SD
-proj_auc <- as.matrix(hgrid[proj_nms])
-hgrid$auc_mean <- rowMeans(proj_auc)
-hgrid$auc_sd <- apply(proj_auc, 1, sd)
-hgrid$auc_stable <- hgrid$auc_mean - hgrid$auc_sd
+# lower: the mean across projects minus their SD
+proj_auc <- as.matrix(ada_hgrid[proj_nms])
+ada_hgrid$mean <- rowMeans(proj_auc)
+ada_hgrid$sd <- apply(proj_auc, 1, sd)
+ada_hgrid$lower <- ada_hgrid$mean - ada_hgrid$sd
 
-# The grid, most stable setting first
-hgrid[order(-hgrid$auc_stable), ] |> round(2)
+# The grid, ranked by lower, highest first
+ada_hgrid[order(-ada_hgrid$lower), ] |> round(2)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-Listing 34 wraps one loop around the cross-validation of Module 6. The loop visits each row of the grid, and the statement inside it is the pipeline of Modules 2, 3 and 6 at that row's setting: `rpart()` grows the weak learner at the row's depth, `adaboost()` boosts it for the row's rounds at the row's learning rate, and `logo_cv()` cross-validates that ensemble by project, as in Module 6. Each hyperparameter appears where it lives. The ensemble fitted on the way is never used as a model: `logo_cv()` reads only its recipe and refits it once per project, so the fit's own data play no part. The box after the listing shows the same search with the by-hand steps of Modules 2, 3, 5 and 6 pasted in: the package calls fold those layers and nothing else. The result holds the AUROC of every held-out project, which the loop copies into the row together with the run time. The progress report uses a carriage return, so `cat()` overwrites one line instead of printing 18. After the loop, three columns summarize each row: the mean AUROC across the six projects, their standard deviation, and the difference of the two, which we call *stability*. The mean alone would favor a setting that excels on three projects and fails on the other three. The mean minus the SD favors a setting that does well everywhere. Stability is a ranking device, not a performance estimate. Module 6 explained why six unequal and overlapping folds give no honest mean with a standard error, and nothing here reports one.
+Listing 34 wraps one loop around the cross-validation of Module 6. The loop visits each row of the grid, and the statement inside it is the pipeline of Modules 2, 3 and 6 at that row's setting: `rpart()` grows the weak learner at the row's depth, `adaboost()` boosts it for the row's rounds at the row's learning rate, and `logo_cv()` cross-validates that ensemble by project, as in Module 6. Each hyperparameter appears where it lives. The ensemble fitted on the way is never used as a model: `logo_cv()` reads only its recipe and refits it once per project, so the fit's own data play no part. The box after the listing shows the same search with the by-hand steps of Modules 2, 3, 5 and 6 pasted in: the package calls fold those layers and nothing else. The result holds the AUROC of every held-out project, which the loop copies into the row together with the run time. The progress report uses a carriage return, so `cat()` overwrites one line instead of printing 18. After the loop, three columns summarize each row: the mean AUROC across the six projects, their standard deviation, and the difference of the two, which we call `lower`: the mean minus the SD, the lower end of the band of one SD around the mean. The mean alone would favor a setting that excels on three projects and fails on the other three. The mean minus the SD favors a setting that does well everywhere. `lower` is a ranking device, not a performance estimate. Module 6 explained why six unequal and overlapping folds give no honest mean with a standard error, and nothing here reports one.
 
-**A Fourth Look at Performance.** The most stable of the 18 settings is a stump boosted for 1,000 rounds at a learning rate of 0.1 (stability 0.66, from a mean of 0.78 and an SD of 0.12). Its worst project is ML3 at 0.64, its best ML1 at 0.95. The ensemble of Module 3, the same stump for 1,000 rounds at a rate of 1, is the least stable of all (0.54): on ML3 it ranks below chance (0.48). At many rounds, the learning rate has to come down. Ten rounds at a rate of 1 come close to the top (0.64 for depth 2, 0.63 for the stump), so the cheapest settings of the grid are nearly as good as its best. Deeper trees buy nothing here: at a rate of 0.1, depth 2 and 3 rank below depth 1 at every number of rounds, and at a rate of 1 the three depths trade places near the bottom. The run time shows the cost: 20 to 30 s for 1,000 rounds against less than half a second for 10. In short, a stump at a low learning rate is the safe choice on this grid, but the differences among the top settings are smaller than six projects can resolve.
+**A Fourth Look at Performance.** Ranked by `lower`, the best of the 18 settings is a stump boosted for 1,000 rounds at a learning rate of 0.1 (`lower` 0.66, from a mean of 0.78 and an SD of 0.12). Its worst project is ML3 at 0.64, its best ML1 at 0.95. The ensemble of Module 3, the same stump for 1,000 rounds at a rate of 1, has the lowest `lower` of all (0.54): on ML3 it ranks below chance (0.48). At many rounds, the learning rate has to come down. Ten rounds at a rate of 1 come close to the top (0.64 for depth 2, 0.63 for the stump), so the cheapest settings of the grid are nearly as good as its best. Deeper trees buy nothing here: at a rate of 0.1, depth 2 and 3 rank below depth 1 at every number of rounds, and at a rate of 1 the three depths trade places near the bottom. The run time shows the cost: 20 to 30 s for 1,000 rounds against less than half a second for 10. In short, a stump at a low learning rate is the safe choice on this grid, but the differences among the top settings are smaller than six projects can resolve.
 :::
 
 ::: {.callout-important title="Changed since submission"}
 - The inner loop is one pipeline per setting, `rpart()` into `adaboost()` into `logo_cv()` (submitted: the loop of Listing 32 written out with `trainAda()`, `testAda()` and `auc(roc())` on class labels, so its "AUC" was a balanced accuracy, findings §1; its `treehypar = rpart.control(maxdepth = )` also reset `cp`, `xval` and `maxsurrogate` to rpart's defaults, findings §9).
 - `replicate ~ .` on `df_noholz[, voi_nms]`, as in Listing 32; `df_noholz` and the six tuning projects (submitted: `df` and five); `train` and `test` of Module 1 are no longer overwritten.
-- Stability (mean minus SD) ranks the settings (submitted: the plain mean); the summary columns are computed after the loop in snake_case (submitted: `auc.mean` inside the loop).
+- `lower`, the mean minus the SD, ranks the settings (submitted: the plain mean); the summary columns `mean`, `sd` and `lower` are computed after the loop in snake_case (submitted: `auc.mean` inside the loop).
 - The progress line is one `cat()` with the setting's index.
 - Run time: about 3 minutes on this machine, as submitted.
 :::
@@ -1651,20 +1641,20 @@ Code to search the whole grid with the adatutor package.
 ```{r listing-34-pkg}
 # The whole grid in one call: tune_logo_cv() takes the ensemble of Module 3 as
 # the recipe and runs the LOGO-CV of Listing 32 for every row of the grid
-logo_grid <- tune_logo_cv(
+ada_tune <- tune_logo_cv(
   ada_fit,
-  hgrid[, c("depth", "n_iter", "eta")],
+  ada_hgrid[, c("depth", "n_iter", "eta")],
   data = df_noholz,
   group = "pid"
 )
 
 # The AUROC per setting and project, as in Listing 34
-auc_pkg <- logo_grid$estimates[, proj_nms, "auroc"]
-all.equal(unname(auc_pkg), unname(as.matrix(hgrid[proj_nms])))
+auc_pkg <- ada_tune$estimates[, proj_nms, "auroc"]
+all.equal(unname(auc_pkg), unname(as.matrix(ada_hgrid[proj_nms])))
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-`tune_logo_cv()` folds the loop of Listing 34 as well. It takes the ensemble of Module 3 as the recipe, the formula, the tree settings and the splitting rule, and a grid whose columns name the hyperparameters to vary: the row's depth goes to the tree, its rounds and learning rate to the boosting, and the rest comes from the recipe. It then runs the LOGO-CV of Listing 32 for every row and keeps the AUROC of every setting on every project in `estimates`, an array of setting by project by measure. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 34.
+`tune_logo_cv()` folds the loop of Listing 34 as well. It takes the ensemble of Module 3 as the recipe, the formula, the tree settings and the splitting rule, and a grid whose columns name the hyperparameters to vary: the row's depth goes to the tree, its rounds and learning rate to the boosting, and the rest comes from the recipe. It then runs the LOGO-CV of Listing 32 for every row and keeps the AUROC of every setting on every project in `estimates`, an array of setting by project by metric. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 34.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -1679,9 +1669,9 @@ One layer out: the LOGO-CV of Listing 32 written out in place of `logo_cv()`.
 ```{r listing-34-diy}
 # The grid again, with the LOGO-CV of Listing 32 written out in place of
 # logo_cv()
-hgrid_diy <- hgrid[, c("depth", "n_iter", "eta")]
-hgrid_diy[proj_nms] <- NA_real_
-for (i in seq_len(nrow(hgrid_diy))) {
+ada_hgrid_diy <- ada_hgrid[, c("depth", "n_iter", "eta")]
+ada_hgrid_diy[proj_nms] <- NA_real_
+for (i in seq_len(nrow(ada_hgrid_diy))) {
   for (rp in proj_nms) {
     # Training and test set
     test_cv <- df_split[[rp]]
@@ -1691,14 +1681,14 @@ for (i in seq_len(nrow(hgrid_diy))) {
       replicate ~ .,
       data = train_cv[, voi_nms],
       method = "class",
-      maxdepth = hgrid_diy$depth[i],
+      maxdepth = ada_hgrid_diy$depth[i],
       parms = list(split = "gini"),
       model = TRUE
     )
     ada_cv <- h_cv |>
       adaboost(
-        n_iter = hgrid_diy$n_iter[i],
-        eta = hgrid_diy$eta[i],
+        n_iter = ada_hgrid_diy$n_iter[i],
+        eta = ada_hgrid_diy$eta[i],
         verbose = FALSE
       )
     # The AUROC of the held-out project, scored on the margin
@@ -1708,49 +1698,51 @@ for (i in seq_len(nrow(hgrid_diy))) {
       type = "margin",
       verbose = FALSE
     )
-    hgrid_diy[[rp]][i] <- auroc(test_cv[, out_nme], y_cv)
+    ada_hgrid_diy[[rp]][i] <- auroc(test_cv[, out_nme], y_cv)
   }
 }
 
 # The same 18 by 6 AUROCs as Listing 34
-all.equal(hgrid_diy[proj_nms], hgrid[proj_nms])
+all.equal(ada_hgrid_diy[proj_nms], ada_hgrid[proj_nms])
 ```
 
 All layers out: the boosting rounds of Listing 24 and the margin of Listing 28 pasted in as well.
 
+"Its all in the loop"
+
 ```{r listing-34-diy-full}
 # The grid again, with the by-hand steps of Modules 2, 3, 5 and 6 pasted
 # into the loop over the settings
-hgrid_diy_full <- hgrid[, c("depth", "n_iter", "eta")]
-hgrid_diy_full[proj_nms] <- NA_real_
-for (i in seq_len(nrow(hgrid_diy_full))) {
-  # Listing 32: each project is the test set once
+ada_hgrid_diy_full <- ada_hgrid[, c("depth", "n_iter", "eta")]
+ada_hgrid_diy_full[proj_nms] <- NA_real_
+for (i in seq_len(nrow(ada_hgrid_diy_full))) {
+  # Module 6, Listing 32: each project is the test set once
   for (rp in proj_nms) {
     test_cv <- df_split[[rp]]
     train_cv <- df_noholz[df_noholz$pid != rp, ]
     y_train_cv <- train_cv[, out_nme]
     m_cv <- nrow(train_cv)
-    # Listing 24: the boosting rounds at this setting, the tree of
-    # Listing 12 at this depth
-    ada_cv <- vector("list", hgrid_diy_full$n_iter[i])
+    # Module 3, Listing 24: the boosting rounds at this setting, the tree of
+    # Module 2, Listing 12 at this depth
+    ada_cv <- vector("list", ada_hgrid_diy_full$n_iter[i])
     D <- rep(1, m_cv) / m_cv
-    for (t in seq_len(hgrid_diy_full$n_iter[i])) {
+    for (t in seq_len(ada_hgrid_diy_full$n_iter[i])) {
       h <- rpart::rpart(
         replicate ~ .,
         data = train_cv[, voi_nms],
         method = "class",
-        maxdepth = hgrid_diy_full$depth[i],
+        maxdepth = ada_hgrid_diy_full$depth[i],
         weights = D
       )
       y_retro <- predict(h, newdata = train_cv[, pred_nms], type = "class")
       epsilon <- sum(D * (y_retro != y_train_cv))
-      alpha <- 0.5 * log((1 - epsilon) / epsilon) * hgrid_diy_full$eta[i]
+      alpha <- 0.5 * log((1 - epsilon) / epsilon) * ada_hgrid_diy_full$eta[i]
       chi <- (y_retro == y_train_cv) * 1 + (y_retro != y_train_cv) * -1
       D_raw <- D * exp(-alpha * chi)
       D <- D_raw / sum(D_raw)
       ada_cv[[t]] <- list(h = h, alpha = alpha)
     }
-    # Listing 28: the margin on the held-out project
+    # Module 5, Listing 28: the margin on the held-out project
     h_cv <- lapply(ada_cv, "[[", "h")
     alpha_cv <- sapply(ada_cv, "[[", "alpha")
     y_pred_cstp <- sapply(
@@ -1761,20 +1753,20 @@ for (i in seq_len(nrow(hgrid_diy_full))) {
     )
     y_pred_1m1 <- 2 * y_pred_cstp - 3
     pred_mgn_cv <- as.vector(alpha_cv %*% t(y_pred_1m1))
-    # Listing 31: the AUROC of the held-out project
-    hgrid_diy_full[[rp]][i] <- auroc(test_cv[, out_nme], pred_mgn_cv)
+    # Module 6, Listing 31: the AUROC of the held-out project
+    ada_hgrid_diy_full[[rp]][i] <- auroc(test_cv[, out_nme], pred_mgn_cv)
   }
 }
 
 # The same 18 by 6 AUROCs as Listing 34
-all.equal(hgrid_diy_full[proj_nms], hgrid[proj_nms])
+all.equal(ada_hgrid_diy_full[proj_nms], ada_hgrid[proj_nms])
 ```
 :::
 
 ## Random Search
 
 ::: {.callout-note title="Add to tutorial"}
-A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 2,640. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The drawn rows match their rows in Listing 34. The seed makes the draw reproducible. The run time is the budget: the eight settings took about a minute against about 3 minutes for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (stability 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
+A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 1,320. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The seed makes the draw reproducible. The run time is the budget: the eight settings took about a minute against about 3 minutes for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (`lower` 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
 :::
 
 #### Listing [NEW]
@@ -1784,356 +1776,608 @@ Code to do a random search over the hypergrid.
 ```{r listing-random}
 # Draw eight settings from the grid instead of trying all 18
 set.seed(112)
-rnd_smpl <- sample(nrow(hgrid), 8)
-hgrid_rnd <- hgrid[rnd_smpl, c("depth", "n_iter", "eta")]
+rnd_smpl <- sample(nrow(ada_hgrid), 8)
+ada_hgrid_rnd <- ada_hgrid[rnd_smpl, c("depth", "n_iter", "eta")]
 
 # Score the drawn settings in one call, as the package listing did
 runtime_rnd <- system.time({
-  logo_rnd <- tune_logo_cv(ada_fit, hgrid_rnd, data = df_noholz, group = "pid")
+  logo_rnd <- tune_logo_cv(
+    ada_fit,
+    ada_hgrid_rnd,
+    data = df_noholz,
+    group = "pid",
+    cores = 4
+  )
 })
 runtime_rnd[["elapsed"]]
 
-# The AUROC per drawn setting and project: the same rows as in Listing 34
-auc_rnd <- logo_rnd$estimates[, proj_nms, "auroc"]
-all.equal(
-  unname(auc_rnd),
-  unname(as.matrix(hgrid[rownames(hgrid_rnd), proj_nms]))
-)
-
-# Stability of the drawn settings, most stable first
-hgrid_rnd$auc_stable <- rowMeans(auc_rnd) - apply(auc_rnd, 1, sd)
-hgrid_rnd[order(-hgrid_rnd$auc_stable), ] |> round(2)
+summary(logo_rnd)
 ```
 
+**TODO**: Add summary() here?
+
 ::: {.callout-important title="Changed since submission"}
-- New listing. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; this listing does it, and Exercise 4.2, which asked readers to implement it, is dropped. The drawn rows are checked against Listing 34's rows.
+- New listing. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; this listing does it, and Exercise 4.2, which asked readers to implement it, is dropped.
 :::
 
 ## A Larger Grid
 
 ::: {.callout-note title="Add to tutorial"}
-Listing 34 searched 18 settings in about 3 minutes. The package ships a much larger search as the dataset `hypergrid`: 2,640 settings, with depths 1 to 8, 15 learning rates from 0.0025 to 1, and 10 to 3,000 rounds, each scored by LOGO-CV on the same six tuning projects under all 17 measures of `assess()`. It was built by the call of the package listing, `tune_logo_cv()` on the six tuning projects with `cores = 4`, in about 40 minutes, so the shipped grid is what that call gives. HOLZ took no part, so it stays untouched for the final test. `hypergrid` is a list with one table per measure. In each table a row is a setting and a column a project, with no summaries, because the summary is the modeler's decision. Listing [NEW] loads it and adds the summary of Listing 34 plus one more column, the worst project of each setting.
-
-Before ranking the settings, we look at the projects one by one. Over all 2,640 settings, the median AUROC is 0.93 on ML1 but 0.64 on ML3 and RPP, and RPP, the largest project with 90 study effects, never reaches 0.70. This median runs the other way from the summaries above: across the settings for one project, not across the projects for one setting. It says how hard a project is whatever the setting, and a median rather than a mean keeps the grid's deliberately bad corners, such as 3,000 rounds at a rate of 1, from pulling it down. The projects differ far more than the settings do. This repeats Module 6's finding at scale: no setting makes RPP easy, and almost every setting makes ML1 look good.
+Listing 34 searched 18 settings in about 3 minutes. The package ships a much larger search as the dataset `hypergrid`: 1,320 settings, with depths 1 to 4, 15 learning rates from 0.0025 to 1, and 10 to 3,000 rounds, each scored by LOGO-CV on the same six tuning projects under all 17 metrics of `assess()`. It was built by the call of the package listing, `tune_logo_cv()` on the six tuning projects with `cores = 4`, in about 22 minutes, so the shipped grid is what that call gives. HOLZ took no part, so it stays untouched for the final test. `hypergrid` is a list with one table per metric. In each table a row is a setting and a column a project, followed by four columns that summarize the row across the projects: the mean, the SD, the minimum and the maximum. These four rank settings; they are not estimates of performance on a new project. Listing [NEW] loads the grid, shows the projects with their size and base rate, and ranks the settings by their AUROC with `summary()`, which adds `lower` as in Listing 34.
 :::
 
 #### Listing [NEW]
 
-Code to load the hypergrid of the adatutor package and summarize it.
+Code to load the hypergrid of the adatutor package, rank its settings and choose one.
 
 ```{r hypergrid-load}
-# The shipped search: a table per measure, a row per setting, a column per
-# project
+# The shipped search: a table per metric, a row per setting
 data(hypergrid)
-names(hypergrid)
-auc_all <- hypergrid$auroc
-proj_nms <- attr(hypergrid, "projects")$project
 
-# The projects one by one: the median AUROC over all settings
-proj_all <- as.matrix(auc_all[proj_nms])
-apply(proj_all, 2, median) |> round(2)
+# The projects with their size and base rate
+attr(hypergrid, "projects")
 
-# Stability as in Listing 34, and the worst project
-auc_all$auc_mean <- rowMeans(proj_all)
-auc_all$auc_sd <- apply(proj_all, 1, sd)
-auc_all$auc_stable <- auc_all$auc_mean - auc_all$auc_sd
-auc_all$auc_min <- apply(proj_all, 1, min)
-```
+# The best setting of each depth
+ada_top <- summary(hypergrid, by = "depth")
+ada_top |> round(3)
 
-::: {.callout-important title="Changed since submission"}
-- New listing: `hypergrid` is new in the package (R1.C2 asked for more than "a grid that runs fast").
-:::
-
-#### Listing [NEW]
-
-Code to choose a setting from the hypergrid.
-
-```{r hypergrid-pick}
-# All settings, most stable first
-ranked <- auc_all[order(-auc_all$auc_stable, -auc_all$auc_min), ]
-cols <- c("depth", "n_iter", "eta", proj_nms, "auc_stable", "auc_min")
-head(ranked[cols], 3) |> print(digits = 2, row.names = FALSE)
-
-# The most stable stump
-best_d1 <- ranked[ranked$depth == 1, ][1, ]
-
-# Settings no other setting beats on both counts: down the list, keep a row
-# only if its worst project beats every row above it
-unbeaten <- ranked[
-  ranked$auc_min > cummax(c(-Inf, head(ranked$auc_min, -1))),
-]
-rbind(best_d1, unbeaten)[cols] |> print(digits = 2, row.names = FALSE)
-
-# The choice: the best worst project, ties by stability
-best <- auc_all[order(-auc_all$auc_min, -auc_all$auc_stable), ][1, ]
-best[c("depth", "n_iter", "eta", "auc_stable", "auc_min")]
+# The choice: the first of them
+ada_best <- ada_top[1, ]
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-The most stable setting of all is a tree of depth 5, boosted for 40 rounds at a rate of 0.02 (stability 0.69, worst project 0.66). The most stable stump, 200 rounds at a rate of 0.5, is close behind (0.67, worst project 0.67). Stability is not the only thing we care about, though. The final test of Module 8 is a single new project, so what a setting does on its worst project counts as much as its average. Only three settings are unbeaten on both counts, with no other setting both more stable and better on its worst project: the depth-5 setting, depth 6 with 30 rounds at a rate of 0.03, and depth 2 with 2,000 rounds at a rate of 0.02. Their stabilities are almost on par, within 0.02 of each other, but the depth-2 setting has the best worst project, 0.68 against 0.66 and 0.67. So despite the slightly higher stability of the depth-5 setting, we choose depth 2 with 2,000 rounds at a rate of 0.02. It boosts a weak learner in many small steps, as AdaBoost intends, and it sits on a plateau: its worst project stays between 0.66 and 0.68 from 800 to 2,500 rounds. The last lines of Listing [NEW] make the rule explicit, the best worst project with ties broken by stability, and store the choice in `best`, which Module 8 refits. All three would have been a good choice: they differ by less than 0.02 on either measure, well within what six projects can resolve. One table of `hypergrid` has gaps: precision among the top five is undefined for ML3, which has three successes (`?hypergrid`).
+The classic choice for AdaBoost is the stump. Tree depth is a hyperparameter, though, and stumps are not the only option. @mease2008 show cases where AdaBoost with larger trees beats AdaBoost with stumps, in particular when the outcome is noisy. The shipped grid therefore covers depths 1 to 4. `summary()` ranks the settings by `lower` and, with `by = "depth"`, shows the best setting of each depth. The four depths do about equally well, with `lower` between 0.66 and 0.67. We continue with the first row: a tree of depth 2, boosted for 2,000 rounds at a rate of 0.02. The last line of the listing stores it in `ada_best`, which Module 8 refits.
 :::
 
 ::: {.callout-important title="Changed since submission"}
-- New listing: the stability ranking of Listing 34 applied to the shipped grid, the unbeaten settings, and the choice by the worst project with ties broken by stability. `best` carries `depth`, `n_iter` and `eta` into Module 8 (submitted: Listing 35 refitted Model 1, the stump with 10 trees at a rate of 1, by hand).
+- New listing: `hypergrid` is new in the package (R1.C2 asked for more than "a grid that runs fast").
+- `summary()` ranks the settings by `lower`, and with `by = "depth"` it keeps the best setting of each depth; the listing chooses the first. `summary()` for `hypergrid` is new in the package. `ada_best` carries `depth`, `n_iter` and `eta` into Module 8 (submitted: Listing 35 refitted Model 1, the stump with 10 trees at a rate of 1, by hand).
 :::
 
-# Module 8: Finalizing an Ensemble / Final Tests and Benchmarks
+# Module 8: Final Test and Benchmarks
+
+::: {.callout-note title="Check in tutorial"}
+- The submitted "Finalizing an Ensemble" and its Listing 35 are replaced by this module.
+- "A Fifth Look at Performance" is dropped: the rule of Module 7, the highest `lower`, which favors a setting that does well on every project, replaces the savant framing. One sentence on stacking [@boehmke2019] may survive in the Conclusion's roadmap.
+- "Why predict replication success" (R2.C3) also goes into the Empirical Example (findings §7.3; @nosek2022, p. 729). The intro box below ties it to Listing 35.
+- The Conclusion's paragraph on Module 4 splits into Modules 6 to 8.
+- Exercise 4.1 is revisited at the exercises pass.
+- The letter's disclosure: HOLZ was scored once before the final setting existed (the old setting, 0.741, and both forests). The final setting was chosen on the six tuning projects only.
+- The letter's "added benefits reported honestly" line (editor) comes from the benchmark table.
+- **The nested aside is undecided**: ship it or not. Reviewer 1's "nested-CV correction" (R1.C11.a) may mean nested *data*, study effects within projects, which LOGO-CV itself answers. The letter answers both readings.
+- rsample left Module 1: Listing 10 and its boxes now sit under "Where to go next", with tidymodels. The minus signs in this module's intervals are Unicode; the tex writes them as math.
+- `data-raw/benchmark.R` holds the code behind `benchmark`. The box after the benchmark listing shows the tree's depth search, and the XGBoost search and its final test sit in the box under "Where to go next".
+- Bib keys this module cites: `holzmeister2024`, `nosek2022`, `breiman2001`, `liaw2002`, `chen2016`, `wolpert1997`, `speck2026`, `pargent2023`.
+- The randomForest warning "partial argument match of 'along'" appears only under `options(warnPartialMatchArgs = TRUE)`.
+- Run times on this machine, measured with other jobs running (load about 3 on 8 cores): Listing 35 and its package solution 13 s together; the tree's depth search under 1 s; the XGBoost box about 20 s; Listing 36 14 minutes on one core; its package solution 4 minutes on four cores; its by-hand box about 20 minutes. `data-raw/benchmark.R` runs in about a minute.
+:::
+
+::: {.callout-note title="Add to tutorial"}
+Module 7 chose a setting: trees of depth 2, boosted for 2,000 rounds at a learning rate of 0.02. Finalizing the ensemble means refitting this setting on all six tuning projects, 176 study effects. Cross-validation has done its job: it chose the setting. We discard the models it fitted along the way and keep the one fitted on all the tuning data. HOLZ, the decision-market replications of @holzmeister2024 that we set aside in Module 6, now serves as the final test. It took no part in the cross-validation or the tuning, so it plays the role of a new replication project.
+
+This is also the use case of the tutorial. Suppose a new replication project must choose among candidate study effects, each with its reviewer metrics. The ensemble scores each study effect by its margin and ranks them. The ranking suggests where replication resources should go first. @nosek2022 [p. 729] name this use: predictions of replicability can guide attention and resources toward the findings most worth replicating. The final test asks how well the ranking works on such a project. The AUROC answers this question directly, because it measures the ranking. Yet the final test rests on 26 study effects, so its one number comes with a bootstrap interval, as in Module 6.
+:::
 
 #### Listing 35
 
-Code to refit the safeguard setting of the hypergrid on the six tuning projects
-and test it on HOLZ.
+Code to refit the chosen setting on the six tuning projects and test it once on HOLZ.
 
 ```{r listing-35}
-# The safeguard setting from the hypergrid: depth 2, n_iter 2000, eta .02
-best[c("depth", "n_iter", "eta")]
+# The setting chosen in Module 7: depth 2, 2,000 rounds, learning rate 0.02
+ada_best[c("depth", "n_iter", "eta")]
 
 # Refit it on all six tuning projects
-h_final <- rpart::rpart(
+ada_final <- rpart::rpart(
   replicate ~ .,
   data = df_noholz[, voi_nms],
-  maxdepth = best$depth,
+  method = "class",
+  maxdepth = ada_best$depth,
+  parms = list(split = "gini"),
   model = TRUE
-)
-fit_final <- adaboost(h_final, n_iter = best$n_iter, eta = best$eta)
+) |>
+  adaboost(
+    n_iter = ada_best$n_iter,
+    eta = ada_best$eta,
+    verbose = FALSE
+  )
 
-# The final test: score it once on HOLZ, on the margin so the AUC sees the
-# ranking
-y_ada <- predict(fit_final, newdata = df_holz[, pred_nms], type = "margin")
-auroc(df_holz$replicate, y_ada)
+# The final test: score HOLZ once, on the margin
+y_final <- predict(
+  ada_final,
+  newdata = df_holz[, pred_nms],
+  type = "margin",
+  verbose = FALSE
+)
+auc_final <- auroc(df_holz[, out_nme], y_final)
+auc_final
 ```
+
+::: {.callout-important title="Changed since submission"}
+- The setting is the choice of Module 7, read from `ada_best` (submitted: Model 1, a stump with 10 trees at a learning rate of 1).
+- The ensemble is fitted on the six tuning projects, `df_noholz` (submitted: all of `df`).
+- HOLZ is scored once, with `auroc()` on the margin (submitted: "cannot evaluate immediately").
+- `rpart::rpart()` with `method = "class"`, the Gini rule and `model = TRUE`, as in the package solution of Listing 24; `adaboost()` with `verbose = FALSE`.
+:::
+
+#### The Package Solution [NEW]
+
+Code to run the final test with the adatutor package and bootstrap its interval.
+
+```{r listing-35-pkg}
+# The final test as LOGO-CV with one held-out group: train on the six tuning
+# projects, score HOLZ
+ada_holz <- logo_cv(
+  ada_final,
+  data = df,
+  group = "pid",
+  holdout = "holz"
+)
+
+# Verification
+all.equal(ada_holz$estimates[1, "holz", "auroc"], auc_final)
+```
+
+You can also do this with the adatutor package whoch provides a quick way to bootstrap the final test and VISUALIZE the results?
+
+tutplot with bootstrapped results here? remove code?
+
+**TODO**: Can we show the bootstrap manual code I removed above hereî
+
+```{r listing-35-pkg-boot}
+# Resample HOLZ's study effects for a 95 percent interval
+set.seed(112)
+bootstrap(ada_holz, n_resample = 1000)
+```
+
+::: {.callout-note title="Add to tutorial"}
+`logo_cv()` runs the final test as well. With `holdout = "holz"`, it holds out HOLZ only: it trains the recipe of `ada_final` on the other six projects and scores HOLZ once. This is the call of Module 6 with a single held-out group. `all.equal()` compares its AUROC with that of Listing 35. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 35.
+
+`bootstrap()` resamples HOLZ's 26 study effects 1,000 times, as in Module 6. The final ensemble reaches an AUROC of 0.77 on HOLZ, with a 95 percent interval from 0.54 to 0.94. The interval is wide. Its lower end lies only a little above chance. One project of 26 study effects cannot say more.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New listing (R1.C4): the final test through `logo_cv()` with `holdout = "holz"`, checked against Listing 35 with `all.equal()`, and its interval from `bootstrap()`. `holdout` is new in the package.
+:::
 
 ## Benchmarks
 
-Compare the results from ligistic regression, adaboost and decision trees here?
-**TODO**: Cite the random forest package.
+::: {.callout-note title="Add to tutorial"}
+An AUROC of 0.77 says little on its own. It might reflect AdaBoost, or it might reflect what any model can get out of four reviewer metrics. Benchmarks tell the two apart: other models, trained on the same data and scored the same way. We compare AdaBoost with four other models. Logistic regression is the usual first model for a binary outcome. A single classification tree is the weak learner of AdaBoost, grown deeper. A random forest averages many deep trees [@breiman2001; @liaw2002]. Each tree grows on a bootstrap sample of the data and tries a random subset of the predictors at each split. XGBoost is a widely used library for gradient boosting [@chen2016].
 
-```{r benchmarks}
-# Baseline: logistic regression on the same predictors and projects
-fit_logit <- glm(
-  replicate ~ .,
-  data = df_noholz[, voi_nms],
-  family = binomial
-)
+Each benchmark gets the treatment AdaBoost got, as far as it applies. The logistic regression has nothing to tune (note: you might consider using product terms between predictior or interactions, but we got little out of it). We choose the tree's depth from 1 to 4 by the rule of Module 7, on the same six folds, and the rule picks depth 4. The forest runs at its defaults, 500 trees with two predictors tried per split. We did not tune it, because its pick moved with its randomness: another seed chose another setting. We tune XGBoost by the rule of Module 7, on a grid of its own hyperparameters. All five models are trained on the same six projects and scored once on HOLZ. Each is scored on a continuous score, AdaBoost on its margin and the others on their predicted probability of success. The AUROC is rank-based, so margins and probabilities compare directly. The package ships the results as the dataset `benchmark`, with all 17 performance metrics of `assess()`. Listing [NEW] loads it, and `data-raw/benchmark.R` holds the code that built it.
 
-# Baseline: a single tree on the same predictors and projects. Its depth, 5, is
-# chosen by the same LOGO-CV rule on the six tuning projects (mean minus SD)
-fit_tree <- rpart::rpart(
-  replicate ~ .,
-  data = df_noholz[, voi_nms],
-  maxdepth = 5
-)
+On HOLZ, AdaBoost (0.77) is on par with the forest (0.76) and XGBoost (0.74), and ahead of the logistic regression and the tree (both 0.71). None of these differences is firm: all four scores lie well inside AdaBoost's own 95 percent interval on HOLZ, 0.54 to 0.94. On the six tuning projects, no model leads everywhere.
 
-# Default random forests on the same predictors
-set.seed(112)
-fit_rf <- randomForest::randomForest(
-  replicate ~ .,
-  data = df_noholz[, voi_nms]
-) # mtry=2, nodesize=1
+:::
 
-# Score each baseline once on HOLZ, on its probability of success rather than
-# the class, so the AUC sees the ranking
-y_logit <- predict(fit_logit, newdata = df_holz, type = "response")
-y_tree <- predict(fit_tree, df_holz[, pred_nms], type = "prob")[, "success"]
-y_rf <- predict(fit_rf, df_holz[, pred_nms], type = "prob")[, "success"]
+#### Listing [NEW]
 
-# All models on the same 26 HOLZ studies; AdaBoost's score is from Listing 35
-c(
-  adaboost = auroc(df_holz$replicate, y_ada),
-  logit = auroc(df_holz$replicate, y_logit),
-  tree4 = auroc(df_holz$replicate, y_tree),
-  rf = auroc(df_holz$replicate, y_rf)
-) |>
-  round(3)
+Code to load the benchmark models of the adatutor package.
+
+```{r listing-benchmark}
+# Five models, each scored by LOGO-CV on the six tuning projects and once on
+# HOLZ: a table per metric, a row per model
+data(benchmark)
+print(benchmark$auroc, digits = 2, row.names = FALSE)
+
+# How each model was set
+attr(benchmark, "settings")
 ```
 
-**TODO**: Add a gradient bossting machine as comparison and benchmark "where to go once graduated"?
+::: {.callout-important title="Changed since submission"}
+- New listing (R1.C1, R1.C3, R2.C3): `benchmark` is new in the package. It holds five models, each scored by LOGO-CV on the six tuning projects and once on HOLZ, under all 17 metrics of `assess()`. `data-raw/benchmark.R` builds it; the box below shows the tree's depth search.
+:::
 
+::: {.callout-note title="Add to tutorial (box, decide at port)"}
+**The tree's depth by LOGO-CV.** This box chooses the tree's depth by the rule of Module 7: one LOGO-CV per depth from 1 to 4 on the six tuning projects, then the highest `lower`. It picks depth 4, with a `lower` of 0.65. `data-raw/benchmark.R` holds the code for all five rows of `benchmark`.
+
+```{r benchmark-tree}
+# The tree's depth by the rule of Module 7: LOGO-CV on the six tuning
+# projects, the highest lower
+tree_hgrid <- data.frame(depth = 1:4)
+tree_tune <- rpart::rpart(
+  replicate ~ .,
+  data = df_noholz[, voi_nms],
+  method = "class"
+) |>
+  tune_logo_cv(
+    tree_hgrid,
+    data = df_noholz,
+    group = "pid"
+  )
+tree_best <- summary(
+  tree_tune,
+  "auroc",
+  sort_by = "lower"
+)[1, ]
+tree_best |> round(2)
+```
+:::
 
 ## Selecting versus Evaluating
 
-Listing 34 scores every setting in the hypergrid on the six tuning projects, and we took the row with the most stable performance. I think that this number is not an estimate of how the chosen model will do on a new project, because the same six projects picked the winner and then graded it. To see how much that matters, we should do the selection where the project we want to score cannot influence it.
+::: {.callout-note title="Add to tutorial"}
+Module 7 scored every setting of a grid on the six tuning projects and took the best. The winner's score is optimistic. The same six projects chose the winner and then graded it. Among many settings, the best score owes something to luck.
 
-**TODO** Should we add a wraper for logocv so reader can inspect the importance by project?
-Like a layout matrix where we put the 5 parplot in a layout m times n layout.
+The final test on HOLZ is honest, because the setting was fixed before HOLZ was scored. Yet it rests on a single project of 26 study effects, and its interval is wide. Nested LOGO-CV offers a second route, which spends no project on the test alone.
 
+The two routes answer different questions [@pargent2023], and a third question has no answer:
 
+| question | answered by |
+|:--|:--|
+| What is a fixed setting worth on a new project? | LOGO-CV (Module 6), or a final test (Listing 35) |
+| What is the procedure "search the grid, fit the winner" worth on a new project? | Nested LOGO-CV (Listing 36) |
+| What is the winning setting worth, judged by the projects that chose it? | Not answerable: those projects are spent |
 
-## Addition: Nested LOGO-CV
-
-Setting a project aside costs data: HOLZ's 26 studies never helped choose the
-setting, and the final test in Listing 35 rests on those 26 studies alone.
-Nested LOGO-CV avoids both. It repeats the whole procedure -- search the grid,
-pick the winner, refit it -- once per project, each time with that project held
-out. Every project serves as the test once, and none is withheld from tuning for
-good. The result estimates the procedure, not any single setting, and it shows
-which setting each search chose, so you see how stable the choice is. It is
-worth its cost, one grid search per project, when the data are too few to spare
-a test project, or when the stability of the choice is itself the question.
-
-::: {.callout-note}
-## Nested LOGO-CV picks by the mean
-
-`tune_logo_cv(nested = TRUE)` lets each inner search pick the setting with the
-highest mean AUROC (`criterion = "auroc"`), not the highest mean minus SD that
-Listing 34 uses. Listing 36 ranks by the mean as well, so its two versions agree
-with each other, but not with the stability rule of the main thread. To nest
-that rule, rank the inner settings by mean minus SD inside the loop of
-Listing 36.
+Our nested run differs from the main thread in two ways. First, it searches the 18 settings of Listing 33, not the 1,320 of `hypergrid`: seven searches of the shipped grid would take about two and a half hours on four cores. Second, each inner search ranks the settings by their mean AUROC, the default of `tune_logo_cv(nested = TRUE)`. Module 7 ranked them by `lower`. Listing 36 ranks by the mean as well, so it agrees with the package call, but not with the rule of Module 7. Nesting that rule means ranking the inner settings by it inside the loop of Listing 36.
 :::
 
-In nested leave-one-group-out cross-validation, the outer loop holds
-out one project entirely and the inner loop repeats the whole grid search on the six that remain, choosing hyperparameters without ever seeing the held-out project. The
-chosen setting is then refit on those six projects and scored on the seventh.
-Repeat seven times.
+## Nested LOGO-CV
 
-When I first met Nested LOGO-CV, I had a hard time to wrap my head around the fact, that it does not give me a(n overall) performance estimate for a particular hyperparameter setting. 
-Instead, it puts a number (an estimate) on the procedure: "run the grid search, pick, then fit the winner." Every model built inside the nesting is discarded; none of them is the model you ship. You still fit one setting on all the projects you have. Nesting tells you what to expect from that
-model, not what it scores.
+::: {.callout-note title="Add to tutorial"}
+Nested LOGO-CV runs the whole of Module 7 seven times, once with each project removed. With a project set aside, the grid search of Listing 34 runs on the other six, picks a winner, the winner is refit on those six, and the set-aside project is scored once. Seven numbers come out, each from a model whose setting was chosen without the project it is scored on. That is what the final test on HOLZ did once; nesting does it for every project, so no project is spent on the test alone.
 
-completely separating the tuning process from the evaluation process
+The numbers answer a different question than Listing 34's winner. The winner's six estimates are optimistic, because the same six folds chose it among 18 and then graded it: the largest of 18 noisy means is biased upward. The nested estimates carry no such selection, so they say what the procedure "search this grid, fit the winner" is worth on a new project. They say nothing about any one setting, and the seven winners chosen along the way are a diagnostic of how stable the choice is, not candidates.
 
-if you have a very large training validation and test set you can do the tripple, but if you have very vew data (as we comparably do) we might consider moving to nested cross-validation.
-
-Take our data and split it into folds (the 5 groups in our case). Then we reserve one group, say Group 1, as test set (let's call this the outer test set). 
-Then we take the remaining 4 (Group 2, 3, 4, 5) and split them again into 4 pieces: 3 pieces (Group 2, 3, 4) for the training set and one for the (inner) test set (Group 5). Then we (randomly, we do full Cartesian) search a hyperparameter setting from our test set and train the model with the inner 3 pieces (Group 2, 3, 4) and score it on the inner test set (Group 5) - and then again with a different hyperparameter setting. Then, we select the winning model with the best hyperparameter combi on Group 5 and pass it to the outer loop and train the model using the bigger training set with 4 pieces (Group 2, 3, 4, 5) and then evaluate it on the outer test set (Group 1). And then you repeat the whole procedure again with the next group
-So instead of one model performance on on test set we have 5 (5 Groups) measures. What people than usually do is to take the mean performance across projects.
-So we use all the data as a test set once
-
-In small test set you can have the problem of bad luck and up (especially with small test sets) with a handy partition which is too easy to classify and (thus not representative of what would usually happen, i.e. performane overestimate).
-
-TODO: Random grid search. Define 20 as a number in the random search
-
-Two things follow. First, the seven inner searches may each select a different
-setting, and the setting that won in Listing 34 may be chosen by none of them.
-That is expected rather than alarming: with seven projects there is no stable
-"best" setting to find, and seeing that instability directly is more informative
-than the average that hides it. Second, the nested estimate is *conservative*
-here, because each nested model saw six projects while a model fitted on all of
-them sees seven.
-
-If nesting does not hand you a model, what does? The three listings have three
-different jobs, and it is worth being explicit about which is which:
-
-| job | listing |
-|:----|:--------|
-| Choose the hyperparameters, using the six tuning projects | Listing 34 |
-| Estimate what that choice is worth, on one held-out project | Listing 35 |
-| Estimate what the choosing procedure is worth, with every project held out once | Listing 36 |
-
-So Listing 34 still picks the setting and Listing 35 still tests it -- nesting
-changes neither. What it adds is a number for the whole procedure: not the
-winning score from Listing 34, which the same six projects produced by selecting
-it, and not a single test project, but an estimate from every project, none of
-which had a hand in choosing its own setting.
-
-The settings the inner searches picked are worth looking at, but they are a
-diagnostic rather than a shortlist. They have the same standing as the
-coefficients fitted inside each cross-validation fold back in Module 1: nobody
-averages those, and nobody asks which fold's coefficients to keep. They are
-by-products of a procedure being measured, not candidates for shipping.
+On our data the run shows two things worth saying. The choice is unstable: seven searches picked four different settings, all at a learning rate of 0.1, and Listing 34's winner only twice. The optimism is small: the winner's mean over the six tuning projects is 0.776, the nested mean over the same six is 0.770, so selecting among these 18 settings cost about 0.01, far inside the per-project spread of 0.64 to 0.93. That is honest and useful: with a coarse grid of similar settings there is little to overfit, and the spread across projects, not the tuning, is what limits the estimate.
+:::
 
 #### Listing 36
 
-Code to do a nested leave-one-group-out cross-validation.
-
-::: {.callout-note}
-This ran for approximately 10 minutes on our laptops.
-:::
+Code to do a nested leave-one-group-out cross-validation. It runs for about 14 minutes.
 
 ```{r listing-36}
-# Projects, in the order they take their turn: all seven, HOLZ included
-projects <- sort(unique(df$pid))
+# The seven projects, HOLZ included: each is held out once
+proj_all <- sort(unique(df$pid))
 
-# Partition data by project ID
-df_split <- split(df, df$pid)
+# The AUROC of each held-out project, and the setting its search chose
+auc_nested_diy <- setNames(rep(NA_real_, length(proj_all)), proj_all)
+winners_diy <- list()
 
-# One honest score and one selected setting per project
-nested_auc <- list()
-selected <- list()
-
-runtime <- system.time({
-  # OUTER loop: evaluates
-  for (rp in projects) {
-    # Progress report
-    message("\nOuter fold: ", rp, "\n")
-
-    # Training and test set. The test project leaves the data entirely, so
-    # nothing below can see it.
-    test <- df_split[[rp]]
-    train <- df[!(df$pid %in% rp), ]
-
-    # INNER loop: selects. This is the same grid search as Listing 34, run on
-    # the training projects only -- so we can hand it to tune_logo_cv().
+runtime_nested <- system.time({
+  # Outer loop: each project is held out once and scored once
+  for (rp in proj_all) {
+    # Progress report, overwritten in place
+    cat("\rHeld-out project:", rp)
+    # The held-out project leaves the data, so the search cannot see it
+    train_cv <- df[df$pid != rp, ]
+    # Inner loop: the grid search of Listing 34 on the other six projects
     inner <- tune_logo_cv(
       ada_fit,
-      hgrid[, c("depth", "n_iter", "eta")],
-      data = train,
+      ada_hgrid[, c("depth", "n_iter", "eta")],
+      data = train_cv,
       group = "pid"
     )
-
-    # Rank the settings by their mean over the inner folds. Here the mean is a
-    # ranking device, not a performance estimate.
-    inner_auc <- summary(inner, metric = "auroc")
-    ranked <- aggregate(estimate ~ setting, data = inner_auc, FUN = mean)
-
-    # The setting the six training projects chose, on their own
-    inner_best <- hgrid[ranked$setting[which.max(ranked$estimate)], ]
-    selected[[rp]] <- inner_best[, c("depth", "n_iter", "eta")]
-
-    # Refit at that setting and score the untouched project
-    h <- rpart::rpart(
+    # The winner: the highest mean AUROC over the inner folds
+    auc_inner <- rowMeans(inner$estimates[,, "auroc"])
+    winners_diy[[rp]] <- ada_hgrid[
+      which.max(auc_inner),
+      c("depth", "n_iter", "eta")
+    ]
+    # The pipeline of Listing 34 at the winning setting: trained on the
+    # six projects, scored once on the held-out one
+    logo_rp <- rpart::rpart(
       replicate ~ .,
-      data = train[, voi_nms],
-      maxdepth = inner_best$depth,
+      data = train_cv[, voi_nms],
+      method = "class",
+      maxdepth = winners_diy[[rp]]$depth,
+      parms = list(split = "gini"),
       model = TRUE
-    )
-    fit <- adaboost(
-      h,
-      n_iter = inner_best$n_iter,
-      eta = inner_best$eta,
-      verbose = FALSE
-    )
-    y_pred <- predict(
-      fit,
-      newdata = test[, pred_nms],
-      type = "margin",
-      verbose = FALSE
-    )
-    nested_auc[[rp]] <- auroc(test$replicate, y_pred)
+    ) |>
+      adaboost(
+        n_iter = winners_diy[[rp]]$n_iter,
+        eta = winners_diy[[rp]]$eta,
+        verbose = FALSE
+      ) |>
+      logo_cv(data = df, group = "pid", holdout = rp)
+    auc_nested_diy[[rp]] <- logo_rp$estimates[1, rp, "auroc"]
   }
 })
 
-# Waiting time
-message("Run time: ", runtime["elapsed"], " s\n")
+# Run time in minutes
+runtime_nested[["elapsed"]] / 60
 
-# The honest expectation, per project
-unlist(nested_auc)
+# The nested estimates, one per project
+auc_nested_diy |> round(2)
 
-# What each outer fold selected, and how often they disagree
-do.call(rbind, selected)
+# The setting each search chose
+do.call(rbind, winners_diy)
 ```
 
-Only the outer loop is new. The inner one is the leave-one-group-out search we
-already ran in Listing 34, so we hand it to `logo_cv()` rather than write it out
-again -- the single change is that it now sees `train` instead of `df_noholz`.
+::: {.callout-note title="Add to tutorial"}
+Listing 36 wraps one more loop around the search of Listing 34. The outer loop takes each of the seven projects in turn, HOLZ included, and removes it from the data, so nothing inside the loop can see it. The inner loop is the grid search of Listing 34, run by `tune_logo_cv()` on the remaining six projects. It ranks the 18 settings by their mean AUROC over the six inner folds, and `which.max()` picks the winner. The winner then runs through the pipeline of Listing 34, where `logo_cv()` with `holdout = rp` trains it on the six projects and scores the held-out project once. The loop runs seven grid searches on one core, like every listing so far, and took about 14 minutes.
+:::
 
-The whole procedure is also one call:
+::: {.callout-important title="Changed since submission"}
+- New listing (R1.C11.a): the outer loop of nested LOGO-CV around the grid search of Listing 34 (submitted: none). The inner search is `tune_logo_cv()`, and the winner is refitted with the pipeline of Listing 34 and scored through `logo_cv()` with `holdout`.
+:::
 
-```{r listing-36-oneline}
-nested <- tune_logo_cv(
+#### The Package Solution [NEW]
+
+Code to do the same nested leave-one-group-out cross-validation with the adatutor package.
+
+```{r listing-36-pkg}
+# The nested search in one call, spread over four cores. Forking needs macOS
+# or Linux; on Windows the call runs on one core and says so
+ada_nested <- tune_logo_cv(
   ada_fit,
-  hgrid[, c("depth", "n_iter", "eta")],
+  ada_hgrid[, c("depth", "n_iter", "eta")],
   data = df,
   group = "pid",
   nested = TRUE,
-  criterion = "auroc"
+  criterion = "auroc",
+  cores = 4
 )
-nested
+ada_nested
+
+# Verification: the seven estimates of Listing 36, matched by project
+all.equal(ada_nested$estimates[proj_all, "auroc"], auc_nested_diy)
 ```
+
+::: {.callout-note title="Add to tutorial"}
+`tune_logo_cv()` with `nested = TRUE` does what Listing 36 does in one call: for each project, a grid search on the other six, the winner by the mean of `criterion`, and one score on the held-out project. Its printout lists the seven estimates and counts the distinct settings the inner searches chose. With `cores = 4`, it spreads the work over four cores and took about 4 minutes, against about 14 minutes for Listing 36. Readers who do not want to wait for Listing 36 can run this call instead. On Windows, it runs on one core and takes as long as the loop. The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing 36.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New listing: the nested search in one call, `tune_logo_cv(nested = TRUE)`, checked against Listing 36 with `all.equal()`. `cores` is new in the package.
+:::
+
+::: {.callout-note title="Add to tutorial (box, decide at port)"}
+**The nested search, unfolded.** Listing 36 folds the inner search into `tune_logo_cv()` and the refit into `logo_cv()`. Unfolded all the way, both are the by-hand steps of the box after Listing 34: the boosting rounds of Listing 24 and the margin of Listing 28, with the AUROC of Listing 31 at the end. The listing runs them once for every setting and inner project, and once more for each winner on all six projects. The seven estimates and the seven winners come out the same as in Listing 36.
+
+Code to do the same nested leave-one-group-out cross-validation with every step written out by hand. It runs for about 20 minutes.
+
+```{r listing-36-diy-full}
+# The nested search of Listing 36 again, with the by-hand steps of Modules 2,
+# 3, 5 and 6 pasted into the loops
+auc_nested_diy_full <- setNames(rep(NA_real_, length(proj_all)), proj_all)
+winners_diy_full <- list()
+# Outer loop: each project is held out once and scored once
+for (rp in proj_all) {
+  # Progress report, overwritten in place
+  cat("\rHeld-out project:", rp)
+  # The held-out project leaves the data, so the search cannot see it
+  train_cv <- df[df$pid != rp, ]
+  test_cv <- df[df$pid == rp, ]
+  # Module 7: the grid search of Listing 34 on the other six projects
+  proj_inner <- setdiff(proj_all, rp)
+  ada_hgrid_inner <- ada_hgrid[, c("depth", "n_iter", "eta")]
+  ada_hgrid_inner[proj_inner] <- NA_real_
+  for (i in seq_len(nrow(ada_hgrid_inner))) {
+    # Module 6, Listing 32: each of the six is the inner test set once
+    for (ip in proj_inner) {
+      test_inner <- train_cv[train_cv$pid == ip, ]
+      train_inner <- train_cv[train_cv$pid != ip, ]
+      y_train_inner <- train_inner[, out_nme]
+      m_inner <- nrow(train_inner)
+      # Module 3, Listing 24: the boosting rounds at this setting, the tree of
+      # Module 2, Listing 12 at this depth
+      ada_inner <- vector("list", ada_hgrid_inner$n_iter[i])
+      D <- rep(1, m_inner) / m_inner
+      for (t in seq_len(ada_hgrid_inner$n_iter[i])) {
+        h <- rpart::rpart(
+          replicate ~ .,
+          data = train_inner[, voi_nms],
+          method = "class",
+          maxdepth = ada_hgrid_inner$depth[i],
+          weights = D
+        )
+        y_retro <- predict(h, newdata = train_inner[, pred_nms], type = "class")
+        epsilon <- sum(D * (y_retro != y_train_inner))
+        alpha <- 0.5 * log((1 - epsilon) / epsilon) * ada_hgrid_inner$eta[i]
+        chi <- (y_retro == y_train_inner) * 1 + (y_retro != y_train_inner) * -1
+        D_raw <- D * exp(-alpha * chi)
+        D <- D_raw / sum(D_raw)
+        ada_inner[[t]] <- list(h = h, alpha = alpha)
+      }
+      # Module 5, Listing 28: the margin on the inner held-out project
+      h_inner <- lapply(ada_inner, "[[", "h")
+      alpha_inner <- sapply(ada_inner, "[[", "alpha")
+      y_pred_cstp <- sapply(
+        h_inner,
+        predict,
+        newdata = test_inner[, pred_nms],
+        type = "vector"
+      )
+      y_pred_1m1 <- 2 * y_pred_cstp - 3
+      pred_mgn_inner <- as.vector(alpha_inner %*% t(y_pred_1m1))
+      # Module 6, Listing 31: the AUROC of the inner held-out project
+      ada_hgrid_inner[[ip]][i] <- auroc(test_inner[, out_nme], pred_mgn_inner)
+    }
+  }
+  # The winner: the highest mean AUROC over the inner folds
+  winners_diy_full[[rp]] <- ada_hgrid[
+    which.max(rowMeans(ada_hgrid_inner[proj_inner])),
+    c("depth", "n_iter", "eta")
+  ]
+  # Module 3, Listing 24 again: the winning setting, boosted on all six projects
+  y_train_cv <- train_cv[, out_nme]
+  m_cv <- nrow(train_cv)
+  ada_cv <- vector("list", winners_diy_full[[rp]]$n_iter)
+  D <- rep(1, m_cv) / m_cv
+  for (t in seq_len(winners_diy_full[[rp]]$n_iter)) {
+    h <- rpart::rpart(
+      replicate ~ .,
+      data = train_cv[, voi_nms],
+      method = "class",
+      maxdepth = winners_diy_full[[rp]]$depth,
+      weights = D
+    )
+    y_retro <- predict(h, newdata = train_cv[, pred_nms], type = "class")
+    epsilon <- sum(D * (y_retro != y_train_cv))
+    alpha <- 0.5 * log((1 - epsilon) / epsilon) * winners_diy_full[[rp]]$eta
+    chi <- (y_retro == y_train_cv) * 1 + (y_retro != y_train_cv) * -1
+    D_raw <- D * exp(-alpha * chi)
+    D <- D_raw / sum(D_raw)
+    ada_cv[[t]] <- list(h = h, alpha = alpha)
+  }
+  # Module 5, Listing 28 again: the margin on the held-out project
+  h_cv <- lapply(ada_cv, "[[", "h")
+  alpha_cv <- sapply(ada_cv, "[[", "alpha")
+  y_pred_cstp <- sapply(
+    h_cv,
+    predict,
+    newdata = test_cv[, pred_nms],
+    type = "vector"
+  )
+  y_pred_1m1 <- 2 * y_pred_cstp - 3
+  pred_mgn_cv <- as.vector(alpha_cv %*% t(y_pred_1m1))
+  # Module 6, Listing 31 again: the held-out project, scored once
+  auc_nested_diy_full[[rp]] <- auroc(test_cv[, out_nme], pred_mgn_cv)
+}
+
+# The same seven AUROCs as Listing 36
+all.equal(auc_nested_diy_full, auc_nested_diy)
+
+# The same seven winners as Listing 36
+identical(do.call(rbind, winners_diy_full), do.call(rbind, winners_diy))
+```
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New listing, inside a box: the nested search of Listing 36 with every step by hand, checked against Listing 36 with `all.equal()` and `identical()`.
+:::
+
+# Where to go next
+
+## Next algorithm
+
+::: {.callout-note title="Add to tutorial (box, decide at port)"}
+
+The cross-validation part goes pretty far, but the finess of the algorithm is limited. But nothing holds more advanced reader to explore the worflow in a diy fashion or use, xgb with our package.
+
+**XGBoost by the same workflow.** XGBoost has `logo_cv()` and `tune_logo_cv()` methods as well, so this box runs the search of the tree's box in Module 8 on a grid of XGBoost's own. The grid crosses depths 1, 2 and 4, learning rates 0.1, 0.05 and 0.01, `min_child_weight` 1 and 5, `lambda` 1 and 10, and 50, 100, 200, 500 and 1,000 rounds. That makes 180 settings. The fit from `xgboost::xgboost()` is the recipe. It keeps no formula, so `outcome` names the outcome column. As for AdaBoost, the settings that differ only in their rounds share one fit per fold, and the shorter fits are read off it. The rule of Module 7, the highest `lower`, picks depth 1, 50 rounds, a learning rate of 0.1, `min_child_weight` 5 and `lambda` 1. `xgboost::xgboost()` then refits the pick on the six tuning projects, and `logo_cv()` with `holdout = "holz"` scores it once on HOLZ. The box needs the xgboost package. It runs in about 20 seconds, and its result matches the last row of `benchmark$auroc`.
+
+```{r benchmark-xgb}
+# Four hyperparameters crossed with five numbers of rounds
+xgb_hgrid <- expand.grid(
+  depth = c(1, 2, 4),
+  eta = c(0.1, 0.05, 0.01),
+  min_child_weight = c(1, 5),
+  lambda = c(1, 10),
+  n_iter = c(50, 100, 200, 500, 1000)
+)
+
+# LOGO-CV on the six tuning projects
+xgb_fit <- xgboost::xgboost(
+  x = df_noholz[, pred_nms],
+  y = df_noholz[, out_nme],
+  nthreads = 1
+)
+xgb_tune <- tune_logo_cv(
+  xgb_fit,
+  xgb_hgrid,
+  data = df_noholz,
+  group = "pid",
+  outcome = out_nme
+)
+xgb_best <- summary(
+  xgb_tune,
+  "auroc",
+  sort_by = "lower"
+)[1, ]
+xgb_best |> round(2)
+
+# The final test: fit the pick, then LOGO-CV with HOLZ as the one held-out group
+xgb_final <- xgboost::xgboost(
+  x = df_noholz[, pred_nms],
+  y = df_noholz[, out_nme],
+  max_depth = xgb_best$depth,
+  learning_rate = xgb_best$eta,
+  min_child_weight = xgb_best$min_child_weight,
+  reg_lambda = xgb_best$lambda,
+  nrounds = xgb_best$n_iter,
+  nthreads = 1
+)
+
+xgb_holz <- logo_cv(
+  xgb_final,
+  data = df,
+  group = "pid",
+  holdout = "holz",
+  outcome = out_nme
+)
+xgb_holz$estimates[1, "holz", "auroc"]
+
+# Internal short cut ;)
+# The final test: refit on the six tuning projects, score HOLZ once
+# tune_logo_cv(
+#  xgb_fit,
+#  xgb_best[names(xgb_hgrid)],
+#  data = df,
+#  group = "pid",
+#  holdout = "holz",
+#  outcome = out_nme
+#)
+#
+```
+:::
+
+## Whole infrastructure 
+
+Move rsample here?
+Tidymodels and the book from julia silge.
+https://www.tmwr.org/
+https://www.manning.com/books/machine-learning-with-r-the-tidyverse-and-mlr
+
+Our goal is not to compete with these packages, nor to replace one of them. Our goal is to teach the mechanics and once graduated to fold in one piece at the time to be able to focus on the next part of the workflow withouth carrying the loops around. 
+
+Note: I dont think none of the references uses nested lopocv?
+If so, than we can say "In addition the competences gained be used to gain convidence and implement once own worflow (nested cv) with any framework that fits the users problem at hand" 
+
+#### Listing 10
+
+Code to do a 70/30 simple random split and a 70/15/15 stratified split with the `rsample` package.
+
+```{r listing-10}
+# Install once: install.packages("rsample")
+
+# Simple random split (two way)
+set.seed(112)
+rand_split_pkg <- rsample::initial_split(df, prop = 0.7)
+train_pkg <- rsample::training(rand_split_pkg)
+test_pkg <- rsample::testing(rand_split_pkg)
+
+# Stratified split (three way)
+set.seed(112)
+strat_split_pkg <- rsample::initial_validation_split(
+  df,
+  prop = c(0.7, 0.15),
+  strata = "replicate"
+)
+
+# Training, validation, and test sets
+train_pkg <- rsample::training(strat_split_pkg)
+valid_pkg <- rsample::validation(strat_split_pkg)
+test_pkg <- rsample::testing(strat_split_pkg)
+```
+
+::: {.callout-note title="Add to tutorial"}
+The adatutor package is built for teaching: its functions show the mechanics and stay small, even though `partition()` is fast. For applied work, a full machine-learning infrastructure such as tidymodels [@tidymodels] is the better home. It offers cross-validation, bootstraps, and nested resampling through `rsample` [@rsample], many more models through `parsnip`, and tuning workflows around them. The move is short, because adatutor follows the same conventions: `initial_split()` takes the same `prop` and `strata` arguments as `partition()`, models are fitted with a formula and a data frame, and predictions come from `predict()` with a `type` argument.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- `rsample::` calls instead of `library(rsample)`, with an install line.
+- The stratified split is now 70/15/15, with `initial_validation_split()`, as in Listing 9; each split re-seeded.
+- Object names `rand_split_pkg`, `strat_split_pkg`, `train_pkg`, `valid_pkg`, `test_pkg` instead of `randsplit`, `stratsplit`, `train`, `testvalid`.
+:::
+
+
+Why AdaBoost, then? No algorithm wins on every problem [@wolpert1997]. With the small samples and noisy predictors of psychology, simpler models often match more flexible ones [@speck2026]. The aim of this tutorial was to learn one algorithm from the inside, on a real and hard problem, not to win a benchmark. AdaBoost serves that aim. It is simple enough to build by hand, and it holds its own against the alternatives.
+
+XGBoost is the next place to go. It boosts trees by gradient steps, as the Conclusion explains, and it adds two regularizers that AdaBoost lacks. `min_child_weight` blocks a split that would leave a leaf with too little data. `lambda` shrinks the leaf values toward zero, an L2 penalty. On the six tuning projects, XGBoost reaches a higher `lower`: the best of its 180 settings has 0.71, the best of AdaBoost's 1,320 has 0.67. The first regularizer seems to matter: the ten XGBoost settings with the highest `lower` all set `min_child_weight` to 5. The second shows no clear pattern: seven of the ten set `lambda` to 10, but the pick sets it to 1. The higher `lower`, not the score on HOLZ, is the reason to move on; on HOLZ, XGBoost scores below AdaBoost (0.74 against 0.77). The same search runs in [tidymodels](https://www.tidymodels.org), the framework the rsample package of Module 1 belongs to. The comparison is not fully even, though: XGBoost was tuned over five hyperparameters, AdaBoost over three.
+
+Note: Min child weight in xgb can be emulated with minbucket (round(minsplit / 3) about 7)
+minsplit: minimum number of observations that must exist in a parent node before `rpart` we attempt a split
 
 # Conclusion
 
 ::: {.callout-note title="Add to tutorial"}
+Is adaboost a contemporary algorithm? No. It is indeed largely superseeded by more general and flexible(?) algorithms such as gradient boosting and XGBoost. Is it still worth learning/have at ones disposal? From our perspective, yes. Adaboost is a bridge into the world of boosting algorithms.
+AdaBoost is forward stagewise additive modeling with exponential loss. So if readers are willing to futher engage with loss functions, they can swap the exponential loss for log loss and get LogitBoost. And then they can appreciate that the log loss gives calibrated probabilities, instead of margins. For replication prediction, a probability might be a tempting additional. If readers are then ready to swap the loss for any differentiable loss and
+take gradients instead of reweighting and they have gradient boosting. If they are ready to add second derivative information they can switch to newtonboosting and get pretty close to XGBoost.
+Readers who built AdaBoost by hand are the only audience that can follow that derivation and appreciate the gained benefits of the extensions with code, and it’s the step that turns “AdaBoost is old” into **“AdaBoost is the simplest case of what you’ll use”**. And we want swap regression out of our toolbox, only because xxx exists.
+
+
 AdaBoost is also the simplest member of the boosting family that applied work uses today. Friedman et al. [-@friedman2000] showed that AdaBoost fits an additive model one stump at a time, and that each round minimizes an exponential loss: the observation weights of Module 3 are, up to a sign, the gradient of that loss. Replacing the exponential loss by the log loss gives LogitBoost, which returns probabilities instead of margins. Replacing the reweighting by a gradient step on any differentiable loss gives gradient boosting [@friedman2001], the algorithm behind XGBoost [@chen2016]. Readers who built AdaBoost by hand in Module 3 have therefore built the skeleton of all of them: a weak learner, T rounds, a learning rate, and a loss that decides what the next round corrects.
 :::
