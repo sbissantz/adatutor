@@ -26,7 +26,9 @@ test_that("benchmark's settings hold one row per model and hyperparameter", {
       xgboost = c("depth", "n_iter", "eta", "min_child_weight", "lambda")
     )
   )
-  # each pick has the highest mean minus SD on the six tuning projects
+  # the tree and AdaBoost picks have the highest mean minus SD on the six
+  # tuning projects; XGBoost's has the best worst project, ties broken by the
+  # mean minus SD
   expect_identical(settings$value[settings$model == "tree"], "4")
   expect_identical(
     settings$value[settings$model == "adaboost"],
@@ -34,7 +36,7 @@ test_that("benchmark's settings hold one row per model and hyperparameter", {
   )
   expect_identical(
     settings$value[settings$model == "xgboost"],
-    c("1", "50", "0.1", "5", "1")
+    c("4", "200", "0.05", "5", "10")
   )
 })
 

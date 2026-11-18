@@ -2683,13 +2683,13 @@ test_that("the tutorial's XGBoost pick rebuilds the benchmark's xgboost row", {
     y = df_noholz[, out_nme],
     nthreads = 1
   )
-  # row 10 of the tutorial's grid of 180
+  # row 105 of the tutorial's grid of 180
   best <- data.frame(
-    depth = 1,
-    eta = 0.1,
+    depth = 4,
+    eta = 0.05,
     min_child_weight = 5,
-    lambda = 1,
-    n_iter = 50
+    lambda = 10,
+    n_iter = 200
   )
   tuning <- tune_logo_cv(
     xgb_fit,
