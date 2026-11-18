@@ -31,15 +31,15 @@
 #'   rounds at a learning rate of 0.02, chosen from [hypergrid] by the rule
 #'   below.
 #' * `xgboost`: Gradient boosting from `xgboost::xgboost()` with the
-#'   logistic loss, tuned by the rule below over 180 settings: depths 1, 2
-#'   and 4; learning rates 0.1, 0.05 and 0.01; `min_child_weight` 1 and 5;
-#'   `lambda` 1 and 10; and 50, 100, 200, 500 and 1,000 rounds. The choice is
-#'   depth 1, 50 rounds, a rate of 0.1, `min_child_weight` 5 and `lambda` 1.
+#'   logistic loss, tuned over 180 settings: depths 1, 2 and 4; learning
+#'   rates 0.1, 0.05 and 0.01; `min_child_weight` 1 and 5; `lambda` 1 and 10;
+#'   and 50, 100, 200, 500 and 1,000 rounds. The choice is depth 4, 200 rounds,
+#'   a rate of 0.05, `min_child_weight` 5 and `lambda` 10.
 #'
-#' The rule is the tutorial's: among the settings scored on the six tuning
-#' projects, take the one with the highest `lower`, the mean across the
-#' projects minus their SD, which is the lower end of the band of one SD
-#' around the mean. HOLZ takes no part in any choice.
+#' The rule for the tree and AdaBoost is the tutorial's: among the settings
+#' scored on the six tuning projects, take the one with the highest `lower`,
+#' the mean across the projects minus their SD, which is the lower end of the
+#' band of one SD around the mean. Neither rule reads HOLZ.
 #'
 #' Every model is scored on a continuous score: AdaBoost on its margin, the
 #' others on the predicted probability of success. The metrics that need a
@@ -64,14 +64,16 @@
 #' print(benchmark$auroc, digits = 2)
 #' attr(benchmark, "settings")
 #'
-#' # on the six tuning projects: the mean, the SD and the mean minus the SD
+#' # on the six tuning projects: the mean, the SD, the mean minus the SD and
+#' # the worst project
 #' projects <- c("eerp", "ml1", "ml2", "ml3", "rpp", "ssrp")
 #' x <- as.matrix(benchmark$auroc[projects])
 #' data.frame(
 #'   model = benchmark$auroc$model,
 #'   mean = rowMeans(x),
 #'   sd = apply(x, 1, sd),
-#'   lower = rowMeans(x) - apply(x, 1, sd)
+#'   lower = rowMeans(x) - apply(x, 1, sd),
+#'   min = apply(x, 1, min)
 #' )
 #'
 #' @name benchmark
