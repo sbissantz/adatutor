@@ -4,7 +4,7 @@ make_fold <- function(n_pos, n_neg, seed = 1) {
   list(y = y, s = rnorm(length(y)) + y)
 }
 
-test_that("bootstrap() returns one row per measure with the observed estimate", {
+test_that("bootstrap() returns one row per metric with the observed estimate", {
   f <- make_fold(20, 20)
   set.seed(1)
   ci <- bootstrap(f$y, f$s, n_resample = 200)
@@ -21,7 +21,7 @@ test_that("bootstrap() returns one row per measure with the observed estimate", 
   expect_equal(attr(ci, "conf"), 0.95)
 })
 
-test_that("every measure is scored on the same resamples", {
+test_that("every metric is scored on the same resamples", {
   # One assess() call per draw is what keeps the intervals coherent, and it also
   # means a single `drop` count describes the whole table.
   f <- make_fold(15, 15)
@@ -69,7 +69,7 @@ test_that("stratified resampling never rejects and warns about what it costs", {
   expect_true(attr(ci, "stratified"))
 })
 
-test_that("stratified intervals are narrower for prevalence-dependent measures", {
+test_that("stratified intervals are narrower for prevalence-dependent metrics", {
   # auroc ignores the base rate, so fixing it changes little; auprc depends on
   # it, so fixing it removes a genuine source of variation.
   f <- make_fold(20, 20, seed = 6)

@@ -1,4 +1,4 @@
-test_that("benchmark holds one table per measure, a row per model", {
+test_that("benchmark holds one table per metric, a row per model", {
   data(benchmark)
   projects <- c("eerp", "ml1", "ml2", "ml3", "rpp", "ssrp", "holz")
   models <- c("logit", "tree", "rf", "adaboost", "xgboost")
@@ -26,9 +26,15 @@ test_that("benchmark's settings hold one row per model and hyperparameter", {
       xgboost = c("depth", "n_iter", "eta", "min_child_weight", "lambda")
     )
   )
+  # each pick has the highest mean minus SD on the six tuning projects
+  expect_identical(settings$value[settings$model == "tree"], "4")
   expect_identical(
     settings$value[settings$model == "adaboost"],
     c("2", "2000", "0.02")
+  )
+  expect_identical(
+    settings$value[settings$model == "xgboost"],
+    c("1", "50", "0.1", "5", "1")
   )
 })
 

@@ -185,7 +185,7 @@ test_that("label encodings are interchangeable", {
 })
 
 test_that("degenerate inputs give NA rather than NaN", {
-  # single class: the ranking measures are undefined
+  # single class: the ranking metrics are undefined
   one <- assess(rep(1, 6), rnorm(6))
   expect_true(is.na(one[["auroc"]]))
   expect_true(is.na(one[["auprc"]]))
@@ -241,9 +241,9 @@ test_that("the threshold argument moves the decision boundary", {
   )
 })
 
-# ---- the individually exported measures ------------------------------------
+# ---- the individually exported metrics -------------------------------------
 
-test_that("the exported measures agree with the assess() bundle", {
+test_that("the exported metrics agree with the assess() bundle", {
   set.seed(1)
   y <- rbinom(60, 1, 0.4)
   s <- rnorm(60) + y
@@ -335,9 +335,9 @@ test_that("confusion() honors the threshold", {
   expect_equal(as.vector(cm0), c(2, 0, 2, 0))
 })
 
-# ---- the confusion-matrix measures -----------------------------------------
+# ---- the confusion-matrix metrics ------------------------------------------
 
-test_that("the derived measures agree with the assess() bundle", {
+test_that("the derived metrics agree with the assess() bundle", {
   set.seed(11)
   y <- rbinom(80, 1, 0.4)
   s <- rnorm(80) + y
@@ -417,8 +417,8 @@ test_that("confusion() warns when a probability is scored at the margin cutoff",
   expect_silent(confusion(y, c(1.2, 0.3, -0.4, -1.1)))
 })
 
-test_that("the threshold reaches every derived measure from one place", {
-  # the point of passing a table: no way to mix cutoffs between measures
+test_that("the threshold reaches every derived metric from one place", {
+  # the point of passing a table: no way to mix cutoffs between metrics
   set.seed(21)
   y <- rbinom(60, 1, 0.5)
   s <- rnorm(60) + y
@@ -428,7 +428,7 @@ test_that("the threshold reaches every derived measure from one place", {
 
   expect_gt(measure_sens(low), measure_sens(high))
   expect_lt(measure_spec(low), measure_spec(high))
-  # the ranking measures cannot move, having no cutoff to move
+  # the ranking metrics cannot move, having no cutoff to move
   expect_equal(auroc(y, s), auroc(y, s))
   expect_false(isTRUE(all.equal(measure_bacc(low), measure_bacc(high))))
 })
