@@ -2,7 +2,7 @@
 # AdaBoost hyperparameter grid (LOGO-CV) #
 ##########################################
 
-# Run `pkgload::load_all()` first. One tune_logo_cv() call, about 40 minutes on 4
+# Run `pkgload::load_all()` first. One tune_logo_cv() call, about 22 minutes on 4
 # cores. `cores = 4` forks on macOS and Linux; on Windows it runs on one core,
 # about four times as long.
 
@@ -14,7 +14,7 @@ predictors <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 projects <- sort(unique(tune$pid))
 measures <- list_measures()
 
-depths <- 1:8
+depths <- 1:4
 etas <- c(
   0.0025,
   0.005,
@@ -104,6 +104,9 @@ attr(hypergrid, "projects") <- data.frame(
   base_rate = info$base_rate,
   row.names = NULL
 )
+# the class gives summary() its method; set after the attribute, as in the
+# shipped file
+class(hypergrid) <- c("hypergrid", "list")
 
 # Listing 33's settings, fitted directly, must match the tables
 listing <- expand.grid(depth = 1:3, n_iter = c(10, 100, 1000), eta = c(1, 0.1))
@@ -146,8 +149,11 @@ stopifnot(
   !anyNA(hypergrid$auroc)
 )
 
-# The tables must equal those of the script this one replaced, which boosted
-# and scored by hand. Drop this check when the grid itself changes.
+# The tables must equal the shipped data/hypergrid.rda. Its rows are depths 1
+# to 4 of the earlier 8-depth run, which matched the script this one replaced,
+# the one that boosted and scored by hand; this script's run over depths 1 to
+# 4 reproduced them bit for bit. Drop this check only when the grid changes
+# again.
 shipped <- new.env()
 load(file.path("data", "hypergrid.rda"), envir = shipped)
 differ <- measures[
