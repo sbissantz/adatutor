@@ -118,7 +118,17 @@ message(sprintf(
   "XGBoost grid: %.1f min",
   as.numeric(difftime(Sys.time(), started, units = "mins"))
 ))
-xgb_best <- summary(xgb_tune, "auroc", sort_by = "lower")[1, ]
+# XGBoost has its own rule, which differs from the highest `lower` used for
+# AdaBoost and the tree: the best worst project, ties broken by `lower`. Rows
+# 105 and 180 tie on both; summary() keeps grid order, so 105 comes first.
+xgb_best <- summary(xgb_tune, "auroc", sort_by = c("min", "lower"))[1, ]
+stopifnot(
+  xgb_best$depth == 4,
+  xgb_best$n_iter == 200,
+  xgb_best$eta == 0.05,
+  xgb_best$min_child_weight == 5,
+  xgb_best$lambda == 10
+)
 
 # Refit the pick on all six tuning projects and score HOLZ once
 xgb_holz <- tune_logo_cv(
