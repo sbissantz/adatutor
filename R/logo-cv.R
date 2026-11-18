@@ -9,8 +9,8 @@
 #'
 #' Pass a fitted model. `logo_cv()` reads the recipe off the fit and refits it
 #' once per group. The fit's own data are not used, because cross-validation
-#' evaluates the procedure, not one fitted model. To compare AdaBoost settings,
-#' pass the fit and a grid to [tune_logo_cv()].
+#' evaluates the procedure, not one fitted model. To compare settings of a
+#' model, pass its fit and a grid to [tune_logo_cv()].
 #'
 #' @section What each method reads off the fit:
 #' * An [adaboost()] fit: the formula, the tree controls, the splitting rule,
@@ -35,10 +35,11 @@
 #'
 #' Every model is scored on a continuous score, never on class labels.
 #'
-#' The call runs where its formula was made, so any other object it names,
-#' such as `weights = w`, must still exist there. A
-#' variable named as a column of `data`, such as `weights = n.o`, travels with
-#' the rows. A random forest draws at random: set a seed to repeat a result.
+#' For a tree, a glm or a forest, the call runs where its formula was made,
+#' so any other object it names, such as `weights = w`, must still exist
+#' there. A variable named as a column of `data`, such as `weights = n.o`,
+#' travels with the rows. A random forest draws at random: set a seed to
+#' repeat a result.
 #'
 #' @section Holding out some groups only:
 #' `holdout` names the groups to hold out, in that order. The other groups
@@ -286,7 +287,7 @@ logo_cv.default <- function(
     "`x` must be a fitted model: a fit from adaboost(), rpart(), glm(), ",
     "randomForest() or xgboost(), not an object of class `",
     class(x)[1L],
-    "`. Fit the model first, then pass the fit; to search a grid of AdaBoost ",
+    "`. Fit the model first, then pass the fit; to search a grid of ",
     "settings, use tune_logo_cv().",
     call. = FALSE
   )
@@ -329,8 +330,8 @@ logo_cv.default <- function(
 #' only that row is scored on the held-out group. The result estimates the
 #' procedure "search the grid, then fit the winner", not any one setting. It
 #' is slightly pessimistic, because each model trains on one group fewer.
-#' Expect the outer folds to choose different settings. Nesting is for
-#' [adaboost()] fits only.
+#' Expect the outer folds to choose different settings. Nesting is currently
+#' only supported with [adaboost()].
 #'
 #' @section Random forests:
 #' A forest draws at random. Before it refits, the tuner draws one seed per
@@ -345,10 +346,11 @@ logo_cv.default <- function(
 #' Rows of `grid` that differ only in `n_iter` share one fit per fold. The
 #' model is boosted once, to the largest `n_iter` among them, and each row is
 #' scored after its own number of rounds: AdaBoost on the margin, XGBoost on
-#' the probability. The first rounds of a
-#' longer run are the shorter run, so the result equals refitting each row. A
-#' grid of many round counts therefore costs about as much as its largest one;
-#' each value of `depth`, `eta` or an rpart control costs a fit of its own.
+#' the probability. The first rounds of a longer run are the shorter run, so
+#' the result equals refitting each row. A grid of many round counts therefore
+#' costs about as much as its largest one. Each distinct combination of the
+#' other columns costs one fit per fold, and so does every row of a tree or a
+#' forest.
 #'
 #' @param x A fitted model: a fit from [adaboost()], a classification tree
 #'   from [rpart::rpart()], a classification forest from
@@ -358,9 +360,9 @@ logo_cv.default <- function(
 #' @param grid A data frame of settings, one row per setting. See the section
 #'   on grid columns.
 #' @inheritParams logo_cv
-#' @param nested Whether to nest the search, for an [adaboost()] fit only.
-#'   The default, `FALSE`, scores every row of `grid` on every fold. `TRUE`
-#'   needs two or more rows and at least three groups.
+#' @param nested Whether to nest the search, which is currently only supported
+#'   with [adaboost()]. The default, `FALSE`, scores every row of `grid` on
+#'   every fold. `TRUE` needs two or more rows and at least three groups.
 #' @param criterion The metric the inner search maximizes when
 #'   `nested = TRUE`. Defaults to `"auroc"`. Fix it in advance: it decides
 #'   which setting is chosen.
@@ -378,7 +380,7 @@ logo_cv.default <- function(
 #'   mean of `criterion`.
 #'
 #' @family cross-validation
-#' @seealso [hypergrid], a grid of 2,640 settings already scored on the six
+#' @seealso [hypergrid], a grid of 1,320 settings already scored on the six
 #'   tuning projects of [altmext].
 #'
 #' @examples
@@ -398,12 +400,20 @@ logo_cv.default <- function(
 #'   data = altmejd,
 #'   group = "pid"
 #' )
-#' # the settings, ranked by their worst project, ties broken by stability
-#' summary(res, sort_by = c("min", "stable"))
+#' # the settings, ranked by the mean across the projects minus their SD
+#' summary(res, sort_by = "lower")
 #'
 #' # nested: each held-out project takes no part in the choice
 #' grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
 #' tune_logo_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
+#'
+#' # a classification tree: the depth varies
+#' tree <- rpart::rpart(
+#'   replicate ~ power.o + effect_size.o + n.o + p_value.o,
+#'   data = altmejd,
+#'   method = "class"
+#' )
+#' tune_logo_cv(tree, data.frame(depth = c(1, 3, 5)), data = altmejd, group = "pid")
 #'
 #' @export
 tune_logo_cv <- function(
@@ -437,6 +447,7 @@ tune_logo_cv.adaboost <- function(
 ) {
   check_dots_empty(...)
   check_ada_fit(x)
+  check_nested(nested)
   grid <- normalize_grid(
     grid,
     own = read_setting(x),
@@ -573,9 +584,8 @@ tune_logo_cv.randomForest <- function(
   folds <- read_folds(data, group, holdout)
   cores <- choose_cores(cores)
 
-  # one seed per fold, drawn before any refit: a row's forests then depend on
-  # the session's seed, the fold and the row, not on the grid's order or size
-  # or on `cores`
+  # one seed per fold, drawn before any refit: a row's forests depend on the
+  # session's seed, the fold and the row, not on grid order, size or `cores`
   seeds <- sample.int(.Machine$integer.max, length(folds))
   # set.seed() on one core would move the session's stream and forked
   # workers would not, so put it back where the draw left it
@@ -668,13 +678,21 @@ tune_logo_cv.default <- function(
   )
 }
 
+#' Stop unless `nested` is one `TRUE` or `FALSE`
+#' @noRd
+check_nested <- function(nested) {
+  if (!isTRUE(nested) && !isFALSE(nested)) {
+    stop("`nested` must be `TRUE` or `FALSE`.", call. = FALSE)
+  }
+}
+
 #' Stop when a search that cannot be nested is asked to nest
 #' @noRd
 check_not_nested <- function(nested) {
-  if (isTRUE(nested)) {
+  check_nested(nested)
+  if (nested) {
     stop(
-      "`nested = TRUE` is for adaboost() fits only. ",
-      "Search this fit's grid with `nested = FALSE`.",
+      "`nested = TRUE` is currently only supported with adaboost().",
       call. = FALSE
     )
   }
@@ -1095,7 +1113,7 @@ cross_validate_nested <- function(
   )
 }
 
-#' List the measures assess() returns
+#' List the metrics assess() returns
 #' @noRd
 list_measures <- function() {
   names(assess(c(1, 0), c(1, -1)))
@@ -1272,9 +1290,8 @@ refit_score.adaboost <- function(fit, train, test, setting, ...) {
 #' @exportS3Method NULL
 #' @noRd
 refit_score.rpart <- function(fit, train, test, setting, ...) {
-  # rpart() lets a control list override its direct arguments, so the row
-  # goes into the fit's full control list; the fit's own values give back
-  # its own call
+  # a control list overrides rpart()'s direct arguments, so the row goes into
+  # the fit's full control list, whose own values give back the fit's call
   row_controls <- intersect(names(setting), list_tree_controls())
   control <- utils::modifyList(
     fit$control,
@@ -1345,9 +1362,8 @@ refit_score.xgboost <- function(fit, train, test, setting, outcome, ...) {
     xgboost::xgboost,
     c(list(x = train[, features, drop = FALSE], y = train[[outcome]]), params)
   )
-  # the first n rounds of the longest run are the n-round run. The name is
-  # iteration_range: predict() takes iterationrange into `...` for this class
-  # and returns the full run
+  # the first n rounds of the longest run are the n-round run; the name is
+  # iteration_range: iterationrange falls into `...` and returns the full run
   newdata <- test[, features, drop = FALSE]
   n_rows <- nrow(newdata)
   probs <- vapply(
@@ -1382,24 +1398,27 @@ refit_call <- function(fit, rows, fun = NULL, args = list()) {
 
 #' Methods for logo_cv objects
 #'
-#' `print()` shows the per-project estimates of one metric, `summary()`
-#' returns their mean, SD, minimum and maximum per setting, and
-#' `as.data.frame()` flattens all estimates into one long table. `plot()`
-#' draws the estimates per project, with bands when `x` carries intervals from
-#' [bootstrap()].
+#' `print()` shows the per-project estimates of one metric. `summary()`
+#' returns one row per setting: the `mean`, `sd`, `min` and `max` of the
+#' setting's estimates across the projects, and right after `sd` the column
+#' `lower`, the mean minus the SD, which is the lower end of the band of one
+#' SD around the mean. These columns rank settings; they are not estimates of
+#' performance on a new project. `as.data.frame()` flattens all estimates
+#' into one long table.
+#' `plot()` draws the estimates per project, with bands when `x` carries
+#' intervals from [bootstrap()].
 #'
 #' `print()` lists each project's size and base rate once, then one row per
 #' setting: the setting's hyperparameters and its estimate on each project.
 #' Above 20 settings, it shows the first 10. A nested result shows one row
-#' per outer fold instead, with the setting that fold selected.
+#' per outer fold instead, with the setting that fold selected. A result from
+#' [bootstrap()] also shows each project's interval and its number of dropped
+#' draws.
 #'
-#' `summary()` returns one row per setting, in grid order unless `sort_by`
-#' sorts them: the hyperparameters, then the `mean`, `sd`, `min` and `max` of
-#' the setting's estimates across the projects, and `stable`, the mean minus
-#' the SD. These columns rank settings; they are not estimates of performance
-#' on a new project, and `sd` is not a standard error. A statistic is `NA` if
-#' a project is `NA`. The row names are the settings' row numbers in the grid.
-#' A nested result gives one row, over the outer folds.
+#' `summary()` keeps the grid order unless `sort_by` sorts the rows, and puts
+#' the hyperparameters first. `sd` is not a standard error. A statistic is
+#' `NA` if a project is `NA`. The row names are the settings' row numbers in
+#' the grid. A nested result gives one row, over the outer folds.
 #'
 #' @param x,object An object of class `logo_cv`.
 #' @param metric The performance metric to show. Defaults to `"auroc"`.
@@ -1407,8 +1426,8 @@ refit_call <- function(fit, rows, fun = NULL, args = list()) {
 #'   or `NULL`, the default, to keep the grid order. Rows go highest first on
 #'   every column, and later columns break ties in earlier ones. Rows that tie
 #'   on all of them keep their grid order, and rows with `NA` go last. For
-#'   example, `c("min", "stable")` puts first the setting whose worst project
-#'   scores highest.
+#'   example, `"lower"` puts first the setting with the highest mean minus
+#'   SD.
 #' @param ... Ignored.
 #'
 #' @return `print()` and `plot()` return `x` invisibly; `summary()` and
@@ -1422,6 +1441,21 @@ NULL
 #' @rdname logo_cv_methods
 #' @export
 print.logo_cv <- function(x, metric = "auroc", ...) {
+  # NA or several names would print nonsense; one unknown name prints a note
+  if (
+    !(is.character(metric) || is.factor(metric)) ||
+      length(metric) != 1L ||
+      is.na(metric)
+  ) {
+    stop(
+      "`metric` must be a single name among the metrics of the result: ",
+      paste(dimnames(x$estimates)$metric, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+  # a factor would print its code in the header
+  metric <- as.character(metric)
   nested <- isTRUE(x$nested)
   cat(
     if (nested) {
@@ -1441,7 +1475,7 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
   }
   cat("  metric: ", metric, "\n\n", sep = "")
 
-  if (length(metric) != 1L || !metric %in% dimnames(x$estimates)$metric) {
+  if (!metric %in% dimnames(x$estimates)$metric) {
     cat("no estimates for `", metric, "`\n", sep = "")
     return(invisible(x))
   }
@@ -1487,14 +1521,14 @@ summary.logo_cv <- function(object, metric = "auroc", sort_by = NULL, ...) {
   }
 
   estimates <- read_estimates(object, metric)
-  # no na.rm: a project without an estimate makes all four NA, as in hypergrid
+  # no na.rm: a project without an estimate makes all five NA, as in hypergrid
   out <- data.frame(
     mean = rowMeans(estimates),
     sd = apply(estimates, 1L, stats::sd),
     min = apply(estimates, 1L, min),
     max = apply(estimates, 1L, max)
   )
-  out$stable <- out$mean - out$sd
+  out <- add_lower(out)
   if (!isTRUE(object$nested)) {
     out <- cbind(read_hyperparameters(object), out)
   }
@@ -1504,6 +1538,25 @@ summary.logo_cv <- function(object, metric = "auroc", sort_by = NULL, ...) {
   if (is.null(sort_by)) {
     return(out)
   }
+  sort_summary(out, sort_by)
+}
+
+#' Add `lower`, the mean minus the SD, right after `sd`
+#'
+#' Shared by summary.logo_cv() and summary.hypergrid(), so both have the same
+#' columns in the same order.
+#' @noRd
+add_lower <- function(out) {
+  out$lower <- out$mean - out$sd
+  columns <- setdiff(names(out), "lower")
+  out[append(columns, "lower", after = match("sd", columns))]
+}
+
+#' Sort a summary's rows highest first by the columns in `sort_by`
+#'
+#' Shared by summary.logo_cv() and summary.hypergrid(), so both rank alike.
+#' @noRd
+sort_summary <- function(out, sort_by) {
   if (
     !is.character(sort_by) ||
       length(sort_by) == 0L ||
@@ -1567,14 +1620,14 @@ print_by_setting <- function(x, metric) {
   print(noquote(projects), right = TRUE)
   cat("\n")
 
-  # three decimals throughout, so 0.62 prints as 0.620; counts such as tp
-  # stay whole
+  # by name, not by value: the counts print whole, every other metric with
+  # three decimals, so 0.62 prints as 0.620 and a rate of 1 as 1.000
   estimates <- round(estimates, 3)
-  whole <- all(estimates == round(estimates), na.rm = TRUE)
+  counted <- metric %in% c("tp", "tn", "fp", "fn")
   # the settings unrounded, so a rate such as 0.0025 prints in full
   table <- data.frame(
     read_hyperparameters(x),
-    format(estimates, nsmall = if (whole) 0L else 3L),
+    format(estimates, nsmall = if (counted) 0L else 3L),
     check.names = FALSE
   )
   # the head of a long grid; ranking it is the job of summary()
@@ -1587,6 +1640,12 @@ print_by_setting <- function(x, metric) {
       " more settings; summary() ranks them.\n",
       sep = ""
     )
+  }
+
+  if (!is.null(x$ci)) {
+    intervals <- format_intervals(x, metric, colnames(estimates))
+    cat("\n", intervals$label, "\n", sep = "")
+    print(noquote(intervals$block), right = TRUE)
   }
 }
 
@@ -1609,7 +1668,56 @@ print_by_fold <- function(x, metric) {
     \(column) !all(is.na(column)),
     logical(1)
   )]
-  print(format(rows[, columns, drop = FALSE], digits = 3), row.names = FALSE)
+  table <- format(rows[, columns, drop = FALSE], digits = 3)
+  if (!is.null(x$ci)) {
+    intervals <- format_intervals(x, metric, rows$project)
+    table <- cbind(table, t(intervals$block))
+  }
+  print(table, row.names = FALSE)
+  if (!is.null(x$ci)) {
+    cat(intervals$label, "\n", sep = "")
+  }
+}
+
+#' Format each project's bootstrap interval of one metric, with a line that
+#' names the level and the number of resamples
+#' @noRd
+format_intervals <- function(x, metric, projects) {
+  # by name, so the columns follow the estimates whatever the order of `ci`
+  cis <- x$ci[projects]
+  read_column <- function(column) {
+    vapply(cis, \(ci) ci[[column]][match(metric, ci$metric)], numeric(1))
+  }
+  # as the estimates: the counts whole, every other metric with three decimals;
+  # trimmed, so one wide cell widens only its own project's column
+  digits <- if (metric %in% c("tp", "tn", "fp", "fn")) 0L else 3L
+  block <- rbind(
+    lower = format(
+      round(read_column("lower"), digits),
+      nsmall = digits,
+      trim = TRUE
+    ),
+    upper = format(
+      round(read_column("upper"), digits),
+      nsmall = digits,
+      trim = TRUE
+    ),
+    # not 1e+05: a project bootstrap() gave up on drops 100 * n_resample draws
+    dropped = format(read_column("drop"), scientific = FALSE, trim = TRUE)
+  )
+  colnames(block) <- projects
+  # one bootstrap() call made every project's intervals
+  first <- cis[[1L]]
+  n_resample <- attr(first, "n_resample")
+  label <- paste0(
+    format(100 * attr(first, "conf")),
+    "% bootstrap CI (",
+    format(n_resample, big.mark = ",", scientific = FALSE),
+    if (isTRUE(attr(first, "stratified"))) " stratified",
+    if (n_resample == 1) " resample" else " resamples",
+    "/project)"
+  )
+  list(block = block, label = label)
 }
 
 #' @rdname logo_cv_methods
@@ -1725,6 +1833,8 @@ draw_logo_cv <- function(
   ylab = metric,
   add_footnote = TRUE
 ) {
+  # a factor would pick the bands' column by its code
+  metric <- as.character(metric)
   long <- as.data.frame(x)
   estimates <- long[long$metric == metric, , drop = FALSE]
   if (nrow(estimates) == 0L) {
@@ -1765,7 +1875,7 @@ draw_logo_cv <- function(
     at = positions,
     labels = paste0(estimates$project, ifelse(starred, "*", ""))
   )
-  # ticks only where the measure can go: the headroom for the n labels is not
+  # ticks only where the metric can go: the headroom for the n labels is not
   # a value
   bounds <- if (metric == "mcc") c(-1, 1) else c(0, 1)
   # round: pretty() returns 1 as 1.0000000000000002, which the filter drops
@@ -1939,7 +2049,7 @@ find_reference <- function(metric, baseline, base_rate) {
   }
   # what a useless model scores: 0.5 for auroc and bacc, 0 for mcc, always
   # predicting the larger class for acc, the base rate for the precision
-  # measures (auprc, ppv, patk) and f1
+  # metrics (auprc, ppv, patk) and f1
   if (metric %in% c("auroc", "bacc")) {
     list(values = rep(0.5, n_projects), label = "dashed line: chance (0.5)")
   } else if (metric == "mcc") {
