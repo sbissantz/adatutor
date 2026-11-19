@@ -28,8 +28,8 @@
 #' The trees are `rpart()` trees with its defaults apart from `maxdepth`, so
 #' `cp = 0.01` and `minbucket = 7`.
 #'
-#' `patk_5` is `NA` for ML3: it has only three successes, so precision among
-#' the top five is undefined.
+#' `patk_5` is `NA` for ML3: it has only three successes, fewer than the five
+#' places, and [patk()] returns `NA` when `k` exceeds the number of positives.
 #'
 #' @section Ranking the settings:
 #' The list has class `hypergrid`, so `summary()` ranks the settings of one
