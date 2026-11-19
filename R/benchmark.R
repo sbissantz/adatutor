@@ -52,8 +52,8 @@
 #' `n_iter` and `eta` are named as in the tutorial; the others carry their
 #' package's argument name.
 #'
-#' `patk_5` is `NA` for ML3: it has only three successes, so precision among
-#' the top five is undefined.
+#' `patk_5` is `NA` for ML3: it has only three successes, fewer than the five
+#' places, and [patk()] returns `NA` when `k` exceeds the number of positives.
 #'
 #' @family datasets
 #'
