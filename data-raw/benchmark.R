@@ -3,9 +3,10 @@
 ############################################
 
 # Run `pkgload::load_all()` first. About a minute on one core; needs the
-# randomForest and xgboost packages. The fits follow Listing 35, the tree box
-# of Module 8 and the XGBoost box under "Where to go next" in
-# vignettes/tutorialscript.qmd, with the same object names.
+# randomForest and xgboost packages. The fits follow Listing 35 and the tree
+# box of Module 8 in vignettes/tutorialscript.qmd, with the same object names.
+# The box under "Where to go next" runs the nested version of the XGBoost
+# search.
 
 for (pkg in c("randomForest", "xgboost")) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -25,7 +26,7 @@ df_holz <- df[df$pid == "holz", ]
 df_noholz <- df[df$pid != "holz", ]
 df_split <- split(df_noholz, df_noholz$pid)
 proj_nms <- names(df_split)
-measures <- list_measures()
+metrics <- list_metrics()
 
 # The choice of Module 7 from hypergrid: the highest `lower`, the mean across
 # the projects minus their SD
@@ -140,27 +141,27 @@ xgb_holz <- tune_logo_cv(
   outcome = out_nme
 )
 
-# Every measure for the XGBoost pick: its row of the grid, and HOLZ. The row
+# Every metric for the XGBoost pick: its row of the grid, and HOLZ. The row
 # names of summary() are the settings' row numbers in the grid.
 xgb_est <- cbind(
-  t(xgb_tune$estimates[rownames(xgb_best), proj_nms, measures]),
-  holz = xgb_holz$estimates[1, "holz", measures]
+  t(xgb_tune$estimates[rownames(xgb_best), proj_nms, metrics]),
+  holz = xgb_holz$estimates[1, "holz", metrics]
 )
 
-# One measure x project matrix per model, HOLZ last
+# One metric x project matrix per model, HOLZ last
 est <- lapply(names(fits), \(nm) {
   cbind(
-    t(logo_tune[[nm]]$estimates[1, proj_nms, measures]),
-    holz = logo_holz[[nm]]$estimates[1, "holz", measures]
+    t(logo_tune[[nm]]$estimates[1, proj_nms, metrics]),
+    holz = logo_holz[[nm]]$estimates[1, "holz", metrics]
   )
 })
 names(est) <- names(fits)
 est$xgboost <- xgb_est
 
-benchmark <- lapply(setNames(measures, measures), \(measure) {
+benchmark <- lapply(setNames(metrics, metrics), \(metric) {
   data.frame(
     model = names(est),
-    t(vapply(est, \(e) e[measure, ], numeric(length(proj_nms) + 1))),
+    t(vapply(est, \(e) e[metric, ], numeric(length(proj_nms) + 1))),
     row.names = NULL
   )
 })
@@ -247,9 +248,9 @@ direct <- c(
 stored <- setNames(benchmark$auroc$holz, benchmark$auroc$model)[names(direct)]
 stopifnot(isTRUE(all.equal(direct, stored)))
 
-for (measure in c("auroc", "auprc", "bacc")) {
-  cat("\n", measure, "\n")
-  print(benchmark[[measure]], digits = 3)
+for (metric in c("auroc", "auprc", "bacc")) {
+  cat("\n", metric, "\n")
+  print(benchmark[[metric]], digits = 3)
 }
 print(attr(benchmark, "settings"))
 print(attr(benchmark, "projects"))
