@@ -2,7 +2,7 @@ test_that("benchmark holds one table per metric, a row per model", {
   data(benchmark)
   projects <- c("eerp", "ml1", "ml2", "ml3", "rpp", "ssrp", "holz")
   models <- c("logit", "tree", "rf", "adaboost", "xgboost")
-  expect_named(benchmark, list_measures())
+  expect_named(benchmark, list_metrics())
   for (table in benchmark) {
     expect_named(table, c("model", projects))
     expect_identical(table$model, models)
@@ -92,13 +92,13 @@ test_that("benchmark's logit cells match logo_cv() on a glm", {
   )
   tuning <- logo_cv(fit, data = tune, group = "pid")
   final <- logo_cv(fit, data = altmext, group = "pid", holdout = "holz")
-  for (measure in names(benchmark)) {
-    row <- benchmark[[measure]][benchmark[[measure]]$model == "logit", ]
+  for (metric in names(benchmark)) {
+    row <- benchmark[[metric]][benchmark[[metric]]$model == "logit", ]
     expect_equal(
       unname(unlist(row[projects])),
-      unname(tuning$estimates[1, projects, measure]),
-      label = measure
+      unname(tuning$estimates[1, projects, metric]),
+      label = metric
     )
-    expect_equal(row$holz, final$estimates[1, "holz", measure], label = measure)
+    expect_equal(row$holz, final$estimates[1, "holz", metric], label = metric)
   }
 })

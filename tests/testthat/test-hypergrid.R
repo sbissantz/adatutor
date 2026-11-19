@@ -1,7 +1,7 @@
 test_that("hypergrid holds one table per metric, a row per setting", {
   data(hypergrid)
   projects <- c("eerp", "ml1", "ml2", "ml3", "rpp", "ssrp")
-  expect_named(hypergrid, list_measures())
+  expect_named(hypergrid, list_metrics())
   for (table in hypergrid) {
     expect_named(
       table,
@@ -65,21 +65,21 @@ test_that("hypergrid's projects are altmext without HOLZ", {
 test_that("hypergrid's mean, sd, min and max summarize the projects", {
   data(hypergrid)
   projects <- attr(hypergrid, "projects")$project
-  for (measure in names(hypergrid)) {
-    table <- hypergrid[[measure]]
+  for (metric in names(hypergrid)) {
+    table <- hypergrid[[metric]]
     scores <- as.matrix(table[projects])
-    expect_equal(table$mean, apply(scores, 1, mean), label = measure)
-    expect_equal(table$sd, apply(scores, 1, sd), label = measure)
-    expect_equal(table$min, apply(scores, 1, min), label = measure)
-    expect_equal(table$max, apply(scores, 1, max), label = measure)
+    expect_equal(table$mean, apply(scores, 1, mean), label = metric)
+    expect_equal(table$sd, apply(scores, 1, sd), label = metric)
+    expect_equal(table$min, apply(scores, 1, min), label = metric)
+    expect_equal(table$max, apply(scores, 1, max), label = metric)
   }
 
   # An NA project makes all four NA: ML3 in every row of patk_5, and only there
   summaries <- c("mean", "sd", "min", "max")
   expect_true(all(is.na(hypergrid$patk_5$ml3)))
   expect_true(all(is.na(hypergrid$patk_5[summaries])))
-  for (measure in setdiff(names(hypergrid), "patk_5")) {
-    expect_false(anyNA(hypergrid[[measure]][summaries]), label = measure)
+  for (metric in setdiff(names(hypergrid), "patk_5")) {
+    expect_false(anyNA(hypergrid[[metric]][summaries]), label = metric)
   }
   expect_length(hypergrid, 17)
 })
@@ -125,11 +125,11 @@ test_that("tune_logo_cv() reproduces stored settings on every metric", {
   rows <- sample(which(settings$n_iter <= 100), 3)
   res <- tune_logo_cv(recipe, settings[rows, ], data = tune, group = "pid")
 
-  for (measure in names(hypergrid)) {
+  for (metric in names(hypergrid)) {
     expect_equal(
-      unname(res$estimates[, projects, measure]),
-      unname(as.matrix(hypergrid[[measure]][rows, projects])),
-      label = measure
+      unname(res$estimates[, projects, metric]),
+      unname(as.matrix(hypergrid[[metric]][rows, projects])),
+      label = metric
     )
   }
 })
@@ -153,7 +153,7 @@ test_that("hypergrid is a list of class hypergrid around the 17 tables", {
 
   plain <- unclass(hypergrid)
   expect_identical(class(plain), "list")
-  expect_named(plain, list_measures())
+  expect_named(plain, list_metrics())
   expect_true(all(vapply(plain, is.data.frame, logical(1))))
   expect_identical(names(attributes(plain)), c("names", "projects"))
   expect_named(attr(plain, "projects"), c("project", "n", "base_rate"))

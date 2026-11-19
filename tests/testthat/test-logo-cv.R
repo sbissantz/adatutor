@@ -27,13 +27,17 @@ test_that("logo_cv() returns a setting x project x metric cube", {
       "scores",
       "model",
       "nested",
-      "criterion",
+      "metric",
+      "sort_by",
       "selected"
     )
   )
+  # a plain run uses neither
+  expect_identical(res$metric, NA_character_)
+  expect_identical(res$sort_by, NA_character_)
 
-  n_measures <- length(assess(c(1, 0), c(1, -1)))
-  expect_equal(dim(res$estimates), c(1L, 5L, n_measures))
+  n_metrics <- length(assess(c(1, 0), c(1, -1)))
+  expect_equal(dim(res$estimates), c(1L, 5L, n_metrics))
   expect_named(dimnames(res$estimates), c("setting", "project", "metric"))
   expect_setequal(
     dimnames(res$estimates)$project,
@@ -112,8 +116,8 @@ test_that("a grid is crossed with every fold", {
   grid <- expand.grid(n_iter = c(5, 10), eta = c(1, 0.5))
   res <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
 
-  n_measures <- length(assess(c(1, 0), c(1, -1)))
-  expect_equal(dim(res$estimates), c(nrow(grid), 5L, n_measures))
+  n_metrics <- length(assess(c(1, 0), c(1, -1)))
+  expect_equal(dim(res$estimates), c(nrow(grid), 5L, n_metrics))
 
   d <- as.data.frame(res)
   auroc <- d[d$metric == "auroc", ]
@@ -361,9 +365,9 @@ test_that("the tuners reject arguments they do not take", {
 })
 
 # the lines of a printed result between its blank lines: the projects block,
-# then the table of estimates
+# then the table of estimates. The end of the output closes the last part.
 read_printed_parts <- function(out) {
-  blanks <- which(out == "")
+  blanks <- c(which(out == ""), length(out) + 1L)
   list(
     projects = out[(blanks[1] + 1L):(blanks[2] - 1L)],
     table = out[(blanks[2] + 1L):(blanks[3] - 1L)]
@@ -393,8 +397,7 @@ test_that("the methods behave", {
   out <- capture.output(print(res))
   expect_true(any(grepl("Leave-one-group-out", out)))
   expect_true(any(grepl("adaboost", out)))
-  # the spread is shown, never a mean or standard error across folds
-  expect_true(any(grepl("spread", out)))
+  # the estimates per project, never a mean or standard error across folds
   expect_false(any(grepl("\\bmean\\b|\\bSE\\b|\\bsd\\b", out)))
   # and the table carries a header and exactly one row per setting, so there
   # is no aggregate row hiding in it
@@ -424,12 +427,14 @@ test_that("print() shows the projects once, then one row per setting", {
   projects <- dimnames(res$estimates)$project
   out <- capture.output(print(res))
 
-  expect_true("  metric: auroc" %in% out)
+  expect_true("  metric:   auroc" %in% out)
   expect_false(any(grepl("measure", out)))
   # the spread across the projects, never a mean or SD of it
   expect_false(any(grepl("\\bmean\\b|\\bSE\\b|\\bsd\\b", out)))
-  expect_true(
-    "Estimates are per project; read the spread, not an average." %in% out
+  # the table is the last thing printed
+  expect_identical(
+    tail(out, 1L),
+    tail(read_printed_parts(out)$table, 1L)
   )
 
   # each project's size and base rate once, in the order of the table
@@ -513,7 +518,7 @@ test_that("print() shows one column per held-out group", {
   )
   out <- capture.output(print(res))
 
-  expect_true("  holdout: ssrp, eerp" %in% out)
+  expect_true("  holdout:  ssrp, eerp" %in% out)
   block <- read_printed_parts(out)$projects
   expect_equal(strsplit(trimws(block[1]), " +")[[1]], c("ssrp", "eerp"))
   table <- read_printed_table(out)
@@ -620,9 +625,9 @@ test_that("print() needs one metric name, and notes one without estimates", {
     printed,
     c(
       "Leave-one-group-out cross-validation",
-      "  model:   adaboost",
-      "  settings: 1 ",
-      "  metric: nope",
+      "  model:    adaboost",
+      "  settings: 1",
+      "  metric:   nope",
       "",
       "no estimates for `nope`"
     )
@@ -634,7 +639,7 @@ test_that("print() needs one metric name, and notes one without estimates", {
 # the lines a bootstrapped result prints between the table of estimates and
 # the footer: the line naming the intervals, then the block of projects
 read_printed_intervals <- function(out) {
-  blanks <- which(out == "")
+  blanks <- c(which(out == ""), length(out) + 1L)
   out[(blanks[3] + 1L):(blanks[4] - 1L)]
 }
 
@@ -1043,7 +1048,7 @@ test_that("holdout keeps only the named levels, in the order given", {
 
   expect_equal(attr(some, "holdout"), c("ssrp", "eerp"))
   expect_null(attr(every, "holdout"))
-  expect_true(any(grepl("holdout: ssrp, eerp", capture.output(print(some)))))
+  expect_true("  holdout:  ssrp, eerp" %in% capture.output(print(some)))
   expect_false(any(grepl("holdout", capture.output(print(every)))))
 })
 
@@ -1296,7 +1301,12 @@ test_that("nested tune_logo_cv() reports the setting each outer fold chose", {
 
   expect_s3_class(res, "logo_cv")
   expect_true(res$nested)
-  expect_equal(res$criterion, "auroc")
+  expect_identical(res$metric, "auroc")
+  expect_identical(res$sort_by, "lower")
+  expect_named(
+    res$selected,
+    c("project", "setting", "depth", "n_iter", "eta", "inner_value")
+  )
   expect_equal(nrow(res$selected), 5L)
   expect_setequal(res$selected$project, c("eerp", "ml1", "ml3", "rpp", "ssrp"))
   expect_true(all(res$selected$setting %in% seq_len(nrow(small_grid))))
@@ -1324,8 +1334,9 @@ test_that("nested tune_logo_cv() reports the setting each outer fold chose", {
 
 test_that("the inner search never sees the held-out project", {
   # The correctness property: for each outer fold, the selected setting must be
-  # the argmax of a grid search run on the remaining projects only. Recomputing
-  # that independently is the real check that no leakage occurs.
+  # the first row of summary() of a grid search run on the remaining projects
+  # only. Recomputing that independently is the real check that no leakage
+  # occurs.
   data(altmejd)
   res <- tune_logo_cv(
     fit_ada(),
@@ -1338,40 +1349,170 @@ test_that("the inner search never sees the held-out project", {
   for (p in res$selected$project) {
     train <- altmejd[altmejd$pid != p, ]
     inner <- tune_logo_cv(fit_ada(), small_grid, data = train, group = "pid")
-    s <- summary(inner, metric = "auroc")
+    s <- summary(inner, metric = "auroc", sort_by = "lower")
     expect_equal(
       res$selected$setting[res$selected$project == p],
-      as.integer(rownames(s)[which.max(s$mean)])
+      as.integer(rownames(s)[1])
     )
   }
 })
 
+# for each outer fold of a nested result, the row summary() puts first in a
+# search on the other groups, by hand, with its row number as `setting`
+pick_by_hand <- function(res, fit, grid, data) {
+  rows <- lapply(res$selected$project, function(p) {
+    inner <- tune_logo_cv(
+      fit,
+      grid,
+      data = data[data$pid != p, ],
+      group = "pid"
+    )
+    first <- summary(inner, metric = res$metric, sort_by = res$sort_by)[1, ]
+    cbind(setting = as.integer(rownames(first)), first)
+  })
+  do.call(rbind, rows)
+}
+
+test_that("each outer fold picks summary()'s first row for any sort_by", {
+  data(altmejd)
+  fit <- fit_ada()
+  for (sort_by in list("lower", c("min", "lower"), "max")) {
+    res <- tune_logo_cv(
+      fit,
+      small_grid,
+      data = altmejd,
+      group = "pid",
+      nested = TRUE,
+      metric = "bacc",
+      sort_by = sort_by
+    )
+    by_hand <- pick_by_hand(res, fit, small_grid, altmejd)
+    label <- paste(sort_by, collapse = ", ")
+    expect_identical(res$sort_by, sort_by)
+    expect_identical(res$metric, "bacc")
+    expect_identical(res$selected$setting, by_hand$setting, label = label)
+    # the winner's value of the first statistic in `sort_by`
+    expect_identical(
+      res$selected$inner_value,
+      by_hand[[sort_by[1]]],
+      label = label
+    )
+  }
+})
+
+test_that("sort_by = \"mean\" picks as the nested search did before sort_by", {
+  # the rule before sort_by: the highest mean over the inner projects, ties to
+  # the first row
+  data(altmejd)
+  fit <- fit_ada()
+  res <- tune_logo_cv(
+    fit,
+    small_grid,
+    data = altmejd,
+    group = "pid",
+    nested = TRUE,
+    sort_by = "mean"
+  )
+  for (p in res$selected$project) {
+    inner <- tune_logo_cv(
+      fit,
+      small_grid,
+      data = altmejd[altmejd$pid != p, ],
+      group = "pid"
+    )
+    means <- rowMeans(inner$estimates[,, "auroc", drop = FALSE], na.rm = TRUE)
+    chosen <- res$selected[res$selected$project == p, ]
+    expect_identical(chosen$setting, unname(which.max(means)), label = p)
+    expect_identical(chosen$inner_value, max(means), label = p)
+  }
+  # on this grid, the mean and the mean minus SD disagree on some fold
+  by_lower <- tune_logo_cv(
+    fit,
+    small_grid,
+    data = altmejd,
+    group = "pid",
+    nested = TRUE
+  )
+  expect_false(identical(by_lower$selected$setting, res$selected$setting))
+})
+
+test_that("a setting with an NA statistic cannot be picked", {
+  data(altmejd)
+  inner <- tune_logo_cv(
+    fit_ada(),
+    data.frame(n_iter = 1:3),
+    data = altmejd,
+    group = "pid"
+  )
+  # planted: row 1 has the best projects but lacks one, so its statistics are
+  # NA, as in summary(); the old rule, rowMeans(na.rm = TRUE), would pick it
+  inner$estimates[,, "auroc"] <- rbind(
+    c(0.9, 0.9, NA, 0.9, 0.9),
+    c(0.6, 0.6, 0.6, 0.6, 0.6),
+    c(0.8, 0.7, 0.6, 0.7, 0.8)
+  )
+  expect_true(all(is.na(summary(inner)[1, c("mean", "lower")])))
+  for (sort_by in list("mean", "lower", c("min", "lower"))) {
+    pick <- pick_setting(inner, "auroc", sort_by, fold = "x")
+    expect_identical(pick$setting, 3L)
+    expect_identical(
+      pick$value,
+      summary(inner, sort_by = sort_by)[[sort_by[1]]][1]
+    )
+  }
+
+  # no setting with a value: an error, not a pick
+  inner$estimates[, 2, "auroc"] <- NA
+  expect_error(
+    pick_setting(inner, "auroc", "lower", fold = "ssrp"),
+    paste0(
+      "No setting can be picked in the inner search without `ssrp`: every ",
+      "setting's `lower` of `auroc` is NA"
+    ),
+    fixed = TRUE
+  )
+
+  # patk_5 is undefined on ML3, so every inner search that keeps ML3 stops
+  expect_error(
+    tune_logo_cv(
+      fit_ada(),
+      small_grid,
+      data = altmejd,
+      group = "pid",
+      nested = TRUE,
+      metric = "patk_5"
+    ),
+    "inner search without `eerp`: every setting's `lower` of `patk_5` is NA",
+    fixed = TRUE
+  )
+})
+
 test_that("a nested search with a holdout selects on the other groups", {
+  # the six tuning projects: HOLZ is the locked final test and is never an
+  # outer fold
   data(altmext)
+  tune <- altmext[altmext$pid != "holz", ]
   res <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = altmext,
+    data = tune,
     group = "pid",
-    holdout = "holz",
+    holdout = "ml2",
     nested = TRUE
   )
-  expect_equal(res$selected$project, "holz")
-  expect_equal(dimnames(res$estimates)$project, "holz")
-  expect_equal(attr(res, "holdout"), "holz")
+  expect_equal(res$selected$project, "ml2")
+  expect_equal(dimnames(res$estimates)$project, "ml2")
+  expect_equal(attr(res, "holdout"), "ml2")
 
-  # the inner search ran on all six other projects
+  # the inner search ran on all five other projects
   inner <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = altmext[altmext$pid != "holz", ],
+    data = tune[tune$pid != "ml2", ],
     group = "pid"
   )
-  s <- summary(inner, metric = "auroc")
-  expect_equal(
-    res$selected$setting,
-    as.integer(rownames(s)[which.max(s$mean)])
-  )
+  s <- summary(inner, metric = "auroc", sort_by = "lower")
+  expect_equal(res$selected$setting, as.integer(rownames(s)[1]))
 })
 
 test_that("nesting removes the optimism of scoring the winner on its own folds", {
@@ -1391,12 +1532,15 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
   s <- summary(plain, metric = "auroc")
   naive <- max(s$mean)
 
+  # the naive rule, the highest mean, inside the loop too; the measured gaps
+  # above are for this rule
   nst <- tune_logo_cv(
     fit_ada(),
     grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    sort_by = "mean"
   )
   nested <- summary(nst, metric = "auroc")$mean
 
@@ -1408,7 +1552,7 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
   expect_gt(length(unique(nst$selected$setting)), 1L)
 })
 
-test_that("the criterion decides what the inner search maximizes", {
+test_that("the metric decides what the inner search ranks by", {
   data(altmejd)
   by_auroc <- tune_logo_cv(
     fit_ada(),
@@ -1416,7 +1560,7 @@ test_that("the criterion decides what the inner search maximizes", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    criterion = "auroc"
+    metric = "auroc"
   )
   by_bacc <- tune_logo_cv(
     fit_ada(),
@@ -1424,14 +1568,86 @@ test_that("the criterion decides what the inner search maximizes", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    criterion = "bacc"
+    metric = "bacc"
   )
 
-  expect_equal(by_auroc$criterion, "auroc")
-  expect_equal(by_bacc$criterion, "bacc")
-  # both are valid runs; the criterion is recorded so a reader can see which
+  expect_equal(by_auroc$metric, "auroc")
+  expect_equal(by_bacc$metric, "bacc")
+  # both are valid runs; the metric is recorded so a reader can see which
   # decision rule produced the selections
   expect_equal(nrow(by_bacc$selected), 5L)
+
+  # the old name is an error, not ignored
+  expect_error(
+    tune_logo_cv(
+      fit_ada(),
+      small_grid,
+      data = altmejd,
+      group = "pid",
+      nested = TRUE,
+      criterion = "bacc"
+    ),
+    "Unused argument(s): `criterion`.",
+    fixed = TRUE
+  )
+})
+
+# bad `metric` and `sort_by` stop a nested search before any fit; `...`
+# carries `outcome` for an XGBoost fit. Call it where cross_validate() is
+# mocked to stop.
+expect_checked_before_fit <- function(fit, grid, ...) {
+  metric_message <- paste0(
+    "`metric` must be one of the metrics assess() returns: ",
+    paste(list_metrics(), collapse = ", "),
+    "."
+  )
+  sort_by_message <- paste0(
+    "`sort_by` must name one or more of the summary statistics, each once: ",
+    "mean, sd, lower, min, max."
+  )
+  run <- function(...) {
+    tryCatch(
+      tune_logo_cv(fit, grid, data = altmejd, group = "pid", ...),
+      error = conditionMessage
+    )
+  }
+  for (bad in list("not_a_metric", c("auroc", "bacc"), NA, NULL)) {
+    expect_identical(
+      run(nested = TRUE, metric = bad, ...),
+      metric_message,
+      label = deparse1(bad)
+    )
+  }
+  # `depth` is a column of summary(), but not a statistic
+  bad_sort_by <- list(
+    "depth",
+    "median",
+    c("mean", "mean"),
+    NA_character_,
+    character(0),
+    1,
+    NULL
+  )
+  for (bad in bad_sort_by) {
+    expect_identical(
+      run(nested = TRUE, sort_by = bad, ...),
+      sort_by_message,
+      label = deparse1(bad)
+    )
+  }
+  # not used, so not checked, when the search is not nested
+  expect_identical(
+    run(metric = "not_a_metric", sort_by = "depth", ...),
+    "a fit started"
+  )
+}
+
+test_that("bad `metric` and `sort_by` stop an AdaBoost search before any fit", {
+  data(altmejd)
+  fit <- fit_ada()
+  # a fit would reach cross_validate() first
+  local_mocked_bindings(cross_validate = function(...) stop("a fit started"))
+  expect_checked_before_fit(fit, small_grid)
 })
 
 test_that("nested tune_logo_cv() rejects input it cannot honor", {
@@ -1464,9 +1680,10 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
       data = altmejd,
       group = "pid",
       nested = TRUE,
-      criterion = "not_a_measure"
+      metric = "not_a_metric"
     ),
-    "not one of the metrics"
+    "`metric` must be one of the metrics assess() returns",
+    fixed = TRUE
   )
 })
 
@@ -1531,35 +1748,71 @@ test_that("print() surfaces the selection instability", {
   )
   out <- capture.output(print(res))
 
-  expect_true(any(grepl("Nested leave-one-group-out", out)))
-  expect_true(any(grepl("selected on: auroc", out)))
-  expect_true(any(grepl("inner searches selected", out)))
-  expect_true(any(grepl("diagnostic, not a selection rule", out)))
   # still no aggregate row and no cross-project SE
   expect_false(any(grepl("\\bmean\\b|\\bSE\\b|\\bsd\\b", out)))
+  expect_false(any(grepl("read the spread|diagnostic|inner loop", out)))
 
   # a nested result keeps its long layout, one row per outer fold with the
-  # setting it chose; only the header word changed from "measure:"
+  # setting it chose; the picks are summary()'s first rows (see above)
   expect_equal(
     out,
     c(
       "Nested leave-one-group-out cross-validation",
-      "  model:   adaboost",
-      "  settings: 4 ",
-      "  selected on: auroc (inner loop)",
-      "  metric: auroc",
+      "  model:    adaboost",
+      "  settings: 4",
+      "  holdout:  each group",
+      "  metric:   auroc",
+      "  selected: lower auroc",
       "",
       " depth n_iter eta project  n base_rate estimate",
       "     1      5   1    eerp 18     0.611    0.825",
-      "     1      5   1     ml1 13     0.846    0.955",
-      "     1     10   1     ml3 10     0.300    0.619",
+      "     2      5   1     ml1 13     0.846    0.773",
+      "     2      5   1     ml3 10     0.300    0.643",
       "     1     10   1     rpp 90     0.344    0.620",
       "     1     10   1    ssrp 21     0.571    0.676",
       "",
-      "Estimates are per project; read the spread, not an average.",
-      "The 5 inner searches selected 2 distinct settings.",
-      "These are a diagnostic, not a selection rule: each rests on a subset",
-      "of the projects, and no model built here is the one you would ship."
+      "The 5 inner searches selected 3 distinct settings."
+    )
+  )
+})
+
+test_that("a nested header names the metric shown and the one selected by", {
+  data(altmejd)
+  res <- tune_logo_cv(
+    fit_ada(),
+    small_grid,
+    data = altmejd,
+    group = "pid",
+    holdout = c("ssrp", "ml1"),
+    nested = TRUE,
+    sort_by = c("min", "lower")
+  )
+  read_header <- function(...) {
+    out <- capture.output(print(res, ...))
+    out[seq_len(which(out == "")[1] - 1L)]
+  }
+  expected <- c(
+    "Nested leave-one-group-out cross-validation",
+    "  model:    adaboost",
+    "  settings: 4",
+    "  holdout:  ssrp, ml1",
+    "  metric:   auroc",
+    "  selected: min, lower auroc"
+  )
+  expect_identical(read_header(), expected)
+  # `metric:` follows print(); `selected:` stays the result's own
+  expected[5] <- "  metric:   acc"
+  expect_identical(read_header(metric = "acc"), expected)
+  n_distinct <- length(unique(res$selected$setting))
+  expect_identical(
+    tail(capture.output(print(res)), 2L),
+    c(
+      "",
+      sprintf(
+        "The 2 inner searches selected %d distinct setting%s.",
+        n_distinct,
+        if (n_distinct == 1L) "" else "s"
+      )
     )
   )
 })
@@ -1851,14 +2104,21 @@ test_that("a tree's or a forest's grid may hold only its own columns", {
   )
 })
 
-test_that("nested = TRUE is currently only supported with adaboost()", {
+test_that("a tree, a forest and other objects refuse nested = TRUE", {
   skip_if_not_installed("randomForest")
   data(altmejd)
   tree <- rpart::rpart(fml, data = altmejd, method = "class")
   set.seed(1)
   forest <- fit_forest()
-  grids <- list(data.frame(depth = 1:2), data.frame(mtry = 1:2))
-  fits <- list(tree, forest)
+  # the default method: a fit the package does not tune, and no fit at all
+  linear <- lm(n.o ~ power.o, data = altmejd)
+  grids <- list(
+    data.frame(depth = 1:2),
+    data.frame(mtry = 1:2),
+    data.frame(n_iter = 1:2),
+    data.frame(n_iter = 1:2)
+  )
+  fits <- list(tree, forest, linear, altmejd)
   for (k in seq_along(fits)) {
     expect_error(
       tune_logo_cv(
@@ -1868,18 +2128,29 @@ test_that("nested = TRUE is currently only supported with adaboost()", {
         group = "pid",
         nested = TRUE
       ),
-      "`nested = TRUE` is currently only supported with adaboost().",
-      fixed = TRUE
+      paste0(
+        "^`nested = TRUE` is currently only supported with fits from ",
+        "adaboost\\(\\) and xgboost\\(\\)\\.$"
+      ),
+      label = class(fits[[k]])[1]
     )
   }
+  # without nesting, the default method says what it needs
+  expect_error(
+    tune_logo_cv(linear, grids[[3]], data = altmejd, group = "pid"),
+    "`x` must be a fit from adaboost(), rpart(), randomForest() or xgboost()",
+    fixed = TRUE
+  )
 })
 
 test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
   data(altmejd)
   flag <- rep("`nested` must be `TRUE` or `FALSE`.", 6L)
   # the whole message: one sentence
-  only_adaboost <-
-    "^`nested = TRUE` is currently only supported with adaboost\\(\\)\\.$"
+  not_nestable <- paste0(
+    "^`nested = TRUE` is currently only supported with fits from ",
+    "adaboost\\(\\) and xgboost\\(\\)\\.$"
+  )
   tree <- rpart::rpart(fml, data = altmejd, method = "class")
   expect_identical(read_nested_errors(tree, data.frame(depth = 1:2)), flag)
   expect_error(
@@ -1890,7 +2161,7 @@ test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
       group = "pid",
       nested = TRUE
     ),
-    only_adaboost
+    not_nestable
   )
 
   skip_if_not_installed("randomForest")
@@ -1905,7 +2176,7 @@ test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
       group = "pid",
       nested = TRUE
     ),
-    only_adaboost
+    not_nestable
   )
 })
 
@@ -2209,7 +2480,7 @@ test_that("logo_cv() on an XGBoost fit equals LOGO-CV by hand", {
   rpp <- res$scores[res$scores$project == "rpp", ]
   expect_identical(
     res$estimates[1, "rpp", ],
-    assess(rpp$actual, rpp$score, threshold = 0.5)[list_measures()]
+    assess(rpp$actual, rpp$score, threshold = 0.5)[list_metrics()]
   )
 })
 
@@ -2486,17 +2757,28 @@ test_that("an XGBoost fit refuses what it cannot honor", {
   skip_if_not_installed("xgboost", "3.0.0")
   data(altmejd)
   fit <- fit_xgb()
+  # a nested search, as for AdaBoost
   expect_error(
     tune_logo_cv(
       fit,
-      data.frame(n_iter = 2:3),
+      data.frame(n_iter = 2),
       data = altmejd,
       group = "pid",
       nested = TRUE,
       outcome = "replicate"
     ),
-    "`nested = TRUE` is currently only supported with adaboost().",
-    fixed = TRUE
+    "needs a `grid` with two or more rows"
+  )
+  expect_error(
+    tune_logo_cv(
+      fit,
+      data.frame(n_iter = 2:3),
+      data = altmejd[altmejd$pid %in% c("ml1", "ml3"), ],
+      group = "pid",
+      nested = TRUE,
+      outcome = "replicate"
+    ),
+    "at least three groups"
   )
   expect_error(
     tune_logo_cv(
@@ -2572,18 +2854,228 @@ test_that("an XGBoost fit's `nested` must be TRUE or FALSE", {
     read_nested_errors(fit, grid, outcome = "replicate"),
     rep("`nested` must be `TRUE` or `FALSE`.", 6L)
   )
-  # the whole message: one sentence
-  expect_error(
+
+  # TRUE and FALSE both work
+  plain <- tune_logo_cv(
+    fit,
+    grid,
+    data = altmejd,
+    group = "pid",
+    nested = FALSE,
+    outcome = "replicate"
+  )
+  expect_false(plain$nested)
+  nested <- tune_logo_cv(
+    fit,
+    grid,
+    data = altmejd,
+    group = "pid",
+    nested = TRUE,
+    outcome = "replicate"
+  )
+  expect_true(nested$nested)
+  expect_equal(nrow(nested$selected), 5L)
+})
+
+test_that("bad `metric` and `sort_by` stop an XGBoost search before any fit", {
+  skip_if_not_installed("xgboost", "3.0.0")
+  data(altmejd)
+  fit <- fit_xgb()
+  local_mocked_bindings(cross_validate = function(...) stop("a fit started"))
+  expect_checked_before_fit(fit, small_grid, outcome = "replicate")
+})
+
+# the six tuning projects: HOLZ is the locked final test and is never an
+# outer fold
+read_tuning_projects <- function() {
+  data(altmext, envir = environment())
+  tune <- altmext[altmext$pid != "holz", ]
+  stopifnot(!"holz" %in% tune$pid)
+  tune
+}
+
+xgb_nested_grid <- expand.grid(
+  depth = c(1, 2),
+  eta = c(0.1, 0.3),
+  n_iter = c(5, 20)
+)
+
+test_that("a nested XGBoost fold equals the by-hand route of the tutorial", {
+  skip_if_not_installed("xgboost", "3.0.0")
+  tune <- read_tuning_projects()
+  xgb_fit <- xgboost::xgboost(
+    x = tune[, xgb_predictors],
+    y = tune$replicate,
+    nthreads = 1
+  )
+  folds <- c("ml2", "rpp")
+  res <- tune_logo_cv(
+    xgb_fit,
+    xgb_nested_grid,
+    data = tune,
+    group = "pid",
+    holdout = folds,
+    nested = TRUE,
+    outcome = "replicate"
+  )
+  expect_identical(res$model, "xgboost")
+  expect_identical(res$selected$project, folds)
+  expect_named(
+    res$selected,
+    c(
+      "project",
+      "setting",
+      "depth",
+      "n_iter",
+      "eta",
+      "min_child_weight",
+      "lambda",
+      "inner_value"
+    )
+  )
+
+  for (fold in folds) {
+    # a search on the outer training part, its pick by summary(), then the
+    # pick refitted on that part and scored on the fold (data-raw/benchmark.R)
+    inner <- tune_logo_cv(
+      xgb_fit,
+      xgb_nested_grid,
+      data = tune[tune$pid != fold, ],
+      group = "pid",
+      outcome = "replicate"
+    )
+    pick <- summary(inner, "auroc", sort_by = "lower")[1, ]
+    final <- tune_logo_cv(
+      xgb_fit,
+      pick[names(xgb_nested_grid)],
+      data = tune,
+      group = "pid",
+      holdout = fold,
+      outcome = "replicate"
+    )
+    chosen <- res$selected[res$selected$project == fold, ]
+    expect_identical(chosen$setting, as.integer(rownames(pick)), label = fold)
+    expect_identical(chosen$inner_value, pick$lower, label = fold)
+    expect_identical(
+      res$estimates[fold, ],
+      final$estimates[1, fold, ],
+      label = fold
+    )
+    expect_identical(
+      res$scores$score[res$scores$project == fold],
+      final$scores$score,
+      label = fold
+    )
+  }
+})
+
+test_that("the methods work on a nested XGBoost result", {
+  local_reproducible_output(width = 200)
+  skip_if_not_installed("xgboost", "3.0.0")
+  data(altmejd)
+  res <- tune_logo_cv(
+    fit_xgb(),
+    xgb_nested_grid,
+    data = altmejd,
+    group = "pid",
+    nested = TRUE,
+    outcome = "replicate"
+  )
+  projects <- unique(as.character(altmejd$pid))
+
+  # the header, then the grid's columns: the five settings of an XGBoost fit
+  out <- capture.output(print(res))
+  expect_identical(
+    out[1:7],
+    c(
+      "Nested leave-one-group-out cross-validation",
+      "  model:    xgboost",
+      "  settings: 8",
+      "  holdout:  each group",
+      "  metric:   auroc",
+      "  selected: lower auroc",
+      ""
+    )
+  )
+  table <- read.table(text = out[8:13], header = TRUE)
+  expect_named(
+    table,
+    c(
+      "depth",
+      "n_iter",
+      "eta",
+      "min_child_weight",
+      "lambda",
+      "project",
+      "n",
+      "base_rate",
+      "estimate"
+    )
+  )
+  expect_equal(table$project, projects)
+  expect_equal(table$n_iter, res$selected$n_iter)
+  expect_equal(table$eta, res$selected$eta)
+  n_distinct <- length(unique(res$selected$setting))
+  expect_identical(
+    out[14:15],
+    c(
+      "",
+      sprintf(
+        "The 5 inner searches selected %d distinct setting%s.",
+        n_distinct,
+        if (n_distinct == 1L) "" else "s"
+      )
+    )
+  )
+  expect_length(out, 15L)
+  expect_false(any(grepl("read the spread|diagnostic|inner loop", out)))
+
+  s <- summary(res)
+  expect_named(s, c("mean", "sd", "lower", "min", "max"))
+  expect_equal(s$mean, mean(res$estimates[, "auroc"]))
+
+  d <- as.data.frame(res)
+  expect_equal(nrow(d), length(res$estimates))
+  expect_equal(unique(d$model), "xgboost")
+  auroc <- d[d$metric == "auroc", ]
+  expect_equal(auroc$setting, res$selected$setting)
+  expect_equal(auroc$lambda, res$selected$lambda)
+
+  # scored on the probability, thresholded at 0.5
+  rpp <- res$scores[res$scores$project == "rpp", ]
+  expect_identical(
+    res$estimates["rpp", ],
+    assess(rpp$actual, rpp$score, threshold = 0.5)[list_metrics()]
+  )
+  set.seed(3)
+  boot <- suppressWarnings(bootstrap(res, n_resample = 20))
+  expect_named(boot$ci, projects)
+  # right under the table
+  expect_identical(
+    capture.output(print(boot))[14],
+    "95% bootstrap CI (20 resamples/project)"
+  )
+  pdf(NULL)
+  on.exit(dev.off(), add = TRUE)
+  expect_identical(withVisible(plot(boot))$value, boot)
+})
+
+test_that("a nested XGBoost search gives the same at any number of cores", {
+  skip_on_os("windows")
+  skip_if_not_installed("xgboost", "3.0.0")
+  data(altmejd)
+  run <- function(cores) {
     tune_logo_cv(
-      fit,
-      grid,
+      fit_xgb(),
+      expand.grid(depth = 1:2, n_iter = c(2, 4)),
       data = altmejd,
       group = "pid",
       nested = TRUE,
+      cores = cores,
       outcome = "replicate"
-    ),
-    "^`nested = TRUE` is currently only supported with adaboost\\(\\)\\.$"
-  )
+    )
+  }
+  expect_identical(run(2), run(1))
 })
 
 test_that("an XGBoost held-out group of one row keeps a column per setting", {
@@ -2801,7 +3293,7 @@ test_that("plot.logo_cv() draws with and without intervals", {
   }
   expect_gt(calls(boot), calls(res))
 
-  expect_error(plot(res, metric = "not_a_measure"), "no estimates")
+  expect_error(plot(res, metric = "not_a_metric"), "no estimates")
 })
 
 test_that("plot.logo_cv() returns its input invisibly", {
