@@ -12,7 +12,7 @@ data("altmext")
 tune <- altmext[altmext$pid != "holz", ]
 predictors <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 projects <- sort(unique(tune$pid))
-measures <- list_measures()
+metrics <- list_metrics()
 
 depths <- 1:4
 etas <- c(
@@ -78,10 +78,10 @@ message(sprintf(
 ))
 
 # the result orders projects by first appearance in the data, so index by name
-hypergrid <- lapply(setNames(measures, measures), function(measure) {
+hypergrid <- lapply(setNames(metrics, metrics), function(metric) {
   data.frame(
     grid[c("depth", "n_iter", "eta")],
-    res$estimates[, projects, measure],
+    res$estimates[, projects, metric],
     row.names = NULL
   )
 })
@@ -134,8 +134,8 @@ for (i in seq_len(nrow(listing))) {
       verbose = FALSE
     )
     margin <- predict(fit, test[, predictors], type = "margin", verbose = FALSE)
-    direct <- assess(test$replicate, score = margin)[measures]
-    staged <- vapply(measures, \(m) hypergrid[[m]][row, project], numeric(1))
+    direct <- assess(test$replicate, score = margin)[metrics]
+    staged <- vapply(metrics, \(m) hypergrid[[m]][row, project], numeric(1))
     stopifnot(isTRUE(all.equal(unname(direct), unname(staged))))
   }
 }
@@ -156,9 +156,9 @@ stopifnot(
 # again.
 shipped <- new.env()
 load(file.path("data", "hypergrid.rda"), envir = shipped)
-differ <- measures[
+differ <- metrics[
   !vapply(
-    measures,
+    metrics,
     \(m) isTRUE(all.equal(hypergrid[[m]], shipped$hypergrid[[m]])),
     logical(1)
   )
