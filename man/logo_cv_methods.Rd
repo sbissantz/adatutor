@@ -67,9 +67,11 @@ intervals from \code{\link[=bootstrap]{bootstrap()}}.
 \code{print()} lists each project's size and base rate once, then one row per
 setting: the setting's hyperparameters and its estimate on each project.
 Above 20 settings, it shows the first 10. A nested result shows one row
-per outer fold instead, with the setting that fold selected. A result from
-\code{\link[=bootstrap]{bootstrap()}} also shows each project's interval and its number of dropped
-draws.
+per outer fold instead, with the setting that fold selected. Its header
+adds what the inner searches selected by, the \code{sort_by} statistics and the
+\code{metric} of \code{\link[=tune_logo_cv]{tune_logo_cv()}}, and a last line counts the distinct settings
+they selected. A result from \code{\link[=bootstrap]{bootstrap()}} also shows each project's
+interval and its number of dropped draws.
 
 \code{summary()} keeps the grid order unless \code{sort_by} sorts the rows, and puts
 the hyperparameters first. \code{sd} is not a standard error. A statistic is

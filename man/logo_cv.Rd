@@ -61,8 +61,8 @@ are \code{NA} where the learner has no such setting.
 \code{\link[=bootstrap]{bootstrap()}} resamples.
 \item \code{model}: the learner, \code{"adaboost"}, \code{"rpart"}, \code{"glm"}, \code{"rf"} or
 \code{"xgboost"}.
-\item \code{nested}, \code{criterion} and \code{selected}: set by \code{\link[=tune_logo_cv]{tune_logo_cv()}} when it
-nests the search.
+\item \code{nested}, \code{metric}, \code{sort_by} and \code{selected}: set by \code{\link[=tune_logo_cv]{tune_logo_cv()}}
+when it nests the search.
 }
 }
 \description{

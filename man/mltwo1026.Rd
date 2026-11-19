@@ -63,6 +63,7 @@ Other datasets:
 \code{\link{benchmark}},
 \code{\link{holz1026}},
 \code{\link{hypergrid}},
+\code{\link{nested}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }

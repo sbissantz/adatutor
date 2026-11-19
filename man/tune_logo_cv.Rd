@@ -16,7 +16,8 @@ tune_logo_cv(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -29,7 +30,8 @@ tune_logo_cv(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -42,7 +44,8 @@ tune_logo_cv(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -55,7 +58,8 @@ tune_logo_cv(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -68,7 +72,8 @@ tune_logo_cv(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   outcome,
@@ -82,7 +87,8 @@ tune_logo_cv(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -107,12 +113,23 @@ column, holding every group.}
 to \code{NULL}, which holds out every level once.}
 
 \item{nested}{Whether to nest the search, which is currently only supported
-with \code{\link[=adaboost]{adaboost()}}. The default, \code{FALSE}, scores every row of \code{grid} on
-every fold. \code{TRUE} needs two or more rows and at least three groups.}
+with fits from \code{\link[=adaboost]{adaboost()}} and \code{\link[xgboost:xgboost]{xgboost::xgboost()}}. The default,
+\code{FALSE}, scores every row of \code{grid} on every fold. \code{TRUE} needs two or
+more rows and at least three groups.}
 
-\item{criterion}{The metric the inner search maximizes when
-\code{nested = TRUE}. Defaults to \code{"auroc"}. Fix it in advance: it decides
-which setting is chosen.}
+\item{metric}{The performance metric the inner search ranks the settings
+by when \code{nested = TRUE}, one of the metrics \code{\link[=assess]{assess()}} returns. Defaults
+to \code{"auroc"}. Fix it in advance: it decides which setting is chosen. It is
+not used when \code{nested = FALSE}.}
+
+\item{sort_by}{The statistics of the summary the inner search ranks the
+settings by when \code{nested = TRUE}: one or more of \code{"mean"}, \code{"sd"},
+\code{"lower"}, \code{"min"} and \code{"max"}, each once. Each outer fold picks the
+setting that \code{summary()} of its inner search puts first when sorted by
+\code{sort_by}: highest first, later statistics break ties, and settings that
+tie on all of them go in grid order. Defaults to \code{"lower"}, the mean
+minus the SD; \code{"mean"} picks the highest mean. It is not used when
+\code{nested = FALSE}.}
 
 \item{cores}{The number of cores to use. Defaults to 1. On macOS and
 Linux, the work is spread over that many forked R processes with
@@ -132,8 +149,9 @@ formula, so its predictors are the columns named by its feature names.}
 \value{
 An object of class \code{logo_cv}, as from \code{\link[=logo_cv]{logo_cv()}}, with one
 setting per row of \code{grid}. When nested, \code{estimates} is project x metric,
-and \code{selected} gives the setting each outer fold chose, with the inner
-mean of \code{criterion}.
+and \code{selected} gives the setting each outer fold chose. Its column
+\code{inner_value} is the chosen setting's value of the first \code{sort_by}
+statistic in the inner search.
 }
 \description{
 Cross-validates a fitted model at every row of a grid of settings, with
@@ -172,12 +190,18 @@ setting at its default, the grid takes xgboost's default. Fit it with
 Picking the best row of a grid and reporting its score is optimistic,
 because the same folds chose the winner and graded it. With
 \code{nested = TRUE}, each held-out group takes no part in the choice: a search
-on the other groups picks the row with the highest mean \code{criterion}, and
-only that row is scored on the held-out group. The result estimates the
-procedure "search the grid, then fit the winner", not any one setting. It
-is slightly pessimistic, because each model trains on one group fewer.
-Expect the outer folds to choose different settings. Nesting is currently
-only supported with \code{\link[=adaboost]{adaboost()}}.
+on the other groups picks the row that
+\code{summary(inner, metric = metric, sort_by = sort_by)} puts first, and only
+that row is scored on the held-out group. By default, that is the row with
+the highest mean AUROC minus its SD. The result estimates the procedure
+"search the grid, then fit the winner", not any one setting. It is slightly
+pessimistic, because each model trains on one group fewer. Expect the outer
+folds to choose different settings. Nesting is currently only supported
+with fits from \code{\link[=adaboost]{adaboost()}} and \code{\link[xgboost:xgboost]{xgboost::xgboost()}}.
+
+A row whose statistics are \code{NA}, because \code{metric} is undefined on one of
+the inner projects, cannot be picked; if no row has a value, the search
+stops with an error.
 }
 
 \section{Random forests}{
@@ -223,9 +247,17 @@ res <- tune_logo_cv(
 # the settings, ranked by the mean across the projects minus their SD
 summary(res, sort_by = "lower")
 
-# nested: each held-out project takes no part in the choice
+# nested: each held-out project takes no part in the choice, and each
+# inner search picks the setting with the highest mean minus SD
 grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
-tune_logo_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
+tune_logo_cv(
+  fit,
+  grid,
+  data = altmejd,
+  group = "pid",
+  nested = TRUE,
+  sort_by = "lower"
+)
 
 # a classification tree: the depth varies
 tree <- rpart::rpart(
@@ -238,7 +270,8 @@ tune_logo_cv(tree, data.frame(depth = c(1, 3, 5)), data = altmejd, group = "pid"
 }
 \seealso{
 \link{hypergrid}, a grid of 1,320 settings already scored on the six
-tuning projects of \link{altmext}.
+tuning projects of \link{altmext}. \link{nested}, the nested search of the same grid
+on all seven projects.
 
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},

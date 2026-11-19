@@ -80,8 +80,8 @@ to rank by is the modeler's choice (see the examples).
 The trees are \code{rpart()} trees with its defaults apart from \code{maxdepth}, so
 \code{cp = 0.01} and \code{minbucket = 7}.
 
-\code{patk_5} is \code{NA} for ML3: it has only three successes, so precision among
-the top five is undefined.
+\code{patk_5} is \code{NA} for ML3: it has only three successes, fewer than the five
+places, and \code{\link[=patk]{patk()}} returns \code{NA} when \code{k} exceeds the number of positives.
 }
 \section{Ranking the settings}{
 
@@ -143,6 +143,7 @@ Other datasets:
 \code{\link{benchmark}},
 \code{\link{holz1026}},
 \code{\link{mltwo1026}},
+\code{\link{nested}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }

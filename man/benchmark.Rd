@@ -62,8 +62,8 @@ logistic regression has no hyperparameters, so it has no rows. \code{depth},
 \code{n_iter} and \code{eta} are named as in the tutorial; the others carry their
 package's argument name.
 
-\code{patk_5} is \code{NA} for ML3: it has only three successes, so precision among
-the top five is undefined.
+\code{patk_5} is \code{NA} for ML3: it has only three successes, fewer than the five
+places, and \code{\link[=patk]{patk()}} returns \code{NA} when \code{k} exceeds the number of positives.
 }
 \examples{
 data(benchmark)
@@ -95,6 +95,7 @@ Other datasets:
 \code{\link{holz1026}},
 \code{\link{hypergrid}},
 \code{\link{mltwo1026}},
+\code{\link{nested}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }

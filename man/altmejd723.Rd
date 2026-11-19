@@ -36,6 +36,7 @@ Other datasets:
 \code{\link{holz1026}},
 \code{\link{hypergrid}},
 \code{\link{mltwo1026}},
+\code{\link{nested}},
 \code{\link{ssrp1026}},
 \code{\link{ssrp723}}
 }
