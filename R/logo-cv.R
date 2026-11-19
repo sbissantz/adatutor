@@ -83,8 +83,8 @@
 #'     [bootstrap()] resamples.
 #'   * `model`: the learner, `"adaboost"`, `"rpart"`, `"glm"`, `"rf"` or
 #'     `"xgboost"`.
-#'   * `nested`, `criterion` and `selected`: set by [tune_logo_cv()] when it
-#'     nests the search.
+#'   * `nested`, `metric`, `sort_by` and `selected`: set by [tune_logo_cv()]
+#'     when it nests the search.
 #'
 #' @family cross-validation
 #'
@@ -326,12 +326,18 @@ logo_cv.default <- function(
 #' Picking the best row of a grid and reporting its score is optimistic,
 #' because the same folds chose the winner and graded it. With
 #' `nested = TRUE`, each held-out group takes no part in the choice: a search
-#' on the other groups picks the row with the highest mean `criterion`, and
-#' only that row is scored on the held-out group. The result estimates the
-#' procedure "search the grid, then fit the winner", not any one setting. It
-#' is slightly pessimistic, because each model trains on one group fewer.
-#' Expect the outer folds to choose different settings. Nesting is currently
-#' only supported with [adaboost()].
+#' on the other groups picks the row that
+#' `summary(inner, metric = metric, sort_by = sort_by)` puts first, and only
+#' that row is scored on the held-out group. By default, that is the row with
+#' the highest mean AUROC minus its SD. The result estimates the procedure
+#' "search the grid, then fit the winner", not any one setting. It is slightly
+#' pessimistic, because each model trains on one group fewer. Expect the outer
+#' folds to choose different settings. Nesting is currently only supported
+#' with fits from [adaboost()] and [xgboost::xgboost()].
+#'
+#' A row whose statistics are `NA`, because `metric` is undefined on one of
+#' the inner projects, cannot be picked; if no row has a value, the search
+#' stops with an error.
 #'
 #' @section Random forests:
 #' A forest draws at random. Before it refits, the tuner draws one seed per
@@ -361,11 +367,21 @@ logo_cv.default <- function(
 #'   on grid columns.
 #' @inheritParams logo_cv
 #' @param nested Whether to nest the search, which is currently only supported
-#'   with [adaboost()]. The default, `FALSE`, scores every row of `grid` on
-#'   every fold. `TRUE` needs two or more rows and at least three groups.
-#' @param criterion The metric the inner search maximizes when
-#'   `nested = TRUE`. Defaults to `"auroc"`. Fix it in advance: it decides
-#'   which setting is chosen.
+#'   with fits from [adaboost()] and [xgboost::xgboost()]. The default,
+#'   `FALSE`, scores every row of `grid` on every fold. `TRUE` needs two or
+#'   more rows and at least three groups.
+#' @param metric The performance metric the inner search ranks the settings
+#'   by when `nested = TRUE`, one of the metrics [assess()] returns. Defaults
+#'   to `"auroc"`. Fix it in advance: it decides which setting is chosen. It is
+#'   not used when `nested = FALSE`.
+#' @param sort_by The statistics of the summary the inner search ranks the
+#'   settings by when `nested = TRUE`: one or more of `"mean"`, `"sd"`,
+#'   `"lower"`, `"min"` and `"max"`, each once. Each outer fold picks the
+#'   setting that `summary()` of its inner search puts first when sorted by
+#'   `sort_by`: highest first, later statistics break ties, and settings that
+#'   tie on all of them go in grid order. Defaults to `"lower"`, the mean
+#'   minus the SD; `"mean"` picks the highest mean. It is not used when
+#'   `nested = FALSE`.
 #' @param cores The number of cores to use. Defaults to 1. On macOS and
 #'   Linux, the work is spread over that many forked R processes with
 #'   [parallel::mclapply()]. Windows cannot fork, so there a value above 1
@@ -376,12 +392,14 @@ logo_cv.default <- function(
 #'
 #' @return An object of class `logo_cv`, as from [logo_cv()], with one
 #'   setting per row of `grid`. When nested, `estimates` is project x metric,
-#'   and `selected` gives the setting each outer fold chose, with the inner
-#'   mean of `criterion`.
+#'   and `selected` gives the setting each outer fold chose. Its column
+#'   `inner_value` is the chosen setting's value of the first `sort_by`
+#'   statistic in the inner search.
 #'
 #' @family cross-validation
 #' @seealso [hypergrid], a grid of 1,320 settings already scored on the six
-#'   tuning projects of [altmext].
+#'   tuning projects of [altmext]. [nested], the nested search of the same grid
+#'   on all seven projects.
 #'
 #' @examples
 #' data(altmejd)
@@ -403,9 +421,17 @@ logo_cv.default <- function(
 #' # the settings, ranked by the mean across the projects minus their SD
 #' summary(res, sort_by = "lower")
 #'
-#' # nested: each held-out project takes no part in the choice
+#' # nested: each held-out project takes no part in the choice, and each
+#' # inner search picks the setting with the highest mean minus SD
 #' grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
-#' tune_logo_cv(fit, grid, data = altmejd, group = "pid", nested = TRUE)
+#' tune_logo_cv(
+#'   fit,
+#'   grid,
+#'   data = altmejd,
+#'   group = "pid",
+#'   nested = TRUE,
+#'   sort_by = "lower"
+#' )
 #'
 #' # a classification tree: the depth varies
 #' tree <- rpart::rpart(
@@ -423,7 +449,8 @@ tune_logo_cv <- function(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -440,7 +467,8 @@ tune_logo_cv.adaboost <- function(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -473,37 +501,16 @@ tune_logo_cv.adaboost <- function(
     ))
   }
 
-  if (nrow(grid) < 2L) {
-    stop(
-      "`nested = TRUE` needs a `grid` with two or more rows: with nothing to ",
-      "choose between, there is no selection step to protect against.",
-      call. = FALSE
-    )
-  }
-  # the inner search runs on every group but the held-out one, not only on
-  # those in `holdout`
-  if (length(unique(as.character(data[[group]]))) < 3L) {
-    stop(
-      "`nested = TRUE` needs at least three groups: one is held out and the ",
-      "inner search needs two or more of the rest.",
-      call. = FALSE
-    )
-  }
-  if (length(criterion) != 1L || !criterion %in% list_measures()) {
-    stop(
-      "`criterion` \"",
-      paste(criterion, collapse = ", "),
-      "\" is not one of the metrics returned by assess().",
-      call. = FALSE
-    )
-  }
+  check_nested_search(grid, data, group, metric, sort_by)
   cross_validate_nested(
     x,
     data = data,
     group = group,
     grid = grid,
     folds = folds,
-    criterion = criterion,
+    model = "adaboost",
+    metric = metric,
+    sort_by = sort_by,
     holdout = holdout,
     cores = cores,
     verbose = verbose
@@ -519,7 +526,8 @@ tune_logo_cv.rpart <- function(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -562,7 +570,8 @@ tune_logo_cv.randomForest <- function(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -615,7 +624,8 @@ tune_logo_cv.xgboost <- function(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   outcome,
@@ -623,7 +633,7 @@ tune_logo_cv.xgboost <- function(
 ) {
   check_dots_empty(...)
   check_xgb_fit(x, "tune_logo_cv()")
-  check_not_nested(nested)
+  check_nested(nested)
   folds <- read_folds(data, group, holdout)
   check_xgb_data(x, data, outcome)
   grid <- normalize_grid(
@@ -632,17 +642,37 @@ tune_logo_cv.xgboost <- function(
     settings = names(list_xgb_settings())
   )
   cores <- choose_cores(cores)
-  cross_validate(
+  # messages from forked workers would interleave
+  verbose <- verbose && cores == 1L
+
+  if (!nested) {
+    return(cross_validate(
+      x,
+      data = data,
+      group = group,
+      grid = grid,
+      folds = folds,
+      model = "xgboost",
+      holdout = holdout,
+      cores = cores,
+      verbose = verbose,
+      outcome = outcome
+    ))
+  }
+
+  check_nested_search(grid, data, group, metric, sort_by)
+  cross_validate_nested(
     x,
     data = data,
     group = group,
     grid = grid,
     folds = folds,
     model = "xgboost",
+    metric = metric,
+    sort_by = sort_by,
     holdout = holdout,
     cores = cores,
-    # messages from forked workers would interleave
-    verbose = verbose && cores == 1L,
+    verbose = verbose,
     outcome = outcome
   )
 }
@@ -656,7 +686,8 @@ tune_logo_cv.default <- function(
   group,
   holdout = NULL,
   nested = FALSE,
-  criterion = "auroc",
+  metric = "auroc",
+  sort_by = "lower",
   cores = 1,
   verbose = FALSE,
   ...
@@ -669,6 +700,7 @@ tune_logo_cv.default <- function(
     )
   }
   check_not_booster(x)
+  check_not_nested(nested)
   stop(
     "`x` must be a fit from adaboost(), rpart(), randomForest() or xgboost(), ",
     "not an object of class `",
@@ -692,7 +724,56 @@ check_not_nested <- function(nested) {
   check_nested(nested)
   if (nested) {
     stop(
-      "`nested = TRUE` is currently only supported with adaboost().",
+      "`nested = TRUE` is currently only supported with fits from adaboost() ",
+      "and xgboost().",
+      call. = FALSE
+    )
+  }
+}
+
+#' Stop unless a nested search has the grid, groups, `metric` and `sort_by`
+#' it needs; called before any fit
+#' @noRd
+check_nested_search <- function(grid, data, group, metric, sort_by) {
+  if (nrow(grid) < 2L) {
+    stop(
+      "`nested = TRUE` needs a `grid` with two or more rows: with nothing to ",
+      "choose between, there is no selection step to protect against.",
+      call. = FALSE
+    )
+  }
+  # the inner search runs on every group but the held-out one, not only on
+  # those in `holdout`
+  if (length(unique(as.character(data[[group]]))) < 3L) {
+    stop(
+      "`nested = TRUE` needs at least three groups: one is held out and the ",
+      "inner search needs two or more of the rest.",
+      call. = FALSE
+    )
+  }
+  metrics <- list_metrics()
+  if (length(metric) != 1L || !metric %in% metrics) {
+    stop(
+      "`metric` must be one of the metrics assess() returns: ",
+      paste(metrics, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+  # not left to summary(), which also sorts by grid columns and would stop
+  # only after the first inner search
+  statistics <- list_statistics()
+  if (
+    !is.character(sort_by) ||
+      length(sort_by) == 0L ||
+      anyNA(sort_by) ||
+      anyDuplicated(sort_by) > 0L ||
+      !all(sort_by %in% statistics)
+  ) {
+    stop(
+      "`sort_by` must name one or more of the summary statistics, each once: ",
+      paste(statistics, collapse = ", "),
+      ".",
       call. = FALSE
     )
   }
@@ -933,14 +1014,14 @@ cross_validate <- function(
   column_of <- sequence(lengths(groups))[order(unlist(groups))]
 
   # allocate the setting x project x metric cube up front
-  measure_names <- list_measures()
+  metric_names <- list_metrics()
   estimates <- array(
     NA_real_,
-    dim = c(n_settings, length(folds), length(measure_names)),
+    dim = c(n_settings, length(folds), length(metric_names)),
     dimnames = list(
       setting = as.character(seq_len(n_settings)),
       project = folds,
-      metric = measure_names
+      metric = metric_names
     )
   )
   actuals <- lapply(held_out, \(in_fold) data[[outcome]][in_fold])
@@ -958,12 +1039,12 @@ cross_validate <- function(
   for (i in seq_len(n_settings)) {
     for (j in seq_along(folds)) {
       score <- results[[task_of[j, group_of[i]]]][, column_of[i]]
-      measures <- assess(
+      metrics <- assess(
         actuals[[j]],
         score,
         threshold = choose_threshold(model)
       )
-      estimates[i, j, names(measures)] <- unname(measures)
+      estimates[i, j, names(metrics)] <- unname(metrics)
       score_parts[[(i - 1L) * length(folds) + j]] <- score
     }
   }
@@ -988,7 +1069,8 @@ cross_validate <- function(
       scores = scores,
       model = model,
       nested = FALSE,
-      criterion = NA_character_,
+      metric = NA_character_,
+      sort_by = NA_character_,
       selected = NULL
     ),
     class = "logo_cv",
@@ -998,8 +1080,9 @@ cross_validate <- function(
   )
 }
 
-#' Run the outer loop of nested LOGO-CV, calling tune_logo_cv() for each inner
-#' search
+#' Run the outer loop of nested LOGO-CV, with one inner search per outer fold
+#'
+#' `outcome` names the outcome column; a fit with a formula gives it.
 #' @noRd
 cross_validate_nested <- function(
   fit,
@@ -1007,19 +1090,24 @@ cross_validate_nested <- function(
   group,
   grid,
   folds,
-  criterion,
+  model,
+  metric,
+  sort_by,
   holdout = NULL,
   cores = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  outcome = all.vars(read_formula(fit))[1L]
 ) {
-  outcome <- all.vars(read_formula(fit))[1L]
-  measure_names <- list_measures()
+  force(outcome)
+  # a factor would print its code in the header
+  metric <- as.character(metric)
+  metric_names <- list_metrics()
 
   # no setting dimension: each outer fold selects its own (see `selected`)
   estimates <- array(
     NA_real_,
-    dim = c(length(folds), length(measure_names)),
-    dimnames = list(project = folds, metric = measure_names)
+    dim = c(length(folds), length(metric_names)),
+    dimnames = list(project = folds, metric = metric_names)
   )
   projects <- data.frame(
     project = folds,
@@ -1042,50 +1130,48 @@ cross_validate_nested <- function(
     train <- data[!held_out, , drop = FALSE]
     test <- data[held_out, , drop = FALSE]
 
-    inner_cv <- tune_logo_cv(
+    # what tune_logo_cv() runs on `train`; the checks and `cores` are done
+    inner_cv <- cross_validate(
       fit,
-      grid = grid,
       data = train,
       group = group,
+      grid = grid,
+      folds = read_folds(train, group),
+      model = model,
       cores = cores,
-      verbose = FALSE
+      verbose = FALSE,
+      outcome = outcome
     )
-
-    # the mean over the inner folds ranks settings; it is not an estimate
-    # (see ?tune_logo_cv)
-    inner_means <- rowMeans(
-      inner_cv$estimates[,, criterion, drop = FALSE],
-      na.rm = TRUE
-    )
-    winner <- unname(which.max(inner_means))
+    pick <- pick_setting(inner_cv, metric, sort_by, fold)
 
     score <- refit_score(
       fit,
       train = train,
       test = test,
-      setting = grid[winner, , drop = FALSE]
+      setting = grid[pick$setting, , drop = FALSE],
+      outcome = outcome
     )[, 1L]
 
     actual <- test[[outcome]]
-    measures <- assess(actual, score, threshold = choose_threshold("adaboost"))
+    metrics <- assess(actual, score, threshold = choose_threshold(model))
 
     # keep the whole grid row, so a control tuned in the grid travels along;
     # depth, n_iter and eta keep fixed positions
-    choice <- grid[winner, , drop = FALSE]
+    choice <- grid[pick$setting, , drop = FALSE]
     choice <- choice[,
       union(c("depth", "n_iter", "eta"), names(choice)),
       drop = FALSE
     ]
     selected[[k]] <- data.frame(
       project = fold,
-      setting = winner,
+      setting = pick$setting,
       `rownames<-`(choice, NULL),
-      inner_criterion = max(inner_means, na.rm = TRUE),
+      inner_value = pick$value,
       row.names = NULL,
       stringsAsFactors = FALSE
     )
 
-    estimates[fold, names(measures)] <- unname(measures)
+    estimates[fold, names(metrics)] <- unname(metrics)
     scores[[k]] <- data.frame(
       project = fold,
       actual = actual,
@@ -1103,9 +1189,10 @@ cross_validate_nested <- function(
       grid = grid,
       projects = projects,
       scores = do.call(rbind, scores),
-      model = "adaboost",
+      model = model,
       nested = TRUE,
-      criterion = criterion,
+      metric = metric,
+      sort_by = sort_by,
       selected = do.call(rbind, selected)
     ),
     class = "logo_cv",
@@ -1113,10 +1200,44 @@ cross_validate_nested <- function(
   )
 }
 
+#' Pick the setting an inner search puts first, as summary() sorts it
+#'
+#' Returns the setting's row number in the grid and its value of the first
+#' `sort_by` statistic. `fold` names the outer fold for the error message.
+#' @noRd
+pick_setting <- function(inner, metric, sort_by, fold) {
+  # these statistics rank settings; they are not estimates (see ?tune_logo_cv)
+  ranked <- summary(inner, metric = metric, sort_by = sort_by)
+  value <- ranked[[sort_by[1L]]][1L]
+  # summary() sorts NA last, so an NA on top means no setting has a value
+  if (is.na(value)) {
+    stop(
+      "No setting can be picked in the inner search without `",
+      fold,
+      "`: every setting's `",
+      sort_by[1L],
+      "` of `",
+      metric,
+      "` is NA, because `",
+      metric,
+      "` is undefined on at least one of its projects. Choose another ",
+      "`metric`.",
+      call. = FALSE
+    )
+  }
+  list(setting = as.integer(rownames(ranked)[1L]), value = value)
+}
+
 #' List the metrics assess() returns
 #' @noRd
-list_measures <- function() {
+list_metrics <- function() {
   names(assess(c(1, 0), c(1, -1)))
+}
+
+#' List the summary statistics a nested search may sort by
+#' @noRd
+list_statistics <- function() {
+  c("mean", "sd", "lower", "min", "max")
 }
 
 #' Choose the classification threshold for a learner's score
@@ -1411,9 +1532,11 @@ refit_call <- function(fit, rows, fun = NULL, args = list()) {
 #' `print()` lists each project's size and base rate once, then one row per
 #' setting: the setting's hyperparameters and its estimate on each project.
 #' Above 20 settings, it shows the first 10. A nested result shows one row
-#' per outer fold instead, with the setting that fold selected. A result from
-#' [bootstrap()] also shows each project's interval and its number of dropped
-#' draws.
+#' per outer fold instead, with the setting that fold selected. Its header
+#' adds what the inner searches selected by, the `sort_by` statistics and the
+#' `metric` of [tune_logo_cv()], and a last line counts the distinct settings
+#' they selected. A result from [bootstrap()] also shows each project's
+#' interval and its number of dropped draws.
 #'
 #' `summary()` keeps the grid order unless `sort_by` sorts the rows, and puts
 #' the hyperparameters first. `sd` is not a standard error. A statistic is
@@ -1464,45 +1587,44 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
       "Leave-one-group-out cross-validation\n"
     }
   )
-  cat("  model:   ", x$model, "\n", sep = "")
-  cat("  settings:", nrow(x$grid), "\n")
   holdout <- attr(x, "holdout")
-  if (!is.null(holdout)) {
-    cat("  holdout: ", paste(holdout, collapse = ", "), "\n", sep = "")
+  # a nested result always says which groups were outer folds
+  if (nested && is.null(holdout)) {
+    holdout <- "each group"
   }
-  if (nested) {
-    cat("  selected on: ", x$criterion, " (inner loop)\n", sep = "")
-  }
-  cat("  metric: ", metric, "\n\n", sep = "")
+  # `selected` is the result's own metric, not the one shown
+  header <- c(
+    model = x$model,
+    settings = nrow(x$grid),
+    holdout = if (!is.null(holdout)) paste(holdout, collapse = ", "),
+    metric = metric,
+    selected = if (nested) paste(paste(x$sort_by, collapse = ", "), x$metric)
+  )
+  cat(sprintf("  %-9s %s\n", paste0(names(header), ":"), header), sep = "")
+  cat("\n")
 
   if (!metric %in% dimnames(x$estimates)$metric) {
     cat("no estimates for `", metric, "`\n", sep = "")
     return(invisible(x))
   }
 
+  # per project, with no mean or SE across them: shared training data bias
+  # the naive SE down (Bengio & Grandvalet, 2004)
   if (nested) {
     print_by_fold(x, metric)
   } else {
     print_by_setting(x, metric)
   }
 
-  # no mean or SE across folds: shared training data bias the naive SE down
-  # (Bengio & Grandvalet, 2004)
-  cat("\nEstimates are per project; read the spread, not an average.\n")
-
   if (nested) {
     # report how often the inner searches disagree: that is the point
     n_distinct <- length(unique(x$selected$setting))
     cat(sprintf(
-      "The %d inner searches selected %d distinct setting%s.\n",
+      "\nThe %d inner searches selected %d distinct setting%s.\n",
       nrow(x$selected),
       n_distinct,
       if (n_distinct == 1L) "" else "s"
     ))
-    cat(
-      "These are a diagnostic, not a selection rule: each rests on a subset\n"
-    )
-    cat("of the projects, and no model built here is the one you would ship.\n")
   }
   invisible(x)
 }
@@ -1654,15 +1776,13 @@ print_by_setting <- function(x, metric) {
 print_by_fold <- function(x, metric) {
   long <- as.data.frame(x)
   rows <- long[long$metric == metric, , drop = FALSE]
-  columns <- c(
-    "depth",
-    "n_iter",
-    "eta",
-    "project",
-    "n",
-    "base_rate",
-    "estimate"
+  # the grid's columns, in the order as.data.frame() gives them
+  fold_columns <- c("project", "n", "base_rate", "estimate")
+  settings <- setdiff(
+    names(long),
+    c("model", "setting", "metric", fold_columns)
   )
+  columns <- c(settings, fold_columns)
   columns <- columns[vapply(
     rows[columns],
     \(column) !all(is.na(column)),

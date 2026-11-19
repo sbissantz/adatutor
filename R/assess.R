@@ -151,20 +151,20 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
   }
   at_k <- stats::setNames(unname(patk(y, score, k)), k_names)
 
-  measures <- c(
+  metrics <- c(
     unclass(assess(cm)),
     auroc = auroc(y, score),
     auprc = auprc(y, score),
     at_k
   )
-  structure(measures, class = "assessment", threshold = threshold, k = k)
+  structure(metrics, class = "assessment", threshold = threshold, k = k)
 }
 
 #' @rdname assess
 #' @export
 assess.confusion <- function(x, ...) {
   # one function per metric, so each formula is written once
-  measures <- c(
+  metrics <- c(
     tp = x[["tp"]],
     tn = x[["tn"]],
     fp = x[["fp"]],
@@ -179,7 +179,7 @@ assess.confusion <- function(x, ...) {
     mcc = measure_mcc(x)
   )
   # pass NULL on for a hand-built vector: plain header
-  structure(measures, class = "assessment", threshold = attr(x, "threshold"))
+  structure(metrics, class = "assessment", threshold = attr(x, "threshold"))
 }
 
 #' @rdname assess
