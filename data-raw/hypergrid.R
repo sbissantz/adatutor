@@ -3,8 +3,8 @@
 ##########################################
 
 # Run `pkgload::load_all()` first. One tune_logo_cv() call, about 22 minutes on 4
-# cores. `cores = 4` forks on macOS and Linux; on Windows it runs on one core,
-# about four times as long.
+# cores. `cores = 4` runs on every system: forked processes on macOS and
+# Linux, a socket cluster on Windows.
 
 data("altmext")
 
