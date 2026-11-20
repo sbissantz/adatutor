@@ -133,9 +133,11 @@ minus the SD; \code{"mean"} picks the highest mean. It is not used when
 
 \item{cores}{The number of cores to use. Defaults to 1. On macOS and
 Linux, the work is spread over that many forked R processes with
-\code{\link[parallel:mclapply]{parallel::mclapply()}}. Windows cannot fork, so there a value above 1
-runs on one core and says so. The results are the same at any number of
-cores. Progress messages from \code{verbose} appear only on one core.}
+\code{\link[parallel:mclapply]{parallel::mclapply()}}. Windows cannot fork, so there it goes to that
+many new R processes from \code{\link[parallel:makePSOCKcluster]{parallel::makePSOCKcluster()}}, which first
+load adatutor and the packages the fit needs. The results are the same
+at any number of cores. Progress messages from \code{verbose} appear only on
+one core.}
 
 \item{verbose}{Whether to report progress. Defaults to \code{FALSE}.}
 
