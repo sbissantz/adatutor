@@ -4,8 +4,8 @@
 
 # Run `pkgload::load_all()` first. One tune_logo_cv() call, about 140 minutes
 # on 4 cores: one search of the 1,320 settings of hypergrid per outer fold,
-# seven in all. `cores = 4` forks on macOS and Linux; on Windows it runs on one
-# core, about four times as long.
+# seven in all. `cores = 4` runs on every system: forked processes on macOS
+# and Linux, a socket cluster on Windows.
 
 data("altmext")
 data("hypergrid")
