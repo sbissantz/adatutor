@@ -384,9 +384,11 @@ logo_cv.default <- function(
 #'   `nested = FALSE`.
 #' @param cores The number of cores to use. Defaults to 1. On macOS and
 #'   Linux, the work is spread over that many forked R processes with
-#'   [parallel::mclapply()]. Windows cannot fork, so there a value above 1
-#'   runs on one core and says so. The results are the same at any number of
-#'   cores. Progress messages from `verbose` appear only on one core.
+#'   [parallel::mclapply()]. Windows cannot fork, so there it goes to that
+#'   many new R processes from [parallel::makePSOCKcluster()], which first
+#'   load adatutor and the packages the fit needs. The results are the same
+#'   at any number of cores. Progress messages from `verbose` appear only on
+#'   one core.
 #' @param ... Must be empty. An argument the method does not take is an
 #'   error, not ignored.
 #'
@@ -791,15 +793,6 @@ choose_cores <- function(cores) {
   ) {
     stop("`cores` must be one whole number, 1 or more.", call. = FALSE)
   }
-  # forking, not a socket cluster: the workers share this session, so they
-  # need no installed copy of the package and nothing exported to them
-  if (cores > 1 && read_os_type() == "windows") {
-    message(
-      "Running on one core: `cores` above 1 needs forked processes, which ",
-      "Windows does not have."
-    )
-    return(1L)
-  }
   as.integer(cores)
 }
 
@@ -809,11 +802,19 @@ read_os_type <- function() {
   .Platform$OS.type
 }
 
-#' Run tasks, forked over `cores` on Unix-like systems; keep their order
+#' Run tasks over `cores`, forked on Unix-like systems and on a socket
+#' cluster on Windows; keep their order
+#'
+#' `globals` holds the objects the tasks look up in the global environment or
+#' an attached package. Only socket workers need it, so it is evaluated only
+#' there.
 #' @noRd
-run_tasks <- function(n_tasks, run_task, cores = 1L) {
+run_tasks <- function(n_tasks, run_task, cores = 1L, globals = list()) {
   if (cores == 1L || n_tasks == 1L) {
     return(lapply(seq_len(n_tasks), run_task))
+  }
+  if (read_os_type() == "windows") {
+    return(run_socket_tasks(n_tasks, run_task, min(cores, n_tasks), globals))
   }
   # a fresh fork per task: tasks differ in cost (depth, largest n_iter), and
   # handing them out as cores free up balances the load
@@ -836,6 +837,243 @@ run_tasks <- function(n_tasks, run_task, cores = 1L) {
     )
   }
   results
+}
+
+#' Run tasks on a socket cluster of new R processes; keep their order
+#'
+#' The workers start empty. Each first loads what this session runs, then
+#' gets `globals` and the task closure once, and takes the next task as it
+#' frees up.
+#' @noRd
+run_socket_tasks <- function(n_tasks, run_task, n_workers, globals) {
+  # without the user's profile: a worker's state comes from this session
+  cl <- parallel::makePSOCKcluster(n_workers, rscript_args = "--no-init-file")
+  on.exit(stop_workers(cl), add = TRUE)
+
+  # their enclosures, and the source references of an install that keeps them,
+  # point into this package: they would make the worker load the installed
+  # adatutor on arrival, before prepare_worker() can choose which one
+  prepare <- utils::removeSource(prepare_worker)
+  environment(prepare) <- baseenv()
+  read <- utils::removeSource(read_code)
+  environment(read) <- baseenv()
+  session <- read_session()
+  prepared <- tryCatch(
+    parallel::clusterCall(cl, prepare, session, read),
+    # a worker that died while it loaded breaks its connection
+    error = function(e) NULL
+  )
+  if (is.null(prepared)) {
+    stop(
+      "A parallel worker returned no result. Rerun with fewer `cores`.",
+      call. = FALSE
+    )
+  }
+  check_workers(prepared, session)
+
+  # here, so an error in list_globals() is not taken for a dead worker
+  force(globals)
+  results <- tryCatch(
+    {
+      parallel::clusterExport(cl, names(globals), envir = list2env(globals))
+      # once per worker, not once per task: it carries the data and the fit
+      parallel::clusterCall(cl, store_task, run_task)
+      parallel::clusterApplyLB(cl, seq_len(n_tasks), call_task)
+    },
+    # a worker that died, e.g. for lack of memory, breaks its connection
+    error = function(e) NULL
+  )
+  if (is.null(results)) {
+    stop(
+      "A parallel worker returned no result. Rerun with fewer `cores`.",
+      call. = FALSE
+    )
+  }
+  for (result in results) {
+    if (inherits(result, "task_error")) {
+      stop(result$message, call. = FALSE)
+    }
+  }
+  results
+}
+
+#' Read what a socket worker needs to match this session
+#'
+#' The library paths; the random number kinds a task's `set.seed()` runs
+#' under; the collation that orders factor levels; the options a refit reads;
+#' where this session loaded adatutor and the learners' packages from; and the
+#' adatutor code it runs.
+#' @noRd
+read_session <- function() {
+  path <- getNamespaceInfo("adatutor", "path")
+  learners <- intersect(
+    c("randomForest", "rpart", "xgboost"),
+    loadedNamespaces()
+  )
+  list(
+    lib_paths = .libPaths(),
+    rng_kind = RNGkind(),
+    collate = Sys.getlocale("LC_COLLATE"),
+    # missing values and factor coding in a refit, and which of its warnings
+    # are errors
+    options = lapply(
+      stats::setNames(
+        nm = c(
+          "contrasts",
+          "na.action",
+          "warn",
+          "warnPartialMatchArgs",
+          "warnPartialMatchAttr",
+          "warnPartialMatchDollar",
+          "xgboost.strict_mode"
+        )
+      ),
+      getOption
+    ),
+    paths = c(
+      adatutor = path,
+      vapply(learners, \(package) getNamespaceInfo(package, "path"), "")
+    ),
+    # pkgload::load_all() runs a source folder, which has no Meta folder
+    installed = file.exists(file.path(path, "Meta", "package.rds")),
+    # the files in `path` can change after this session loaded them
+    code = read_code()
+  )
+}
+
+#' Deparse the objects of the adatutor namespace, to compare the code two R
+#' processes run
+#'
+#' Runs with the base environment as its enclosure on a socket worker. Leaves
+#' out environments, whose contents change as the package runs, and
+#' `read_os_type()`, which tests replace to reach the socket path.
+#' @noRd
+read_code <- function() {
+  # deparse() writes numbers by `scipen`, which the workers do not share
+  old <- options(scipen = 0)
+  on.exit(options(old), add = TRUE)
+  namespace <- asNamespace("adatutor")
+  names <- setdiff(ls(namespace, all.names = TRUE), "read_os_type")
+  # sorted the same in any locale
+  objects <- mget(sort(names, method = "radix"), envir = namespace)
+  objects <- objects[!vapply(objects, is.environment, logical(1))]
+  # deparse() leaves out source references and byte code
+  lapply(objects, deparse)
+}
+
+#' Load this session's adatutor, learners and settings on a socket worker
+#'
+#' Runs with the base environment as its enclosure, as does `read_code`, the
+#' session's `read_code()`. Returns where the worker loaded each package from
+#' and the adatutor code it loaded, or the message of the error that stopped
+#' it.
+#' @noRd
+prepare_worker <- function(session, read_code) {
+  tryCatch(
+    {
+      .libPaths(session$lib_paths)
+      do.call(RNGkind, as.list(session$rng_kind))
+      Sys.setlocale("LC_COLLATE", session$collate)
+      for (package in setdiff(names(session$paths), "adatutor")) {
+        loadNamespace(package, lib.loc = dirname(session$paths[[package]]))
+      }
+      # the source under pkgload, so the workers never run an older install
+      if (session$installed) {
+        loadNamespace(
+          "adatutor",
+          lib.loc = dirname(session$paths[["adatutor"]])
+        )
+      } else {
+        pkgload::load_all(
+          session$paths[["adatutor"]],
+          export_all = FALSE,
+          helpers = FALSE,
+          attach_testthat = FALSE,
+          quiet = TRUE
+        )
+      }
+      # last, so `warn` cannot turn a warning while loading into an error
+      options(session$options)
+      list(
+        paths = vapply(
+          names(session$paths),
+          \(package) getNamespaceInfo(package, "path"),
+          ""
+        ),
+        code = read_code()
+      )
+    },
+    error = function(e) list(error = conditionMessage(e))
+  )
+}
+
+#' Stop unless every socket worker loaded each package from where this
+#' session did, and the same adatutor code
+#' @noRd
+check_workers <- function(results, session) {
+  expected <- normalizePath(session$paths, winslash = "/", mustWork = FALSE)
+  for (result in results) {
+    if (!is.null(result$error)) {
+      stop(
+        "A parallel worker could not load what the tasks need: ",
+        result$error,
+        call. = FALSE
+      )
+    }
+    loaded <- normalizePath(result$paths, winslash = "/", mustWork = FALSE)
+    # by position: normalizePath() drops the names
+    moved <- which(loaded != expected)
+    if (length(moved)) {
+      stop(
+        "A parallel worker loaded ",
+        names(session$paths)[moved[1L]],
+        " from ",
+        loaded[moved[1L]],
+        ", not from ",
+        expected[moved[1L]],
+        " as this session did.",
+        call. = FALSE
+      )
+    }
+    if (!identical(result$code, session$code)) {
+      stop(
+        "adatutor changed since this session loaded it, so a parallel ",
+        "worker would run different code. Reload adatutor or restart R.",
+        call. = FALSE
+      )
+    }
+  }
+}
+
+# the task closure of the current run_tasks() call, on a socket worker
+worker_tasks <- new.env(parent = emptyenv())
+
+#' Keep the task closure on a socket worker
+#' @noRd
+store_task <- function(run_task) {
+  worker_tasks$run_task <- run_task
+  invisible()
+}
+
+#' Run one stored task on a socket worker; an error comes back as its message
+#' @noRd
+call_task <- function(k) {
+  tryCatch(
+    worker_tasks$run_task(k),
+    # not a try-error, which clusterApplyLB() turns into an error of its own
+    error = function(e) {
+      structure(list(message = conditionMessage(e)), class = "task_error")
+    }
+  )
+}
+
+#' Stop each worker of a cluster on its own, so a dead one leaves no other
+#' running
+#' @noRd
+stop_workers <- function(cl) {
+  for (i in seq_along(cl)) {
+    try(parallel::stopCluster(cl[i]), silent = TRUE)
+  }
 }
 
 #' Group the grid rows that one fit scores: those that differ only in
@@ -1005,7 +1243,13 @@ cross_validate <- function(
     # the other learners score one setting, as a vector
     matrix(score, ncol = length(rows))
   }
-  results <- run_tasks(nrow(tasks), run_task, cores)
+  # list_globals() runs only if run_tasks() starts a socket cluster
+  results <- run_tasks(
+    nrow(tasks),
+    run_task,
+    cores,
+    globals = list_globals(fit)
+  )
 
   # where each setting's scores sit: the task of its group on a fold, and the
   # column within that task
@@ -1449,12 +1693,28 @@ refit_score.randomForest <- function(fit, train, test, setting, ...) {
   values <- as.list(
     setting[1L, intersect(names(setting), list_forest_settings()), drop = FALSE]
   )
-  # the stored call names randomForest() bare, which needs it attached
-  refit <- refit_call(
-    fit,
-    train,
-    fun = quote(randomForest::randomForest),
-    args = values[!is.na(values)]
+  # what options(warnPartialMatchArgs = TRUE) makes of seq(along = m), in the
+  # session's language
+  own_warning <- gettextf(
+    "partial argument match of '%s' to '%s'",
+    "along",
+    "along.with",
+    domain = "R"
+  )
+  refit <- withCallingHandlers(
+    # the stored call names randomForest() bare, which needs it attached
+    refit_call(
+      fit,
+      train,
+      fun = quote(randomForest::randomForest),
+      args = values[!is.na(values)]
+    ),
+    # seq(along = m) is randomForest's code, not ours: mute that warning only
+    warning = function(w) {
+      if (identical(conditionMessage(w), own_warning)) {
+        invokeRestart("muffleWarning")
+      }
+    }
   )
   prob <- stats::predict(refit, newdata = test, type = "prob")
   prob[, ncol(prob)]
@@ -1515,6 +1775,278 @@ refit_call <- function(fit, rows, fun = NULL, args = list()) {
   # not update(), which runs the call in this package: here the call's other
   # names resolve where they did for the original fit
   eval(call, environment(formula))
+}
+
+#' List the objects a refit looks up in the global environment or an
+#' attached package
+#'
+#' A tree's or a forest's call, and any formula, runs where the formula was
+#' made. Socket workers have a global environment and search path of their
+#' own, so they get these objects; forked workers share them. Each function
+#' the refit reaches, also inside a list, an attribute or an environment, is
+#' read in turn for the objects it looks up, down to the packages and base,
+#' which the workers load themselves.
+#' @noRd
+list_globals <- function(fit) {
+  # an XGBoost refit runs from stored parameters, with no formula or call
+  if (inherits(fit, "xgboost")) {
+    return(list())
+  }
+  formula <- read_formula(fit)
+  expressions <- list(formula)
+  # values whose functions are still to follow
+  values <- list()
+  if (!inherits(fit, "adaboost")) {
+    # refit_call() replaces the call's formula and data
+    fit_call <- stats::getCall(fit)
+    fit_call$formula <- NULL
+    fit_call$data <- NULL
+    expressions <- c(expressions, list(fit_call))
+    # a call made by do.call() holds its values, functions too
+    values <- list(fit_call)
+  }
+  env <- environment(formula)
+  if (!is.environment(env)) {
+    return(list())
+  }
+  # base and the packages a worker attaches itself: a lookup that ends in
+  # one of them ends there on a worker too. The worker can get an object of
+  # that name only if it is not a function, and a call skips it.
+  defaults <- c(list(baseenv()), list_default_homes())
+  globals <- list()
+  homes <- list()
+  followed <- list()
+  entered <- list()
+  # names still to look up, by the mode of their lookup, and where it starts
+  pending <- list(c(read_names(expressions), env = env))
+  repeat {
+    # a function looks up its names from where it was made, which can lead
+    # back to the global environment; the workers load packages and base
+    walked <- list_functions(values, entered)
+    entered <- walked$entered
+    values <- list()
+    for (fun in walked$functions) {
+      if (
+        !is.primitive(fun) &&
+          !is_package_env(environment(fun)) &&
+          !any(vapply(followed, identical, logical(1), fun))
+      ) {
+        followed <- c(followed, list(fun))
+        pending <- c(
+          pending,
+          list(c(read_function_names(fun), env = environment(fun)))
+        )
+      }
+    }
+    if (!length(pending)) {
+      break
+    }
+    lookup <- pending[[1L]]
+    pending <- pending[-1L]
+    for (kind in c("function", "any")) {
+      for (name in lookup[[kind]]) {
+        found <- find_binding(name, lookup$env, kind)
+        # nothing to send for a name not found, one a worker finds where this
+        # session does, or one a package's own code looks up: a lookup that
+        # never passed the global environment and ends in a package
+        if (
+          is.null(found) ||
+            any(vapply(defaults, identical, logical(1), found$env)) ||
+            !found$global && is_package_env(found$env)
+        ) {
+          next
+        }
+        # from the global environment on, a lookup runs through the search
+        # path, which a worker has not. Any environment before the global one
+        # travels with what it encloses.
+        if (found$global) {
+          value <- get(name, envir = found$env, mode = kind, inherits = FALSE)
+          # a call skips objects that are not functions, so one name can
+          # mean a function and another object; a worker holds one. Lookups
+          # of one mode end alike, so the earlier one had the other mode.
+          if (name %in% names(globals) && !identical(globals[[name]], value)) {
+            # the function's home first, then the other object's
+            origins <- list(homes[[name]], found$env)
+            if (kind == "function") {
+              origins <- rev(origins)
+            }
+            stop(
+              "The fit calls a function `",
+              name,
+              "` from ",
+              environmentName(origins[[1L]]),
+              " and reads another object `",
+              name,
+              "` from ",
+              environmentName(origins[[2L]]),
+              ". A parallel worker on Windows can hold only one of them. ",
+              "Rename one, or set `cores = 1`.",
+              call. = FALSE
+            )
+          }
+          # list(), so an object that is NULL is kept, not dropped
+          globals[name] <- list(value)
+          homes[name] <- list(found$env)
+        } else {
+          # an argument a function never got has no value to read
+          value <- tryCatch(
+            get(name, envir = found$env, mode = kind, inherits = FALSE),
+            error = function(e) NULL
+          )
+        }
+        # an attached package's own objects need nothing from the global
+        # environment
+        if (!is_package_env(found$env)) {
+          values <- c(values, list(value))
+        }
+      }
+    }
+  }
+  globals
+}
+
+#' List the environments of the packages a new R process attaches, in their
+#' search order, if this session attached them in that order too
+#'
+#' A lookup that ends in one of them here then ends in the same one on a
+#' socket worker.
+#' @noRd
+list_default_homes <- function() {
+  homes <- paste0(
+    "package:",
+    c("stats", "graphics", "grDevices", "utils", "datasets", "methods")
+  )
+  # this variable can give a worker other packages
+  if (
+    nzchar(Sys.getenv("R_DEFAULT_PACKAGES")) ||
+      !identical(intersect(search(), homes), homes)
+  ) {
+    return(list())
+  }
+  lapply(homes, as.environment)
+}
+
+#' Tell whether an environment belongs to a package or base, which a socket
+#' worker loads on its own: a namespace or its imports, an attached package,
+#' or base
+#' @noRd
+is_package_env <- function(env) {
+  label <- attr(env, "name", exact = TRUE)
+  identical(env, baseenv()) ||
+    isNamespace(env) ||
+    is.character(label) && any(startsWith(label, c("package:", "imports:")))
+}
+
+#' Find the environment that holds `name` as `kind`, a mode of exists(), as
+#' a lookup from `env` would, and whether the lookup passed the global
+#' environment
+#' @noRd
+find_binding <- function(name, env, kind = "any") {
+  global <- FALSE
+  while (!identical(env, emptyenv())) {
+    global <- global || identical(env, globalenv())
+    if (exists(name, envir = env, mode = kind, inherits = FALSE)) {
+      return(list(env = env, global = global))
+    }
+    env <- parent.env(env)
+  }
+  NULL
+}
+
+#' Read the names an expression or a list of expressions uses, by the mode
+#' exists() looks them up in: `function` for the names it calls, `any` for
+#' the others
+#' @noRd
+read_names <- function(expr) {
+  if (is.name(expr)) {
+    # the empty name of a missing argument names nothing
+    return(list(
+      `function` = character(),
+      any = setdiff(as.character(expr), "")
+    ))
+  }
+  if (!is.call(expr) && !is.pairlist(expr) && !is.list(expr)) {
+    return(list(`function` = character(), any = character()))
+  }
+  parts <- as.list(expr)
+  called <- character()
+  if (is.call(expr) && is.name(expr[[1L]])) {
+    called <- as.character(expr[[1L]])
+    parts <- parts[-1L]
+  }
+  inner <- lapply(parts, read_names)
+  list(
+    `function` = as.character(unique(c(
+      called,
+      unlist(lapply(inner, `[[`, "function"))
+    ))),
+    any = as.character(unique(unlist(lapply(inner, `[[`, "any"))))
+  )
+}
+
+#' Read the names a function's body and default arguments use, its own
+#' arguments aside
+#' @noRd
+read_function_names <- function(fun) {
+  arguments <- formals(fun)
+  used <- read_names(c(list(body(fun)), as.list(arguments)))
+  lapply(used, setdiff, names(arguments))
+}
+
+#' List the functions an object holds, as a socket worker gets it
+#'
+#' The object itself, or the functions in its list elements, its parts if it
+#' is a call, its attributes, and the environments it holds: their objects
+#' and their enclosures, which travel with them. Enters no environment in
+#' `entered`, and none that a worker has of its own: the global one, empty,
+#' base and the packages'. Returns the functions, and `entered` with the
+#' environments entered added.
+#' @noRd
+list_functions <- function(value, entered = list()) {
+  functions <- list()
+  pending <- list(value)
+  while (length(pending)) {
+    parts <- vector("list", length(pending))
+    for (i in seq_along(pending)) {
+      item <- pending[[i]]
+      inner <- list()
+      if (is.function(item)) {
+        functions <- c(functions, list(item))
+      } else if (is.list(item) || is.call(item)) {
+        # unclass(): the as.list() method of some classes, such as
+        # numeric_version, returns the object again
+        inner <- as.list(unclass(item))
+      } else if (
+        is.environment(item) &&
+          !identical(item, globalenv()) &&
+          !identical(item, emptyenv()) &&
+          !is_package_env(item) &&
+          !any(vapply(entered, identical, logical(1), item))
+      ) {
+        entered <- c(entered, list(item))
+        # an active binding runs code when read
+        bound <- Filter(
+          \(name) !bindingIsActive(name, item),
+          ls(item, all.names = TRUE, sorted = FALSE)
+        )
+        # an argument a function never got has no value to read
+        read <- function(name) {
+          tryCatch(
+            get(name, envir = item, inherits = FALSE),
+            error = function(e) NULL
+          )
+        }
+        inner <- c(lapply(bound, read), list(parent.env(item)))
+      }
+      # attributes() is NULL for an object without any
+      parts[[i]] <- c(inner, attributes(item))
+    }
+    pending <- do.call(c, parts)
+    # a name holds no function, and the empty one of a missing argument, as
+    # in `x[, 1]`, cannot be bound to `item`
+    pending <- pending[!vapply(pending, is.name, logical(1))]
+  }
+  list(functions = functions, entered = entered)
 }
 
 #' Methods for logo_cv objects
