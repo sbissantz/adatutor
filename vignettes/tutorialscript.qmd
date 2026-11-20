@@ -1685,10 +1685,9 @@ runtime_rnd <- system.time({
 })
 runtime_rnd[["elapsed"]]
 
+# Summarize the results
 summary(logo_rnd)
 ```
-
-**TODO**: Add summary() here?
 
 ::: {.callout-important title="Changed since submission"}
 - New listing. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; this listing does it, and Exercise 4.2, which asked readers to implement it, is dropped.
