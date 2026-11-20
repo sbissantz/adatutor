@@ -28,6 +28,7 @@ Imports:
 LazyData: true
 Suggests:
     knitr,
+    pkgload,
     quarto,
     randomForest,
     remotes,
