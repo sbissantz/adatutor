@@ -15,16 +15,42 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+
+# randomForest and xgboost are suggested packages, so their chunks run only
+# where installed; the xgboost methods need version 3.0.0 or later
+rf_installed <- requireNamespace("randomForest", quietly = TRUE)
+xgb_installed <- requireNamespace("xgboost", quietly = TRUE) &&
+  utils::packageVersion("xgboost") >= "3.0.0"
+
+# randomForest() matches an argument partially; a profile that warns on
+# partial matches would fill the output with that warning
+options(warnPartialMatchArgs = FALSE)
 ```
 
 ## Introduction
 
-This vignette provides a short walk through of how to use adatutor for
-classification tasks using Adaptive Boosting (AdaBoost). AdaBoost is an ensemble
-learning method that improves weak classifiers by iteratively adjusting their
-weights based on classification errors. Here, we apply AdaBoost to predict the
-replication success of social science lab experiments using data from
-@altmejd2019.
+adatutor accompanies our hands-on tutorial on Adaptive Boosting (AdaBoost) for
+psychologists. The tutorial builds AdaBoost step by step, by hand. The package
+folds each of those steps into one function, so the whole workflow takes a few
+calls. This vignette runs the package through a typical analysis, step by
+step, and shows its datasets along the way:
+
+1. Split the data.
+2. Fit a weak learner and boost it.
+3. Predict, and score the predictions.
+4. Gauge the importance of the predictors.
+5. Cross-validate by project.
+6. Search the hyperparameters.
+7. Compare AdaBoost with other models.
+8. Evaluate the search itself by nested cross-validation.
+
+The vignette shows only the package solution. For the by-hand version of each
+step, and for why each step is needed, see the tutorial and its
+[code-along script](tutorialscript.html),
+`vignette("tutorialscript", package = "adatutor")`.
+
+Our example predicts whether the replication of a social science lab
+experiment succeeds, using data from @altmejd2019.
 
 ## Setup
 
@@ -32,70 +58,103 @@ Before we start, make sure the `adatutor` package is installed and loaded.
 
 ```{r}
 #| label: load-package
+#| message: false
 # Load package
 library(adatutor)
 ```
 
-We will use a short version of the `altmejd` dataset (see the R Documentation
-for more information). @altmejd2019 pooled the data from five large-scale
-replication projects, which we will use to classify the replication outcomes of
-social science lab experiment. The dataset can be loaded with:
+### The Data
+
+We use a short version of the replication database of @altmejd2019, the
+dataset `altmejd`. Each of its `r nrow(altmejd)` rows is a study effect from
+one of `r length(unique(altmejd$pid))` large-scale replication projects and
+says whether that effect replicated. The dataset can be loaded with:
 
 ```{r}
 #| label: load-data
 # Load data
 data(altmejd)
+head(altmejd)
 ```
 
-### The Names of the Predictors and the Outcome Variables
-
-We will use only a subset of the predictors used by @altmejd2019 -- the
-*reviewer metrics*. Here are the names of the reviewer metrics:
+The column `pid` names the project. The projects differ in size and in their
+share of successful replications, which matters for the cross-validation
+below:
 
 ```{r}
-#| label: prednms
+#| label: projects
+# Replication outcomes per project
+table(altmejd$pid, altmejd$replicate)
+```
+
+### The Names of the Predictors and the Outcome
+
+We use only a subset of the predictors used by @altmejd2019 -- the *reviewer
+metrics*. They describe the original study: its power, effect size, sample
+size and p-value. Our outcome is a binary measure of replication success.
+
+```{r}
+#| label: names
 # Reviewer metrics (names)
-prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
-```
+pred_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 
-Our outcome variable is a binary measure of replication success with the name:
-
-```{r}
-#| label: outnme
 # Outcome variable (name)
-outnme <- "replicate"
-```
+out_nme <- "replicate"
 
-### The Variables of Interest
+# Variables of interest (names)
+voi_nms <- c(pred_nms, out_nme)
 
-The predictors and outcomes are the variables of interest in our prediction task.
-
-```{r}
-#| label: voinms
-# Variables of interest
-voinms <- c(prednms, outnme)
-```
-
-For convenience, we abbreviate the original name of the dataset.
-
-```{r}
-#| label: shorten-df
 # Shorten 'altmejd'
 df <- altmejd
 ```
 
-Setting a seed ensures reproducible results:
+### The Other Datasets
+
+The package ships eleven more datasets of three kinds.
+
+- **Study effects.** `altmext` extends `altmejd` to seven projects and is the
+  dataset of the tutorial. `altmejd723` and `ssrp723` are the two parts that
+  `altmejd` was built from. `ssrp1026`, `holz1026` and `mltwo1026` are the
+  three projects that `altmext` rebuilds or adds.
+- **Splits.** `altmejd_splits` and `altmext_splits` hold stratified
+  training, validation and test sets (see [Splitting the Data]).
+- **Results.** `hypergrid`, `benchmark` and `nested` hold results that take
+  too long to compute here (see [Hyperparameter Search], [Benchmarks] and
+  [Nested Leave-One-Group-Out Cross-Validation]).
+
+The datasets of study effects differ in size and in the projects they hold:
 
 ```{r}
-#| label: seed
-# Reproducibility
-set.seed(112)
+#| label: datasets
+# Study effects and projects in each dataset of study effects
+fx_sets <- list(
+  altmejd = altmejd,
+  altmejd723 = altmejd723,
+  ssrp723 = ssrp723,
+  altmext = altmext,
+  ssrp1026 = ssrp1026,
+  holz1026 = holz1026,
+  mltwo1026 = mltwo1026
+)
+data.frame(
+  effects = vapply(fx_sets, nrow, integer(1)),
+  projects = vapply(
+    fx_sets,
+    \(fx) paste(sort(unique(fx$pid)), collapse = ", "),
+    character(1)
+  )
+)
 ```
+
+The tutorial keeps one project of `altmext`, HOLZ (`holz`), back for its final
+test. So the live examples of this vignette run on `altmejd`, which does not
+hold HOLZ. Each dataset's help page, such as `?altmext`, gives its sources,
+coding and license.
 
 ## Splitting the Data
 
 To evaluate model performance, we split the data into training (70%) and test
-(30%) sets.
+(30%) sets. `partition()` draws at random, so each split starts with a seed.
 
 ### Simple Random Split
 
@@ -104,52 +163,101 @@ A standard random split:
 ```{r}
 #| label: random-split
 # Simple random split
-randsplit <- partition(df, prop = 0.7)
-train <- randsplit$set1
-test <- randsplit$set2
+set.seed(112)
+rand_split <- partition(df, prop = 0.7)
+
+# Set sizes
+vapply(rand_split, nrow, integer(1))
 ```
 
 ### Stratified Split
 
-Stratified sampling ensures proportional representation of the outcome variable:
+Stratified sampling draws within each class of the outcome, so each set keeps
+about the share of successes of the whole data:
 
 ```{r}
 #| label: stratified-split
 # Stratified split: the same call, told which variable to hold steady
-stratsplit <- partition(df, prop = 0.7, strata = "replicate")
-train <- stratsplit$set1
-test <- stratsplit$set2
+set.seed(112)
+strat_split2 <- partition(df, prop = 0.7, strata = "replicate")
+train <- strat_split2$set1
+test <- strat_split2$set2
+
+# Share of successes: whole data, training set, test set
+vapply(
+  list(df, train, test),
+  \(set) mean(set[, out_nme] == "success"),
+  numeric(1)
+) |>
+  round(3)
 ```
+
+### Three Sets
+
+One proportion per set gives more than two sets, for example a training, a
+validation and a test set:
+
+```{r}
+#| label: three-way-split
+# Stratified 70/15/15 split in one call
+set.seed(112)
+strat_split <- partition(
+  df,
+  prop = c(0.7, 0.15, 0.15),
+  strata = "replicate"
+)
+
+# Set sizes
+vapply(strat_split, nrow, integer(1))
+```
+
+### Shipped Splits
+
+A seed alone does not fix a split across R versions: R changed `sample()` in
+version 3.6.0. So the package ships the stratified 70/15/15 splits of
+`altmejd` and `altmext`, made with `partition()`:
+
+```{r}
+#| label: shipped-splits
+# Set sizes of the shipped splits
+vapply(altmejd_splits, nrow, integer(1))
+vapply(altmext_splits, nrow, integer(1))
+```
+
+From here on, we fit on `train` and test on `test`, the stratified 70/30
+split.
 
 ## Adaptive Boosting
 
-The AdaBoost algorithm combines multiple base models into a strong overall model
--- the *ensemble*. Which base model is the analyst's choice, not the
-algorithm's: AdaBoost is defined over any *weak learner* whose weighted error
-stays below one half. That is why `adaboost()` takes a fitted learner rather
-than a formula, and why its own signature mentions no trees at all:
-
-The AdaBoost algorithm combines multiple base models into a strong overall model, which is referred to as *ensemble*. The base model is actually a free choice and originally the AdaBoost algorithm was defined over any *weak learner* whose weighted error stays below one half, but often depth-one decision trees (aka. *stumps*) are used for convenience. 
-
-**TODO** AdaBoost is first and foremost a teaching package. That is why we mimic the signature of  
-
+AdaBoost combines many base models into one strong model, the *ensemble*. Each
+round fits the base model to reweighted data, so it focuses on the study
+effects that earlier rounds got wrong. The ensemble is the weighted vote of
+all rounds. The base model is a free choice: AdaBoost is defined over any
+*weak learner* whose weighted error stays below one half. Depth-one
+classification trees, *stumps*, are a common choice. That is why `adaboost()`
+takes a fitted learner rather than a formula, and why its own signature
+mentions no trees at all:
 
 ```r
 adaboost(h, n_iter, eta)
 ```
 
+The arguments follow the algorithm: the weak learner `h`, the number of rounds
+and the learning rate.
+
 ### The Weak Learner
 
-Here the weak learner is a classification stump, so that is what we fit first.
+We boost classification stumps, so a single stump is the first thing we fit.
 The tree hyperparameters belong to this call, and `adaboost()` carries them
 into every boosting round: depth, the complexity parameter, the minimum split
-and bucket sizes, and the splitting rule. It overrides only `xval` and
-`maxsurrogate`, which are speed rather than structure.
+and bucket sizes, and the splitting rule. It sets only `xval` and
+`maxsurrogate` to 0, to save time; neither changes the tree's splits.
 
-Two settings cannot travel, and `adaboost()` refuses them rather than ignoring
-them. A `prior` is recomputed from each round's observation weights -- that is
-what boosting *does* -- and a `loss` matrix is not passed on, so a learner
-carrying either is an error rather than a surprise.
+`adaboost()` stops with an error rather than boost a different model than the
+one you passed. It refuses a tree that is not a classification tree, one
+fitted with `weights`, and one with a `prior` or a `loss` matrix. Boosting
+sets its own observation weights in every round, and the prior follows from
+them.
 
 `model = TRUE` is the one requirement. `rpart()` keeps the outcome but discards
 the predictors unless you ask for them, and `adaboost()` has to refit this tree
@@ -158,9 +266,9 @@ on reweighted data, so it needs the data the tree was grown on.
 ```{r}
 #| label: weak-learner
 # Fit the weak learner: one stump
-h <- rpart::rpart(
+cstump <- rpart::rpart(
   replicate ~ .,
-  data = train[, voinms],
+  data = train[, voi_nms],
   # Classification tree
   method = "class",
   # Maximum depth
@@ -180,59 +288,108 @@ boosting's own:
 - `n_iter`: Number of boosting rounds, one base model per round
 - `eta`: Learning rate
 
-Here, we develop an ensemble with 10 stumps and a learning rate of 1:
+Here, we boost the stump for 10 rounds, with the learning rate at 1. By
+default, `adaboost()` reports its progress; `verbose = FALSE` turns the report
+off.
 
 ```{r}
 #| label: train
-#| results: hide
-#| message: false
 # Boosted stumps and weights
-fit <- h |> adaboost(n_iter = 10, eta = 1)
+ada_fit <- cstump |> adaboost(n_iter = 10, eta = 1, verbose = FALSE)
 ```
 
-Swapping the weak learner is now a change to the `rpart()` call above and
-nothing else: a deeper tree, a different splitting rule or a different
-complexity parameter reaches the ensemble without `adaboost()` gaining an
-argument.
+The fit is a list with one element per round. Each element holds the round's
+tree, `h`, and its model weight, `alpha`. The lower a tree's weighted error,
+the larger its weight:
 
-### Test Phase
+```{r}
+#| label: model-weights
+# Model weight of each round
+vapply(ada_fit, "[[", numeric(1), "alpha") |> round(3)
+```
 
-Once the model is trained, we can use it to make predictions on the data in the
-test set:
+Swapping the weak learner is a change to the `rpart()` call and nothing else:
+a deeper tree, a different splitting rule or a different complexity parameter
+reaches the ensemble without `adaboost()` gaining an argument. Here are trees
+of depth 2:
+
+```{r}
+#| label: deeper-learner
+# A deeper weak learner: trees of depth 2
+ada_deep <- rpart::rpart(
+  replicate ~ .,
+  data = train[, voi_nms],
+  method = "class",
+  maxdepth = 2,
+  model = TRUE
+) |>
+  adaboost(n_iter = 10, eta = 1, verbose = FALSE)
+
+# The depth travels with the tree
+attr(ada_deep, "control")$maxdepth
+```
+
+## Predictions and the Margin
+
+Once the model is trained, `predict()` scores the data in the test set. By
+default, it returns class labels: -1 for failure and 1 for success. Like
+`adaboost()`, it reports its progress unless `verbose = FALSE`.
 
 ```{r}
 #| label: predict
-#| results: hide
-#| message: false
-# Predictions on test set
-ypred <- predict(fit, newdata = test[, prednms])
+# Class labels on the test set
+y_pred_cls <- predict(ada_fit, newdata = test[, pred_nms], verbose = FALSE)
+
+# Predicted against actual outcomes
+table(y_pred_cls, test[, out_nme])
 ```
 
-### Model Evaluation
-
-A confusion matrix can help us evaluate the prediction accuracy:
-
-```{r}
-#| label: confusion
-# Confusion matrix
-table(ypred, test[, outnme])
-```
-
-### Performance Metrics
-
-Class labels say only whether a prediction was right. The *margin*, the
-weighted vote before its sign is taken, also says how sure the model was, and
-every metric that reads a ranking needs that. So we score the margin:
+The class label is the sign of the *margin*, the weighted vote of all rounds.
+The margin also says how sure the model is: the farther from 0, the surer.
+`type = "margin"` returns it:
 
 ```{r}
 #| label: margin
 # Margins on the test set
-margin <- predict(
-  fit,
-  newdata = test[, prednms],
+y_pred_mgn <- predict(
+  ada_fit,
+  newdata = test[, pred_nms],
   type = "margin",
   verbose = FALSE
 )
+head(y_pred_mgn)
+
+# The class labels are the signs of the margins
+all(sign(y_pred_mgn) == y_pred_cls)
+```
+
+Scoring the training data is a *retrodiction*, not a prediction: it shows how
+well the model fits data it has already seen. The call looks the same either
+way, so `predict()` notes when the data were also used for training. Without
+`newdata`, it scores the training data on purpose, and the note is the point of
+this call:
+
+```{r}
+#| label: retrodict
+# No newdata: the training data are scored
+y_retro_mgn <- predict(ada_fit, type = "margin", verbose = FALSE)
+```
+
+## Performance Metrics
+
+Class labels say only whether a prediction was right. The margin also says how
+sure the model was, and every metric that reads a ranking needs that. So we
+score the margin.
+
+`confusion()` cuts the scores at a threshold and counts the four cells of the
+confusion matrix. The default threshold, 0, suits margins; use 0.5 for
+predicted probabilities.
+
+```{r}
+#| label: confusion
+# Confusion matrix at a threshold of 0
+conf_mat <- confusion(test[, out_nme], score = y_pred_mgn)
+conf_mat
 ```
 
 `assess()` computes the usual metrics in one call:
@@ -240,15 +397,117 @@ margin <- predict(
 ```{r}
 #| label: assess
 # Performance metrics
-assess(test[, outnme], score = margin)
+ada_assess <- assess(test[, out_nme], score = y_pred_mgn)
+ada_assess
 ```
 
 The printout shows the confusion matrix at a threshold of 0, then the metrics
 at that threshold. Next comes the precision among the top 3, the top 5 and the
-top k scores, where k is the number of actual successes. Last are the areas
-under the ROC and precision-recall curves, which use every threshold.
-`?assess` lists the formulas and the other names each metric goes by (for
-example, `sens` is also called recall).
+top k scores, where k is the number of actual successes. The margins of a few
+stumps tie often. When the cut falls inside a group of tied scores, the group
+counts by its share of successes (see `?patk`). So the precision among the top
+3 need not be 0, 1/3, 2/3 or 1. Last are the areas under the ROC and
+precision-recall curves, which use every threshold.
+`?assess` gives the formula of each metric and its other names; `sens`, for
+instance, is also known as recall.
+
+`print()` rounds only the display; the stored values stay exact. Given a
+confusion matrix, `assess()` returns only the metrics at the threshold,
+because the others need the scores:
+
+```{r}
+#| label: assess-confusion
+# Fewer decimals
+print(ada_assess, digits = 2)
+
+# Threshold metrics from the confusion matrix alone
+assess(conf_mat)
+```
+
+The metrics that read the ranking also have functions of their own.
+`auroc()` and `auprc()` compute the two areas with the PRROC package
+[@grau2015]. A random ranking scores 0.5 in `auroc()`, but about the base rate
+in `auprc()`, so compare `auprc()` with the share of successes. `patk()` gives
+the precision when only the `k` highest scores count. It treats tied scores as
+above, so even `k = 1` can give a fraction:
+
+```{r}
+#| label: ranking-metrics
+# Area under the ROC curve
+auroc(test[, out_nme], y_pred_mgn)
+
+# Area under the precision-recall curve, and its baseline, the base rate
+auprc(test[, out_nme], y_pred_mgn)
+mean(test[, out_nme] == "success")
+
+# Precision among the top 1, 5 and 10 scores
+patk(test[, out_nme], y_pred_mgn, k = c(1, 5, 10))
+```
+
+Score the margin, not the class labels. Class labels have only two values, so
+the ROC curve shrinks to a single point, and `auroc()` quietly returns the
+balanced accuracy:
+
+```{r}
+#| label: labels-pitfall
+# AUROC on class labels equals balanced accuracy
+c(
+  auroc_labels = auroc(test[, out_nme], y_pred_cls),
+  bacc = ada_assess[["bacc"]]
+)
+```
+
+A test set of `r nrow(test)` study effects gives a rough estimate.
+`bootstrap()` shows how much each metric could move with other study effects.
+It resamples the test cases, scores each resample with `assess()`, and keeps
+the model fixed:
+
+```{r}
+#| label: bootstrap-test
+# 95 percent bootstrap intervals, three of the metrics
+set.seed(112)
+ada_ci <- bootstrap(test[, out_nme], y_pred_mgn, n_resample = 1000)
+ada_ci[ada_ci$metric %in% c("auroc", "auprc", "bacc"), ]
+```
+
+A resample with one class only has no AUROC, so it is drawn again; the column
+`drop` counts these draws.
+
+## Feature Importance
+
+`gauge()` sums, for each predictor, the model weights `alpha` of the trees that
+split on it, and scales the sums to 100. A stump splits on one predictor, so
+it gives its whole weight to that predictor. A predictor gains when it is
+chosen often, and when heavy trees choose it.
+
+```{r}
+#| label: importance
+# Share of the model weight per predictor, in percent
+imp_fit <- gauge(ada_fit)
+imp_fit
+```
+
+`plot()` draws the shares as a lollipop chart; `top_n` sets how many
+predictors it shows, 15 by default.
+
+```{r}
+#| label: importance-plot
+#| fig-alt: "Lollipop chart of each predictor's share of the AdaBoost model weight, most important first"
+plot(imp_fit)
+```
+
+A deeper tree splits its weight across its predictors, by the gain of their
+splits:
+
+```{r}
+#| label: importance-deep
+gauge(ada_deep)
+```
+
+Read the shares as relative. They describe how the ensemble spread its weight
+over the predictors, not how much any predictor matters by itself. They have
+no sign, correlated predictors share their weight, and the ranking changes
+with the hyperparameters and the training data.
 
 ## Leave-One-Group-Out Cross-Validation
 
@@ -260,75 +519,570 @@ as the groups.
 `logo_cv()` takes the fitted ensemble, reads its settings (the formula, the
 tree settings, `n_iter` and `eta`), and refits them once per project. It does
 not use the fit's own data: cross-validation evaluates the procedure, not one
-fitted model. The fit only carries the settings, so `verbose = FALSE` keeps it
-quiet.
+fitted model.
 
 ```{r}
 #| label: logo-cv
-# LOGO-CV: refit the same recipe with each project held out
-res <- h |>
-  adaboost(n_iter = 1000, eta = 1, verbose = FALSE) |>
-  logo_cv(data = df, group = "pid")
+# LOGO-CV: refit the recipe of ada_fit with each project held out
+ada_logo <- logo_cv(ada_fit, data = df, group = "pid")
 
 # Results per project
-res
+ada_logo
+```
+
+The printout lists each project's size and base rate, then the AUROC of the
+model on each held-out project. AdaBoost is scored on the margin. `metric`
+shows another metric of `assess()`:
+
+```{r}
+#| label: logo-cv-metric
+# Area under the precision-recall curve per project
+print(ada_logo, metric = "auprc")
 ```
 
 Read the spread across projects, not an average. The projects differ in size
-(10 to 90 study effects), and they share most of their training data, so a mean and
-its standard error would mislead.
+(10 to 90 study effects), and they share most of their training data, so a
+mean and its standard error would mislead [@bengio2004].
 
-`bootstrap()` resamples each held-out project to show how much its estimate
-could move with different study effects. `plot()` then draws the intervals as bands:
+`summary()` condenses the estimates into one row per setting, with five
+statistics across the projects: `mean`, `sd`, `lower` (the mean minus the SD),
+`min` and `max`. These columns rank settings, as in the search below; they are
+not estimates of performance on a new project. `as.data.frame()` gives every
+estimate in one long table, one row per setting, project and metric:
+
+```{r}
+#| label: logo-cv-summary
+# One row per setting
+summary(ada_logo) |> round(3)
+
+# All estimates in one long table; here the AUROC rows
+ada_long <- as.data.frame(ada_logo)
+ada_long[ada_long$metric == "auroc", ]
+```
+
+### Bootstrap Intervals
+
+Some projects hold only a handful of study effects, so their estimates are
+rough. `bootstrap()` resamples the held-out study effects of each project and
+scores every resample, with the model fixed. The interval shows how much an
+estimate would move if the project had drawn different study effects:
 
 ```{r}
 #| label: logo-cv-bootstrap
-#| fig-alt: "AUROC per replication project with bootstrapped interval bands"
 # Bootstrapped intervals per project
 set.seed(112)
-res |>
-  bootstrap(n_resample = 1000) |>
-  plot()
+ada_boot <- bootstrap(ada_logo, n_resample = 1000)
+ada_boot
 ```
 
+The printout adds each project's 95 percent interval and the number of dropped
+resamples. A resample with one class only has no AUROC, so it is dropped and
+drawn again. Small projects with few cases of one class drop many draws; ML1,
+for example, has
+`r sum(altmejd$pid == "ml1" & altmejd$replicate == "failure")` failures among
+its `r sum(altmejd$pid == "ml1")` study effects. The interval of such
+a project rests only on the resamples that hold both classes, so it is too
+narrow. That is what the warning above says, and why we show it.
+
+`stratified = TRUE` resamples each class separately, so it drops no draw. But
+it holds the base rate fixed. That suits `auroc` and `bacc`, but it
+understates the uncertainty of metrics that depend on the base rate, such as
+`auprc`.
+
+`plot()` draws the estimates with the intervals as bands at 50, 80 and 95
+percent (set by `levels`). A dashed line marks where a useless model would
+score (set by `baseline`), and a star marks each project with many dropped
+draws (set by `max_rejected`):
+
+```{r}
+#| label: logo-cv-plot
+#| fig-alt: "AUROC per replication project with bootstrapped interval bands"
+# Estimates with interval bands
+plot(ada_boot)
+```
+
+### Other Models
+
 To compare AdaBoost with another learner, pass a fitted model instead of the
-ensemble. `logo_cv()` refits it once per project, as it did the ensemble. Here
-is a logistic regression on the same predictors:
+ensemble. `logo_cv()` has methods for logistic regressions from `glm()`,
+classification trees from `rpart()`, forests from `randomForest()`, and fits
+from `xgboost()`. Each refits the model once per project and scores its
+predicted probability of success. Here is a logistic regression on the same
+predictors:
 
 ```{r}
 #| label: logo-cv-logit
 # LOGO-CV for a logistic regression
-logit <- glm(
+logit_fit <- glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
   data = df,
   family = binomial
-) |>
-  logo_cv(data = df, group = "pid")
-logit
+)
+logit_logo <- logo_cv(logit_fit, data = df, group = "pid")
+logit_logo
 ```
 
-## Feature Importance
-
-AdaBoost is restricted to decision stumps here, so every tree in the ensemble
-splits on exactly one variable. Each stump carries a voting weight (`a`) based
-on its accuracy; grouping stumps by the variable they split on and summing
-their weights gives a feature-importance score. AdaBoost sequentially
-targets the hardest-to-predict observations by re-weighting the data, so a
-variable that is frequently chosen -- especially by high-weight stumps --
-is one that consistently helped correct the ensemble's biggest mistakes. Total
-accumulated weight is therefore a direct measure of a feature's predictive contribution.
+A single classification tree, the weak learner grown deeper:
 
 ```{r}
-#| label: importance
-important <- gauge(fit)
-head(important, 10)
+#| label: logo-cv-tree
+# LOGO-CV for a classification tree of depth 2
+tree_fit <- rpart::rpart(
+  replicate ~ .,
+  data = df[, voi_nms],
+  method = "class",
+  maxdepth = 2
+)
+tree_logo <- logo_cv(tree_fit, data = df, group = "pid")
+tree_logo
+```
+
+For a glm, a tree or a forest, the method reruns the call that made the fit,
+with the training rows in place of `data`, so settings such as `maxdepth`
+carry over. The chunks with a forest or an XGBoost fit need the suggested
+packages randomForest [@breiman2001; @liaw2002] and xgboost [@chen2016],
+version 3.0.0 or later. Where a package is missing, its chunks show code
+without output.
+
+A random forest draws at random, so set a seed. The seed also covers the
+forest's refits, which `logo_cv()` draws from the same random-number stream:
+
+```{r}
+#| label: logo-cv-forest
+#| eval: !expr rf_installed
+# LOGO-CV for a random forest at its defaults
+set.seed(112)
+rf_fit <- randomForest::randomForest(replicate ~ ., data = df[, voi_nms])
+rf_logo <- logo_cv(rf_fit, data = df, group = "pid")
+rf_logo
+```
+
+An XGBoost fit keeps no formula. Fit it on a data frame of predictors and a
+factor outcome, and name the outcome column in `logo_cv()` with `outcome`. Fit
+it with `nthreads = 1`: each refit runs on as many threads as the fit.
+
+```{r}
+#| label: logo-cv-xgboost
+#| eval: !expr xgb_installed
+# LOGO-CV for gradient boosting with XGBoost
+xgb_fit <- xgboost::xgboost(
+  x = df[, pred_nms],
+  y = df[, out_nme],
+  nrounds = 50,
+  max_depth = 2,
+  learning_rate = 0.1,
+  nthreads = 1
+)
+xgb_logo <- logo_cv(xgb_fit, data = df, group = "pid", outcome = out_nme)
+xgb_logo
+```
+
+Any other object reaches the default method, which stops and says what to pass
+instead. A formula, for example, is not a fitted model:
+
+```{r}
+#| label: logo-cv-default
+#| error: true
+# A formula is not a fit: logo_cv() needs the fitted model
+logo_cv(replicate ~ power.o + n.o, data = df, group = "pid")
+```
+
+### One Held-Out Group
+
+`holdout` names the groups to hold out; the other groups are only ever trained
+on. With one name, `logo_cv()` makes a single split into training and test
+data. Here it trains on four projects and scores SSRP once:
+
+```{r}
+#| label: logo-cv-holdout
+# Hold out SSRP only
+ada_ssrp <- logo_cv(
+  ada_fit,
+  data = df,
+  group = "pid",
+  holdout = "ssrp"
+)
+ada_ssrp
+```
+
+A final test on a project kept back from tuning is the same call; the examples
+in `?logo_cv` hold out HOLZ of `altmext` this way. The groups need not be
+projects. A column of random fold numbers as the group gives random k-fold
+cross-validation, and a random train-test column with `holdout = "test"` gives
+one Monte Carlo split.
+
+## Hyperparameter Search
+
+So far, `ada_fit` has kept the depth, `n_iter` and `eta` we chose by hand.
+`tune_logo_cv()` compares other values. It cross-validates the fit at each row
+of a grid, a data frame of settings, with the folds of `logo_cv()`. Each row
+changes the recipe read off the fit, so the result holds one estimate per
+setting and project. For an AdaBoost fit, the columns `depth`, `n_iter` and
+`eta` set the depth of the boosted tree, the number of rounds and the learning
+rate. A column named after an `rpart.control()` setting, such as `cp`, sets
+that control for its row. A column the grid lacks takes the fit's own value.
+
+### A Grid Search
+
+A *grid search* crosses a few values of each hyperparameter and scores each
+resulting setting. @bischl2023 review this and other search strategies. Here,
+`expand.grid()` builds the grid:
+
+```{r}
+#| label: tune-grid
+# Eight settings: two depths, two numbers of rounds, two learning rates
+ada_hgrid <- expand.grid(
+  depth = 1:2,
+  n_iter = c(10, 50),
+  eta = c(1, 0.1)
+)
+
+# One LOGO-CV per setting
+ada_tune <- tune_logo_cv(ada_fit, ada_hgrid, data = df, group = "pid")
+ada_tune
+```
+
+Rows that differ only in `n_iter` share one fit per fold. The model is boosted
+once, to the largest number of rounds, and each row is scored after its own
+number of rounds. So a grid of many round counts costs about as much as its
+largest one.
+
+`summary()` ranks the settings. `sort_by` names the columns to sort by,
+highest first, and later columns break ties; without `sort_by`, the rows keep
+the grid order. The row names are the settings' row numbers in the grid. Below,
+the first call ranks the AUROC by `lower`. The second ranks the AUPRC by its
+worst project, `min`, with ties broken by `lower`:
+
+```{r}
+#| label: tune-summary
+# AUROC, ranked by the mean minus the SD
+summary(ada_tune, sort_by = "lower") |> round(3)
+
+# AUPRC, ranked by the worst project, then by the mean minus the SD
+summary(ada_tune, metric = "auprc", sort_by = c("min", "lower")) |> round(3)
+```
+
+`bootstrap()` needs a single setting. For a result with several, name the
+grid row with `setting`, for example `bootstrap(ada_tune, setting = 3)`; the
+result is ready for `plot()`.
+
+### A Random Search
+
+The space below crosses three depths, three numbers of rounds and four
+learning rates, 36 settings in all. A *random search* scores a sample of them
+rather than every one. Any data frame of settings can serve as the grid, so
+`sample()` picks the rows. The row names of the summary then number the four
+drawn settings, not their rows in `ada_space`:
+
+```{r}
+#| label: tune-random
+# The space of candidate settings
+ada_space <- expand.grid(
+  depth = 1:3,
+  n_iter = c(10, 25, 50),
+  eta = c(1, 0.5, 0.1, 0.05)
+)
+
+# Draw four settings at random
+set.seed(112)
+rnd_smpl <- sample(nrow(ada_space), 4)
+ada_hgrid_rnd <- ada_space[rnd_smpl, ]
+
+# Score the drawn settings, as for the grid
+logo_rnd <- tune_logo_cv(
+  ada_fit,
+  ada_hgrid_rnd,
+  data = df,
+  group = "pid"
+)
+summary(logo_rnd, sort_by = "lower") |> round(3)
+```
+
+### More Cores
+
+A search refits the model many times. `cores` spreads that work over several
+R processes on every system: forked processes on macOS and Linux, and on
+Windows a socket cluster whose processes first load adatutor and the packages
+the fit needs. The results are the same at any number of cores, and progress
+messages from `verbose` appear only on one core. This vignette runs on one
+core, the default, so the call below is shown but not run:
+
+```{r}
+#| label: tune-cores
+#| eval: false
+# The same grid search on two cores
+ada_tune <- tune_logo_cv(
+  ada_fit,
+  ada_hgrid,
+  data = df,
+  group = "pid",
+  cores = 2
+)
+```
+
+### Grids for Other Models
+
+The columns a grid may hold depend on the fit; `?tune_logo_cv` lists them. For
+a tree, `depth` sets its `maxdepth`:
+
+```{r}
+#| label: tune-tree
+# The tree's depth by LOGO-CV
+tree_tune <- tune_logo_cv(
+  tree_fit,
+  data.frame(depth = 1:4),
+  data = df,
+  group = "pid"
+)
+summary(tree_tune, sort_by = "lower") |> round(3)
+```
+
+For a forest, the columns `mtry`, `nodesize`, `ntree` and `maxnodes` set those
+arguments. The tuner draws one seed per fold from the session's
+random-number stream, so a seed makes the result repeatable:
+
+```{r}
+#| label: tune-forest
+#| eval: !expr rf_installed
+# Predictors tried per split, and the smallest leaf size
+rf_hgrid <- expand.grid(mtry = 1:2, nodesize = c(1, 10))
+set.seed(112)
+rf_tune <- tune_logo_cv(rf_fit, rf_hgrid, data = df, group = "pid")
+summary(rf_tune, sort_by = "lower") |> round(3)
+```
+
+For an XGBoost fit, the grid takes the columns `depth`, `eta` and `n_iter`, as
+for AdaBoost, and two more of its own (see `?tune_logo_cv`). As in
+`logo_cv()`, `outcome` names the outcome column:
+
+```{r}
+#| label: tune-xgboost
+#| eval: !expr xgb_installed
+# Four settings: two depths, two numbers of rounds; eta stays the fit's
+xgb_tune <- tune_logo_cv(
+  xgb_fit,
+  expand.grid(depth = 1:2, n_iter = c(20, 50)),
+  data = df,
+  group = "pid",
+  outcome = out_nme
+)
+summary(xgb_tune, sort_by = "lower") |> round(3)
+```
+
+A logistic regression has no settings to tune. Like any object without a
+method, it reaches the default method, which stops and says what to do
+instead:
+
+```{r}
+#| label: tune-default
+#| error: true
+# A glm has nothing to tune
+tune_logo_cv(logit_fit, data.frame(depth = 1), data = df, group = "pid")
+```
+
+### The Shipped Grid
+
+A larger grid takes long to run. The package ships one as the dataset
+`hypergrid`: `r format(nrow(hypergrid$auroc), big.mark = ",")` settings of
+AdaBoost, with depths 1 to 4, 10 to 3,000 rounds and learning rates from
+0.0025 to 1. Each setting was cross-validated by project on the six projects of
+`altmext` other than HOLZ. The grid is one `tune_logo_cv()` call, which
+takes about 22 minutes on four cores. `hypergrid` holds
+`r length(hypergrid)` data frames, one per metric of `assess()`. Each starts
+with the setting (`depth`, `n_iter` and `eta`), then gives the metric on each
+of the six projects when held out, and ends with the `mean`, `sd`, `min` and
+`max` of those six values:
+
+```{r}
+#| label: hypergrid
+data(hypergrid)
+
+# One table per metric
+names(hypergrid)
+
+# The six tuning projects: size and base rate
+attr(hypergrid, "projects")
+```
+
+`summary()` ranks the settings of one table. By default, it ranks the AUROC
+table by `lower`, adds that column after `sd`, and returns the five best
+settings. Its first row is the tutorial's choice:
+
+```{r}
+#| label: hypergrid-summary
+# The five settings with the highest mean AUROC minus its SD
+summary(hypergrid) |> round(3)
+```
+
+Further arguments narrow or change the ranking. `depth` keeps the settings of
+some tree depths, `by` keeps the best setting of each value of one
+hyperparameter, and `n` sets how many rows to return. `metric` and `sort_by`
+pick the table and the columns to rank by:
+
+```{r}
+#| label: hypergrid-narrow
+# The three best stumps
+summary(hypergrid, depth = 1, n = 3) |> round(3)
+
+# One row per depth, its top setting
+summary(hypergrid, by = "depth") |> round(3)
+
+# The AUPRC table, ranked by the mean
+summary(hypergrid, metric = "auprc", sort_by = "mean", n = 3) |> round(3)
+```
+
+## Benchmarks
+
+An AUROC means little on its own. Benchmarks show what other models get out of
+the same four predictors, trained and scored the same way. The package ships
+them as the dataset `benchmark`: the tutorial's AdaBoost ensemble next to four
+other models. LOGO-CV scores each model across the six tuning projects of
+`altmext`; then each model is trained on all six and scored once on HOLZ.
+Like `hypergrid`, it holds one data frame per metric of `assess()`:
+
+```{r}
+#| label: benchmark
+data(benchmark)
+
+# AUROC per model and project, HOLZ last
+print(benchmark$auroc, digits = 2)
+
+# The settings behind each row
+attr(benchmark, "settings")
+```
+
+The AdaBoost row uses the first setting of `summary(hypergrid)`, the setting
+with the highest `lower`:
+
+```{r}
+#| label: benchmark-adaboost
+# The tutorial's choice from the shipped grid
+summary(hypergrid, n = 1)[, c("depth", "n_iter", "eta")]
+```
+
+Compare the models project by project: no model leads on every project.
+`?benchmark` describes how each model was tuned.
+
+## Nested Leave-One-Group-Out Cross-Validation
+
+Picking the best setting of a grid and reporting its score is optimistic: the
+same projects chose the winner and graded it [@cawley2010]. Nested LOGO-CV
+keeps the two apart. It holds out each project in turn. On the other
+projects, it runs the whole search, picks a setting, and refits that setting.
+Then it scores the held-out project once. The result estimates the procedure
+"search the grid, then fit the winner", not any one setting.
+
+`tune_logo_cv()` nests the search with `nested = TRUE`, for AdaBoost and
+XGBoost fits. It needs a grid of two or more rows and at least three groups.
+`metric` and `sort_by` set the rule by which each inner search picks; the
+defaults, `"auroc"` and `"lower"`, pick the setting with the highest mean
+AUROC minus its SD. Fix the rule in advance: it decides the choice. Here is a
+tiny grid on `altmejd`:
+
+```{r}
+#| label: nested-live
+# Four settings: two depths, two numbers of rounds; eta stays the fit's
+ada_hgrid_nst <- expand.grid(depth = 1:2, n_iter = c(10, 25))
+
+# Nested LOGO-CV: each project held out once, the search run on the others
+ada_nested <- tune_logo_cv(
+  ada_fit,
+  ada_hgrid_nst,
+  data = df,
+  group = "pid",
+  nested = TRUE,
+  metric = "auroc",
+  sort_by = "lower"
+)
+ada_nested
+```
+
+Each row of the printout is one outer fold: the setting that fold selected,
+the held-out project with its size and base rate, and the estimate. The
+header line `selected` names the rule of the inner searches, and the last
+line counts the distinct settings they selected; the folds need not agree.
+`summary()` condenses the estimates into one row, and
+`selected` holds the picks, each with its value in the inner search:
+
+```{r}
+#| label: nested-live-summary
+# The estimates in one row
+summary(ada_nested) |> round(3)
+
+# The setting each inner search picked
+ada_nested$selected
+```
+
+### The Shipped Nested Search
+
+The dataset `nested` scores the procedure "search `hypergrid`, then fit the
+winner" on all seven projects of `altmext`. For each project, a search of the
+`r format(nrow(nested$grid), big.mark = ",")` settings of `hypergrid` on the
+other six picks one, which is then scored once on that project. It is one
+`tune_logo_cv()` call with `nested = TRUE` and `cores = 4`, which ran for 140
+minutes. HOLZ is among the seven: the search came after the tutorial's final
+test, and its HOLZ fold repeats that test (see `?nested`). Like any result of
+`tune_logo_cv()`, it works with `print()`, `summary()`, `as.data.frame()` and
+`plot()`:
+
+```{r}
+#| label: nested-shipped
+data(nested)
+nested
+summary(nested) |> round(3)
 ```
 
 ```{r}
-#| label: importance-plot
-#| fig-alt: "Horizontal bar chart of AdaBoost feature importance"
-plot(important, top_n = 15)
+#| label: nested-plot
+#| fig-alt: "AUROC of the nested search on each of the seven projects of altmext, one dot per project, with a dashed line at 0.5"
+# One estimate per project
+plot(nested)
 ```
+
+### XGBoost
+
+Nesting works the same way with XGBoost fits [@chen2016]. Their grid columns
+`depth`, `eta` and `n_iter` set `max_depth`, `learning_rate` and `nrounds`, and
+`min_child_weight` and `lambda` set `min_child_weight` and `reg_lambda`. Here,
+`sort_by = c("min", "lower")` makes each inner search rank the settings by
+their lowest project score and break ties by `lower`. The chunk reuses
+`xgb_fit` from above, so it also needs xgboost:
+
+```{r}
+#| label: nested-xgboost
+#| eval: !expr xgb_installed
+# Eight settings: two depths, two learning rates, two numbers of rounds
+xgb_hgrid <- expand.grid(
+  depth = c(1, 2),
+  eta = c(0.1, 0.05),
+  n_iter = c(20, 50)
+)
+
+# Nested LOGO-CV, inner searches ranked by min, then by lower
+xgb_nested <- tune_logo_cv(
+  xgb_fit,
+  xgb_hgrid,
+  data = df,
+  group = "pid",
+  outcome = out_nme,
+  nested = TRUE,
+  sort_by = c("min", "lower")
+)
+xgb_nested
+summary(xgb_nested) |> round(3)
+```
+
+## Where to Read More
+
+- The tutorial builds each step by hand and explains why it is needed. Its
+  [code-along script](tutorialscript.html) ships with the package:
+  `vignette("tutorialscript", package = "adatutor")`.
+- Each function's help page gives its arguments, its rules and more examples,
+  for example `?tune_logo_cv`. Each dataset's help page gives its sources and
+  coding, for example `?altmext`.
+- For the machine-learning workflow in general, see @pargent2023 and the book
+  by @boehmke2019. For hyperparameter optimization, see @bischl2023. For
+  cross-validation on data with groups, see @roberts2017.
 
 ## References
 
