@@ -2222,6 +2222,26 @@ test_that("on Windows, an AdaBoost recipe needs nothing of its tree's call", {
   }
 })
 
+test_that("on Windows, a tree fitted with bare rpart() gives what one core gives", {
+  local_mocked_bindings(read_os_type = function() "windows")
+  data(altmejd)
+  # as typed at the top level: rpart attached and called bare. A refit runs
+  # rpart::rpart, which a worker has without attaching rpart.
+  if (!"package:rpart" %in% search()) {
+    library(rpart)
+    on.exit(detach("package:rpart"), add = TRUE)
+  }
+  formula <- fml
+  environment(formula) <- globalenv()
+  tree <- rpart(formula, data = altmejd, method = "class")
+  expect_identical(list_globals(tree, altmejd), list())
+  grid <- data.frame(depth = 1:2)
+  expect_identical(
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+  )
+})
+
 test_that("on Windows, the tutorial's XGBoost fit gives what one core gives", {
   skip_if_not_installed("xgboost", "3.0.0")
   local_mocked_bindings(read_os_type = function() "windows")
@@ -2439,7 +2459,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   expect_error(
     tune(tree_of("bin_power(n.o)")),
     paste0(
-      "The fit uses `bin_power` from your session. On Windows, parallel ",
+      "The fit uses `bin_power` from this session. On Windows, parallel ",
       "workers start empty and may not get it. Set `cores = 1`, or compute ",
       "the column first and use it in the formula."
     ),
@@ -2447,10 +2467,10 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   )
   # a global round() that masks base's, and a helper that predicts from a
   # global model
-  expect_error(tune(tree_of("round(n.o)")), "`round` from your session")
-  expect_error(tune(tree_of("adjust_n(power.o)")), "`adjust_n` from your")
+  expect_error(tune(tree_of("round(n.o)")), "`round` from this session")
+  expect_error(tune(tree_of("adjust_n(power.o)")), "`adjust_n` from this")
   # objects that hold functions
-  holds_code <- "from your session, an object that holds code. On Windows"
+  holds_code <- "from this session, an object that holds code. On Windows"
   expect_error(tune(tree_of("rules$bin(n.o)")), paste0("`rules` ", holds_code))
   expect_error(
     tune(tree_of("tool_box$f(n.o)")),
@@ -2464,14 +2484,14 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   # holds and finds the session's round()
   expect_error(
     tune(tree_of("I(sapply(n.o, function(round) round(round)))")),
-    "`round` from your session"
+    "`round` from this session"
   )
   # a session function named in a string, which do.call() and sapply() look
   # up by that name
   named <- paste0(
-    "The fit names `bin_power` in a string, and your session has a function ",
+    "The fit names `bin_power` in a string, and this session has a function ",
     "of that name. On Windows, parallel workers start empty and may not get ",
-    "it. Set `cores = 1`, or rename the function in your session."
+    "it. Set `cores = 1`, or rename the function in this session."
   )
   expect_error(
     tune(tree_of("I(do.call(\"bin_power\", list(power.o)))")),
@@ -2496,7 +2516,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   expect_error(
     tune(tree),
     paste0(
-      "The fit uses `make_parms` from your session. On Windows, parallel ",
+      "The fit uses `make_parms` from this session. On Windows, parallel ",
       "workers start empty and may not get it. Set `cores = 1`, or compute ",
       "the value first and use it in the call."
     ),
@@ -2510,7 +2530,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     method = "class",
     na.action = "my_na"
   )
-  expect_error(tune(tree), "`my_na` in a string, and your session has")
+  expect_error(tune(tree), "`my_na` in a string, and this session has")
   # rpart() reads split = "gini" as its own rule, not as the tutorial's
   # gini(), but no check can tell the two apart
   tree <- rpart::rpart(
@@ -2519,7 +2539,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     method = "class",
     parms = list(split = "gini")
   )
-  expect_error(tune(tree), "`gini` in a string, and your session has")
+  expect_error(tune(tree), "`gini` in a string, and this session has")
 
   # a helper made where the fit was made
   make_tree <- function() {
@@ -2530,7 +2550,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
       method = "class"
     )
   }
-  expect_error(tune(make_tree()), "`shift_n` from your session")
+  expect_error(tune(make_tree()), "`shift_n` from this session")
   # a session function as the default of an argument of that frame
   make_binned <- function(bin = bin_power) {
     rpart::rpart(
@@ -2539,7 +2559,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
       method = "class"
     )
   }
-  expect_error(tune(make_binned()), "`bin` from your session")
+  expect_error(tune(make_binned()), "`bin` from this session")
 
   # a function do.call() puts in the call itself
   tree <- do.call(
@@ -2570,8 +2590,8 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     warn.conflicts = FALSE
   )
   on.exit(detach("package:adatutor_fake"), add = TRUE)
-  expect_error(tune(tree_of("tool_n(n.o)")), "`tool_n` from your session")
-  expect_error(tune(tree_of("fake_n(n.o)")), "`fake_n` from your session")
+  expect_error(tune(tree_of("tool_n(n.o)")), "`tool_n` from this session")
+  expect_error(tune(tree_of("fake_n(n.o)")), "`fake_n` from this session")
 
   # a fit made by a function sourced into an attached environment, as
   # sys.source(file, envir = attach(NULL, name = ...)) makes it: a worker
@@ -2598,22 +2618,21 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     fixed = TRUE
   )
 
-  # rpart() called bare, which needs rpart attached
-  if (!"package:rpart" %in% search()) {
-    library(rpart)
-    on.exit(detach("package:rpart"), add = TRUE)
+  # a function of an attached package called bare, which a worker loads but
+  # does not attach
+  if (!"package:splines" %in% search()) {
+    library(splines)
+    on.exit(detach("package:splines"), add = TRUE)
   }
-  tree <- rpart(formula, data = altmejd, method = "class")
-  bare <- paste0(
-    "The fit uses `rpart` from the attached package rpart. On Windows, ",
-    "parallel workers load packages but do not attach them. Set ",
-    "`cores = 1`, or write `rpart::rpart()`."
+  expect_error(
+    tune(tree_of("ns(n.o, df = 2)")),
+    paste0(
+      "The fit uses `ns` from the attached package splines. On Windows, ",
+      "parallel workers load packages but do not attach them. Set ",
+      "`cores = 1`, or write `splines::ns()`."
+    ),
+    fixed = TRUE
   )
-  expect_error(tune(tree), bare, fixed = TRUE)
-  # and past a session object named rpart, which the call skips
-  assign("rpart", "a label", envir = globalenv())
-  on.exit(rm("rpart", envir = globalenv()), add = TRUE)
-  expect_error(tune(tree), bare, fixed = TRUE)
 
   # a helper in a forest's call
   skip_if_not_installed("randomForest")
@@ -2633,7 +2652,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
       group = "pid",
       cores = 2
     )),
-    "`pick_size` from your session"
+    "`pick_size` from this session"
   )
 })
 
