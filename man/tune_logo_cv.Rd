@@ -131,13 +131,19 @@ tie on all of them go in grid order. Defaults to \code{"lower"}, the mean
 minus the SD; \code{"mean"} picks the highest mean. It is not used when
 \code{nested = FALSE}.}
 
-\item{cores}{The number of cores to use. Defaults to 1. On macOS and
+\item{cores}{The number of cores to use. Defaults to 1. A number above
+what the computer has is lowered to that, with a message. On macOS and
 Linux, the work is spread over that many forked R processes with
 \code{\link[parallel:mclapply]{parallel::mclapply()}}. Windows cannot fork, so there it goes to that
 many new R processes from \code{\link[parallel:makePSOCKcluster]{parallel::makePSOCKcluster()}}, which first
 load adatutor and the packages the fit needs. The results are the same
-at any number of cores. Progress messages from \code{verbose} appear only on
-one core.}
+at any number of cores. On Windows, these processes are new R sessions:
+they get the plain values the fit reads, such as numbers and data
+frames, but not your functions. So a fit whose formula or call uses a
+function of your own, even by its name in a string, or an object that
+holds code, such as a fitted model, stops with a message; then set
+\code{cores = 1}, or compute the column first and use it in the formula.
+Progress messages from \code{verbose} appear only on one core.}
 
 \item{verbose}{Whether to report progress. Defaults to \code{FALSE}.}
 
