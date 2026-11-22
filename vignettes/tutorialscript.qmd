@@ -266,7 +266,7 @@ strat_diy <- list(
 
 #### Listing 9
 
-Do both splits with `partition()` from adatutor.
+Do both splits with adatutor.
 
 ```{r listing-9}
 # Simple random split (two way)
@@ -1216,7 +1216,7 @@ table(y_test, y_pred_cls) # Imperfect predictions
 ::: {.callout-note title="Add to tutorial"}
 After predicting the test set, we can evaluate the ensemble by comparing its predictions with the observed outcomes. The confusion matrix of Listing 29 is the starting point. A first metric is *accuracy*, the share of correct predictions: the sum of the main diagonal divided by the sum of all entries. Accuracy needs a baseline, however. The *base rate* of the test set, the share of its study effects that replicated, is 0.48, so a model that always predicts failure is right 52 percent of the time without having learned anything. Remember also that the dataset is imbalanced: more study effects failed than replicated, and accuracy hides which class the errors fall on. *Balanced accuracy* corrects for this. It is the mean of *sensitivity*, the share of successes the ensemble predicts as successes, and *specificity*, the share of failures it predicts as failures [see @pargent2023, who warn that the error rate alone says little under imbalance].
 
-These metrics read the class labels, so they judge one decision: the sign of the vote. The margin of Module 5 carries more, namely how far each study effect sits from the tie, and with it a ranking of the study effects. Two metrics read that ranking. The *area under the receiver operating characteristic curve* (AUROC, often just AUC) is the chance that a randomly drawn success scores higher than a randomly drawn failure [@bradley1997]. A random ranking scores 0.5, a perfect one 1, and the base rate plays no part. The *area under the precision-recall curve* (AUPRC) asks how pure the top of the ranking is at every cutoff. Here the base rate does play a part: a random ranking scores about the base rate, not 0.5. A third view is a budget. When only a few replications can be run, what matters is the *precision among the top k*, the share of successes among the k study effects with the highest margins. Listing 31 computes each metric once. The last three need the margin. Class labels have only two values, so the ROC curve collapses to a single point, and the AUROC quietly becomes the balanced accuracy. Listing 31 shows it.
+These metrics read the class labels, so they judge one decision: the sign of the vote. The margin of Module 5 carries more, namely how far each study effect sits from the tie, and with it a ranking of the study effects. Two metrics read that ranking. The *area under the receiver operating characteristic curve* (AUROC, often just AUC) is the chance that a randomly drawn success scores higher than a randomly drawn failure [@bradley1997]. A random ranking scores 0.5, a perfect one 1, and the base rate plays no part. The *area under the precision-recall curve* (AUPRC) asks how pure the top of the ranking is at every cutoff. Here the base rate does play a part: a random ranking scores about the base rate, not 0.5. A third view is a budget. When only a few replications can be run, what matters is the *precision among the top k*, the share of successes among the k study effects with the highest margins. Listing 31 computes the metrics on the class labels and the AUROC, our focus from here on; `assess()` in the package solution reports the AUPRC and the precision among the top k as well. The AUROC needs the margin. Class labels have only two values, so the ROC curve collapses to a single point, and the AUROC quietly becomes the balanced accuracy. Listing 31 shows it.
 :::
 
 #### Listing 31
@@ -1254,7 +1254,7 @@ With 1,000 stumps and a learning rate of 1, the ensemble predicts 19 of the 31 t
 :::
 
 ::: {.callout-important title="Changed since submission"}
-- AUROC and AUPRC are scored on the margin, `y_pred_mgn`. The submitted listing fed class labels to `auc(roc())`, so its "AUC" of 0.685 was a balanced accuracy (findings §1); the PRROC package [@grau2015] replaces the AUC package, through the package functions `auroc()` and `auprc()`. New lines (R1.C5): the test set's base rate, sensitivity, specificity, balanced accuracy, AUPRC and precision at k. The confusion matrix takes `(y_test, y_pred_cls)` as Listing 29 does (submitted: `table(ypred, y_test)`). The base rates per project move to Listing 32; their average is gone.
+- The AUROC is scored on the margin, `y_pred_mgn`. The submitted listing fed class labels to `auc(roc())`, so its "AUC" of 0.685 was a balanced accuracy (findings §1); the PRROC package [@grau2015] replaces the AUC package, through the package function `auroc()`. New lines (R1.C5): the test set's base rate, sensitivity, specificity and balanced accuracy. The AUPRC and the precision at k are not computed by hand (author, 22 Nov: the focus is the AUROC); `assess()` in the package solution reports them. The confusion matrix takes `(y_test, y_pred_cls)` as Listing 29 does (submitted: `table(ypred, y_test)`). The base rates per project move to Listing 32; their average is gone.
 - New line after the balanced accuracy: the AUROC on the class labels, which prints the balanced accuracy again (findings §1). Name it in the letter, since `latexdiff` cannot mark code.
 - "Two Wrapper Functions" and its Listing 30 are dropped: the package handoffs of Modules 3 and 5 replace them, and `adaboost()` and `predict()` replace `trainAda()` and `testAda()`.
 :::
@@ -1366,6 +1366,9 @@ ada_logo <- logo_cv(
   group = "pid"
 )
 
+# The estimate of every project
+ada_logo
+
 # Verification
 all.equal(
   ada_logo$estimates[1, names(auc_cv), "auroc"],
@@ -1419,9 +1422,10 @@ Bootstrap every held-out project with adatutor.
 # Bootstrap every held-out project; the intervals attach to the result
 set.seed(112)
 ada_boot <- bootstrap(ada_logo, n_resample = 1000)
-ada_boot
 plot(ada_boot)
 ```
+
+**TODO** Fix x-labels (EERP,...) and y-labels (AUROC) APA Capitalize? Check required: Consistent in all plots and the "*" in the plot cannot be read. The text is also too long. and "project ml1" It should be "Project". Why is the tutplot and the plot function output inconsistent? remove the warning from the figure
 
 ::: {.callout-note title="Add to tutorial"}
 `bootstrap()` resamples each held-out project in turn and keeps the intervals with the result, for every metric of `assess()`. The EERP column matches Listing [NEW], because both start from the same seed and EERP is resampled first. Figure [NEW] draws the six estimates with their bands.
@@ -1446,6 +1450,9 @@ The AUROC of the ensemble in leave-one-group-out cross-validation, one column pe
 tutplot_logocv(ada_boot)
 ```
 
+**TODO** See above: Fix x-labels and make consistent
+
+
 ::: {.callout-important title="Changed since submission"}
 - New figure (R1.C4.b), drawn by `tutplot_logocv()`.
 :::
@@ -1460,7 +1467,7 @@ tutplot_logocv(ada_boot)
 | ML3 | 10 | 0.000 | 0.619 |
 | RPP | 90 | 0.635 | 0.620 |
 | SSRP | 21 | 0.417 | 0.676 |
-
+</code_to_edit|>
 Measured at 10 stumps and a learning rate of 1 on the five submitted projects (findings §2); recompute at the tutorial's setting if the box stays.
 :::
 
@@ -1483,12 +1490,17 @@ Monte Carlo cross-validation is a random train-test split, repeated. With `logo_
 # One draw: a random 30 percent of the study effects as the test part
 set.seed(112)
 df_noholz$part <- "train"
-df_noholz$part[sample(nrow(df_noholz), round(0.3 * nrow(df_noholz)))] <- "test"
+df_noholz$part[sample(
+  nrow(df_noholz),
+  round(0.3 * nrow(df_noholz))
+)] <- "test"
 
 # Train on the 70 percent, score the 30 percent: the column named "test"
 res_mc <- logo_cv(ada_fit, data = df_noholz, group = "part")
 res_mc$estimates[1, "test", "auroc"]
 ```
+
+**todo** code in indexing too long. Ideas on how to make more readable? Store the result in a variable and then index it? Code in listing below then needs to change too...?
 
 Repeating the draw and keeping the test column each time gives the distribution of the Monte Carlo estimate. Over twenty draws its median is 0.68, and its 2.5 and 97.5 percent quantiles are 0.55 and 0.75. That spread shows how much one estimate depends on the luck of the split, which the project folds, being fixed, cannot show.
 
@@ -1502,7 +1514,12 @@ for (r in seq_len(20)) {
     nrow(df_noholz),
     round(0.3 * nrow(df_noholz))
   )] <- "test"
-  res_mc <- logo_cv(ada_fit, data = df_noholz, group = "part", holdout = "test")
+  res_mc <- logo_cv(
+    ada_fit,
+    data = df_noholz,
+    group = "part",
+    holdout = "test"
+  )
   auc_mc[r] <- res_mc$estimates[1, "test", "auroc"]
 }
 quantile(auc_mc, c(0.025, 0.5, 0.975))
@@ -1671,7 +1688,10 @@ Search a random draw of settings from the grid.
 # Draw eight settings from the grid instead of trying all 18
 set.seed(112)
 rnd_smpl <- sample(nrow(ada_hgrid), 8)
-ada_hgrid_rnd <- ada_hgrid[rnd_smpl, c("depth", "n_iter", "eta")]
+ada_hgrid_rnd <- ada_hgrid[
+  rnd_smpl,
+  c("depth", "n_iter", "eta")
+]
 
 # Score the drawn settings in one call, as the package listing did
 runtime_rnd <- system.time({
@@ -1903,7 +1923,7 @@ Replication projects are scarce. Holding one back for a final test, as Module 8 
 - A figure of the nested scheme is parked.
 - Run times on this machine, measured with other jobs running, these runs among them (load 4 to 8 on 8 cores): Listing 36 15 minutes on one core; its package solution 6 minutes on four cores; the by-hand listing of Appendix C 24 minutes; the XGBoost box 2.5 minutes on one core, 75 s on four. `data-raw/nested.R` ran for 140 minutes on four cores.
 - The long by-hand version of the nested search goes to Appendix C at the port (author, 19 Nov): the paper has no space for it in the module.
-- `cores` above 1 now also works on Windows, through a socket cluster (package change, 20 Nov); the Windows path gets its first real test from the Windows job of the GitHub check, which runs only on a pull request or on a push to `master`, not on pushes to `revision`.
+- `cores` above 1 now also works on Windows, through a socket cluster (package change, 20 Nov); the Windows path gets its first real test from the Windows job of the GitHub check, which runs only on a pull request or on a push to `master`, not on pushes to `revision`. On Windows the workers are new R sessions, so a fit whose formula or call uses the reader's own functions stops with a message (author, 20 Nov: strict stop); every `cores` call of this script, the vignette and `data-raw/` ran on the simulated Windows path and matched one core. Two cases a reader of this script can meet on Windows: a tree fitted with bare `rpart()` after `library(rpart)` stops and asks for `rpart::rpart()`, and a plain tree with `parms = list(split = "gini")` stops while the script's own `gini()` function is defined in the session. A request above the computer's cores is lowered, with a message (author, 21 Nov).
 :::
 
 ## Selecting versus Evaluating
@@ -2141,6 +2161,9 @@ valid_pkg <- rsample::validation(strat_split_pkg)
 test_pkg <- rsample::testing(strat_split_pkg)
 ```
 
+**TODO** Remove?
+
+
 ::: {.callout-note title="Add to tutorial"}
 The adatutor package is a teaching package. It accompanies this tutorial and serves readers who explore AdaBoost, cross-validation, and a little beyond. Its functions are small on purpose: each folds one step that the tutorial first builds by hand, so readers can focus on one piece at a time. The package does not claim to be complete. For applied work, a full machine-learning infrastructure such as tidymodels [@tidymodels] is the better home. It offers cross-validation, bootstraps, and nested folds through `rsample` [@rsample], many more models through `parsnip`, and tuning workflows around them. The move is short, because adatutor follows the same conventions: `initial_split()` takes the same `prop` and `strata` arguments as `partition()`, models are fitted with a formula and a data frame, and predictions come from `predict()` with a `type` argument.
 :::
@@ -2197,19 +2220,19 @@ collect_metrics(xgb_tune_tm, summarize = FALSE)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-The workflow of this tutorial carries over to tidymodels. Listing [NEW] writes the XGBoost search as a model specification: `boost_tree()` names the model, `tune()` marks the hyperparameters to search, and `set_engine()` picks the implementation. Moving to LightGBM or CatBoost changes one line, `set_engine("lightgbm")` or `set_engine("catboost")`, with the bonsai package. `group_vfold_cv()` builds one fold per project, the LOGO-CV of Module 6, and `tune_grid()` scores every setting on every fold. `collect_metrics()` then returns the AUROC of every setting on every project, as `tune_logo_cv()` does, and the rule of Module 7 applies to these values unchanged. @kuhn2022 explain the framework step by step.
+The workflow of this tutorial carries over to tidymodels. Listing [NEW] writes the XGBoost search as a model specification: `boost_tree()` names the model, `tune()` marks the hyperparameters to search, and `set_engine()` picks the implementation. Moving to LightGBM or CatBoost changes one line, `set_engine("lightgbm")` or `set_engine("catboost")`, with the bonsai package. `group_vfold_cv()` builds one fold per project, the LOGO-CV of Module 6, and `tune_grid()` scores every setting on every fold. `collect_metrics()` then returns the AUROC of every setting on every project, as `tune_logo_cv()` does, and the rule of Module 7 applies to these values unchanged. @kuhn2023 explain the framework step by step.
 
 One step has no ready-made function. The framework builds nested folds, but its tuning functions do not run the nested search, so readers write the outer loop themselves. Readers of Module 9 know how: hold out a project, search on the rest, fit the winner, score the project. That is what building the workflow by hand is for. Each piece can be handed to a framework once it is understood, and what a framework lacks can still be written.
 :::
 
 ::: {.callout-note title="Check in tutorial"}
 - New listing for R1.C3 ("the tidymodels stack with parsnip/workflows"). It ran on this machine on 20 Nov in 38 s (tidymodels with xgboost; six tuning projects, HOLZ not scored).
-- Agreement with the package, same 90 settings at `lambda` 1: 475 of 540 AUROCs are identical to `tune_logo_cv()`; 65 differ (median 0.007, at most 0.048, mostly at fewer than 1,000 rounds). The largest gap equals one swapped pair in ML3, so ties between nearly equal predictions are the likely cause; not proven. The text therefore says "as `tune_logo_cv()` does", not "the same numbers".
+- Agreement with the package, same 90 settings at `lambda` 1: 475 of 540 AUROCs are identical to `tune_logo_cv()`; 65 differ (median 0.007, at most 0.048). Two causes explain all 65, found and checked independently on 20 Nov; ties are not one of them. (1) 63 cells: for `trees` below the largest value of the grid, parsnip 1.6.1 with xgboost 3.2.1.1 predicts from one round too many (`trees = 50` scores 51 rounds). (2) 2 cells: parsnip fits the first outcome level by default, and `control_grid(event_level = "second")` changes only the metric; the mirrored fit drifts in the last digits over hundreds of rounds. With `set_engine("xgboost", event_level = "second")` and one `trees` value per run, all 540 held-out scores are bit-identical to the package. The text therefore says "as `tune_logo_cv()` does", not "the same numbers".
 - `lambda` is an engine argument in parsnip and stays at its default, so the listing searches 90 settings, not the 180 of the XGBoost box. `min_n` is XGBoost's `min_child_weight`.
 - `event_level = "second"` is needed: "success" is the second level of the outcome. Without it every AUROC is one minus the right value.
-- Not tested: the LightGBM and CatBoost engines (bonsai, lightgbm and catboost are not installed here). parsnip's documentation lists both for `boost_tree()` through bonsai. Check how catboost installs before the port; it may not be on CRAN.
+- LightGBM and CatBoost engines, tested 20 Nov on the six tuning projects (lightgbm 4.7.0, catboost 1.2.10, bonsai 0.4.1; Mac only). Both need `library(bonsai)` besides the `set_engine()` line, so "changes one line" in the Add box is not exact: **reword** (author to decide). LightGBM: runs unchanged, no warnings, results repeat. CatBoost: not on CRAN (GitHub release); ignores `min_n` under its default symmetric trees, without a warning; results change with the seed; below 200 trees the search scores the first trees of a longer fit, which is not the model a fit at that size gives. `min_n` maps to `min_child_weight` in XGBoost but to `min_data_in_leaf` in LightGBM and CatBoost.
 - parsnip has no AdaBoost engine (checked in its documentation on 20 Nov), so the listing cannot show AdaBoost by switching the engine.
-- Bib key `kuhn2022` is new in the vignette bib. Authors, title and URL were checked on tmwr.org; publisher and year (O'Reilly, 2022) were not confirmed there. Chapter 15, "Screening Many Models", covers workflow sets.
+- Bib key `kuhn2023` is new in the vignette bib. It cites the online book (author, 20 Nov): authors, title, URL and "Version 1.0.0 (2023-09-06)" were read on tmwr.org. Chapter 15, "Screening Many Models", covers workflow sets.
 :::
 
 ::: {.callout-important title="Changed since submission"}
