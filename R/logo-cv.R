@@ -390,10 +390,11 @@ logo_cv.default <- function(
 #'   load adatutor and the packages the fit needs. The results are the same
 #'   at any number of cores. On Windows, these processes are new R sessions:
 #'   they get the plain values the fit reads, such as numbers and data
-#'   frames, but not your functions. So a fit whose formula or call uses a
-#'   function of your own, even by its name in a string, or an object that
-#'   holds code, such as a fitted model, stops with a message; then set
-#'   `cores = 1`, or compute the column first and use it in the formula.
+#'   frames, but not the functions defined in the session. So a fit whose
+#'   formula or call uses such a function, even by its name in a string, or
+#'   an object that holds code, such as a fitted model, stops with a
+#'   message; then set `cores = 1`, or compute the column first and use it
+#'   in the formula.
 #'   Progress messages from `verbose` appear only on one core.
 #' @param ... Must be empty. An argument the method does not take is an
 #'   error, not ignored.
@@ -1699,7 +1700,13 @@ refit_score.rpart <- function(fit, train, test, setting, ...) {
     as.list(setting[1L, row_controls, drop = FALSE])
   )
   control$maxdepth <- setting[["depth"]]
-  refit <- refit_call(fit, train, args = list(control = control))
+  # the stored call may name rpart() bare, which needs it attached
+  refit <- refit_call(
+    fit,
+    train,
+    fun = quote(rpart::rpart),
+    args = list(control = control)
+  )
   prob <- stats::predict(refit, newdata = test, type = "prob")
   prob[, ncol(prob)]
 }
@@ -1939,9 +1946,10 @@ read_refit_call <- function(fit) {
   fit_call <- stats::getCall(fit)
   fit_call$formula <- NULL
   fit_call$data <- NULL
-  # refit_score.rpart() replaces the control list, and
-  # refit_score.randomForest() the function the call runs
+  # refit_score.rpart() replaces the control list and the function the call
+  # runs, and refit_score.randomForest() the function
   if (inherits(fit, "rpart")) {
+    fit_call[[1L]] <- quote(rpart::rpart)
     fit_call$control <- NULL
   }
   if (inherits(fit, "randomForest")) {
@@ -2228,23 +2236,23 @@ stop_for_workers <- function(
     c(
       "The fit names `",
       name,
-      "` in a string, and your session has a function of that name. On ",
+      "` in a string, and this session has a function of that name. On ",
       "Windows, parallel workers start empty and may not get it. Set ",
-      "`cores = 1`, or rename the function in your session."
+      "`cores = 1`, or rename the function in this session."
     )
   } else if (quoted) {
     c(
       "The fit names `",
       name,
-      "` in a string, and your session has an object of that name that ",
+      "` in a string, and this session has an object of that name that ",
       "holds code. On Windows, parallel workers start empty and may not get ",
-      "that code. Set `cores = 1`, or rename the object in your session."
+      "that code. Set `cores = 1`, or rename the object in this session."
     )
   } else if (is.function(value)) {
     c(
       "The fit uses `",
       name,
-      "` from your session. On Windows, parallel workers start empty and ",
+      "` from this session. On Windows, parallel workers start empty and ",
       "may not get it. Set `cores = 1`, or ",
       way_out
     )
@@ -2252,7 +2260,7 @@ stop_for_workers <- function(
     c(
       "The fit uses `",
       name,
-      "` from your session, an object that holds code. On Windows, parallel ",
+      "` from this session, an object that holds code. On Windows, parallel ",
       "workers start empty and may not get that code. Set `cores = 1`, or ",
       way_out
     )
