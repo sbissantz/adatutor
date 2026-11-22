@@ -1385,6 +1385,34 @@ test_that("a grid row without rounds is an error, not a score", {
   }
 })
 
+test_that("cores above what the computer has are lowered, with a message", {
+  data(altmejd)
+  fit <- fit_ada()
+  grid <- data.frame(n_iter = 2:3)
+  local_mocked_bindings(count_cores = function() 2L)
+  expect_message(
+    lowered <- tune_logo_cv(
+      fit,
+      grid,
+      data = altmejd,
+      group = "pid",
+      cores = 8
+    ),
+    "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`.",
+    fixed = TRUE
+  )
+  expect_no_message(
+    asked <- tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2)
+  )
+  expect_identical(lowered$estimates, asked$estimates)
+
+  # an unknown count leaves the request as it is
+  local_mocked_bindings(count_cores = function() NA_integer_)
+  expect_no_message(
+    tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2)
+  )
+})
+
 test_that("cores must be one whole number, 1 or more", {
   data(altmejd)
   fit <- fit_ada()
@@ -2119,233 +2147,533 @@ test_that("the tutorial's tree code picks depth 4 by the highest lower", {
   )
 })
 
-test_that("on Windows, a tree's call finds what it names at the top level", {
+test_that("on Windows, the tutorial's AdaBoost recipe gives what one core gives", {
+  local_mocked_bindings(read_os_type = function() "windows")
+  data(altmext)
+  pred_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+  voi_nms <- c(pred_nms, "replicate")
+  df_noholz <- altmext[altmext$pid != "holz", ]
+  ada_fit <- rpart::rpart(
+    replicate ~ .,
+    data = df_noholz[, voi_nms],
+    method = "class",
+    maxdepth = 1,
+    parms = list(split = "gini"),
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
+  grid <- expand.grid(depth = 1:2, n_iter = c(3, 5), eta = c(1, 0.5))
+  run <- function(cores, ...) {
+    tune_logo_cv(
+      ada_fit,
+      grid,
+      data = df_noholz,
+      group = "pid",
+      cores = cores,
+      ...
+    )
+  }
+  expect_identical(run(2), run(1))
+  # each inner search starts a cluster, so two outer folds keep it short
+  run_nested <- function(cores) {
+    run(cores, nested = TRUE, holdout = c("eerp", "ml3"))
+  }
+  expect_identical(run_nested(2), run_nested(1))
+})
+
+test_that("on Windows, an AdaBoost recipe needs nothing of its tree's call", {
   local_mocked_bindings(read_os_type = function() "windows")
   data(altmejd)
-  # as after library(rpart) at the top level: a bare rpart() from the search
-  # path and `parms` from the global environment, which new R processes lack
+  # as typed at the top level: rpart attached and called bare, and a depth
+  # from a one-row data frame or a number of the session. A refit grows its
+  # trees from the stored formula and control alone.
   if (!"package:rpart" %in% search()) {
     library(rpart)
     on.exit(detach("package:rpart"), add = TRUE)
   }
-  assign("tree_parms", list(split = "information"), envir = globalenv())
-  on.exit(rm("tree_parms", envir = globalenv()), add = TRUE)
-  formula <- fml
-  environment(formula) <- globalenv()
-  tree <- rpart(formula, data = altmejd, method = "class", parms = tree_parms)
-
-  grid <- data.frame(depth = 1:2)
-  expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+  assign("best", data.frame(depth = 2), envir = globalenv())
+  assign("d", 2, envir = globalenv())
+  on.exit(rm(list = c("best", "d"), envir = globalenv()), add = TRUE)
+  stumps <- list(
+    rpart(fml, data = altmejd, method = "class", maxdepth = 1, model = TRUE),
+    rpart::rpart(
+      fml,
+      data = altmejd,
+      method = "class",
+      maxdepth = best$depth,
+      model = TRUE
+    ),
+    rpart::rpart(
+      fml,
+      data = altmejd,
+      method = "class",
+      maxdepth = d,
+      model = TRUE
+    )
   )
+  grid <- data.frame(n_iter = c(2, 4))
+  for (stump in stumps) {
+    fit <- adaboost(stump, n_iter = 4, eta = 1, verbose = FALSE)
+    expect_identical(list_globals(fit, altmejd), list())
+    expect_identical(
+      tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2),
+      tune_logo_cv(fit, grid, data = altmejd, group = "pid")
+    )
+  }
 })
 
-test_that("on Windows, the workers get what a top-level helper uses in turn", {
+test_that("on Windows, the tutorial's XGBoost fit gives what one core gives", {
+  skip_if_not_installed("xgboost", "3.0.0")
+  local_mocked_bindings(read_os_type = function() "windows")
+  data(altmext)
+  pred_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+  out_nme <- "replicate"
+  df_noholz <- altmext[altmext$pid != "holz", ]
+  xgb_fit <- xgboost::xgboost(
+    x = df_noholz[, pred_nms],
+    y = df_noholz[, out_nme],
+    nthreads = 1
+  )
+  run <- function(cores, ...) {
+    tune_logo_cv(
+      xgb_fit,
+      expand.grid(depth = 1:2, n_iter = c(2, 4)),
+      data = df_noholz,
+      group = "pid",
+      outcome = out_nme,
+      cores = cores,
+      ...
+    )
+  }
+  expect_identical(run(2), run(1))
+  run_nested <- function(cores) {
+    run(
+      cores,
+      nested = TRUE,
+      sort_by = c("min", "lower"),
+      holdout = c("eerp", "ml3")
+    )
+  }
+  expect_identical(run_nested(2), run_nested(1))
+})
+
+test_that("on Windows, the vignette's tree and forest give what one core gives", {
   local_mocked_bindings(read_os_type = function() "windows")
   data(altmejd)
-  # as typed at the top level: the formula names repeat_cap() and a list of
-  # rules only. repeat_cap() calls itself and cap_n(), which reads n_cap and
-  # a round() that masks base's; the rule calls round() too. A new R process
-  # lacks all but round(), and its round() is base's.
+  df <- altmejd
+  voi_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
+  tree_fit <- rpart::rpart(
+    replicate ~ .,
+    data = df[, voi_nms],
+    method = "class",
+    maxdepth = 2
+  )
+  run_tree <- function(cores) {
+    tune_logo_cv(
+      tree_fit,
+      data.frame(depth = 1:4),
+      data = df,
+      group = "pid",
+      cores = cores
+    )
+  }
+  expect_identical(run_tree(2), run_tree(1))
+
+  skip_if_not_installed("randomForest")
+  set.seed(112)
+  rf_fit <- muffle_partial_matching(
+    randomForest::randomForest(replicate ~ ., data = df[, voi_nms])
+  )
+  rf_hgrid <- expand.grid(mtry = 1:2, nodesize = c(1, 10))
+  run_forest <- function(cores) {
+    set.seed(112)
+    muffle_partial_matching(
+      tune_logo_cv(rf_fit, rf_hgrid, data = df, group = "pid", cores = cores)
+    )
+  }
+  expect_identical(run_forest(2), run_forest(1))
+})
+
+test_that("on Windows, the session's plain values reach the workers", {
+  local_mocked_bindings(read_os_type = function() "windows")
+  data(altmejd)
+  # as typed at the top level: numbers `sd` and `var`, which the formula
+  # reads while it calls stats' sd() and var(), a number it reads by a
+  # string, and a one-row data frame and a list the call reads. A new R
+  # process has none of them.
   local(
     {
-      n_cap <- 150
-      round <- function(x, digits = 0) x %% 7
-      cap_n <- function(x) round(pmin(x, n_cap))
-      repeat_cap <- function(x, k = 1) {
-        if (k > 0) repeat_cap(cap_n(x), k - 1) else x
-      }
-      rules <- list(bin = function(x) round(10 * x))
+      sd <- 0.2
+      var <- 2
+      n_scale <- 3
+      best <- data.frame(depth = 3)
+      tree_parms <- list(split = "information")
     },
     envir = globalenv()
   )
   on.exit(
     rm(
-      list = c("n_cap", "round", "cap_n", "repeat_cap", "rules"),
+      list = c("sd", "var", "n_scale", "best", "tree_parms"),
       envir = globalenv()
     ),
     add = TRUE
   )
-  formula <- replicate ~ power.o + repeat_cap(n.o) + rules$bin(effect_size.o)
+  formula <- replicate ~
+    power.o +
+    I(n.o / sd(n.o) * sd) +
+    I(n.o / var + 0 * var(n.o)) +
+    I(n.o %% (get("n_scale") * 10))
   environment(formula) <- globalenv()
-  tree <- rpart::rpart(formula, data = altmejd, method = "class")
-
-  globals <- list_globals(tree)
-  expect_true(all(
-    c("repeat_cap", "cap_n", "round", "n_cap", "rules") %in% names(globals)
-  ))
-  expect_identical(globals$n_cap, 150)
-
-  grid <- data.frame(depth = 1:2)
+  tree <- rpart::rpart(
+    formula,
+    data = altmejd,
+    method = "class",
+    maxdepth = best$depth,
+    parms = tree_parms
+  )
+  expect_identical(
+    list_globals(tree, altmejd),
+    # the call's order, which match.call() sets by rpart()'s arguments
+    list(
+      sd = 0.2,
+      var = 2,
+      n_scale = 3,
+      tree_parms = list(split = "information"),
+      best = data.frame(depth = 3)
+    )
+  )
+  grid <- data.frame(depth = 2:3)
   expect_identical(
     tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
     tune_logo_cv(tree, grid, data = altmejd, group = "pid")
   )
 
-  # a helper made where the fit was made, which calls a top-level one
-  make_tree <- function() {
-    shift_n <- function(x) cap_n(x) + 1
+  # do.call() puts rpart() itself in the call, which a worker has as well
+  tree <- do.call(
+    rpart::rpart,
+    list(formula = formula, data = altmejd, method = "class")
+  )
+  expect_identical(
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+  )
+})
+
+test_that("on Windows, an argument left out where the fit was made needs nothing", {
+  local_mocked_bindings(read_os_type = function() "windows")
+  data(altmejd)
+  # `p` holds no value, here and in the frame a worker gets with the formula
+  make_tree <- function(p) {
     rpart::rpart(
-      replicate ~ power.o + shift_n(n.o),
+      replicate ~ power.o + n.o,
       data = altmejd,
-      method = "class"
+      method = "class",
+      parms = p
     )
   }
-  tree <- make_tree()
-  expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
-  )
-})
-
-test_that("on Windows, a call finds its function past an object of its name", {
-  local_mocked_bindings(read_os_type = function() "windows")
-  data(altmejd)
-  # as typed at the top level: an attached list of tools with a lag() of its
-  # own, which a call finds past a number `lag`. A new R process lacks the
-  # tools, and its lag() is stats'.
-  local(
-    {
-      attach(
-        list(lag = function(x) c(0, x[-length(x)])),
-        name = "adatutor_test_tools",
-        warn.conflicts = FALSE
-      )
-      lag <- 1
-      lag_n <- function(x) lag(x)
-      lag_shift_n <- function(x) lag(x) + lag
-    },
-    envir = globalenv()
-  )
-  on.exit(detach("adatutor_test_tools"), add = TRUE)
-  on.exit(
-    rm(list = c("lag", "lag_n", "lag_shift_n"), envir = globalenv()),
-    add = TRUE
-  )
-  formula <- replicate ~ power.o + lag_n(n.o)
-  environment(formula) <- globalenv()
-  tree <- rpart::rpart(formula, data = altmejd, method = "class")
-  expect_identical(
-    list_globals(tree)$lag,
-    get("lag", envir = as.environment("adatutor_test_tools"))
-  )
+  # and handed on, missing, from an outer frame
+  make_outer <- function(p) make_tree(p)
   grid <- data.frame(depth = 1:2)
-  expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
-  )
-
-  # the function and the number both: a worker cannot hold the two
-  formula <- replicate ~ power.o + lag_shift_n(n.o)
-  environment(formula) <- globalenv()
-  tree <- rpart::rpart(formula, data = altmejd, method = "class")
-  expect_error(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    paste0(
-      "The fit calls a function `lag` from adatutor_test_tools and reads ",
-      "another object `lag` from R_GlobalEnv."
-    ),
-    fixed = TRUE
-  )
-  expect_no_error(tune_logo_cv(tree, grid, data = altmejd, group = "pid"))
+  for (tree in list(make_tree(), make_outer())) {
+    expect_identical(list_globals(tree, altmejd), list())
+    expect_identical(
+      tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
+      tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+    )
+  }
 })
 
-test_that("on Windows, the workers get what an environment or attribute holds", {
-  local_mocked_bindings(read_os_type = function() "windows")
+test_that("on Windows, a fit that uses code of the session stops before any worker starts", {
+  local_mocked_bindings(
+    read_os_type = function() "windows",
+    run_socket_tasks = function(...) stop("a worker started")
+  )
   data(altmejd)
-  # as typed at the top level: a round() that masks base's, reached through
-  # an environment, an object a factory made, and an attribute. A new R
-  # process lacks the mask, and its round() is base's.
+  # as typed at the top level; a new R process has none of these
   local(
     {
+      bin_power <- function(x) round(10 * x)
       round <- function(x, digits = 0) x %% 7
+      calib <- lm(n.o ~ power.o, data = altmejd)
+      adjust_n <- function(x) predict(calib, newdata = data.frame(power.o = x))
+      rules <- list(bin = function(x) x %/% 10)
       tool_box <- new.env()
-      tool_box$f <- function(x) round(x)
-      use_box <- function(x) tool_box$f(x)
-      make_binner <- function() {
-        bin <- function(x) round(x)
-        environment()
-      }
-      binner <- make_binner()
-      use_binner <- function(x) binner$bin(x)
-      holder <- structure(1, fn = function(x) round(x))
-      use_holder <- function(x) attr(holder, "fn")(x)
+      tool_box$f <- function(x) x %/% 10
+      holder <- structure(1, fn = function(x) x %/% 10)
+      make_parms <- function() list(split = "information")
+      my_na <- function(object, ...) object
+      gini <- function(p) 1 - (p^2 + (1 - p)^2)
     },
     envir = globalenv()
   )
   on.exit(
     rm(
       list = c(
+        "bin_power",
         "round",
+        "calib",
+        "adjust_n",
+        "rules",
         "tool_box",
-        "use_box",
-        "make_binner",
-        "binner",
-        "use_binner",
         "holder",
-        "use_holder"
+        "make_parms",
+        "my_na",
+        "gini"
       ),
       envir = globalenv()
     ),
     add = TRUE
   )
-  reaching_terms <- c(
-    "use_box(n.o)",
-    "tool_box$f(n.o)",
-    "use_binner(n.o)",
-    "use_holder(n.o)"
-  )
-  for (term in reaching_terms) {
+  grid <- data.frame(depth = 1:2)
+  tune <- function(fit) {
+    tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2)
+  }
+  tree_of <- function(term) {
     formula <- stats::as.formula(
       paste("replicate ~ power.o +", term),
       env = globalenv()
     )
-    tree <- rpart::rpart(formula, data = altmejd, method = "class")
-    expect_identical(
-      list_globals(tree)$round,
-      get("round", envir = globalenv()),
-      info = term
-    )
+    rpart::rpart(formula, data = altmejd, method = "class")
   }
 
-  formula <- replicate ~ power.o + use_box(n.o)
+  expect_error(
+    tune(tree_of("bin_power(n.o)")),
+    paste0(
+      "The fit uses `bin_power` from your session. On Windows, parallel ",
+      "workers start empty and may not get it. Set `cores = 1`, or compute ",
+      "the column first and use it in the formula."
+    ),
+    fixed = TRUE
+  )
+  # a global round() that masks base's, and a helper that predicts from a
+  # global model
+  expect_error(tune(tree_of("round(n.o)")), "`round` from your session")
+  expect_error(tune(tree_of("adjust_n(power.o)")), "`adjust_n` from your")
+  # objects that hold functions
+  holds_code <- "from your session, an object that holds code. On Windows"
+  expect_error(tune(tree_of("rules$bin(n.o)")), paste0("`rules` ", holds_code))
+  expect_error(
+    tune(tree_of("tool_box$f(n.o)")),
+    paste0("`tool_box` ", holds_code)
+  )
+  expect_error(
+    tune(tree_of("attr(holder, \"fn\")(n.o)")),
+    paste0("`holder` ", holds_code)
+  )
+  # a lambda's argument named round: the call inside skips the number it
+  # holds and finds the session's round()
+  expect_error(
+    tune(tree_of("I(sapply(n.o, function(round) round(round)))")),
+    "`round` from your session"
+  )
+  # a session function named in a string, which do.call() and sapply() look
+  # up by that name
+  named <- paste0(
+    "The fit names `bin_power` in a string, and your session has a function ",
+    "of that name. On Windows, parallel workers start empty and may not get ",
+    "it. Set `cores = 1`, or rename the function in your session."
+  )
+  expect_error(
+    tune(tree_of("I(do.call(\"bin_power\", list(power.o)))")),
+    named,
+    fixed = TRUE
+  )
+  expect_error(
+    tune(tree_of("I(sapply(power.o, \"bin_power\"))")),
+    named,
+    fixed = TRUE
+  )
+
+  # a helper in an argument of the call
+  formula <- fml
   environment(formula) <- globalenv()
-  tree <- rpart::rpart(formula, data = altmejd, method = "class")
-  grid <- data.frame(depth = 1:2)
-  expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+  tree <- rpart::rpart(
+    formula,
+    data = altmejd,
+    method = "class",
+    parms = make_parms()
+  )
+  expect_error(
+    tune(tree),
+    paste0(
+      "The fit uses `make_parms` from your session. On Windows, parallel ",
+      "workers start empty and may not get it. Set `cores = 1`, or compute ",
+      "the value first and use it in the call."
+    ),
+    fixed = TRUE
+  )
+  # a session function the call names in a string, which model.frame() looks
+  # up by that name
+  tree <- rpart::rpart(
+    formula,
+    data = altmejd,
+    method = "class",
+    na.action = "my_na"
+  )
+  expect_error(tune(tree), "`my_na` in a string, and your session has")
+  # rpart() reads split = "gini" as its own rule, not as the tutorial's
+  # gini(), but no check can tell the two apart
+  tree <- rpart::rpart(
+    formula,
+    data = altmejd,
+    method = "class",
+    parms = list(split = "gini")
+  )
+  expect_error(tune(tree), "`gini` in a string, and your session has")
+
+  # a helper made where the fit was made
+  make_tree <- function() {
+    shift_n <- function(x) x + 1
+    rpart::rpart(
+      replicate ~ power.o + shift_n(n.o),
+      data = altmejd,
+      method = "class"
+    )
+  }
+  expect_error(tune(make_tree()), "`shift_n` from your session")
+  # a session function as the default of an argument of that frame
+  make_binned <- function(bin = bin_power) {
+    rpart::rpart(
+      replicate ~ power.o + bin(n.o),
+      data = altmejd,
+      method = "class"
+    )
+  }
+  expect_error(tune(make_binned()), "`bin` from your session")
+
+  # a function do.call() puts in the call itself
+  tree <- do.call(
+    rpart::rpart,
+    list(
+      formula = formula,
+      data = altmejd,
+      method = "class",
+      na.action = function(x) x
+    )
+  )
+  expect_error(
+    tune(tree),
+    "The fit's call holds a function or other code itself",
+    fixed = TRUE
+  )
+
+  # attached lists, one under a package's name
+  attach(
+    list(tool_n = function(x) x %/% 10),
+    name = "adatutor_test_tools",
+    warn.conflicts = FALSE
+  )
+  on.exit(detach("adatutor_test_tools"), add = TRUE)
+  attach(
+    list(fake_n = function(x) x %/% 10),
+    name = "package:adatutor_fake",
+    warn.conflicts = FALSE
+  )
+  on.exit(detach("package:adatutor_fake"), add = TRUE)
+  expect_error(tune(tree_of("tool_n(n.o)")), "`tool_n` from your session")
+  expect_error(tune(tree_of("fake_n(n.o)")), "`fake_n` from your session")
+
+  # a fit made by a function sourced into an attached environment, as
+  # sys.source(file, envir = attach(NULL, name = ...)) makes it: a worker
+  # would get that environment without its objects
+  tools <- attach(NULL, name = "package:adatutor_tools", warn.conflicts = FALSE)
+  on.exit(detach("package:adatutor_tools"), add = TRUE)
+  assign("n_cap", 150, envir = tools)
+  make_capped <- function(rows) {
+    rpart::rpart(
+      replicate ~ power.o + I(pmin(n.o, n_cap)),
+      data = rows,
+      method = "class"
+    )
+  }
+  environment(make_capped) <- tools
+  expect_error(
+    tune(make_capped(altmejd)),
+    paste0(
+      "The fit's formula looks up its objects through the attached ",
+      "environment `package:adatutor_tools`. On Windows, parallel workers ",
+      "get attached environments without their objects. Set `cores = 1`, or ",
+      "make the fit at the top level."
+    ),
+    fixed = TRUE
+  )
+
+  # rpart() called bare, which needs rpart attached
+  if (!"package:rpart" %in% search()) {
+    library(rpart)
+    on.exit(detach("package:rpart"), add = TRUE)
+  }
+  tree <- rpart(formula, data = altmejd, method = "class")
+  bare <- paste0(
+    "The fit uses `rpart` from the attached package rpart. On Windows, ",
+    "parallel workers load packages but do not attach them. Set ",
+    "`cores = 1`, or write `rpart::rpart()`."
+  )
+  expect_error(tune(tree), bare, fixed = TRUE)
+  # and past a session object named rpart, which the call skips
+  assign("rpart", "a label", envir = globalenv())
+  on.exit(rm("rpart", envir = globalenv()), add = TRUE)
+  expect_error(tune(tree), bare, fixed = TRUE)
+
+  # a helper in a forest's call
+  skip_if_not_installed("randomForest")
+  local(pick_size <- function() 5, envir = globalenv())
+  on.exit(rm("pick_size", envir = globalenv()), add = TRUE)
+  forest <- muffle_partial_matching(randomForest::randomForest(
+    formula,
+    data = altmejd,
+    ntree = 25,
+    nodesize = pick_size()
+  ))
+  expect_error(
+    muffle_partial_matching(tune_logo_cv(
+      forest,
+      data.frame(mtry = 1:2),
+      data = altmejd,
+      group = "pid",
+      cores = 2
+    )),
+    "`pick_size` from your session"
   )
 })
 
-test_that("on Windows, a call finds stats' function past a global object", {
-  local_mocked_bindings(read_os_type = function() "windows")
+test_that("the check runs once per call on Windows, and never off it", {
   data(altmejd)
-  # as typed at the top level: a number `sd`, and a helper whose own `sd`
-  # holds what sd() returns. A worker gets the number and, past it, finds
-  # sd() in its own stats, as this session does.
-  local(
-    {
-      sd <- 0.2
-      standardize <- function(x) {
-        sd <- sd(x)
-        (x - mean(x)) / sd
-      }
+  grid <- expand.grid(depth = 1:2, n_iter = c(3, 6))
+  calls <- 0L
+  check <- list_globals
+  local_mocked_bindings(
+    list_globals = function(fit, data) {
+      calls <<- calls + 1L
+      check(fit, data)
     },
-    envir = globalenv()
+    # the tasks run here, so no cluster starts
+    run_socket_tasks = function(n_tasks, run_task, n_workers, globals) {
+      lapply(seq_len(n_tasks), run_task)
+    }
   )
-  on.exit(rm(list = c("sd", "standardize"), envir = globalenv()), add = TRUE)
-  formula <- replicate ~ power.o + standardize(n.o)
-  environment(formula) <- globalenv()
-  tree <- rpart::rpart(formula, data = altmejd, method = "class")
-  expect_identical(list_globals(tree)$sd, 0.2)
+  run <- function(cores, ...) {
+    tune_logo_cv(
+      fit_ada(),
+      grid,
+      data = altmejd,
+      group = "pid",
+      cores = cores,
+      ...
+    )
+  }
+  one <- run(1)
+  nested_one <- run(1, nested = TRUE)
+  local_mocked_bindings(read_os_type = function() "unix")
+  expect_identical(run(2), one)
+  expect_identical(calls, 0L)
 
-  grid <- data.frame(depth = 1:2)
-  expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
-  )
+  local_mocked_bindings(read_os_type = function() "windows")
+  expect_identical(run(2), one)
+  expect_identical(calls, 1L)
+  # not once per inner search
+  expect_identical(run(2, nested = TRUE), nested_one)
+  expect_identical(calls, 2L)
 })
 
 test_that("list_globals() reads a call with an empty argument and classed lists", {
@@ -2356,15 +2684,14 @@ test_that("list_globals() reads a call with an empty argument and classed lists"
     {
       prior_table <- rbind(c(0.5, 0.5))
       stamps <- list(getRversion(), as.POSIXlt("2026-01-01", tz = "UTC"))
-      use_stamps <- function(x) x + length(stamps)
     },
     envir = globalenv()
   )
   on.exit(
-    rm(list = c("prior_table", "stamps", "use_stamps"), envir = globalenv()),
+    rm(list = c("prior_table", "stamps"), envir = globalenv()),
     add = TRUE
   )
-  formula <- replicate ~ power.o + use_stamps(n.o)
+  formula <- replicate ~ power.o + I(n.o + length(stamps))
   environment(formula) <- globalenv()
   tree <- rpart::rpart(
     formula,
@@ -2372,7 +2699,7 @@ test_that("list_globals() reads a call with an empty argument and classed lists"
     method = "class",
     parms = list(prior = prior_table[1, ])
   )
-  globals <- list_globals(tree)
+  globals <- list_globals(tree, altmejd)
   expect_identical(globals$prior_table, rbind(c(0.5, 0.5)))
   expect_identical(globals$stamps, get("stamps", envir = globalenv()))
 })
