@@ -1104,11 +1104,22 @@ call_task <- function(k) {
 }
 
 #' Stop each worker of a cluster on its own, so a dead one leaves no other
-#' running
+#' running, and close each connection
 #' @noRd
 stop_workers <- function(cl) {
   for (i in seq_along(cl)) {
-    try(parallel::stopCluster(cl[i]), silent = TRUE)
+    stopped <- tryCatch(
+      {
+        parallel::stopCluster(cl[i])
+        TRUE
+      },
+      error = function(e) FALSE
+    )
+    # stopCluster() closes the connection only after it sent "DONE", which
+    # can fail for a dead worker
+    if (!stopped) {
+      try(close(cl[[i]]$con), silent = TRUE)
+    }
   }
 }
 
