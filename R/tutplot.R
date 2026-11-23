@@ -3,7 +3,8 @@
 #' Draws a figure from the AMPPS tutorial. The code lives in the package, not
 #' in a vignette, so every printed figure is documented and tested.
 #'
-#' * `tutplot_cstump()`: a classification stump.
+#' * `tutplot_cstump()`: a classification stump, with its class names in title
+#'   case.
 #' * `tutplot_gini()`: Gini impurity by class proportion.
 #' * `tutplot_updatefactor()`: the factor by which one round multiplies an
 #'   observation's weight.
@@ -14,7 +15,7 @@
 #'   lollipop chart.
 #' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
 #' * `tutplot_logocv()`: the leave-one-group-out estimates per project, with
-#'   or without bootstrap intervals.
+#'   or without bootstrap intervals. The project names are drawn in capitals.
 #'
 #' @section Output:
 #' With `file = NULL` (the default), the figure is drawn on the current
@@ -29,6 +30,14 @@
 #' @param fit A classification stump from [rpart::rpart()].
 #' @param extra Node labels, passed to `rpart.plot::rpart.plot()`. The
 #'   manuscript uses 102, and 100 for the weighted stump.
+#' @param labels Readable names to draw in place of variable names, named by
+#'   the variables as they appear in the data, such as
+#'   `c(n.o = "Sample Size")`. A variable without an entry keeps its name. A
+#'   name that is not a predictor of `fit`, or not a variable in `importance`,
+#'   is an error. `NULL` (the default) draws the variable names. `tutplot_importance()` also takes
+#'   plotmath in a named list, such as
+#'   `list(p_value.o = quote(italic(p) ~ Value))`. `tutplot_cstump()` takes
+#'   plain text only, because `rpart.plot::rpart.plot()` draws strings.
 #' @param file A path to write a PDF to, or `NULL` to draw on the current
 #'   device.
 #' @param x_seq The class proportions at which to evaluate the Gini curve,
@@ -76,7 +85,9 @@
 #' @param metric The performance metric to draw. Defaults to `"auroc"`.
 #' @param bands The interval widths, widest last. Defaults to 0.50, 0.80 and
 #'   0.95.
-#' @param ylab The axis label. Defaults to `metric` in capitals.
+#' @param ylab The axis label. Defaults to a readable name for `metric`, such
+#'   as "AUROC" for `"auroc"` or "Balanced Accuracy" for `"bacc"`. A metric
+#'   without one is shown as typed.
 #' @param width,height,pointsize Passed to [grDevices::pdf()]; ignored when
 #'   `file` is `NULL`.
 #'
@@ -86,7 +97,9 @@
 #'   `tutplot_importance()` the rows it drew, most important first;
 #'   `tutplot_logoscheme()` the project sizes, their count, the order and the
 #'   row heights; `tutplot_logocv()` one row per project with its estimate,
-#'   the widest interval, and whether too many resamples were rejected.
+#'   the widest interval, and the share of resamples its bootstrap rejected.
+#'   The variable and project names in these facts are the names in the data,
+#'   not the labels drawn.
 #'
 #' @family tutorial plots
 #' @seealso [tutplot_boundary()] for Figures 3 and 9.
@@ -125,6 +138,7 @@ NULL
 tutplot_cstump <- function(
   fit,
   extra = 102,
+  labels = NULL,
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -132,6 +146,16 @@ tutplot_cstump <- function(
 ) {
   if (!inherits(fit, "rpart")) {
     stop("`fit` must be an rpart object.", call. = FALSE)
+  }
+  if (!is.null(labels)) {
+    if (!is.character(labels)) {
+      stop(
+        "`labels` must be a named character vector: rpart.plot() draws ",
+        "plain text only.",
+        call. = FALSE
+      )
+    }
+    check_labels(labels, attr(fit$terms, "term.labels"), "`fit`")
   }
 
   # color-blind palette from the fit's own class proportions
@@ -142,16 +166,21 @@ tutplot_cstump <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
+  # a copy with title-case class names, drawn in place of the fit
+  drawn <- fit
+  attr(drawn, "ylevels") <- tools::toTitleCase(attr(fit, "ylevels"))
+
   rpart.plot::rpart.plot(
-    fit,
+    drawn,
     extra = extra,
     digits = 4,
     box.col = colors$box,
-    col = colors$text
+    col = colors$text,
+    split.fun = relabel_splits(labels)
   )
 
-  # what the caption claims, for tests; a stump that never split has no
-  # `splits` matrix
+  # what the caption claims, for tests, read off the fit as given rather than
+  # the drawn copy; a stump that never split has no `splits` matrix
   terminal <- fit$frame$var == "<leaf>"
   cutpoint <- if (is.null(fit$splits)) NULL else fit$splits[1, "index"]
 
@@ -161,6 +190,51 @@ tutplot_cstump <- function(
     cutpoint = cutpoint,
     leaves = fit$frame$n[terminal]
   ))
+}
+
+#' Build a split.fun for rpart.plot() that swaps variable names for labels
+#'
+#' Returns `NULL` for no labels, which is rpart.plot()'s own default.
+#' @noRd
+relabel_splits <- function(labels) {
+  if (is.null(labels)) {
+    return(NULL)
+  }
+  # relabel the drawn text, not the fit: renamed variables are missing from
+  # the data, so rpart.plot() would stop rounding integer cutpoints
+  function(x, labs, digits, varlen, faclen) {
+    drawn <- labs
+    for (variable in names(labels)) {
+      # name plus the space before the operator, so `n` cannot match `n.o`;
+      # matched on the original text, so one label cannot match another
+      hit <- startsWith(labs, paste0(variable, " "))
+      drawn[hit] <- paste0(
+        labels[[variable]],
+        substring(labs[hit], nchar(variable) + 1L)
+      )
+    }
+    drawn
+  }
+}
+
+#' Stop unless `labels` is named by variables of the model
+#' @noRd
+check_labels <- function(labels, variables, source) {
+  label_names <- names(labels)
+  if (is.null(label_names) || any(is.na(label_names) | !nzchar(label_names))) {
+    stop("`labels` must be named by the variables it relabels.", call. = FALSE)
+  }
+  unknown <- setdiff(label_names, variables)
+  if (length(unknown)) {
+    stop(
+      "`labels` names a variable that is not in ",
+      source,
+      ": ",
+      paste(unknown, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  invisible(labels)
 }
 
 #' @rdname tutplot
@@ -627,7 +701,8 @@ tutplot_weightupdate <- function(
 #' @param show_points Whether to draw the data. Defaults to `TRUE`.
 #' @param legend_pos Where to put the legend. The default, `"top"`, puts it
 #'   above the panel; any other [graphics::legend()] keyword puts it inside.
-#'   `NULL` leaves it out.
+#'   `NULL` leaves it out. The legend and the color bar name the classes by
+#'   the outcome's levels, in title case.
 #' @param add_colorbar Whether `shade = "margin"` draws a color bar in place of
 #'   the legend. Defaults to `TRUE`.
 #' @param main,subtitle An optional title and gray subtitle above the panel.
@@ -872,6 +947,10 @@ tutplot_boundary <- function(
   }
 
   labels <- read_class_labels(data, roles$outcome)
+  if (!is.null(labels)) {
+    # title case like every other label the figures draw
+    labels <- tools::toTitleCase(labels)
+  }
 
   if (show_points && !is.null(labels)) {
     y <- as_binary(data[[roles$outcome]])
@@ -1027,8 +1106,8 @@ draw_colorbar <- function(opacity, labels) {
     xpd = NA
   )
 
-  low_label <- if (is.null(labels)) "negative" else labels[1]
-  high_label <- if (is.null(labels)) "positive" else labels[2]
+  low_label <- if (is.null(labels)) "Negative" else labels[1]
+  high_label <- if (is.null(labels)) "Positive" else labels[2]
   graphics::text(
     left - 0.015 * width,
     (bottom + top) / 2,
@@ -1054,6 +1133,7 @@ draw_colorbar <- function(opacity, labels) {
 tutplot_importance <- function(
   importance,
   top_n = 15,
+  labels = NULL,
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -1067,6 +1147,19 @@ tutplot_importance <- function(
       "no variable was split on, so there is no importance to plot.",
       call. = FALSE
     )
+  }
+  if (!is.null(labels)) {
+    # every row, not only the top_n drawn: a label for a cut row is no error
+    check_labels(labels, importance$variable, "`importance`")
+    is_drawable <- function(label) {
+      (is.character(label) && length(label) == 1L) || is.language(label)
+    }
+    if (!all(vapply(labels, is_drawable, logical(1)))) {
+      stop(
+        "Each entry of `labels` must be one string or a plotmath expression.",
+        call. = FALSE
+      )
+    }
   }
 
   if (!is.null(file)) {
@@ -1085,15 +1178,11 @@ tutplot_importance <- function(
   old_par <- set_figure_par(reserve_legend = FALSE)
   on.exit(graphics::par(old_par), add = TRUE)
 
-  # the left margin fits the longest predictor name plus the tick label
-  # offset: the family's margin clips the names, a fixed wide one wastes panel
-  label_width <- max(graphics::strwidth(
-    shown$variable,
-    units = "inches",
-    cex = tutplot_opts$cex_axis
-  ))
+  # the left margin fits the longest drawn label plus the tick label offset:
+  # the family's margin clips the names, a fixed wide one wastes panel
+  axis_labels <- label_variables(shown$variable, labels)
   mar <- graphics::par("mar")
-  mar[2] <- label_width / graphics::par("csi") + tutplot_opts$mgp[2] + 1
+  mar[2] <- compute_left_margin(axis_labels)
   graphics::par(mar = mar)
 
   # the family's palette, stopped before yellow; reversed, so the darkest
@@ -1134,11 +1223,42 @@ tutplot_importance <- function(
   )
 
   graphics::axis(1)
-  graphics::axis(2, at = rows, labels = shown$variable, las = 1, lwd = 0)
+  graphics::axis(2, at = rows, labels = axis_labels, las = 1, lwd = 0)
   # no title: the caption carries it, as for every figure
   graphics::title(xlab = "Relative Importance (%)")
 
   invisible(drawn)
+}
+
+#' Swap variable names for their labels, keeping the rest
+#' @noRd
+label_variables <- function(variables, labels = NULL) {
+  if (is.null(labels)) {
+    return(variables)
+  }
+  drawn <- lapply(variables, function(variable) {
+    if (variable %in% names(labels)) labels[[variable]] else variable
+  })
+  if (all(vapply(drawn, is.character, logical(1)))) {
+    return(unlist(drawn))
+  }
+  # one expression vector, so strwidth() and axis() read the same labels
+  as.expression(lapply(drawn, function(label) {
+    if (is.expression(label)) label[[1]] else label
+  }))
+}
+
+#' Size the left margin, in lines, to the widest y-axis label
+#'
+#' Reads the current device and par(), so call it after set_figure_par().
+#' @noRd
+compute_left_margin <- function(labels) {
+  label_width <- max(graphics::strwidth(
+    labels,
+    units = "inches",
+    cex = tutplot_opts$cex_axis
+  ))
+  label_width / graphics::par("csi") + tutplot_opts$mgp[2] + 1
 }
 
 #' @rdname tutplot
@@ -1149,7 +1269,7 @@ tutplot_logocv <- function(
   n_resample = 1000,
   metric = "auroc",
   bands = c(0.50, 0.80, 0.95),
-  ylab = toupper(metric),
+  ylab = label_metric(metric),
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -1170,19 +1290,56 @@ tutplot_logocv <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  old_par <- set_figure_par(reserve_legend = TRUE)
+  # no keys above the panel, so no room reserved for them
+  old_par <- set_figure_par(reserve_legend = FALSE)
   on.exit(graphics::par(old_par), add = TRUE)
 
-  # no title and no footnote: the caption names the figure and the flags
+  # no title and no keys: the caption names the figure, the dashed line and
+  # the intervals; project names in capitals, as in tutplot_logoscheme()
   facts <- draw_logo_cv(
     res,
     metric = metric,
     levels = bands,
     main = NULL,
     ylab = ylab,
-    add_footnote = FALSE
+    add_keys = FALSE,
+    label_project = toupper,
+    italic_n = TRUE
   )
   invisible(facts)
+}
+
+#' Label a metric for a figure axis
+#'
+#' Acronyms in capitals, words in title case; an unknown name as typed.
+#' @noRd
+label_metric <- function(metric) {
+  metric <- as.character(metric)
+  labels <- c(
+    tp = "True Positives",
+    tn = "True Negatives",
+    fp = "False Positives",
+    fn = "False Negatives",
+    sens = "Sensitivity",
+    spec = "Specificity",
+    ppv = "PPV",
+    npv = "NPV",
+    acc = "Accuracy",
+    bacc = "Balanced Accuracy",
+    f1 = "F1",
+    mcc = "MCC",
+    auroc = "AUROC",
+    auprc = "AUPRC",
+    patk = "R-Precision"
+  )
+  if (metric %in% names(labels)) {
+    return(labels[[metric]])
+  }
+  # any budget assess() takes: patk_3, patk_5, patk_10, ...
+  if (grepl("^patk_[0-9]+$", metric)) {
+    return(paste("Precision at", sub("^patk_", "", metric)))
+  }
+  metric
 }
 
 #' @rdname tutplot
