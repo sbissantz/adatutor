@@ -15,6 +15,7 @@
 tutplot_cstump(
   fit,
   extra = 102,
+  labels = NULL,
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -72,6 +73,7 @@ tutplot_weightupdate(
 tutplot_importance(
   importance,
   top_n = 15,
+  labels = NULL,
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -84,7 +86,7 @@ tutplot_logocv(
   n_resample = 1000,
   metric = "auroc",
   bands = c(0.5, 0.8, 0.95),
-  ylab = toupper(metric),
+  ylab = label_metric(metric),
   file = NULL,
   width = tutplot_opts$col[["width"]],
   height = tutplot_opts$col[["height"]],
@@ -107,6 +109,15 @@ tutplot_logoscheme(
 
 \item{extra}{Node labels, passed to \code{rpart.plot::rpart.plot()}. The
 manuscript uses 102, and 100 for the weighted stump.}
+
+\item{labels}{Readable names to draw in place of variable names, named by
+the variables as they appear in the data, such as
+\code{c(n.o = "Sample Size")}. A variable without an entry keeps its name. A
+name that is not a predictor of \code{fit}, or not a variable in \code{importance},
+is an error. \code{NULL} (the default) draws the variable names. \code{tutplot_importance()} also takes
+plotmath in a named list, such as
+\code{list(p_value.o = quote(italic(p) ~ Value))}. \code{tutplot_cstump()} takes
+plain text only, because \code{rpart.plot::rpart.plot()} draws strings.}
 
 \item{file}{A path to write a PDF to, or \code{NULL} to draw on the current
 device.}
@@ -170,7 +181,9 @@ has to resample. Defaults to 1000.}
 \item{bands}{The interval widths, widest last. Defaults to 0.50, 0.80 and
 0.95.}
 
-\item{ylab}{The axis label. Defaults to \code{metric} in capitals.}
+\item{ylab}{The axis label. Defaults to a readable name for \code{metric}, such
+as "AUROC" for \code{"auroc"} or "Balanced Accuracy" for \code{"bacc"}. A metric
+without one is shown as typed.}
 
 \item{group}{One project label per row, as \code{\link[=logo_cv]{logo_cv()}} takes it.}
 
@@ -194,7 +207,9 @@ cutpoint and the leaf sizes; \code{tutplot_gini()} the curve and its peak;
 \code{tutplot_importance()} the rows it drew, most important first;
 \code{tutplot_logoscheme()} the project sizes, their count, the order and the
 row heights; \code{tutplot_logocv()} one row per project with its estimate,
-the widest interval, and whether too many resamples were rejected.
+the widest interval, and the share of resamples its bootstrap rejected.
+The variable and project names in these facts are the names in the data,
+not the labels drawn.
 }
 \description{
 Draws a figure from the AMPPS tutorial. The code lives in the package, not
@@ -202,7 +217,8 @@ in a vignette, so every printed figure is documented and tested.
 }
 \details{
 \itemize{
-\item \code{tutplot_cstump()}: a classification stump.
+\item \code{tutplot_cstump()}: a classification stump, with its class names in title
+case.
 \item \code{tutplot_gini()}: Gini impurity by class proportion.
 \item \code{tutplot_updatefactor()}: the factor by which one round multiplies an
 observation's weight.
@@ -213,7 +229,7 @@ performance.
 lollipop chart.
 \item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.
 \item \code{tutplot_logocv()}: the leave-one-group-out estimates per project, with
-or without bootstrap intervals.
+or without bootstrap intervals. The project names are drawn in capitals.
 }
 }
 \section{Output}{

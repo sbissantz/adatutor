@@ -14,14 +14,7 @@
 
 \method{as.data.frame}{logo_cv}(x, ...)
 
-\method{plot}{logo_cv}(
-  x,
-  metric = "auroc",
-  levels = c(0.5, 0.8, 0.95),
-  baseline = "auto",
-  max_rejected = 0.05,
-  ...
-)
+\method{plot}{logo_cv}(x, metric = "auroc", levels = c(0.5, 0.8, 0.95), baseline = "auto", ...)
 }
 \arguments{
 \item{x, object}{An object of class \code{logo_cv}.}
@@ -44,9 +37,6 @@ SD.}
 would score: 0.5 for \code{auroc} and \code{bacc}, 0 for \code{mcc}, the majority-class
 rate for \code{acc}, and each project's base rate for the others. A number
 sets it; \code{NA} leaves it out.}
-
-\item{max_rejected}{Projects whose bootstrap rejected more than this share
-of draws get a star and a footnote. Defaults to 0.05.}
 }
 \value{
 \code{print()} and \code{plot()} return \code{x} invisibly; \code{summary()} and

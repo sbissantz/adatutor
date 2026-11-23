@@ -51,7 +51,8 @@ Defaults to \code{viridisLite::viridis(2)}.}
 
 \item{legend_pos}{Where to put the legend. The default, \code{"top"}, puts it
 above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
-\code{NULL} leaves it out.}
+\code{NULL} leaves it out. The legend and the color bar name the classes by
+the outcome's levels, in title case.}
 
 \item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar in place of
 the legend. Defaults to \code{TRUE}.}
