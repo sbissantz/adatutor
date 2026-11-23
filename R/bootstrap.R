@@ -192,10 +192,7 @@ bootstrap.default <- function(
 
     if (!stratified && n_dropped / attempts > 0.05) {
       note <- sprintf(
-        paste0(
-          "%.1f%% of resamples were rejected as single-class. The interval is ",
-          "conditional on both classes appearing, so its bounds are optimistic."
-        ),
+        "%.1f%% of resamples had one class only and were rejected.",
         100 * n_dropped / attempts
       )
       notes <- c(notes, note)
@@ -280,7 +277,7 @@ bootstrap.logo_cv <- function(
           threshold = threshold
         ),
         warning = function(w) {
-          warning("project ", project, ": ", conditionMessage(w), call. = FALSE)
+          warning("Project ", project, ": ", conditionMessage(w), call. = FALSE)
           invokeRestart("muffleWarning")
         }
       )
