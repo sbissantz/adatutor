@@ -50,11 +50,16 @@ test_that("n_resample counts usable resamples, not attempts", {
 test_that("a high rejection rate is reported rather than hidden", {
   f <- make_fold(11, 2, seed = 4)
   set.seed(4)
+  # it informs and gives no advice
   expect_warning(
     ci <- bootstrap(f$y, f$s, n_resample = 300),
-    "rejected as single-class"
+    "^[0-9]+\\.[0-9]% of resamples had one class only and were rejected\\.$"
   )
-  expect_true(any(grepl("optimistic", attr(ci, "notes"))))
+  expect_true(any(grepl(
+    "had one class only and were rejected",
+    attr(ci, "notes"),
+    fixed = TRUE
+  )))
 })
 
 test_that("stratified resampling never rejects and warns about what it costs", {

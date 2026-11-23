@@ -1454,6 +1454,86 @@ test_that("a tuner runs on the lowered cores", {
   expect_identical(lowered, one)
 })
 
+# the `cores` each run_tasks() call receives while `code` runs on a computer
+# with `available` cores; the tasks run here, so no worker starts
+read_task_cores <- function(code, available) {
+  seen <- integer()
+  local_mocked_bindings(
+    count_cores = function() available,
+    run_tasks = function(n_tasks, run_task, cores = 1L, globals = list()) {
+      seen <<- c(seen, cores)
+      lapply(seq_len(n_tasks), run_task)
+    }
+  )
+  code
+  seen
+}
+
+test_that("each tuner hands the lowered cores to run_tasks()", {
+  # the results are the same on any number of cores, so only the number
+  # run_tasks() receives shows that the tuner passes the lowered one on
+  data(altmejd)
+  fit <- fit_ada()
+  tree <- rpart::rpart(fml, data = altmejd, method = "class")
+  grid <- data.frame(n_iter = c(3, 6))
+  notice <- "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`."
+
+  # one call for the whole search
+  expect_message(
+    ada_cores <- read_task_cores(
+      tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 8),
+      available = 2L
+    ),
+    notice,
+    fixed = TRUE
+  )
+  expect_identical(ada_cores, 2L)
+
+  # one call per outer fold, for its inner search
+  expect_message(
+    nested_cores <- read_task_cores(
+      tune_logo_cv(
+        fit,
+        grid,
+        data = altmejd,
+        group = "pid",
+        holdout = c("eerp", "ml3"),
+        nested = TRUE,
+        cores = 8
+      ),
+      available = 2L
+    ),
+    notice,
+    fixed = TRUE
+  )
+  expect_identical(nested_cores, c(2L, 2L))
+
+  expect_message(
+    tree_cores <- read_task_cores(
+      tune_logo_cv(
+        tree,
+        data.frame(depth = 1:2),
+        data = altmejd,
+        group = "pid",
+        cores = 8
+      ),
+      available = 2L
+    ),
+    notice,
+    fixed = TRUE
+  )
+  expect_identical(tree_cores, 2L)
+
+  # a request the computer can serve passes on as it is
+  expect_no_message(
+    asked_cores <- read_task_cores(
+      tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2),
+      available = 4L
+    )
+  )
+  expect_identical(asked_cores, 2L)
+})
+
 test_that("cores must be one whole number, 1 or more", {
   data(altmejd)
   fit <- fit_ada()
@@ -2979,6 +3059,31 @@ test_that("the forest tuner refuses an argument it does not take", {
   )
 })
 
+test_that("the forest tuner hands the lowered cores to run_tasks()", {
+  skip_if_not_installed("randomForest")
+  data(altmejd)
+  set.seed(1)
+  forest <- fit_forest()
+  # the refits run here, where randomForest() warns about partial matching
+  expect_message(
+    forest_cores <- read_task_cores(
+      muffle_partial_matching(
+        tune_logo_cv(
+          forest,
+          data.frame(mtry = 1:2),
+          data = altmejd,
+          group = "pid",
+          cores = 8
+        )
+      ),
+      available = 2L
+    ),
+    "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`.",
+    fixed = TRUE
+  )
+  expect_identical(forest_cores, 2L)
+})
+
 test_that("the forest tuner sets one seed per fold, drawn from the session", {
   skip_if_not_installed("randomForest")
   data(altmejd)
@@ -4015,6 +4120,37 @@ test_that("the XGBoost tuner gives the same at any number of cores", {
   expect_identical(run(2), one)
 })
 
+test_that("the XGBoost tuner hands the lowered cores to run_tasks()", {
+  skip_if_not_installed("xgboost", "3.0.0")
+  data(altmejd)
+  fit <- fit_xgb()
+  notice <- "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`."
+  run <- function(...) {
+    read_task_cores(
+      tune_logo_cv(
+        fit,
+        data.frame(n_iter = c(2, 4)),
+        data = altmejd,
+        group = "pid",
+        cores = 8,
+        outcome = "replicate",
+        ...
+      ),
+      available = 2L
+    )
+  }
+  # one call for the whole search
+  expect_message(flat_cores <- run(), notice, fixed = TRUE)
+  expect_identical(flat_cores, 2L)
+  # one call per outer fold, for its inner search
+  expect_message(
+    nested_cores <- run(nested = TRUE, holdout = c("eerp", "ml3")),
+    notice,
+    fixed = TRUE
+  )
+  expect_identical(nested_cores, c(2L, 2L))
+})
+
 test_that("print() and summary() show an XGBoost fit's five settings", {
   local_reproducible_output(width = 200)
   skip_if_not_installed("xgboost", "3.0.0")
@@ -4181,6 +4317,62 @@ test_that("plot.logo_cv() returns its input invisibly", {
   dev.off()
   expect_false(out$visible)
   expect_identical(out$value, res)
+})
+
+test_that("plot.logo_cv() keys the intervals only when it has them, starring none", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  data(altmejd)
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  boot <- res
+  boot$ci <- boot_by_project()
+  # pdftotext prints UTF-8 and pdf() draws a hyphen as a minus sign, so match
+  # bytes
+  read_text <- function(x, ...) {
+    f <- tempfile(fileext = ".pdf")
+    on.exit(unlink(f), add = TRUE)
+    grDevices::pdf(f)
+    plot(x, ...)
+    grDevices::dev.off()
+    paste(system2("pdftotext", c(f, "-"), stdout = TRUE), collapse = " ")
+  }
+
+  with_bands <- read_text(boot)
+  expect_match(
+    with_bands,
+    "Bootstrap intervals: 50%, 80%, 95%",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  expect_match(
+    with_bands,
+    "Dashed line: chance (0.5)",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  # names and sizes as typed, plain text, and nothing marks rejected draws
+  expect_match(with_bands, "ml1", fixed = TRUE, useBytes = TRUE)
+  expect_match(
+    with_bands,
+    paste("n =", res$projects$n[1]),
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  expect_no_match(with_bands, "*", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(with_bands, "rejected", fixed = TRUE, useBytes = TRUE)
+
+  expect_match(
+    read_text(boot, levels = c(0.5, 0.9)),
+    "Bootstrap intervals: 50%, 90%",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  expect_no_match(
+    read_text(res),
+    "Bootstrap intervals",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  expect_false("max_rejected" %in% names(formals(plot.logo_cv)))
 })
 
 test_that("the fit's control reaches every refit", {
@@ -4433,8 +4625,23 @@ test_that("bootstrap() names the project in its warnings", {
   # one per project, in project order
   expect_identical(
     sub(": stratified.*", "", warning_texts),
-    paste("project", res$projects$project)
+    paste("Project", res$projects$project)
   )
+})
+
+test_that("bootstrap() reports a project's rejected resamples by name", {
+  data(altmejd)
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  set.seed(3)
+  warning_texts <- capture_warnings(bootstrap(res, n_resample = 50))
+  # it informs and gives no advice
+  expect_true(any(grepl(
+    paste0(
+      "^Project [a-z0-9]+: [0-9]+\\.[0-9]% of resamples had one class only ",
+      "and were rejected\\.$"
+    ),
+    warning_texts
+  )))
 })
 
 test_that("bootstrap() on logo_cv needs one setting and stored scores", {
@@ -4490,6 +4697,27 @@ test_that("accuracy's reference line is the majority-class rate", {
   reference <- find_reference("acc", "auto", c(0.3, 0.8))
   expect_equal(reference$values, c(0.7, 0.8))
   expect_match(reference$label, "majority-class rate")
+})
+
+test_that("every reference line has a key in sentence case", {
+  read_label <- function(metric, baseline = "auto") {
+    find_reference(metric, baseline, c(0.3, 0.4))$label
+  }
+  expect_identical(read_label("auroc"), "Dashed line: chance (0.5)")
+  expect_identical(read_label("bacc"), "Dashed line: chance (0.5)")
+  expect_identical(read_label("mcc"), "Dashed line: no association (0)")
+  expect_identical(read_label("acc"), "Dashed line: majority-class rate")
+  for (metric in c("auprc", "ppv", "f1", "patk", "patk_3")) {
+    expect_identical(
+      read_label(metric),
+      "Dashed line: base rate of each project",
+      info = metric
+    )
+  }
+  expect_identical(read_label("auroc", 0.7), "Dashed line: 0.7")
+  # no line, no key
+  expect_identical(read_label("auroc", NA), "")
+  expect_identical(read_label("sens"), "")
 })
 
 test_that("every patk budget gets the base-rate floor, not only the default", {

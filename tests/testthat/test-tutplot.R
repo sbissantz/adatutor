@@ -18,6 +18,13 @@ stump <- function(formula = replicate ~ power.o + n.o, weights = NULL) {
   do.call(rpart::rpart, args)
 }
 
+# the text and the fonts a PDF draws; callers match bytes, because both tools
+# print UTF-8 and pdf() draws a hyphen as a minus sign
+read_pdf_text <- function(path) {
+  paste(system2("pdftotext", c(path, "-"), stdout = TRUE), collapse = " ")
+}
+read_pdf_fonts <- function(path) system2("pdffonts", path, stdout = TRUE)
+
 test_that("tutplot_cstump() returns the numbers Figure 2's caption states", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -103,6 +110,71 @@ test_that("`extra` reaches rpart.plot()", {
 
 test_that("tutplot_cstump() refuses something that is not an rpart fit", {
   expect_error(tutplot_cstump(altmejd_splits$train), "rpart object")
+})
+
+test_that("tutplot_cstump() draws labels and title-case classes", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  f <- tempfile(fileext = ".pdf")
+  g <- tempfile(fileext = ".pdf")
+  on.exit(unlink(c(f, g)), add = TRUE)
+
+  fit <- stump()
+  facts <- tutplot_cstump(
+    fit,
+    labels = c(power.o = "Power", n.o = "Sample Size"),
+    file = f
+  )
+  drawn <- read_pdf_text(f)
+  expect_match(drawn, "Power <", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(drawn, "power.o", fixed = TRUE, useBytes = TRUE)
+  expect_match(drawn, "Failure", fixed = TRUE, useBytes = TRUE)
+  expect_match(drawn, "Success", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(drawn, "failure", fixed = TRUE, useBytes = TRUE)
+
+  # the facts describe the fit as given, not the drawn copy
+  expect_identical(facts$fit, fit)
+  expect_identical(facts$variable, "power.o")
+  expect_equal(round(facts$cutpoint, 4), 0.9305)
+  expect_equal(unname(facts$leaves), c(66, 41))
+
+  # without labels the names stay as typed; the classes are title case anyway
+  tutplot_cstump(fit, file = g)
+  plain <- read_pdf_text(g)
+  expect_match(plain, "power.o <", fixed = TRUE, useBytes = TRUE)
+  expect_match(plain, "Failure", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(plain, "failure", fixed = TRUE, useBytes = TRUE)
+})
+
+test_that("a label keeps the rounded cutpoint of a whole-number split", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  f <- tempfile(fileext = ".pdf")
+  g <- tempfile(fileext = ".pdf")
+  on.exit(unlink(c(f, g)), add = TRUE)
+
+  # n.o is a count, so rpart.plot() rounds its cutpoint; renaming the variable
+  # inside the fit would hide it from the data and print 131.5 instead
+  fit <- stump(replicate ~ n.o)
+  tutplot_cstump(fit, file = f)
+  tutplot_cstump(fit, labels = c(n.o = "Sample Size"), file = g)
+  read_cutpoint <- function(path) {
+    sub(".*< ([0-9.]+).*", "\\1", read_pdf_text(path), useBytes = TRUE)
+  }
+
+  expect_match(read_pdf_text(g), "Sample Size <", fixed = TRUE, useBytes = TRUE)
+  expect_identical(read_cutpoint(g), read_cutpoint(f))
+  expect_no_match(read_cutpoint(f), ".", fixed = TRUE)
+})
+
+test_that("tutplot_cstump() refuses labels it cannot draw", {
+  expect_error(
+    tutplot_cstump(stump(), labels = list(power.o = quote(italic(P)))),
+    "plain text only"
+  )
+  expect_error(
+    tutplot_cstump(stump(), labels = c(p_value.o = "p Value")),
+    "not in `fit`: p_value.o"
+  )
+  expect_error(tutplot_cstump(stump(), labels = "Power"), "must be named")
 })
 
 test_that("tutplot_gini() returns the curve Figure 4's caption describes", {
@@ -686,9 +758,10 @@ test_that("each figure asks for the margins it needs", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # gini and importance have no legend above the panel; the other three do
+  # gini, importance and logocv have no legend above the panel; the other
+  # three do
   body_of <- function(f) paste(deparse(body(f)), collapse = " ")
-  for (f in list(tutplot_gini, tutplot_importance)) {
+  for (f in list(tutplot_gini, tutplot_importance, tutplot_logocv)) {
     expect_match(
       body_of(f),
       "set_figure_par(reserve_legend = FALSE)",
@@ -779,6 +852,66 @@ test_that("tutplot_boundary() shades by the score, not by the class", {
   # cannot end up captioned as power and sample size
   expect_null(eval(formals(tutplot_boundary)$xlab))
   expect_null(eval(formals(tutplot_boundary)$ylab))
+})
+
+test_that("tutplot_boundary() names the classes in title case", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  paths <- replicate(4, tempfile(fileext = ".pdf"))
+  on.exit(unlink(paths), add = TRUE)
+  train <- altmejd_splits$train
+
+  # the color bar's ends, then the class legend
+  tutplot_boundary(stump(), data = train, resolution = 20, file = paths[1])
+  tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    shade = "class",
+    file = paths[2]
+  )
+  for (path in paths[1:2]) {
+    drawn <- read_pdf_text(path)
+    expect_match(drawn, "Failure", fixed = TRUE, useBytes = TRUE)
+    expect_match(drawn, "Success", fixed = TRUE, useBytes = TRUE)
+    expect_no_match(drawn, "failure", fixed = TRUE, useBytes = TRUE)
+  }
+
+  # without the outcome in `data`, the bar falls back to its own names
+  tutplot_boundary(
+    stump(),
+    data = train[, c("power.o", "n.o")],
+    resolution = 20,
+    file = paths[3]
+  )
+  expect_match(
+    read_pdf_text(paths[3]),
+    "Negative",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  expect_match(
+    read_pdf_text(paths[3]),
+    "Positive",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+
+  # axis labels the caller passes are drawn as given
+  tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    xlab = "Power",
+    ylab = "Sample Size",
+    file = paths[4]
+  )
+  expect_match(
+    read_pdf_text(paths[4]),
+    "Sample Size",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  expect_no_match(read_pdf_text(paths[4]), "n.o", fixed = TRUE, useBytes = TRUE)
 })
 
 test_that("tutplot_logoscheme() builds one fold per project, test on the diagonal", {
@@ -981,7 +1114,9 @@ test_that("tutplot_logocv(bootstrap = TRUE) brackets every estimate", {
   expect_true(all(
     facts$lower <= facts$estimate & facts$estimate <= facts$upper
   ))
-  expect_type(facts$flagged, "logical")
+  # the share the caption states; no flag, since nothing is starred any more
+  expect_type(facts$rejected, "double")
+  expect_false("flagged" %in% names(facts))
 })
 
 test_that("tutplot_logocv() reuses attached intervals instead of resampling", {
@@ -1013,6 +1148,78 @@ test_that("tutplot_logocv() restores par() and writes a file", {
   tutplot_logocv(res, bootstrap = FALSE, file = f)
   expect_gt(file.size(f), 0)
   expect_error(tutplot_logocv(list()), "result of logo_cv")
+})
+
+test_that("tutplot_logocv() draws no keys, capitals and an italic n", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  res <- logocv_res()
+  set.seed(1)
+  boot <- suppressWarnings(bootstrap(res, n_resample = 50))
+  f <- tempfile(fileext = ".pdf")
+  # a device of our own, so restoring par() after the file closes opens none
+  grDevices::pdf(NULL)
+  on.exit(
+    {
+      grDevices::dev.off()
+      unlink(f)
+    },
+    add = TRUE
+  )
+
+  facts <- tutplot_logocv(boot, file = f)
+  drawn <- read_pdf_text(f)
+
+  # the caption carries both keys
+  expect_no_match(drawn, "Dashed line", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(drawn, "Bootstrap intervals", fixed = TRUE, useBytes = TRUE)
+  # project names in capitals, the metric by its readable name
+  for (project in toupper(res$projects$project)) {
+    expect_match(drawn, project, fixed = TRUE, useBytes = TRUE)
+  }
+  expect_no_match(drawn, "eerp", fixed = TRUE, useBytes = TRUE)
+  expect_match(drawn, "AUROC", fixed = TRUE, useBytes = TRUE)
+  # the facts keep the names in the data
+  expect_setequal(facts$project, res$projects$project)
+
+  # the n above each project is the figure's only italic text, with the plain
+  # " = " and its spaces
+  expect_match(
+    drawn,
+    paste("n =", res$projects$n[1]),
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  skip_if_not(nzchar(Sys.which("pdffonts")), "pdffonts not available")
+  expect_true(any(grepl("Oblique", read_pdf_fonts(f), useBytes = TRUE)))
+  expect_false(any(grepl("Symbol", read_pdf_fonts(f), useBytes = TRUE)))
+  plain <- tempfile(fileext = ".pdf")
+  on.exit(unlink(plain), add = TRUE)
+  grDevices::pdf(plain)
+  plot(boot)
+  grDevices::dev.off()
+  expect_false(any(grepl("Oblique", read_pdf_fonts(plain), useBytes = TRUE)))
+})
+
+test_that("label_metric() names every metric assess() returns", {
+  # each gets a readable name, not its code
+  for (metric in list_metrics()) {
+    expect_false(identical(label_metric(metric), metric), info = metric)
+  }
+  # and so does any budget assess() is given
+  at_k <- names(assess(c(1, 0, 1, 0), c(2, -1, 1, -2), k = c(1, 10)))
+  for (metric in grep("^patk", at_k, value = TRUE)) {
+    expect_false(identical(label_metric(metric), metric), info = metric)
+  }
+  expect_identical(label_metric("auroc"), "AUROC")
+  expect_identical(label_metric("bacc"), "Balanced Accuracy")
+  expect_identical(label_metric("patk_10"), "Precision at 10")
+  # a name it does not know is shown as typed
+  expect_identical(label_metric("my_metric"), "my_metric")
+  # it is the axis label's default
+  expect_identical(
+    eval(formals(tutplot_logocv)$ylab, list(metric = "mcc")),
+    "MCC"
+  )
 })
 
 # tutplot_importance(): the lollipop chart, shared with plot.gauge()
@@ -1089,4 +1296,108 @@ test_that("tutplot_importance() refuses what gauge() did not make, or an empty g
 test_that("plot.gauge() draws through tutplot_importance(), so both are one picture", {
   body_of <- function(f) paste(deparse(body(f)), collapse = " ")
   expect_match(body_of(plot.gauge), "tutplot_importance(", fixed = TRUE)
+})
+
+test_that("tutplot_importance() draws labels in place of variable names", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  imp <- gauge(boosted_stumps())
+  f <- tempfile(fileext = ".pdf")
+  g <- tempfile(fileext = ".pdf")
+  # a device of our own, so restoring par() after the file closes opens none
+  grDevices::pdf(NULL)
+  on.exit(
+    {
+      grDevices::dev.off()
+      unlink(c(f, g))
+    },
+    add = TRUE
+  )
+
+  # plain text; a variable without an entry keeps its name
+  drawn <- tutplot_importance(
+    imp,
+    labels = c(n.o = "Sample Size", power.o = "Power"),
+    file = f
+  )
+  text <- read_pdf_text(f)
+  expect_match(text, "Sample Size", fixed = TRUE, useBytes = TRUE)
+  expect_match(text, "Power", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(text, "n.o", fixed = TRUE, useBytes = TRUE)
+  expect_match(text, "effect_size.o", fixed = TRUE, useBytes = TRUE)
+  # the rows it returns keep the names in the data
+  expect_identical(drawn$variable, imp$variable)
+
+  # plotmath, for an italic p
+  tutplot_importance(
+    imp,
+    labels = list(p_value.o = quote(italic(p) ~ Value), n.o = "Sample Size"),
+    file = g
+  )
+  text <- read_pdf_text(g)
+  expect_match(text, "Value", fixed = TRUE, useBytes = TRUE)
+  expect_match(text, "Sample Size", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(text, "p_value.o", fixed = TRUE, useBytes = TRUE)
+  # an expression vector works as well as a list
+  expect_no_error(
+    tutplot_importance(imp, labels = expression(p_value.o = italic(p) ~ Value))
+  )
+
+  skip_if_not(nzchar(Sys.which("pdffonts")), "pdffonts not available")
+  expect_true(any(grepl("Oblique", read_pdf_fonts(g), useBytes = TRUE)))
+  expect_false(any(grepl("Oblique", read_pdf_fonts(f), useBytes = TRUE)))
+})
+
+test_that("tutplot_importance() refuses labels it cannot place", {
+  imp <- gauge(boosted_stumps())
+  expect_error(
+    tutplot_importance(imp, labels = c(nope = "Nope", n.o = "Sample Size")),
+    "not in `importance`: nope"
+  )
+  expect_error(tutplot_importance(imp, labels = "Power"), "must be named")
+  expect_error(
+    tutplot_importance(imp, labels = list(n.o = 1)),
+    "Each entry of `labels` must be one string or a plotmath expression."
+  )
+})
+
+test_that("tutplot_importance() sizes the left margin to the labels drawn", {
+  imp <- gauge(boosted_stumps())
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  long <- quote(italic(p) ~ "Value with a very long tail of words")
+
+  # the margin is measured on what axis() draws, not on the variable names
+  measured <- NULL
+  real_margin <- compute_left_margin
+  local_mocked_bindings(
+    compute_left_margin = function(labels) {
+      measured <<- labels
+      real_margin(labels)
+    }
+  )
+  tutplot_importance(imp, labels = list(p_value.o = long))
+  expect_true(is.expression(measured))
+  expect_true(any(vapply(measured, identical, logical(1), long)))
+  expect_false("p_value.o" %in% as.character(measured))
+
+  # a label wider than its name widens the margin
+  set_figure_par(reserve_legend = FALSE)
+  expect_gt(
+    compute_left_margin(as.expression(list(long))),
+    compute_left_margin("p_value.o")
+  )
+})
+
+test_that("plot.gauge() draws the variable names as typed", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  f <- tempfile(fileext = ".pdf")
+  on.exit(unlink(f), add = TRUE)
+
+  grDevices::pdf(f)
+  plot(gauge(boosted_stumps()))
+  grDevices::dev.off()
+
+  text <- read_pdf_text(f)
+  expect_match(text, "p_value.o", fixed = TRUE, useBytes = TRUE)
+  expect_match(text, "n.o", fixed = TRUE, useBytes = TRUE)
 })
