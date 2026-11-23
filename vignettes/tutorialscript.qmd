@@ -1,5 +1,6 @@
 ---
-title: "Code Along Script For The Tutorial"
+title: "A Hands On Introduction to Adaptive Boosting and Advanced Cross-Validation"
+subtitle: Exploring the Potential of AdaBoost to Predict Replication Success
 bibliography: references.bib
 csl: apa.csl
 execute:
@@ -579,7 +580,7 @@ tutplot_cstump(cstump_ast, extra = 100)
 :::
 
 ##### TODO: Moving beyond classification stump Add trees 
-A stump splits the data once. A deeper classification tree repeats this step: it splits each of the two groups again, by the same rule, using only the study effects in that group. A tree of depth 2 thus asks up to two questions in a row and ends in up to four leaves. A tree of depth 3 asks up to three. In rpart(), the argument maxdepth sets how often the tree may split in a row. We continue with stumps, the classic weak learner for AdaBoost, (easier to understand and implement) but challenge this assumption, returning to tree depth as a hyperparameter in Module 7.
+A stump splits the data once. A deeper classification tree repeats this step: it splits each of the two groups again, by the same rule, using only the study effects in that group. A tree of depth 2 thus asks up to two questions in a row and ends in up to four leaves. A tree of depth 3 asks up to three. In rpart(), the argument maxdepth sets how often the tree may split in a row. We continue with stumps, the classic weak learner for AdaBoost, (easier to understand and implement) but challenge this assumption, returning to tree depth as a hyperparameter in Module 7. Appendix B grows such a tree by hand, one question at a time.
 (1) Add a code with maxdepth 2
 (2) Add code for plot 
 (3) Add a tutplot?
@@ -846,7 +847,7 @@ Both fits carry the same model weights, round by round. From here on, we therefo
 :::
 
 ::: {.callout-note title="Add to tutorial"}
-Repeat the handoff sentence after each later `identical()` check, with its listing: "The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing N." The places: Module 4 (`gauge()`, the importance loop), Module 5 (retrodictions, Listing 25; the margin; predictions, Listing 28), Module 6 (`logo_cv()`, the LOGO-CV loop), Module 7 (`hypergrid`, the grid loop) and Module 9 (`tune_logo_cv()` with `nested = TRUE`, the nested loop). Not after `auroc()` or `assess()`, which have no by-hand counterpart. A reader who stays fully by hand pastes Listing 24 into the loops of Modules 6 and 7.
+Repeat the handoff sentence after each later `identical()` check, with its listing: "The two match, so we continue with the package function: it keeps the listings short and saves typing. Readers who prefer their own code can continue with Listing N." The places: Module 4 (`gauge()`, the importance loop), Module 5 (retrodictions, Listing 25; the margin; predictions, Listing 28), Module 6 (`logo_cv()`, the LOGO-CV loop), Module 7 (`hypergrid`, the grid loop) and Module 9 (`tune_logo_cv()` with `nested = TRUE`, the nested loop). Not after `auroc()`, which Appendix C builds by hand, or `assess()`, which has no by-hand counterpart. A reader who stays fully by hand pastes Listing 24 into the loops of Modules 6 and 7.
 :::
 
 <!-- check the module numbers after the module split -->
@@ -1217,6 +1218,8 @@ table(y_test, y_pred_cls) # Imperfect predictions
 After predicting the test set, we can evaluate the ensemble by comparing its predictions with the observed outcomes. The confusion matrix of Listing 29 is the starting point. A first metric is *accuracy*, the share of correct predictions: the sum of the main diagonal divided by the sum of all entries. Accuracy needs a baseline, however. The *base rate* of the test set, the share of its study effects that replicated, is 0.48, so a model that always predicts failure is right 52 percent of the time without having learned anything. Remember also that the dataset is imbalanced: more study effects failed than replicated, and accuracy hides which class the errors fall on. *Balanced accuracy* corrects for this. It is the mean of *sensitivity*, the share of successes the ensemble predicts as successes, and *specificity*, the share of failures it predicts as failures [see @pargent2023, who warn that the error rate alone says little under imbalance].
 
 These metrics read the class labels, so they judge one decision: the sign of the vote. The margin of Module 5 carries more, namely how far each study effect sits from the tie, and with it a ranking of the study effects. Two metrics read that ranking. The *area under the receiver operating characteristic curve* (AUROC, often just AUC) is the chance that a randomly drawn success scores higher than a randomly drawn failure [@bradley1997]. A random ranking scores 0.5, a perfect one 1, and the base rate plays no part. The *area under the precision-recall curve* (AUPRC) asks how pure the top of the ranking is at every cutoff. Here the base rate does play a part: a random ranking scores about the base rate, not 0.5. A third view is a budget. When only a few replications can be run, what matters is the *precision among the top k*, the share of successes among the k study effects with the highest margins. Listing 31 computes the metrics on the class labels and the AUROC, our focus from here on; `assess()` in the package solution reports the AUPRC and the precision among the top k as well. The AUROC needs the margin. Class labels have only two values, so the ROC curve collapses to a single point, and the AUROC quietly becomes the balanced accuracy. Listing 31 shows it.
+
+Appendix C computes the AUROC by hand, pair by pair.
 :::
 
 #### Listing 31
@@ -1450,7 +1453,7 @@ The AUROC of the ensemble in leave-one-group-out cross-validation, one column pe
 tutplot_logocv(ada_boot)
 ```
 
-**TODO** See above: Fix x-labels and make consistent
+**TODO** See above: Fix x-labels and make consistent across all figures
 
 
 ::: {.callout-important title="Changed since submission"}
@@ -1477,10 +1480,16 @@ Measured at 10 stumps and a learning rate of 1 on the five submitted projects (f
 **Beyond projects as groups.** Leave-one-group-out does not care how the groups were made, so `logo_cv()` also runs the two designs most readers know. A random five-fold cross-validation is a fold column drawn at random and used as the group. Each fold is held out once, so the result has five estimates, as the project version has six.
 
 ```{r kfold-random}
-# Every study effect gets a fold number 1 to 5, at random; each fold is
-# held out once
+# Every study effect gets a fold number 1 to 5, at random
 set.seed(112)
 df_noholz$fold <- sample(rep(1:5, length.out = nrow(df_noholz)))
+```
+
+The fold column is the whole design. How to score it is the reader's choice: the loop of Listing 32 with `fold` in place of `pid`, or one call.
+
+```{r kfold-random-score}
+# Hold each fold out once: the loop of Listing 32 with `fold` in place of
+# `pid`, or in one call
 logo_cv(ada_fit, data = df_noholz, group = "fold")
 ```
 
@@ -1494,8 +1503,13 @@ df_noholz$part[sample(
   nrow(df_noholz),
   round(0.3 * nrow(df_noholz))
 )] <- "test"
+```
 
-# Train on the 70 percent, score the 30 percent: the column named "test"
+Again the column is the design, and the scoring is the reader's choice: Listings 24, 28 and 31 on the two parts, or one call.
+
+```{r mc-one-score}
+# Train on the 70 percent, score the 30 percent: Listings 24, 28 and 31
+# on the two parts, or in one call; the column named "test" is the estimate
 res_mc <- logo_cv(ada_fit, data = df_noholz, group = "part")
 res_mc$estimates[1, "test", "auroc"]
 ```
@@ -1545,10 +1559,10 @@ The two designs answer different questions. Random folds hold out study effects 
 - "A Fourth Look at Performance" is rewritten (box below). The winner of the 18-setting grid changed: submitted, Model 1 (a stump, 10 trees, learning rate 1) by the average "AUC", which was a balanced accuracy on five projects; now a stump with 1,000 rounds at a rate of 0.1 by `lower`, the mean minus the SD, on six projects. AR.R1.C1 says so, because the reviewer quotes the submitted winner.
 - "Finalizing an Ensemble" with Listing 35, and "A Fifth Look at Performance" (savant models, stacking, @boehmke2019) move to Module 8.
 - Exercise 4.2 is dropped: the random search is in the main text, and its runtime question is in the Random Search box. Exercise 3.3 goes with Module 6 or 7 at the exercises pass.
-- The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_logo_cv()`), and the by-hand versions are in Appendix B.
-- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the summary columns `mean`, `sd` and `lower`, the package listing with `tune_logo_cv()`, the by-hand listings of Appendix B, the random-search listing, and the `hypergrid` listing.
+- The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_logo_cv()`), and the by-hand versions are in Appendix D.
+- The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the summary columns `mean`, `sd` and `lower`, the package listing with `tune_logo_cv()`, the by-hand listings of Appendix D, the random-search listing, and the `hypergrid` listing.
 - `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script, one `tune_logo_cv()` call with `cores = 4` (about 22 minutes).
-- The by-hand versions of Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) go to Appendix B at the port (author, 19 Nov): the paper has no space for them in the module. The manuscript's existing appendix, "Additional Exercises", becomes Appendix A.
+- The by-hand versions of Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) go to Appendix D at the port (author, 19 Nov): the paper has no space for them in the module. The manuscript's existing appendix, "Additional Exercises", becomes Appendix A.
 - The Module 7 handoff sentence is in the package listing's box, in the template wording of the Module 3 box.
 - Module 8's Listing 35 reads `ada_best` (`depth`, `n_iter`, `eta`) from the `hypergrid` listing.
 - Bib keys the module cites: `bischl2023` (copied to the vignette bib from the manuscript bib) and `mease2008` (the box after the `hypergrid` listing); this box names `boehmke2019` for the moved "Fifth Look".
@@ -1589,7 +1603,7 @@ ada_hgrid$runtime <- NA_real_
 
 #### Listing 34
 
-Score every setting of the grid by leave-one-group-out cross-validation.
+Score every setting of the grid by leave-one-group-out cross-validation (about 3 minutes).
 
 ```{r listing-34}
 # Hyperparameter optimization: one LOGO-CV per setting
@@ -1633,7 +1647,7 @@ ada_hgrid[order(-ada_hgrid$lower), ] |> round(2)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-Listing 34 wraps one loop around the cross-validation of Module 6. The loop visits each row of the grid, and the statement inside it is the pipeline of Modules 2, 3 and 6 at that row's setting: `rpart()` grows the weak learner at the row's depth, `adaboost()` boosts it for the row's rounds at the row's learning rate, and `logo_cv()` cross-validates that ensemble by project, as in Module 6. Each hyperparameter appears where it lives. The ensemble fitted on the way is never used as a model: `logo_cv()` reads only its recipe and refits it once per project, so the fit's own data play no part. Appendix B shows the same search with the by-hand steps of Modules 2, 3, 5 and 6 pasted in: the package calls fold those layers and nothing else. The result holds the AUROC of every held-out project, which the loop copies into the row together with the run time. The progress report uses a carriage return, so `cat()` overwrites one line instead of printing 18. After the loop, three columns summarize each row: the mean AUROC across the six projects, their standard deviation, and the difference of the two, which we call `lower`: the mean minus the SD, the lower end of the band of one SD around the mean. The mean alone would favor a setting that excels on three projects and fails on the other three. The mean minus the SD favors a setting that does well everywhere. `lower` is a ranking device, not a performance estimate. Module 6 explained why six unequal and overlapping folds give no honest mean with a standard error, and nothing here reports one.
+Listing 34 wraps one loop around the cross-validation of Module 6. The loop visits each row of the grid, and the statement inside it is the pipeline of Modules 2, 3 and 6 at that row's setting: `rpart()` grows the weak learner at the row's depth, `adaboost()` boosts it for the row's rounds at the row's learning rate, and `logo_cv()` cross-validates that ensemble by project, as in Module 6. Each hyperparameter appears where it lives. The ensemble fitted on the way is never used as a model: `logo_cv()` reads only its recipe and refits it once per project, so the fit's own data play no part. Appendix D shows the same search with the by-hand steps of Modules 2, 3, 5 and 6 pasted in: the package calls fold those layers and nothing else. The result holds the AUROC of every held-out project, which the loop copies into the row together with the run time. The progress report uses a carriage return, so `cat()` overwrites one line instead of printing 18. After the loop, three columns summarize each row: the mean AUROC across the six projects, their standard deviation, and the difference of the two, which we call `lower`: the mean minus the SD, the lower end of the band of one SD around the mean. The mean alone would favor a setting that excels on three projects and fails on the other three. The mean minus the SD favors a setting that does well everywhere. `lower` is a ranking device, not a performance estimate. Module 6 explained why six unequal and overlapping folds give no honest mean with a standard error, and nothing here reports one.
 
 **A Fourth Look at Performance.** Ranked by `lower`, the best of the 18 settings is a stump boosted for 1,000 rounds at a learning rate of 0.1 (`lower` 0.66, from a mean of 0.78 and an SD of 0.12). Its worst project is ML3 at 0.64, its best ML1 at 0.95. The ensemble of Module 3, the same stump for 1,000 rounds at a rate of 1, has the lowest `lower` of all (0.54): on ML3 it ranks below chance (0.48). At many rounds, the learning rate has to come down. Ten rounds at a rate of 1 come close to the top (0.64 for depth 2, 0.63 for the stump), so the cheapest settings of the grid are nearly as good as its best. Deeper trees buy nothing here: at a rate of 0.1, depth 2 and 3 rank below depth 1 at every number of rounds, and at a rate of 1 the three depths trade places near the bottom. The run time shows the cost: 20 to 30 s for 1,000 rounds against less than half a second for 10. In short, a stump at a low learning rate is the safe choice on this grid, but the differences among the top settings are smaller than six projects can resolve.
 :::
@@ -1648,7 +1662,7 @@ Listing 34 wraps one loop around the cross-validation of Module 6. The loop visi
 
 #### The Package Solution [NEW]
 
-Search the whole grid with adatutor.
+Search the whole grid with adatutor on four cores (about half a minute).
 
 ```{r listing-34-pkg}
 # The whole grid in one call: tune_logo_cv() takes the ensemble of Module 3 as
@@ -1663,7 +1677,10 @@ ada_tune <- tune_logo_cv(
 
 # The AUROC per setting and project, as in Listing 34
 auc_pkg <- ada_tune$estimates[, proj_nms, "auroc"]
-all.equal(unname(auc_pkg), unname(as.matrix(ada_hgrid[proj_nms])))
+all.equal(
+  unname(auc_pkg),
+  unname(as.matrix(ada_hgrid[proj_nms]))
+)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
@@ -1677,12 +1694,12 @@ all.equal(unname(auc_pkg), unname(as.matrix(ada_hgrid[proj_nms])))
 ## Random Search
 
 ::: {.callout-note title="Add to tutorial"}
-A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 1,320. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings and hands them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The seed makes the draw reproducible. The run time is the budget: on four cores, the eight settings took about 20 seconds against about half a minute for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (`lower` 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
+A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 1,320. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings. The listing after it scores them: readers can rerun the loop of Listing 34 on the drawn rows or hand them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The seed makes the draw reproducible. The run time is the budget: on four cores, the eight settings took about 20 seconds against about half a minute for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (`lower` 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
 :::
 
 #### Listing [NEW]
 
-Search a random draw of settings from the grid.
+Draw eight settings at random from the grid.
 
 ```{r listing-random}
 # Draw eight settings from the grid instead of trying all 18
@@ -1692,8 +1709,15 @@ ada_hgrid_rnd <- ada_hgrid[
   rnd_smpl,
   c("depth", "n_iter", "eta")
 ]
+```
 
-# Score the drawn settings in one call, as the package listing did
+#### Listing [NEW]
+
+Score the drawn settings: with the loop of Listing 34, or in one call on four cores (about 20 seconds).
+
+```{r listing-random-score}
+# The loop of Listing 34 with `ada_hgrid_rnd` in place of `ada_hgrid`, or
+# in one call, as the package listing did
 runtime_rnd <- system.time({
   logo_rnd <- tune_logo_cv(
     ada_fit,
@@ -1710,7 +1734,8 @@ summary(logo_rnd)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New listing. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; this listing does it, and Exercise 4.2, which asked readers to implement it, is dropped.
+- New listings. The submitted intro promised that the grid search "can be easily adapted to do a random grid search"; these two do it, and Exercise 4.2, which asked readers to implement it, is dropped.
+- Split in two (author, 22 Nov): the first listing holds the teaching point, the draw, and uses no package function; the second scores the draw, by the loop or by the call, as the reader prefers. The random folds and the Monte Carlo split of Module 6 follow the same pattern. Both routes were run for all three and agree (`all.equal()`).
 :::
 
 ## A Larger Grid
@@ -1721,7 +1746,7 @@ Listing 34 searched 18 settings in about 3 minutes. The package ships a much lar
 
 #### Listing [NEW]
 
-Load the shipped grid search, rank its settings, and choose one.
+Load the shipped grid search, rank its settings, and choose one (0 minutes).
 
 ```{r hypergrid-load}
 # The shipped search: a table per metric, a row per setting
@@ -1865,7 +1890,7 @@ On HOLZ, AdaBoost (0.77) is on par with the forest (0.76) and XGBoost (0.79), an
 
 #### Listing [NEW]
 
-Load the shipped benchmark models.
+Load the shipped benchmark models (0 minutes).
 
 ```{r listing-benchmark}
 # Five models, each scored by LOGO-CV on the six tuning projects and once on
@@ -1918,12 +1943,12 @@ Replication projects are scarce. Holding one back for a final test, as Module 8 
 - The letter answers R1.C11.a with this module, under both readings: the "nested-CV correction" may mean nested *data*, study effects within projects, which LOGO-CV itself answers (Module 6), or nested cross-validation, which this module runs.
 - The nested runs come after the final test, so HOLZ is one of the seven projects. In each run, HOLZ's inner search is that grid's search on the six tuning projects, so HOLZ is scored only with settings already scored on it: in `nested`, the setting of Module 7 (0.768, the final test); in Listing 36 and its package solution, the stump with 1,000 rounds at a rate of 0.1 (0.741, the old setting the letter discloses); in the XGBoost box, the benchmark's XGBoost setting (0.789).
 - Package: `metric` and `sort_by` of `tune_logo_cv()` set the inner pick, with `sort_by = "lower"`, the rule of Module 7, as the default; the dataset `nested` is new; nesting works for XGBoost fits as well (the box under "Where to go next").
-- The letter names the code that latexdiff cannot mark: Listing 36, its package solution, the `nested` listing, the by-hand listing of Appendix C, and the nested call of the XGBoost box.
+- The letter names the code that latexdiff cannot mark: Listing 36, its package solution, the `nested` listing, the by-hand listing of Appendix E, and the nested call of the XGBoost box.
 - Bib keys this module cites: `cawley2010` (new in the vignette bib) and `pargent2023` (moved from Module 8 with "Selecting versus Evaluating").
 - A figure of the nested scheme is parked.
-- Run times on this machine, measured with other jobs running, these runs among them (load 4 to 8 on 8 cores): Listing 36 15 minutes on one core; its package solution 6 minutes on four cores; the by-hand listing of Appendix C 24 minutes; the XGBoost box 2.5 minutes on one core, 75 s on four. `data-raw/nested.R` ran for 140 minutes on four cores.
-- The long by-hand version of the nested search goes to Appendix C at the port (author, 19 Nov): the paper has no space for it in the module.
-- `cores` above 1 now also works on Windows, through a socket cluster (package change, 20 Nov); the Windows path gets its first real test from the Windows job of the GitHub check, which runs only on a pull request or on a push to `master`, not on pushes to `revision`. On Windows the workers are new R sessions, so a fit whose formula or call uses the reader's own functions stops with a message (author, 20 Nov: strict stop); every `cores` call of this script, the vignette and `data-raw/` ran on the simulated Windows path and matched one core. Two cases a reader of this script can meet on Windows: a tree fitted with bare `rpart()` after `library(rpart)` stops and asks for `rpart::rpart()`, and a plain tree with `parms = list(split = "gini")` stops while the script's own `gini()` function is defined in the session. A request above the computer's cores is lowered, with a message (author, 21 Nov).
+- Run times on this machine, measured with other jobs running, these runs among them (load 4 to 8 on 8 cores): Listing 36 15 minutes on one core; its package solution 6 minutes on four cores; the by-hand listing of Appendix E 24 minutes; the XGBoost box 2.5 minutes on one core, 75 s on four. `data-raw/nested.R` ran for 140 minutes on four cores.
+- The long by-hand version of the nested search goes to Appendix E at the port (author, 19 Nov): the paper has no space for it in the module.
+- `cores` above 1 now also works on Windows, through a socket cluster (package change, 20 Nov); the Windows path gets its first real test from the Windows job of the GitHub check, which runs only on a pull request or on a push to `master`, not on pushes to `revision`. On Windows the workers are new R sessions, so a fit whose formula or call uses the reader's own functions stops with a message (author, 20 Nov: strict stop); every `cores` call of this script, the vignette and `data-raw/` ran on the simulated Windows path and matched one core. A tree fitted with bare `rpart()` after `library(rpart)` runs as well (22 Nov: the refit always calls `rpart::rpart()`). One case a reader of this script can meet on Windows: a plain tree with `parms = list(split = "gini")` stops while the script's own `gini()` function is defined in the session. A request above the computer's cores is lowered, with a message (author, 21 Nov).
 :::
 
 ## Selecting versus Evaluating
@@ -2016,7 +2041,7 @@ do.call(rbind, winners_diy)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-Listing 36 wraps one more loop around the search of Listing 34. The outer loop takes each of the seven projects in turn, HOLZ included, and removes it from the data, so nothing inside the loop can see it. The inner loop is the grid search of Listing 34, run by `tune_logo_cv()` on the remaining six projects. `summary()` ranks the 18 settings by `lower` over the six inner folds, the rule of Module 7, and its first row is the winner. The winner then runs through the pipeline of Listing 34, where `logo_cv()` with `holdout = rp` trains it on the six projects and scores the held-out project once. The loop runs seven grid searches on one core and took about 15 minutes. Appendix C writes the same search out with every step by hand.
+Listing 36 wraps one more loop around the search of Listing 34. The outer loop takes each of the seven projects in turn, HOLZ included, and removes it from the data, so nothing inside the loop can see it. The inner loop is the grid search of Listing 34, run by `tune_logo_cv()` on the remaining six projects. `summary()` ranks the 18 settings by `lower` over the six inner folds, the rule of Module 7, and its first row is the winner. The winner then runs through the pipeline of Listing 34, where `logo_cv()` with `holdout = rp` trains it on the six projects and scores the held-out project once. The loop runs seven grid searches on one core and took about 15 minutes. Appendix E writes the same search out with every step by hand.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -2025,7 +2050,7 @@ Listing 36 wraps one more loop around the search of Listing 34. The outer loop t
 
 #### The Package Solution [NEW]
 
-Run the same nested cross-validation with adatutor.
+Run the same nested cross-validation with adatutor on four cores (about 6 minutes).
 
 ```{r listing-36-pkg}
 # The nested search in one call
@@ -2047,7 +2072,10 @@ ada_nested
 summary(ada_nested)
 
 # Verification: the seven estimates of Listing 36, matched by project
-all.equal(ada_nested$estimates[proj_all, "auroc"], auc_nested_diy)
+all.equal(
+  ada_nested$estimates[proj_all, "auroc"],
+  auc_nested_diy
+)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
@@ -2062,7 +2090,7 @@ all.equal(ada_nested$estimates[proj_all, "auroc"], auc_nested_diy)
 
 #### Listing [NEW]
 
-Load the shipped nested search of the full grid.
+Load the shipped nested search of the full grid (0 minutes).
 
 ```{r nested-load}
 # The nested search of the full grid, as shipped
@@ -2256,21 +2284,338 @@ take gradients instead of reweighting and they have gradient boosting. If they a
 Readers who built AdaBoost by hand are the only audience that can follow that derivation and appreciate the gained benefits of the extensions with code, and it’s the step that turns “AdaBoost is old” into **“AdaBoost is the simplest case of what you’ll use”**. And we want swap regression out of our toolbox, only because xxx exists.
 
 
-AdaBoost is also the simplest member of the boosting family that applied work uses today. Friedman et al. [-@friedman2000] showed that AdaBoost fits an additive model one stump at a time, and that each round minimizes an exponential loss: the observation weights of Module 3 are, up to a sign, the gradient of that loss. Replacing the exponential loss by the log loss gives LogitBoost, which returns probabilities instead of margins. Replacing the reweighting by a gradient step on any differentiable loss gives gradient boosting [@friedman2001], the algorithm behind XGBoost [@chen2016]. Readers who built AdaBoost by hand in Module 3 have therefore built the skeleton of all of them: a weak learner, T rounds, a learning rate, and a loss that decides what the next round corrects.
+AdaBoost is also the simplest member of the boosting family that applied work uses today. Friedman et al. [-@friedman2000] showed that AdaBoost fits an additive model one stump at a time, and that each round minimizes an exponential loss: the observation weights of Module 3 are, up to a sign, the gradient of that loss. Replacing the exponential loss by the log loss gives LogitBoost, which returns probabilities instead of margins. Replacing the reweighting by a gradient step on any differentiable loss gives gradient boosting [@friedman2001], TODO add 2nd d infor: newton boosting the algorithm behind XGBoost [@chen2016]. Readers who built AdaBoost by hand in Module 3 have therefore built the skeleton of all of them: a weak learner, T rounds, a learning rate, and a loss that decides what the next round corrects.
 
 The example also shows a limit that no algorithm removes. @altmejd2019 already called their data "arguably too small" (p. 2). Our results locate the problem: with seven replication projects, the spread across projects is far larger than any difference between settings or models. Machine learning on replication outcomes therefore needs more projects, not only more study effects: each new large-scale replication project adds a fold to the cross-validation and a test for the next model. Larger datasets with replication attempts nested in study effects and projects would support estimates at both levels.
 :::
 
-# Appendix B: The Grid Search by Hand
+# Appendix B: Trees by Hand
 
 ::: {.callout-note title="Add to tutorial (appendix)"}
-The listings of the modules fold earlier steps into function calls. Appendices B and C unfold them: the same searches, with every step written out.
+**A tree, unfolded.** The modules leave the stumps and trees of AdaBoost to `rpart()`. This appendix grows a tree by hand instead, one question at a time. A stump is this tree at depth 1: with `D <- D1` and `max_depth <- 1`, the listing asks the question of the first stump in Listing 19.
+
+To find a question, the listing tries every predictor and every midpoint between neighboring values, as Listing 14 did for power. For each split, it computes the Gini impurity of Module 2, with the weights in place of the counts. It keeps the split if it is purer than the best so far.
+
+A tree runs this search in every node, one level at a time. All study effects start in node 1, the root. A split of node k sends each study effect to node 2k (below the cut) or to node 2k + 1 (at or above it).
+
+The listing copies two defaults of `rpart()`. It skips a split that leaves fewer than 7 study effects on one side (`minbucket`), and it does not split a node with fewer than 20 (`minsplit`). For the comparison, we tell `rpart()` to keep every split (`cp = -1`). By default, it drops a split that lowers the error too little: for a stump, by less than 1 percent of the root's error.
+
+Grow a tree of depth 3 under the weights of round 2 in Listing 24, with every step by hand (under a second).
+
+```{r tree-craft}
+# The weights after round 1 (Listing 23), and the maximum depth
+D <- D2
+max_depth <- 3
+
+# Every study effect starts in node 1, the root
+node_train <- rep(1, m)
+
+# The questions of the tree, one row per split
+tree_craft <- data.frame(
+  node = numeric(),
+  pred_nme = character(),
+  cut = numeric()
+)
+
+# Split one level at a time
+for (level in seq_len(max_depth)) {
+  # The nodes of this level: 1 at level 1, 2 and 3 at level 2, 4 to 7 at
+  # level 3, and so on
+  nodes <- sort(unique(node_train[node_train >= 2^(level - 1)]))
+  for (k in nodes) {
+    in_node <- node_train == k
+    # rpart's default: no split for fewer than 20 study effects (minsplit)
+    if (sum(in_node) < 20) {
+      next
+    }
+    # The impurity to beat: the weighted Gini impurity of node k itself
+    y_k <- y_train[in_node]
+    D_k <- D[in_node]
+    p <- sum(D_k[y_k == "success"]) / sum(D_k)
+    gini_best <- 1 - (p^2 + (1 - p)^2)
+    pred_best <- NA
+    # Every predictor, and every midpoint between neighboring values, as in
+    # Listing 14
+    for (pred_nme in pred_nms) {
+      x <- train[[pred_nme]][in_node]
+      values <- sort(unique(x))
+      cuts <- (values[-1] + values[-length(values)]) / 2
+      for (cut in cuts) {
+        left <- x < cut
+        # rpart's default: at least 7 study effects on each side (minbucket)
+        if (sum(left) < 7 || sum(!left) < 7) {
+          next
+        }
+        # The weight on each side, and its weighted share of successes
+        w_left <- sum(D_k[left])
+        w_right <- sum(D_k[!left])
+        p_left <- sum(D_k[left & y_k == "success"]) / w_left
+        p_right <- sum(D_k[!left & y_k == "success"]) / w_right
+        # The Gini impurity of each side and of the split, as in Module 2,
+        # with weights in place of counts
+        gini_left <- 1 - (p_left^2 + (1 - p_left)^2)
+        gini_right <- 1 - (p_right^2 + (1 - p_right)^2)
+        gini_split <- (w_left * gini_left + w_right * gini_right) / sum(D_k)
+        # Keep the question if it is purer than the best so far
+        if (gini_split < gini_best) {
+          gini_best <- gini_split
+          pred_best <- pred_nme
+          cut_best <- cut
+        }
+      }
+    }
+    # No split makes node k purer: it stays a leaf
+    if (is.na(pred_best)) {
+      next
+    }
+    # Store the question; send the study effects to nodes 2k and 2k + 1
+    tree_craft[nrow(tree_craft) + 1, ] <- list(k, pred_best, cut_best)
+    node_train[in_node] <- ifelse(
+      train[[pred_best]][in_node] < cut_best,
+      2 * k,
+      2 * k + 1
+    )
+  }
+}
+tree_craft
+
+# Each leaf predicts the class that carries more than half of its weight
+p_leaf <- tapply(D * (y_train == "success"), node_train, sum) /
+  tapply(D, node_train, sum)
+leaf_class <- ifelse(p_leaf > 0.5, "success", "failure")
+leaf_class
+
+# The number of study effects in each leaf
+table(node_train)
+
+# Retrodictions: the class of the leaf each study effect ends in
+y_retro_craft <- as.vector(leaf_class[as.character(node_train)])
+
+# Predictions: replay the stored questions on the test set, from the root down
+node_test <- rep(1, nrow(test))
+for (i in seq_len(nrow(tree_craft))) {
+  k <- tree_craft$node[i]
+  in_node <- node_test == k
+  node_test[in_node] <- ifelse(
+    test[[tree_craft$pred_nme[i]]][in_node] < tree_craft$cut[i],
+    2 * k,
+    2 * k + 1
+  )
+}
+y_pred_craft <- as.vector(leaf_class[as.character(node_test)])
+
+# Verification: rpart's tree with the same weights and depth, told to keep
+# every split (cp = -1) and to skip its internal cross-validation (xval = 0)
+tree_rpart <- rpart::rpart(
+  replicate ~ .,
+  data = train[, voi_nms],
+  method = "class",
+  maxdepth = max_depth,
+  weights = D,
+  cp = -1,
+  xval = 0
+)
+y_retro_rpart <- as.character(
+  predict(tree_rpart, newdata = train[, pred_nms], type = "class")
+)
+y_pred_rpart <- as.character(
+  predict(tree_rpart, newdata = test[, pred_nms], type = "class")
+)
+
+# The same number of splits, the same retrodictions and test predictions
+nrow(tree_craft) == sum(tree_rpart$frame$var != "<leaf>")
+identical(y_retro_craft, y_retro_rpart)
+identical(y_pred_craft, y_pred_rpart)
+
+# The first question is the stump of round 2 in Listing 24
+tree_craft$pred_nme[1] == ada_diy$t2$h$frame$var[1]
+all.equal(tree_craft$cut[1], ada_diy$t2$h$splits[1, "index"])
+```
+
+Under `D2`, the weights that round 2 of Listing 24 fits its stump to, the first question is that stump: power at 0.547. Three more questions follow. Node 5 stays a leaf because it holds 19 study effects, one short of `minsplit`. Each leaf predicts the class that carries more than half of its weight, and all predictions match those of `rpart()`.
+:::
+
+::: {.callout-note title="Add to tutorial (appendix, decide at port)"}
+**The same tree as functions.** We can also write the loop as four short functions. `measure_impurity()` and `find_split()` search one node, and `grow_tree()` splits it and calls itself on each side, one level shallower. `predict_tree()` follows the questions down to a leaf. At depth 1 under `D1`, the functions ask the question of the first stump in Listing 19; at depth 3 under `D2`, they grow the tree above.
+
+Write the tree search as functions, and grow the first stump of Listing 19 and the tree above with them (under a second).
+
+```{r tree-diy}
+# The weighted Gini impurity of a group of study effects, as in Module 2
+measure_impurity <- function(y, w) {
+  p <- sum(w[y == "success"]) / sum(w)
+  1 - (p^2 + (1 - p)^2)
+}
+
+# The purest question for a group of study effects: the search inside the
+# loop above, over every predictor and every midpoint
+find_split <- function(x, y, w) {
+  gini_best <- measure_impurity(y, w)
+  pred_best <- NA
+  cut_best <- NA
+  for (pred_nme in names(x)) {
+    values <- sort(unique(x[[pred_nme]]))
+    cuts <- (values[-1] + values[-length(values)]) / 2
+    for (cut in cuts) {
+      left <- x[[pred_nme]] < cut
+      # rpart's default: at least 7 study effects on each side (minbucket)
+      if (sum(left) < 7 || sum(!left) < 7) {
+        next
+      }
+      w_left <- sum(w[left])
+      w_right <- sum(w[!left])
+      gini_left <- measure_impurity(y[left], w[left])
+      gini_right <- measure_impurity(y[!left], w[!left])
+      gini_split <- (w_left * gini_left + w_right * gini_right) / sum(w)
+      if (gini_split < gini_best) {
+        gini_best <- gini_split
+        pred_best <- pred_nme
+        cut_best <- cut
+      }
+    }
+  }
+  list(pred_nme = pred_best, cut = cut_best)
+}
+
+# A tree: the purest question, then a tree one level shallower on each side
+grow_tree <- function(x, y, w, max_depth) {
+  # A leaf predicts the class that carries more than half of its weight
+  p_success <- sum(w[y == "success"]) / sum(w)
+  leaf <- list(class = if (p_success > 0.5) "success" else "failure")
+  # rpart's default: no split for fewer than 20 study effects (minsplit)
+  if (max_depth == 0 || length(y) < 20) {
+    return(leaf)
+  }
+  question <- find_split(x, y, w)
+  # No split makes the group purer: it stays a leaf
+  if (is.na(question[["pred_nme"]])) {
+    return(leaf)
+  }
+  left <- x[[question[["pred_nme"]]]] < question[["cut"]]
+  list(
+    pred_nme = question[["pred_nme"]],
+    cut = question[["cut"]],
+    left = grow_tree(x[left, ], y[left], w[left], max_depth - 1),
+    right = grow_tree(x[!left, ], y[!left], w[!left], max_depth - 1)
+  )
+}
+
+# The class of each study effect: follow the questions down to a leaf
+predict_tree <- function(tree, x) {
+  # A leaf: every study effect that reaches it gets its class
+  if (is.null(tree[["pred_nme"]])) {
+    return(rep(tree[["class"]], nrow(x)))
+  }
+  left <- x[[tree[["pred_nme"]]]] < tree[["cut"]]
+  y_pred <- character(nrow(x))
+  y_pred[left] <- predict_tree(tree[["left"]], x[left, ])
+  y_pred[!left] <- predict_tree(tree[["right"]], x[!left, ])
+  y_pred
+}
+
+# Depth 1 under the equal weights D1: a stump, and its question
+stump_diy <- grow_tree(train[, pred_nms], y_train, D1, max_depth = 1)
+stump_diy[c("pred_nme", "cut")]
+
+# Depth 3 under D2: the tree of the loop above
+tree_diy <- grow_tree(train[, pred_nms], y_train, D2, max_depth = 3)
+
+# Verification: the question of the first stump h1, Listing 19
+stump_diy[["pred_nme"]] == h1$frame$var[1]
+all.equal(stump_diy[["cut"]], h1$splits[1, "index"])
+
+# Verification: the retrodictions and test predictions of tree_craft and of
+# rpart's tree
+identical(predict_tree(tree_diy, train[, pred_nms]), y_retro_craft)
+identical(predict_tree(tree_diy, test[, pred_nms]), y_pred_craft)
+identical(predict_tree(tree_diy, train[, pred_nms]), y_retro_rpart)
+identical(predict_tree(tree_diy, test[, pred_nms]), y_pred_rpart)
+```
+:::
+
+::: {.callout-note title="Check in tutorial"}
+- **Verified.** All 5 checks of `tree-craft` print `TRUE` after Listing 31 (adatutor 1.0.0 from source, rpart 4.1.27). Under weights of 1, `D1`, `D2`, the round-10 weights of Listing 24 and random weights, at depths 1 to 5, all 25 trees matched `rpart()` in questions, leaves and predictions.
+- **Defaults.** The listing copies `minsplit = 20` and `minbucket = 7` from `rpart.control()`. The check tree keeps every split with `cp = -1`, and `xval = 0` only skips rpart's cross-validation: with `xval = 10`, the tree is the same.
+- **The 1 percent rule.** The prose states rpart's default `cp` rule for stumps, which a reader who pastes the loop into Listing 24 needs. With the rule, a by-hand AdaBoost loop reproduces all 1,000 model weights of Listing 24 and its 97 rounds without a split (Module 4).
+- **Ties.** In an exact tie, the loop keeps the first split in the order of `pred_nms` and the cuts, while `rpart()` keeps the one its own arithmetic rounds higher. This changed the split in 23 of 1,200 trees under random weights (depths 1 to 4): the retrodictions always matched, and the test predictions differed in 6.
+- **Node numbers.** `rpart()` also numbers nodes 2k and 2k + 1, but may send the side at or above the cut to 2k, as `h1` does with `p_value.o >= 0.000656632`. The numbers differed in 24 of the 25 trees above, but the questions, leaves and predictions did not.
+- **Leaf probabilities.** Under weights that sum to 1, the class probabilities of `rpart()` differ from the weighted shares, by up to 0.42 in these runs (success at `h1`'s root: 0.450, not 0.475). The cause is a line in `rpart()` (rpart 4.1.27) that scales each class by `prior / pmax(1, counts)`, with `counts` the class weight totals, so totals below 1 count as 1.
+- **Classes.** This formula reproduced rpart's probabilities in all 1,225 trees, but `predict(type = "class")` reads the class from `frame$yval`, not from these probabilities. The leaf classes matched the listing's in all 1,225 trees, and AdaBoost uses only the classes.
+- **Not verified.** A leaf with exactly half its weight on successes, where the listing predicts failure (no leaf in these runs came closer than 0.00012). Also: missing predictor values, predictors that are not numeric, depths above 5, other data, and the `cp` rule inside deeper trees.
+- **Function version (cut with its box).** All 6 checks of `tree-diy` print `TRUE`. The functions break ties as the loop does and matched its questions, retrodictions and test predictions in all 1,225 trees.
+- **Open pointer.** Module 2's "TODO: Moving beyond classification stump Add trees" can point to this appendix.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New appendix with a new listing, `tree-craft`: a tree grown by hand, checked against `rpart()`. The letter names it, since `latexdiff` cannot mark code.
+- New listing `tree-diy`, in the box to decide at port: the same tree as functions. Cut this bullet with the box.
+:::
+
+# Appendix C: The AUROC by Hand
+
+::: {.callout-note title="Add to tutorial (appendix)"}
+**The AUROC, unfolded.** The modules use `auroc()` without building it first; this appendix builds it. Module 6 defined the AUROC as the chance that a randomly drawn success scores higher than a randomly drawn failure. The listing counts this chance directly. It compares every success in the test set with every failure, and takes the share of pairs in which the success has the higher margin; a tie counts as half.
+
+No threshold enters, which separates the AUROC from the balanced accuracy. On the class labels, every score is -1 or 1. The labels then rank a pair correctly only if the ensemble predicts the success as success and the failure as failure. A pair with the same label on both sides is a tie.
+
+Counting each tie as half turns the share into the balanced accuracy: 0.61 on our test set, where 117 of the 240 pairs are ties. On the margin, no pair is a tie, and the AUROC is 0.70.
+
+Compute the AUROC of Listing 31 by hand, on the margin and on the class labels (under a second).
+
+```{r auroc-craft}
+# The AUROC by hand: the share of success-failure pairs that the margin
+# ranks correctly; a tie counts as half
+mgn_success <- y_pred_mgn[y_test == "success"]
+mgn_failure <- y_pred_mgn[y_test == "failure"]
+mgn_diff <- outer(mgn_success, mgn_failure, "-")
+auc_craft <- mean((mgn_diff > 0) + 0.5 * (mgn_diff == 0))
+auc_craft
+
+# One row per success, one column per failure: every pair once
+dim(mgn_diff)
+
+# The same four lines on the class labels
+cls_success <- y_pred_cls[y_test == "success"]
+cls_failure <- y_pred_cls[y_test == "failure"]
+cls_diff <- outer(cls_success, cls_failure, "-")
+auc_cls_craft <- mean((cls_diff > 0) + 0.5 * (cls_diff == 0))
+auc_cls_craft
+
+# The number of tied pairs, on the margin and on the class labels
+sum(mgn_diff == 0)
+sum(cls_diff == 0)
+
+# Verification: auroc() on the margin
+all.equal(auc_craft, auroc(y_test, y_pred_mgn))
+
+# Verification: on the class labels, the balanced accuracy of Listing 31 and
+# auroc() on the labels
+all.equal(auc_cls_craft, (sens + spec) / 2)
+all.equal(auc_cls_craft, auroc(y_test, y_pred_cls))
+```
+:::
+
+::: {.callout-note title="Check in tutorial"}
+- **Verified.** All 3 checks print `TRUE` after Listing 31 and its package solution (adatutor 1.0.0 from source), also with the trees appendix run first. On the margin, the 240 pairs of 15 successes and 16 failures give 0.7 by hand, from `auroc()` and from `PRROC::roc.curve()`, with no tied pairs.
+- **On the class labels.** The by-hand share, `auroc(y_test, y_pred_cls)` and `(sens + spec) / 2` all give 0.6104167, with 117 tied pairs. Sensitivity is 8 of 15 and specificity 11 of 16: 88 pairs right, 40 + 77 = 117 ties, and 35 wrong.
+- **Why the labels give the balanced accuracy.** The share is `(TP * TN + 0.5 * (TP * FP + FN * TN)) / (P * N)`, which equals `(sens + spec) / 2` for any labels. The algebra is ours, and the numbers come from the run.
+- **Not verified.** Data other than this test set, missing margins or labels (none here), and run time and memory on large data, where `outer()` builds one cell per pair.
+:::
+
+::: {.callout-important title="Changed since submission"}
+- New appendix: the AUROC by hand (`auroc-craft`), checked against `auroc()` and the balanced accuracy of Listing 31. The letter names the listing, since `latexdiff` cannot mark code.
+:::
+
+# Appendix D: The Grid Search by Hand
+
+::: {.callout-note title="Add to tutorial (appendix)"}
+The listings of the modules fold earlier steps into function calls. Appendices D and E unfold them: the same searches, with every step written out.
 :::
 
 ::: {.callout-note title="Add to tutorial (appendix)"}
 **The same search, unfolded.** Listing 34 folds the steps of the earlier modules into three calls. Unfolded one layer, the search is the fold loop of Listing 32 inside the loop over the grid. Unfolded all the way, it is that loop around the boosting rounds of Listing 24 and the margin of Listing 28, with the AUROC of Listing 31 at the end. Nothing else changes, and the 18 rows come out the same both times, to the digit.
 
-One layer out: the LOGO-CV of Listing 32 written out in place of `logo_cv()`.
+One layer out: the LOGO-CV of Listing 32 written out in place of `logo_cv()` (about 2 minutes).
 
 ```{r listing-34-diy}
 # The grid again, with the LOGO-CV of Listing 32 written out in place of
@@ -2312,16 +2657,16 @@ for (i in seq_len(nrow(ada_hgrid_diy))) {
 all.equal(ada_hgrid_diy[proj_nms], ada_hgrid[proj_nms])
 ```
 
-All layers out: the boosting rounds of Listing 24 and the margin of Listing 28 pasted in as well.
+All layers out: the boosting rounds of Listing 24 and the margin of Listing 28 pasted in as well (about 3 minutes).
 
 "Its all in the loop"
 
-```{r listing-34-diy-full}
+```{r listing-34-craft}
 # The grid again, with the by-hand steps of Modules 2, 3, 5 and 6 pasted
 # into the loop over the settings
-ada_hgrid_diy_full <- ada_hgrid[, c("depth", "n_iter", "eta")]
-ada_hgrid_diy_full[proj_nms] <- NA_real_
-for (i in seq_len(nrow(ada_hgrid_diy_full))) {
+ada_hgrid_craft <- ada_hgrid[, c("depth", "n_iter", "eta")]
+ada_hgrid_craft[proj_nms] <- NA_real_
+for (i in seq_len(nrow(ada_hgrid_craft))) {
   # Module 6, Listing 32: each project is the test set once
   for (rp in proj_nms) {
     test_cv <- df_split[[rp]]
@@ -2330,19 +2675,19 @@ for (i in seq_len(nrow(ada_hgrid_diy_full))) {
     m_cv <- nrow(train_cv)
     # Module 3, Listing 24: the boosting rounds at this setting, the tree of
     # Module 2, Listing 12 at this depth
-    ada_cv <- vector("list", ada_hgrid_diy_full$n_iter[i])
+    ada_cv <- vector("list", ada_hgrid_craft$n_iter[i])
     D <- rep(1, m_cv) / m_cv
-    for (t in seq_len(ada_hgrid_diy_full$n_iter[i])) {
+    for (t in seq_len(ada_hgrid_craft$n_iter[i])) {
       h <- rpart::rpart(
         replicate ~ .,
         data = train_cv[, voi_nms],
         method = "class",
-        maxdepth = ada_hgrid_diy_full$depth[i],
+        maxdepth = ada_hgrid_craft$depth[i],
         weights = D
       )
       y_retro <- predict(h, newdata = train_cv[, pred_nms], type = "class")
       epsilon <- sum(D * (y_retro != y_train_cv))
-      alpha <- 0.5 * log((1 - epsilon) / epsilon) * ada_hgrid_diy_full$eta[i]
+      alpha <- 0.5 * log((1 - epsilon) / epsilon) * ada_hgrid_craft$eta[i]
       chi <- (y_retro == y_train_cv) * 1 + (y_retro != y_train_cv) * -1
       D_raw <- D * exp(-alpha * chi)
       D <- D_raw / sum(D_raw)
@@ -2360,27 +2705,27 @@ for (i in seq_len(nrow(ada_hgrid_diy_full))) {
     y_pred_1m1 <- 2 * y_pred_cstp - 3
     pred_mgn_cv <- as.vector(alpha_cv %*% t(y_pred_1m1))
     # Module 6, Listing 31: the AUROC of the held-out project
-    ada_hgrid_diy_full[[rp]][i] <- auroc(test_cv[, out_nme], pred_mgn_cv)
+    ada_hgrid_craft[[rp]][i] <- auroc(test_cv[, out_nme], pred_mgn_cv)
   }
 }
 
 # The same 18 by 6 AUROCs as Listing 34
-all.equal(ada_hgrid_diy_full[proj_nms], ada_hgrid[proj_nms])
+all.equal(ada_hgrid_craft[proj_nms], ada_hgrid[proj_nms])
 ```
 :::
 
-# Appendix C: The Nested Search by Hand
+# Appendix E: The Nested Search by Hand
 
 ::: {.callout-note title="Add to tutorial (appendix)"}
-**The nested search, unfolded.** Listing 36 folds the inner search into `tune_logo_cv()`, the pick into `summary()`, and the refit into `logo_cv()`. Unfolded all the way, the search and the refit are the by-hand steps of Appendix B: the boosting rounds of Listing 24 and the margin of Listing 28, with the AUROC of Listing 31 at the end. The pick computes `lower` by hand, as Listing 34 did, and takes the setting with the highest. The listing runs them once for every setting and inner project, and once more for each winner on all six projects. The seven estimates and the seven winners come out the same as in Listing 36.
+**The nested search, unfolded.** Listing 36 folds the inner search into `tune_logo_cv()`, the pick into `summary()`, and the refit into `logo_cv()`. Unfolded all the way, the search and the refit are the by-hand steps of Appendix D: the boosting rounds of Listing 24 and the margin of Listing 28, with the AUROC of Listing 31 at the end. The pick computes `lower` by hand, as Listing 34 did, and takes the setting with the highest. The listing runs them once for every setting and inner project, and once more for each winner on all six projects. The seven estimates and the seven winners come out the same as in Listing 36.
 
 Run the same nested cross-validation with every step by hand (about 24 minutes).
 
-```{r listing-36-diy-full}
+```{r listing-36-craft}
 # The nested search of Listing 36 again, with the by-hand steps of Modules 2,
 # 3, 5 and 6 pasted into the loops
-auc_nested_diy_full <- setNames(rep(NA_real_, length(proj_all)), proj_all)
-winners_diy_full <- list()
+auc_nested_craft <- setNames(rep(NA_real_, length(proj_all)), proj_all)
+winners_craft <- list()
 # Outer loop: each project is held out once and scored once
 for (rp in proj_all) {
   # Progress report, overwritten in place
@@ -2437,26 +2782,26 @@ for (rp in proj_all) {
   # The winner: the highest lower, the mean over the inner folds minus their SD
   auc_inner <- as.matrix(ada_hgrid_inner[proj_inner])
   lower_inner <- rowMeans(auc_inner) - apply(auc_inner, 1, sd)
-  winners_diy_full[[rp]] <- ada_hgrid[
+  winners_craft[[rp]] <- ada_hgrid[
     which.max(lower_inner),
     c("depth", "n_iter", "eta")
   ]
   # Module 3, Listing 24 again: the winning setting, boosted on all six projects
   y_train_cv <- train_cv[, out_nme]
   m_cv <- nrow(train_cv)
-  ada_cv <- vector("list", winners_diy_full[[rp]]$n_iter)
+  ada_cv <- vector("list", winners_craft[[rp]]$n_iter)
   D <- rep(1, m_cv) / m_cv
-  for (t in seq_len(winners_diy_full[[rp]]$n_iter)) {
+  for (t in seq_len(winners_craft[[rp]]$n_iter)) {
     h <- rpart::rpart(
       replicate ~ .,
       data = train_cv[, voi_nms],
       method = "class",
-      maxdepth = winners_diy_full[[rp]]$depth,
+      maxdepth = winners_craft[[rp]]$depth,
       weights = D
     )
     y_retro <- predict(h, newdata = train_cv[, pred_nms], type = "class")
     epsilon <- sum(D * (y_retro != y_train_cv))
-    alpha <- 0.5 * log((1 - epsilon) / epsilon) * winners_diy_full[[rp]]$eta
+    alpha <- 0.5 * log((1 - epsilon) / epsilon) * winners_craft[[rp]]$eta
     chi <- (y_retro == y_train_cv) * 1 + (y_retro != y_train_cv) * -1
     D_raw <- D * exp(-alpha * chi)
     D <- D_raw / sum(D_raw)
@@ -2474,17 +2819,17 @@ for (rp in proj_all) {
   y_pred_1m1 <- 2 * y_pred_cstp - 3
   pred_mgn_cv <- as.vector(alpha_cv %*% t(y_pred_1m1))
   # Module 6, Listing 31 again: the held-out project, scored once
-  auc_nested_diy_full[[rp]] <- auroc(test_cv[, out_nme], pred_mgn_cv)
+  auc_nested_craft[[rp]] <- auroc(test_cv[, out_nme], pred_mgn_cv)
 }
 
 # The same seven AUROCs as Listing 36
-all.equal(auc_nested_diy_full, auc_nested_diy)
+all.equal(auc_nested_craft, auc_nested_diy)
 
 # The same seven winners as Listing 36
-identical(do.call(rbind, winners_diy_full), do.call(rbind, winners_diy))
+identical(do.call(rbind, winners_craft), do.call(rbind, winners_diy))
 ```
 :::
 
 ::: {.callout-important title="Changed since submission"}
-- New listing, in Appendix C: the nested search of Listing 36 with every step by hand, `lower` included, checked against Listing 36 with `all.equal()` and `identical()`.
+- New listing, in Appendix E: the nested search of Listing 36 with every step by hand, `lower` included, checked against Listing 36 with `all.equal()` and `identical()`.
 :::
