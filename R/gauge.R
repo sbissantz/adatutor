@@ -52,7 +52,7 @@ gauge <- function(fit) {
   # keeps a zero, and the sums run in the order a by-hand loop uses, so the
   # two agree to the last digit
   predictors <- attr(fit[[1]]$h$terms, "term.labels")
-  totals <- setNames(numeric(length(predictors)), predictors)
+  totals <- stats::setNames(numeric(length(predictors)), predictors)
 
   for (t in seq_along(fit)) {
     tree <- fit[[t]]$h
