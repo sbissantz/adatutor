@@ -2673,8 +2673,6 @@ as.data.frame.logo_cv <- function(x, ...) {
 #'   would score: 0.5 for `auroc` and `bacc`, 0 for `mcc`, the majority-class
 #'   rate for `acc`, and each project's base rate for the others. A number
 #'   sets it; `NA` leaves it out.
-#' @param max_rejected Projects whose bootstrap rejected more than this share
-#'   of draws get a star and a footnote. Defaults to 0.05.
 #'
 #' @export
 plot.logo_cv <- function(
@@ -2682,38 +2680,37 @@ plot.logo_cv <- function(
   metric = "auroc",
   levels = c(0.50, 0.80, 0.95),
   baseline = "auto",
-  max_rejected = 0.05,
   ...
 ) {
-  old_par <- graphics::par(mar = c(5.2, 5, 4, 2) + 0.1)
+  # room below for the project names only: there is no x-axis title
+  old_par <- graphics::par(mar = c(3, 5, 4, 2) + 0.1)
   on.exit(graphics::par(old_par), add = TRUE)
   draw_logo_cv(
     x,
     metric = metric,
     levels = levels,
     baseline = baseline,
-    max_rejected = max_rejected,
     main = "Leave-one-group-out performance",
-    ylab = metric,
-    add_footnote = TRUE
+    ylab = metric
   )
   invisible(x)
 }
 
 #' Draw the per-project estimates and bands; return what was drawn
 #'
-#' Shared by plot.logo_cv() and tutplot_logocv(), which differ only in
-#' margins, title and footnote.
+#' Shared by plot.logo_cv() and tutplot_logocv(), which differ in margins,
+#' title, keys and how they label the projects and their sizes.
 #' @noRd
 draw_logo_cv <- function(
   x,
   metric = "auroc",
   levels = c(0.50, 0.80, 0.95),
   baseline = "auto",
-  max_rejected = 0.05,
   main = NULL,
   ylab = metric,
-  add_footnote = TRUE
+  add_keys = TRUE,
+  label_project = identity,
+  italic_n = FALSE
 ) {
   # a factor would pick the bands' column by its code
   metric <- as.character(metric)
@@ -2730,9 +2727,6 @@ draw_logo_cv <- function(
   intervals <- compute_bands(x$ci, estimates$project, metric, levels)
   bands <- intervals$bands
   rejection_rate <- intervals$rejection_rate
-  flagged <- rejection_rate > max_rejected
-  # the star points at the footnote, so it goes where the footnote goes
-  starred <- add_footnote & flagged
 
   reference <- find_reference(metric, baseline, estimates$base_rate)
 
@@ -2752,11 +2746,7 @@ draw_logo_cv <- function(
     ylab = ylab,
     main = main
   )
-  graphics::axis(
-    1,
-    at = positions,
-    labels = paste0(estimates$project, ifelse(starred, "*", ""))
-  )
+  graphics::axis(1, at = positions, labels = label_project(estimates$project))
   # ticks only where the metric can go: the headroom for the n labels is not
   # a value
   bounds <- if (metric == "mcc") c(-1, 1) else c(0, 1)
@@ -2817,18 +2807,32 @@ draw_logo_cv <- function(
   )
 
   # fold size drives the band widths, so it belongs on the plot
+  n_labels <- if (italic_n) {
+    # paste() keeps the plain " = " and its spaces; `==` and `~` set it
+    # tighter and add the Symbol font
+    as.expression(lapply(
+      estimates$n,
+      \(size) bquote(paste(italic(n), " = ", .(size)))
+    ))
+  } else {
+    paste0("n = ", estimates$n)
+  }
   graphics::text(
     positions,
     data_range[2] + padding * 1.5,
-    paste0("n = ", estimates$n),
+    n_labels,
     cex = 0.75,
     col = "gray30"
   )
 
   # keys go in the margin rather than over the data
-  if (!is.null(x$ci) && any(!vapply(bands, is.null, logical(1)))) {
+  banded <- !is.null(x$ci) && any(!vapply(bands, is.null, logical(1)))
+  if (add_keys && banded) {
     graphics::mtext(
-      paste0("bands: ", paste0(round(100 * levels), collapse = " / "), "%"),
+      paste0(
+        "Bootstrap intervals: ",
+        paste0(round(100 * levels), "%", collapse = ", ")
+      ),
       side = 3,
       line = 0.25,
       adj = 1,
@@ -2836,33 +2840,13 @@ draw_logo_cv <- function(
       col = "gray35"
     )
   }
-  if (nzchar(reference$label)) {
+  if (add_keys && nzchar(reference$label)) {
     graphics::mtext(
       reference$label,
       side = 3,
       line = 0.25,
       adj = 0,
       cex = 0.72,
-      col = "gray35"
-    )
-  }
-  if (add_footnote && any(flagged)) {
-    graphics::mtext(
-      paste0(
-        "* resamples rejected as single-class: ",
-        paste0(
-          estimates$project[flagged],
-          " ",
-          round(100 * rejection_rate[flagged]),
-          "%",
-          collapse = ",  "
-        ),
-        " -- those intervals are conditioned and read too narrow"
-      ),
-      side = 1,
-      line = 3.6,
-      adj = 0,
-      cex = 0.62,
       col = "gray35"
     )
   }
@@ -2877,7 +2861,6 @@ draw_logo_cv <- function(
     lower = vapply(positions, read_widest, numeric(1), bound = 1L),
     upper = vapply(positions, read_widest, numeric(1), bound = 2L),
     rejected = rejection_rate,
-    flagged = flagged,
     row.names = NULL,
     stringsAsFactors = FALSE
   )
@@ -2926,25 +2909,25 @@ find_reference <- function(metric, baseline, base_rate) {
     }
     return(list(
       values = rep(as.numeric(baseline), n_projects),
-      label = paste0("dashed line: ", signif(baseline, 3))
+      label = paste0("Dashed line: ", signif(baseline, 3))
     ))
   }
   # what a useless model scores: 0.5 for auroc and bacc, 0 for mcc, always
   # predicting the larger class for acc, the base rate for the precision
   # metrics (auprc, ppv, patk) and f1
   if (metric %in% c("auroc", "bacc")) {
-    list(values = rep(0.5, n_projects), label = "dashed line: chance (0.5)")
+    list(values = rep(0.5, n_projects), label = "Dashed line: chance (0.5)")
   } else if (metric == "mcc") {
-    list(values = rep(0, n_projects), label = "dashed line: no association (0)")
+    list(values = rep(0, n_projects), label = "Dashed line: no association (0)")
   } else if (metric == "acc") {
     list(
       values = pmax(base_rate, 1 - base_rate),
-      label = "dashed line: majority-class rate"
+      label = "Dashed line: majority-class rate"
     )
   } else if (
     metric %in% c("auprc", "ppv", "f1") || grepl("^patk(_|$)", metric)
   ) {
-    list(values = base_rate, label = "dashed line: base rate of each project")
+    list(values = base_rate, label = "Dashed line: base rate of each project")
   } else {
     list(values = rep(NA_real_, n_projects), label = "")
   }
