@@ -582,7 +582,8 @@ for example, has
 `r sum(altmejd$pid == "ml1" & altmejd$replicate == "failure")` failures among
 its `r sum(altmejd$pid == "ml1")` study effects. The interval of such
 a project rests only on the resamples that hold both classes, so it is too
-narrow. That is what the warning above says, and why we show it.
+narrow. The warning above reports the share of rejected resamples for each
+such project.
 
 `stratified = TRUE` resamples each class separately, so it drops no draw. But
 it holds the base rate fixed. That suits `auroc` and `bacc`, but it
@@ -591,8 +592,7 @@ understates the uncertainty of metrics that depend on the base rate, such as
 
 `plot()` draws the estimates with the intervals as bands at 50, 80 and 95
 percent (set by `levels`). A dashed line marks where a useless model would
-score (set by `baseline`), and a star marks each project with many dropped
-draws (set by `max_rejected`):
+score (set by `baseline`):
 
 ```{r}
 #| label: logo-cv-plot
