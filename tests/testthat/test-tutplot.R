@@ -636,8 +636,9 @@ test_that("tutplot_opts is a reference, not a switch", {
   on.exit(unlink(c(f, g)), add = TRUE)
 
   size <- function(p) {
+    # pdfinfo prints dates in the system encoding; match bytes, not characters
     out <- system2("pdfinfo", p, stdout = TRUE)
-    sub(".*: *", "", grep("^Page size", out, value = TRUE))
+    sub(".*: *", "", grep("^Page size", out, value = TRUE, useBytes = TRUE))
   }
 
   # the surprising half of the design, so assert it rather than only say it:
@@ -714,8 +715,13 @@ test_that("tutplot_boundary() draws at the manuscript's full text width", {
   on.exit(unlink(c(f, g)), add = TRUE)
 
   pts <- function(p) {
+    # pdfinfo prints dates in the system encoding; match bytes, not characters
     out <- system2("pdfinfo", p, stdout = TRUE)
-    v <- sub(".*: *", "", grep("^Page size", out, value = TRUE))
+    v <- sub(
+      ".*: *",
+      "",
+      grep("^Page size", out, value = TRUE, useBytes = TRUE)
+    )
     as.numeric(regmatches(v, gregexpr("[0-9.]+", v))[[1]])[1:2]
   }
 

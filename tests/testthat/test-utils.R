@@ -43,7 +43,8 @@ test_that("color_message() honors `newline`", {
   raw <- function(...) {
     f <- tempfile()
     on.exit(unlink(f), add = TRUE)
-    con <- file(f, open = "wt")
+    # binary, so Windows does not write "\n" as "\r\n"
+    con <- file(f, open = "wb")
     sink(con, type = "message")
     color_message(...)
     sink(type = "message")

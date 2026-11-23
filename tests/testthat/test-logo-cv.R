@@ -1369,6 +1369,35 @@ test_that("on Windows, a task's error and a dead worker reach the user", {
   )
 })
 
+test_that("stop_workers() closes a connection that stopCluster() leaves open", {
+  # a node whose connection takes no writes stands in for a dead worker,
+  # where sending "DONE" fails before stopCluster() closes the connection
+  path <- tempfile()
+  file.create(path)
+  con <- file(path, open = "rb")
+  number <- as.character(as.integer(con))
+  list_open <- function() rownames(showConnections(all = TRUE))
+  on.exit(
+    {
+      if (number %in% list_open()) {
+        close(con)
+      }
+      unlink(path)
+    },
+    add = TRUE
+  )
+  node <- structure(
+    list(con = con, host = "localhost", rank = 1L),
+    class = "SOCK0node"
+  )
+  cl <- structure(list(node), class = c("SOCKcluster", "cluster"))
+  expect_error(parallel::stopCluster(cl))
+  expect_true(number %in% list_open())
+
+  expect_no_error(stop_workers(cl))
+  expect_false(number %in% list_open())
+})
+
 test_that("a grid row without rounds is an error, not a score", {
   # sharing a fit with longer rows, a 0-round row would score a margin of 0
   data(altmejd)
@@ -1386,10 +1415,30 @@ test_that("a grid row without rounds is an error, not a score", {
 })
 
 test_that("cores above what the computer has are lowered, with a message", {
+  # no run here: on Windows, cores = 2 starts socket workers, which stop
+  # when a mock makes this session's adatutor code differ from theirs
+  local_mocked_bindings(count_cores = function() 2L)
+  expect_message(
+    lowered <- choose_cores(8),
+    "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`.",
+    fixed = TRUE
+  )
+  expect_identical(lowered, 2L)
+  expect_no_message(asked <- choose_cores(2))
+  expect_identical(asked, 2L)
+
+  # an unknown count leaves the request as it is
+  local_mocked_bindings(count_cores = function() NA_integer_)
+  expect_no_message(unknown <- choose_cores(2))
+  expect_identical(unknown, 2L)
+})
+
+test_that("a tuner runs on the lowered cores", {
   data(altmejd)
   fit <- fit_ada()
   grid <- data.frame(n_iter = 2:3)
-  local_mocked_bindings(count_cores = function() 2L)
+  # one core, so no worker starts on any system
+  local_mocked_bindings(count_cores = function() 1L)
   expect_message(
     lowered <- tune_logo_cv(
       fit,
@@ -1398,19 +1447,11 @@ test_that("cores above what the computer has are lowered, with a message", {
       group = "pid",
       cores = 8
     ),
-    "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`.",
+    "Specified `cores = 8`, but this computer has only 1 core. The run continues with `cores = 1`.",
     fixed = TRUE
   )
-  expect_no_message(
-    asked <- tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2)
-  )
-  expect_identical(lowered$estimates, asked$estimates)
-
-  # an unknown count leaves the request as it is
-  local_mocked_bindings(count_cores = function() NA_integer_)
-  expect_no_message(
-    tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2)
-  )
+  one <- tune_logo_cv(fit, grid, data = altmejd, group = "pid")
+  expect_identical(lowered, one)
 })
 
 test_that("cores must be one whole number, 1 or more", {
@@ -2683,8 +2724,6 @@ test_that("the check runs once per call on Windows, and never off it", {
   }
   one <- run(1)
   nested_one <- run(1, nested = TRUE)
-  local_mocked_bindings(read_os_type = function() "unix")
-  expect_identical(run(2), one)
   expect_identical(calls, 0L)
 
   local_mocked_bindings(read_os_type = function() "windows")
@@ -2692,6 +2731,12 @@ test_that("the check runs once per call on Windows, and never off it", {
   expect_identical(calls, 1L)
   # not once per inner search
   expect_identical(run(2, nested = TRUE), nested_one)
+  expect_identical(calls, 2L)
+
+  # last: off Windows the tasks fork, which Windows cannot do
+  skip_on_os("windows")
+  local_mocked_bindings(read_os_type = function() "unix")
+  expect_identical(run(2), one)
   expect_identical(calls, 2L)
 })
 
