@@ -2609,7 +2609,7 @@ all.equal(auc_cls_craft, auroc(y_test, y_pred_cls))
 # Appendix D: The Grid Search by Hand
 
 ::: {.callout-note title="Add to tutorial (appendix)"}
-The listings of the modules fold earlier steps into function calls. Appendices D and E unfold them: the same searches, with every step written out.
+The listings of the modules fold earlier steps into function calls. Appendices D and E unfold them: the same searches, with every step written out. Appendix D also unfolds the leave-one-group-out cross-validation of Module 6: its inner loop holds out each project in turn, without `logo_cv()`.
 :::
 
 ::: {.callout-note title="Add to tutorial (appendix)"}
