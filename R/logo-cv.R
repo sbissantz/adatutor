@@ -2682,58 +2682,116 @@ plot.logo_cv <- function(
   baseline = "auto",
   ...
 ) {
-  # before par(), which opens a device when none is open
+  # the metric as given first: as.character() in prepare_logo_cv() stops one
+  # that is no text, such as a function, with another message
   read_metric_rows(x, metric)
-  # room below for the project names only: there is no x-axis title
-  old_par <- graphics::par(mar = c(3, 5, 4, 2) + 0.1)
-  on.exit(graphics::par(old_par), add = TRUE)
-  draw_logo_cv(
+  # before par(), which opens a device when none is open
+  figure <- prepare_logo_cv(
     x,
     metric = metric,
     levels = levels,
     baseline = baseline,
-    main = "Leave-one-group-out performance",
-    ylab = metric
+    ylab = metric,
+    add_keys = TRUE
   )
+  # room below for the project names only: there is no x-axis title
+  old_par <- graphics::par(mar = c(3, 5, 4, 2) + 0.1)
+  on.exit(graphics::par(old_par), add = TRUE)
+  draw_logo_cv(figure, main = "Leave-one-group-out performance")
   invisible(x)
 }
 
-#' Draw the per-project estimates and bands; return what was drawn
+#' Prepare the per-project figure, checking the arguments on the way
 #'
-#' Shared by plot.logo_cv() and tutplot_logocv(), which differ in margins,
-#' title, keys and how they label the projects and their sizes.
+#' Does all the work of draw_logo_cv() that draws nothing, in the order the
+#' drawing needs it. Its callers run it before par() or pdf(), so an argument
+#' it rejects stops before a device or a file is opened. Returns the pieces
+#' draw_logo_cv() takes, and in `facts`, what it returns.
 #' @noRd
-draw_logo_cv <- function(
-  x,
-  metric = "auroc",
-  levels = c(0.50, 0.80, 0.95),
-  baseline = "auto",
-  main = NULL,
-  ylab = metric,
-  add_keys = TRUE,
-  label_project = identity,
-  italic_n = FALSE
-) {
+prepare_logo_cv <- function(x, metric, levels, baseline, ylab, add_keys) {
   # a factor would pick the bands' column by its code
   metric <- as.character(metric)
   estimates <- read_metric_rows(x, metric)
-  n_projects <- nrow(estimates)
-  positions <- seq_len(n_projects)
   levels <- sort(levels)
 
   intervals <- compute_bands(x$ci, estimates$project, metric, levels)
   bands <- intervals$bands
-  rejection_rate <- intervals$rejection_rate
 
   reference <- find_reference(metric, baseline, estimates$base_rate)
 
   values <- c(estimates$estimate, unlist(bands), reference$values)
   data_range <- range(values, na.rm = TRUE)
   padding <- max(diff(data_range), 0.05) * 0.14
+  ylim <- c(data_range[1] - padding, data_range[2] + padding * 2)
+  if (!all(is.finite(ylim))) {
+    stop("need finite 'ylim' values", call. = FALSE)
+  }
+
+  # ticks only where the metric can go: the headroom for the n labels is not
+  # a value
+  bounds <- if (metric == "mcc") c(-1, 1) else c(0, 1)
+
+  banded <- !is.null(x$ci) && any(!vapply(bands, is.null, logical(1)))
+  key_bands <- add_keys && banded
+  key_reference <- add_keys && nzchar(reference$label)
+
+  read_widest <- function(i, bound) {
+    if (is.null(bands[[i]])) NA_real_ else bands[[i]][bound, length(levels)]
+  }
+  positions <- seq_len(nrow(estimates))
+  facts <- data.frame(
+    project = estimates$project,
+    n = estimates$n,
+    estimate = estimates$estimate,
+    lower = vapply(positions, read_widest, numeric(1), bound = 1L),
+    upper = vapply(positions, read_widest, numeric(1), bound = 2L),
+    rejected = intervals$rejection_rate,
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
+
+  list(
+    estimates = estimates,
+    levels = levels,
+    bands = bands,
+    reference = reference,
+    data_range = data_range,
+    padding = padding,
+    ylim = ylim,
+    ylab = ylab,
+    bounds = bounds,
+    key_bands = key_bands,
+    key_reference = key_reference,
+    facts = facts
+  )
+}
+
+#' Draw the per-project estimates and bands; return what was drawn
+#'
+#' Shared by plot.logo_cv() and tutplot_logocv(), which differ in margins,
+#' title, keys and how they label the projects and their sizes. Takes the
+#' output of prepare_logo_cv().
+#' @noRd
+draw_logo_cv <- function(
+  figure,
+  main = NULL,
+  label_project = identity,
+  italic_n = FALSE
+) {
+  estimates <- figure$estimates
+  levels <- figure$levels
+  bands <- figure$bands
+  reference <- figure$reference
+  data_range <- figure$data_range
+  padding <- figure$padding
+  ylim <- figure$ylim
+  bounds <- figure$bounds
+  n_projects <- nrow(estimates)
+  positions <- seq_len(n_projects)
+
   # by name, so a project has the color tutplot_logoscheme() gives it
   colors <- unname(color_projects(estimates$project)[estimates$project])
 
-  ylim <- c(data_range[1] - padding, data_range[2] + padding * 2)
   graphics::plot(
     NULL,
     xlim = c(0.5, n_projects + 0.5),
@@ -2741,13 +2799,10 @@ draw_logo_cv <- function(
     xaxt = "n",
     yaxt = "n",
     xlab = "",
-    ylab = ylab,
+    ylab = figure$ylab,
     main = main
   )
   graphics::axis(1, at = positions, labels = label_project(estimates$project))
-  # ticks only where the metric can go: the headroom for the n labels is not
-  # a value
-  bounds <- if (metric == "mcc") c(-1, 1) else c(0, 1)
   # round: pretty() returns 1 as 1.0000000000000002, which the filter drops
   ticks <- round(pretty(ylim), 10)
   graphics::axis(
@@ -2824,8 +2879,7 @@ draw_logo_cv <- function(
   )
 
   # keys go in the margin rather than over the data
-  banded <- !is.null(x$ci) && any(!vapply(bands, is.null, logical(1)))
-  if (add_keys && banded) {
+  if (figure$key_bands) {
     graphics::mtext(
       paste0(
         "Bootstrap intervals: ",
@@ -2838,7 +2892,7 @@ draw_logo_cv <- function(
       col = "gray35"
     )
   }
-  if (add_keys && nzchar(reference$label)) {
+  if (figure$key_reference) {
     graphics::mtext(
       reference$label,
       side = 3,
@@ -2849,19 +2903,7 @@ draw_logo_cv <- function(
     )
   }
 
-  read_widest <- function(i, bound) {
-    if (is.null(bands[[i]])) NA_real_ else bands[[i]][bound, length(levels)]
-  }
-  data.frame(
-    project = estimates$project,
-    n = estimates$n,
-    estimate = estimates$estimate,
-    lower = vapply(positions, read_widest, numeric(1), bound = 1L),
-    upper = vapply(positions, read_widest, numeric(1), bound = 2L),
-    rejected = rejection_rate,
-    row.names = NULL,
-    stringsAsFactors = FALSE
-  )
+  figure$facts
 }
 
 #' Take one metric's rows of the long table, projects in name order; stop if
