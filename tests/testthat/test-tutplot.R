@@ -1,8 +1,8 @@
 # Most calls here draw. A call without `file` draws on the current device; with
 # none open, R would open its default one and leave an `Rplots.pdf` behind in
 # tests/testthat/. So before such a call a test opens a device of its own,
-# usually a null device, and closes it on exit. The test of `file` opens none,
-# so that a device a figure leaves open shows.
+# usually a null device, and closes it afterward. The test of `file` opens
+# none, so that a device a figure leaves open shows.
 stump <- function(formula = replicate ~ power.o + n.o, weights = NULL) {
   args <- list(
     formula = formula,
@@ -85,7 +85,8 @@ test_that("file = NULL draws on the current device and writes nothing", {
 test_that("a path writes one PDF and leaves the open devices as they were", {
   # no device of our own, on purpose: par() restored after the PDF closed
   # would land on it, and the stray device would not show. One open here
-  # leaked from an earlier test; close it so the rest still runs
+  # leaked from an earlier test; close it, so the checks below can still see
+  # a stray device
   expect_null(grDevices::dev.list(), label = "the devices open at the start")
   grDevices::graphics.off()
   boosted <- rpart::rpart(
@@ -1555,7 +1556,7 @@ test_that("tutplot_importance() draws labels in place of variable names", {
   imp <- gauge(boosted_stumps())
   f <- tempfile(fileext = ".pdf")
   g <- tempfile(fileext = ".pdf")
-  # a device of our own, so restoring par() after the file closes opens none
+  # a device of our own for the last call, which has no file
   grDevices::pdf(NULL)
   on.exit(
     {

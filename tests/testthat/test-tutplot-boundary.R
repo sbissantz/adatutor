@@ -136,19 +136,40 @@ test_that("a one-class window warns instead of drawing nothing", {
   # The hand-written code drew a boundary-less plot in silence: its contour ran
   # on a single-level factor and simply produced no line.
   data(altmejd)
-  flat <- rpart::rpart(
-    replicate ~ .,
-    data = altmejd[, c("replicate", feat)],
-    method = "class",
-    control = rpart::rpart.control(cp = 1)
+  sub <- altmejd[, c("replicate", feat)]
+  # the root predicts failure, the first level, so the flat score is negative;
+  # reversed levels make it positive. R 4.6.2's contour() warns on a flat
+  # surface only when it is positive, R-devel's on either sign
+  flipped <- transform(
+    sub,
+    replicate = factor(replicate, levels = rev(levels(replicate)))
   )
-  expect_equal(nrow(flat$frame), 1L)
-  expect_warning(
-    quietly(g <- tutplot_boundary(flat, altmejd, resolution = 20)),
-    "one class over the whole plotting window"
-  )
-  # the region fill is still drawn, so the plot is not simply empty
-  expect_equal(length(unique(as.vector(g$z))), 1L)
+  for (studies in list(sub, flipped)) {
+    flat <- rpart::rpart(
+      replicate ~ .,
+      data = studies,
+      method = "class",
+      control = rpart::rpart.control(cp = 1)
+    )
+    expect_equal(nrow(flat$frame), 1L)
+    for (shade in c("margin", "class")) {
+      warnings <- character()
+      withCallingHandlers(
+        quietly(
+          g <- tutplot_boundary(flat, studies, resolution = 20, shade = shade)
+        ),
+        warning = function(w) {
+          warnings <<- c(warnings, conditionMessage(w))
+          invokeRestart("muffleWarning")
+        }
+      )
+      # the package's own warning and no other, such as contour()'s
+      expect_length(warnings, 1L)
+      expect_match(warnings, "one class over the whole plotting window")
+      # the region fill is still drawn, so the plot is not simply empty
+      expect_equal(length(unique(as.vector(g$z))), 1L)
+    }
+  }
 })
 
 test_that("a custom palette is honored", {
@@ -328,7 +349,7 @@ test_that("the top margin is paid for by what is actually drawn", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
   # no title, no subtitle, no legend -> the smallest top margin; adding each
-  # must not error and must restore par() afterwards
+  # must not error and must restore par() afterward
   before <- par("mar")
   tutplot_boundary(fit_ada(), altmejd, resolution = 20, legend_pos = NULL)
   tutplot_boundary(
