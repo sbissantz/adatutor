@@ -794,10 +794,6 @@ tutplot_boundary <- function(
 ) {
   # scalar default: a vector would make formals() contradict the docs
   shade <- match.arg(shade, c("class", "margin"))
-  if (!is.null(file)) {
-    grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
-    on.exit(grDevices::dev.off(), add = TRUE)
-  }
   check_df(data)
   if (resolution < 2L) {
     stop("`resolution` must be at least 2.", call. = FALSE)
@@ -858,6 +854,28 @@ tutplot_boundary <- function(
     )
   }
 
+  labels <- read_class_labels(data, roles$outcome)
+  if (!is.null(labels)) {
+    # title case like every other label the figures draw
+    labels <- tools::toTitleCase(labels)
+  }
+
+  # counted whenever the outcome is two classes, drawn or not, for the caption
+  n_misclassified <- NA_integer_
+  n_points <- NA_integer_
+  misclassified <- NULL
+  if (!is.null(labels)) {
+    misclassified <- find_misclassified(fit, data, roles$outcome)
+  }
+  if (!is.null(misclassified)) {
+    n_misclassified <- sum(misclassified, na.rm = TRUE)
+    n_points <- sum(!is.na(misclassified))
+  }
+  if (show_points && !is.null(labels)) {
+    # stops for an outcome that is not two classes, as it did before the count
+    y <- as_binary(data[[roles$outcome]])
+  }
+
   if (is.null(palette)) {
     # the scale's two ends are the classes; nothing in between is claimed
     palette <- viridisLite::viridis(2)
@@ -872,6 +890,11 @@ tutplot_boundary <- function(
     (if (!is.null(legend_pos)) 1.9 else 0) +
     (if (!is.null(subtitle)) 1.2 else 0) +
     (if (!is.null(main)) 1.4 else 0)
+  # after the checks and the grid, so a rejected argument writes no file
+  if (!is.null(file)) {
+    grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
+    on.exit(grDevices::dev.off(), add = TRUE)
+  }
   old_par <- graphics::par(mar = c(4.4, 4.8, top_margin, 1.4) + 0.1)
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
@@ -986,27 +1009,7 @@ tutplot_boundary <- function(
     )
   }
 
-  labels <- read_class_labels(data, roles$outcome)
-  if (!is.null(labels)) {
-    # title case like every other label the figures draw
-    labels <- tools::toTitleCase(labels)
-  }
-
-  # counted whenever the outcome is two classes, drawn or not, for the caption
-  n_misclassified <- NA_integer_
-  n_points <- NA_integer_
-  misclassified <- NULL
-  if (!is.null(labels)) {
-    misclassified <- find_misclassified(fit, data, roles$outcome)
-  }
-  if (!is.null(misclassified)) {
-    n_misclassified <- sum(misclassified, na.rm = TRUE)
-    n_points <- sum(!is.na(misclassified))
-  }
-
   if (show_points && !is.null(labels)) {
-    # stops for an outcome that is not two classes, as it did before the count
-    y <- as_binary(data[[roles$outcome]])
     look <- style_points(y, misclassified, palette)
     # one call, misclassified first, so the correct points are drawn on top
     drawn <- order(!misclassified)
@@ -1472,6 +1475,8 @@ tutplot_logocv <- function(
   if (!inherits(res, "logo_cv")) {
     stop("`res` must be a result of logo_cv().", call. = FALSE)
   }
+  # before the bootstrap, so a misspelled metric costs no resampling
+  read_metric_rows(res, metric)
   if (!bootstrap) {
     res$ci <- NULL
   } else if (is.null(res$ci)) {
