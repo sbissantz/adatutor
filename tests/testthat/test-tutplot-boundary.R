@@ -324,19 +324,20 @@ test_that("the legend sits outside the panel by default", {
 
 test_that("the top margin is paid for by what is actually drawn", {
   data(altmejd)
+  # one device for the calls and for par("mar"), so both read the same one
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
   # no title, no subtitle, no legend -> the smallest top margin; adding each
   # must not error and must restore par() afterwards
   before <- par("mar")
-  quietly({
-    tutplot_boundary(fit_ada(), altmejd, resolution = 20, legend_pos = NULL)
-    tutplot_boundary(
-      fit_ada(),
-      altmejd,
-      resolution = 20,
-      main = "t",
-      subtitle = "s"
-    )
-  })
+  tutplot_boundary(fit_ada(), altmejd, resolution = 20, legend_pos = NULL)
+  tutplot_boundary(
+    fit_ada(),
+    altmejd,
+    resolution = 20,
+    main = "t",
+    subtitle = "s"
+  )
   expect_equal(par("mar"), before)
 })
 

@@ -4309,6 +4309,32 @@ test_that("plot.logo_cv() draws with and without intervals", {
   expect_error(plot(res, metric = "not_a_metric"), "no estimates")
 })
 
+test_that("plot.logo_cv() opens no device for a metric it cannot draw", {
+  data(altmejd)
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  # no device of our own: par() set before the check would open R's default
+  # one, and a device of ours would hide it. One open here leaked from an
+  # earlier test
+  expect_null(dev.list(), label = "the devices open at the start")
+  graphics.off()
+  # R's default device would write Rplots.pdf to the working directory
+  wd <- file.path(tempdir(), "logo-cv-plot")
+  dir.create(wd, showWarnings = FALSE)
+  old <- setwd(wd)
+  on.exit(
+    {
+      # close a device the call opened, so a failure leaves none behind
+      graphics.off()
+      setwd(old)
+      unlink(wd, recursive = TRUE)
+    },
+    add = TRUE
+  )
+
+  expect_error(plot(res, metric = "not_a_metric"), "no estimates")
+  expect_null(dev.list(), label = "the devices after the failed plot()")
+})
+
 test_that("plot.logo_cv() returns its input invisibly", {
   data(altmejd)
   res <- logo_cv(fit_ada(), data = altmejd, group = "pid")

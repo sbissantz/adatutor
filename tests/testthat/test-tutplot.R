@@ -1,6 +1,8 @@
-# Every call here draws. Without a device of our own R would open its default
-# one and leave an `Rplots.pdf` behind in tests/testthat/, so each test opens a
-# null device first and closes it on exit.
+# Most calls here draw. A call without `file` draws on the current device; with
+# none open, R would open its default one and leave an `Rplots.pdf` behind in
+# tests/testthat/. So before such a call a test opens a device of its own,
+# usually a null device, and closes it on exit. The test of `file` opens none,
+# so that a device a figure leaves open shows.
 stump <- function(formula = replicate ~ power.o + n.o, weights = NULL) {
   args <- list(
     formula = formula,
@@ -80,15 +82,61 @@ test_that("file = NULL draws on the current device and writes nothing", {
   expect_identical(list.files(wd), character(0))
 })
 
-test_that("a path writes one PDF and leaves the device stack intact", {
-  f <- tempfile(fileext = ".pdf")
-  on.exit(unlink(f), add = TRUE)
+test_that("a path writes one PDF and leaves the open devices as they were", {
+  # no device of our own, on purpose: par() restored after the PDF closed
+  # would land on it, and the stray device would not show. One open here
+  # leaked from an earlier test; close it so the rest still runs
+  expect_null(grDevices::dev.list(), label = "the devices open at the start")
+  grDevices::graphics.off()
+  boosted <- rpart::rpart(
+    replicate ~ power.o + n.o + effect_size.o + p_value.o,
+    data = altmejd,
+    method = "class",
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
+  res <- logo_cv(boosted, data = altmejd, group = "pid")
+  # every figure that takes `file`
+  figures <- list(
+    tutplot_cstump = \(file) tutplot_cstump(stump(), file = file),
+    tutplot_gini = \(file) tutplot_gini(file = file),
+    tutplot_updatefactor = \(file) tutplot_updatefactor(file = file),
+    tutplot_modelweight = \(file) tutplot_modelweight(file = file),
+    tutplot_weightupdate = \(file) tutplot_weightupdate(file = file),
+    tutplot_boundary = function(file) {
+      tutplot_boundary(
+        stump(),
+        data = altmejd_splits$train,
+        resolution = 20,
+        file = file
+      )
+    },
+    tutplot_importance = \(file) {
+      tutplot_importance(gauge(boosted), file = file)
+    },
+    tutplot_logoscheme = \(file) tutplot_logoscheme(altmejd$pid, file = file),
+    tutplot_logocv = \(file) tutplot_logocv(res, bootstrap = FALSE, file = file)
+  )
 
-  before <- length(grDevices::dev.list())
-  tutplot_cstump(stump(), file = f)
+  for (name in names(figures)) {
+    f <- tempfile(fileext = ".pdf")
+    before <- grDevices::dev.list()
+    figures[[name]](f)
+    after <- grDevices::dev.list()
+    # close a stray device before asserting, so it cannot hide the next one
+    for (device in setdiff(after, before)) {
+      grDevices::dev.off(device)
+    }
 
-  expect_true(file.exists(f))
-  expect_identical(length(grDevices::dev.list()), before)
+    expect_identical(
+      after,
+      before,
+      label = paste0("devices after ", name, "()")
+    )
+    expect_gt(file.size(f), 0, label = paste0("the PDF of ", name, "()"))
+    unlink(f)
+  }
 })
 
 test_that("`extra` reaches rpart.plot()", {
@@ -1170,6 +1218,27 @@ test_that("choose_ink() picks readable text for both ends of viridis", {
   expect_identical(choose_ink(c("#440154", "#FDE725")), c("white", "grey15"))
 })
 
+test_that("color_projects() colors by name, alphabetically without case", {
+  paper <- c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2")
+  colors <- color_projects(paper)
+  ramp <- viridisLite::viridis(6, end = tutplot_opts$viridis_end)
+
+  # one color per project, named by it, in the order given
+  expect_identical(names(colors), paper)
+  # the ramp goes out in alphabetical order, whatever order the input has
+  expect_identical(unname(colors[sort(paper)]), ramp)
+  expect_identical(color_projects(rev(paper)), colors[rev(paper)])
+  # a repeated project gets one color
+  expect_identical(color_projects(c(paper, "ml1")), colors)
+
+  # capitals change no color, though C collation sorts "ML1" before "eerp"
+  expect_identical(unname(color_projects(toupper(paper))), unname(colors))
+  expect_identical(
+    unname(color_projects(c("ML1", "eerp"))),
+    viridisLite::viridis(2, end = tutplot_opts$viridis_end)[2:1]
+  )
+})
+
 test_that("axis labels are title case, as APA asks", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   f <- tempfile(fileext = ".pdf")
@@ -1288,15 +1357,7 @@ test_that("tutplot_logocv() draws no keys, capitals and an italic n", {
   set.seed(1)
   boot <- suppressWarnings(bootstrap(res, n_resample = 50))
   f <- tempfile(fileext = ".pdf")
-  # a device of our own, so restoring par() after the file closes opens none
-  grDevices::pdf(NULL)
-  on.exit(
-    {
-      grDevices::dev.off()
-      unlink(f)
-    },
-    add = TRUE
-  )
+  on.exit(unlink(f), add = TRUE)
 
   facts <- tutplot_logocv(boot, file = f)
   drawn <- read_pdf_text(f)
@@ -1330,6 +1391,60 @@ test_that("tutplot_logocv() draws no keys, capitals and an italic n", {
   plot(boot)
   grDevices::dev.off()
   expect_false(any(grepl("Oblique", read_pdf_fonts(plain), useBytes = TRUE)))
+})
+
+test_that("Figure 1 and the estimates figure give a project one color", {
+  # the script's six projects: altmejd lacks ML2
+  data(altmext)
+  six <- altmext[altmext$pid != "holz", ]
+  fit <- rpart::rpart(
+    replicate ~ power.o + effect_size.o + n.o + p_value.o,
+    data = six,
+    method = "class",
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
+  res <- logo_cv(fit, data = six, group = "pid")
+  paper <- c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2")
+
+  # the colored dots, one per project; the white halos come first
+  read_dots <- function(calls) {
+    dots <- Filter(
+      \(call) length(call[[2]]$x) == 6L && !all(call[[6]] == "white"),
+      find_calls(calls, "C_plotXY")
+    )
+    expect_length(dots, 1L)
+    dots[[1]][[6]]
+  }
+  drawn <- record_calls(tutplot_logocv(res, bootstrap = FALSE))
+  estimate_colors <- read_dots(drawn$calls)
+  names(estimate_colors) <- drawn$value$project
+  # plot() draws through the same code, so it agrees
+  expect_identical(
+    read_dots(record_calls(plot(res))$calls),
+    unname(estimate_colors)
+  )
+
+  read_scheme <- function(group, levels) {
+    drawn <- record_calls(tutplot_logoscheme(group, levels = levels))
+    fills <- vapply(
+      find_calls(drawn$calls, "C_polygon"),
+      \(call) call[[4]],
+      character(1)
+    )
+    # full strength: each column's test box, then its performance box
+    full <- fills[endsWith(fills, "FF")]
+    expect_identical(full[c(TRUE, FALSE)], full[c(FALSE, TRUE)])
+    stats::setNames(full[c(TRUE, FALSE)], tolower(levels))
+  }
+  # the paper's row order, so colors dealt out by row would fail
+  expect_identical(read_scheme(altmext$pid, paper), estimate_colors[paper])
+  # capitals in the scheme change nothing
+  expect_identical(
+    read_scheme(toupper(altmext$pid), toupper(paper)),
+    estimate_colors[paper]
+  )
 })
 
 test_that("label_metric() names every metric assess() returns", {
