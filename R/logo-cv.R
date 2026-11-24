@@ -2682,6 +2682,8 @@ plot.logo_cv <- function(
   baseline = "auto",
   ...
 ) {
+  # before par(), which opens a device when none is open
+  read_metric_rows(x, metric)
   # room below for the project names only: there is no x-axis title
   old_par <- graphics::par(mar = c(3, 5, 4, 2) + 0.1)
   on.exit(graphics::par(old_par), add = TRUE)
@@ -2714,12 +2716,7 @@ draw_logo_cv <- function(
 ) {
   # a factor would pick the bands' column by its code
   metric <- as.character(metric)
-  long <- as.data.frame(x)
-  estimates <- long[long$metric == metric, , drop = FALSE]
-  if (nrow(estimates) == 0L) {
-    stop("no estimates for metric `", metric, "`.", call. = FALSE)
-  }
-  estimates <- estimates[order(estimates$project), , drop = FALSE]
+  estimates <- read_metric_rows(x, metric)
   n_projects <- nrow(estimates)
   positions <- seq_len(n_projects)
   levels <- sort(levels)
@@ -2733,7 +2730,8 @@ draw_logo_cv <- function(
   values <- c(estimates$estimate, unlist(bands), reference$values)
   data_range <- range(values, na.rm = TRUE)
   padding <- max(diff(data_range), 0.05) * 0.14
-  colors <- viridisLite::viridis(n_projects, end = 0.85)
+  # by name, so a project has the color tutplot_logoscheme() gives it
+  colors <- unname(color_projects(estimates$project)[estimates$project])
 
   ylim <- c(data_range[1] - padding, data_range[2] + padding * 2)
   graphics::plot(
@@ -2864,6 +2862,18 @@ draw_logo_cv <- function(
     row.names = NULL,
     stringsAsFactors = FALSE
   )
+}
+
+#' Take one metric's rows of the long table, projects in name order; stop if
+#' it has none
+#' @noRd
+read_metric_rows <- function(x, metric) {
+  long <- as.data.frame(x)
+  estimates <- long[long$metric == metric, , drop = FALSE]
+  if (nrow(estimates) == 0L) {
+    stop("no estimates for metric `", metric, "`.", call. = FALSE)
+  }
+  estimates[order(estimates$project), , drop = FALSE]
 }
 
 #' Compute each project's bands from its bootstrap draws
