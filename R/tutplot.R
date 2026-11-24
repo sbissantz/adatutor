@@ -890,11 +890,14 @@ tutplot_boundary <- function(
   # useRaster: one image instead of resolution^2 rectangles, so no white
   # seams and a pdf about 14 times smaller; needs make_axis()'s equal grid
   if (shade == "class") {
+    # zlim ties 0 and 1 to the two colors: a window of one class is a constant
+    # matrix, which image() would otherwise draw in the first color
     graphics::image(
       x1,
       x2,
       (z > 0) * 1,
       col = grDevices::adjustcolor(palette, alpha.f = opacity),
+      zlim = c(0, 1),
       add = TRUE,
       useRaster = TRUE
     )
@@ -1476,6 +1479,17 @@ tutplot_logocv <- function(
     res <- bootstrap.logo_cv(res, n_resample = n_resample)
   }
 
+  # before pdf() writes a file or par() opens a device; no keys: the caption
+  # names the dashed line and the intervals
+  figure <- prepare_logo_cv(
+    res,
+    metric = metric,
+    levels = bands,
+    baseline = "auto",
+    ylab = ylab,
+    add_keys = FALSE
+  )
+
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
     on.exit(grDevices::dev.off(), add = TRUE)
@@ -1486,15 +1500,11 @@ tutplot_logocv <- function(
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
-  # no title and no keys: the caption names the figure, the dashed line and
-  # the intervals; project names in capitals, as in tutplot_logoscheme()
+  # no title: the caption names the figure; project names in capitals, as in
+  # tutplot_logoscheme()
   facts <- draw_logo_cv(
-    res,
-    metric = metric,
-    levels = bands,
+    figure,
     main = NULL,
-    ylab = ylab,
-    add_keys = FALSE,
     label_project = toupper,
     italic_n = TRUE
   )
