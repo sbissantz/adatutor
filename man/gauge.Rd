@@ -23,8 +23,9 @@ gauge(fit)
 \code{variable} and \code{importance} (a percentage), one row per predictor of the
 formula, sorted from most to least important; a predictor no tree split
 on has 0. \code{plot()} draws a lollipop chart, a line and a dot per
-predictor, by calling \code{\link[=tutplot_importance]{tutplot_importance()}}, and returns \code{NULL}
-invisibly.
+predictor, and returns \code{NULL} invisibly. It is the chart
+\code{\link[=tutplot_importance]{tutplot_importance()}} draws, with the variable names as typed and the
+axis title in sentence case.
 }
 \description{
 Sums, for each predictor, the model weights of the trees that split on it,

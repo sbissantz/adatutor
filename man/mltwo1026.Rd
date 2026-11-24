@@ -14,7 +14,7 @@ vanLange.1); the labels are in \code{inst/extdata/mltwo1026.csv}.
 Klein RA, et al. (2018) Many Labs 2:
 Investigating variation in replicability across samples and settings.
 Advances in Methods and Practices in Psychological Science 1(4):
-443-490. \url{https://doi.org/10.1177/2515245918810225}
+443-490. \doi{10.1177/2515245918810225}
 
 Data: \url{https://osf.io/8cd4r/}, files \code{table5data_RM.csv},
 \code{ML2_OriginalEffects.csv} and \code{ML2_KeyTable.csv}, downloaded in October

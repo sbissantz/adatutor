@@ -114,8 +114,8 @@ manuscript uses 102, and 100 for the weighted stump.}
 the variables as they appear in the data, such as
 \code{c(n.o = "Sample Size")}. A variable without an entry keeps its name. A
 name that is not a predictor of \code{fit}, or not a variable in \code{importance},
-is an error. \code{NULL} (the default) draws the variable names. \code{tutplot_importance()} also takes
-plotmath in a named list, such as
+is an error. \code{NULL} (the default) draws the variable names.
+\code{tutplot_importance()} also takes plotmath in a named list, such as
 \code{list(p_value.o = quote(italic(p) ~ Value))}. \code{tutplot_cstump()} takes
 plain text only, because \code{rpart.plot::rpart.plot()} draws strings.}
 
@@ -218,15 +218,17 @@ in a vignette, so every printed figure is documented and tested.
 \details{
 \itemize{
 \item \code{tutplot_cstump()}: a classification stump, with its class names in title
-case.
+case and its branches tagged "Yes" and "No" in upright type.
 \item \code{tutplot_gini()}: Gini impurity by class proportion.
 \item \code{tutplot_updatefactor()}: the factor by which one round multiplies an
 observation's weight.
 \item \code{tutplot_modelweight()}: the model weight a stump earns, by its
 performance.
-\item \code{tutplot_weightupdate()}: observation weights before and after one round.
+\item \code{tutplot_weightupdate()}: observation weights before and after one round,
+with a short tick under every data point and a number at every fifth.
 \item \code{tutplot_importance()}: the relative importance of each predictor, as a
-lollipop chart.
+lollipop chart. Its axis title is in title case; \code{plot()} on a \code{\link[=gauge]{gauge()}}
+draws the same chart with the title in sentence case.
 \item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.
 \item \code{tutplot_logocv()}: the leave-one-group-out estimates per project, with
 or without bootstrap intervals. The project names are drawn in capitals.

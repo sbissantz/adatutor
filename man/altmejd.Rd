@@ -21,7 +21,7 @@ Project (EERP) or Social Science Replication Project (SSRP).
 \source{
 Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
 Predicting the replicability of social science lab experiments. PLOS ONE
-14(12): e0225826. \url{https://doi.org/10.1371/journal.pone.0225826}
+14(12): e0225826. \doi{10.1371/journal.pone.0225826}
 
 The data and more information are in their OSF repository:
 \url{https://osf.io/4fn73/}.

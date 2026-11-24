@@ -47,12 +47,14 @@ Defaults to \code{viridisLite::viridis(2)}.}
 \item{opacity}{The opacity of the fill. Defaults to 0.18 for \code{"class"} and
 0.65 for \code{"margin"}.}
 
-\item{show_points}{Whether to draw the data. Defaults to \code{TRUE}.}
+\item{show_points}{Whether to draw the data. Defaults to \code{TRUE}. See the
+section on points.}
 
 \item{legend_pos}{Where to put the legend. The default, \code{"top"}, puts it
 above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
-\code{NULL} leaves it out. The legend and the color bar name the classes by
-the outcome's levels, in title case.}
+\code{NULL} leaves it out, along with the key for misclassified points, which
+always sits above the panel. The legend and the color bar name the
+classes by the outcome's levels, in title case.}
 
 \item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar in place of
 the legend. Defaults to \code{TRUE}.}
@@ -70,8 +72,13 @@ device.}
 \item{...}{Passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
 \value{
-Invisibly, the grid: the two axis sequences, the matrix of scores
-and the feature names.
+Invisibly, a list with the grid and the error count: the two axis
+sequences \code{x1} and \code{x2}, the matrix of scores \code{z}, the feature names
+\code{features}, the number of misclassified points \code{n_misclassified}, and
+the number of points with an observed class \code{n_points}. The counts are
+taken even with \code{show_points = FALSE}. They are \code{NA} when \code{data} has no
+outcome column, or when its outcome is not a two-level factor, 0/1, -1/1,
+or logical.
 }
 \description{
 Draws the region each class is assigned to over a grid of two features,
@@ -90,10 +97,22 @@ default) lays the viridis scale over the score, centered on zero, so the
 classes sit at its ends and uncertainty sits in the middle. For a tree, the
 scale is fixed at -0.5 to 0.5, so a color always means the same
 probability. For an ensemble, it runs to the largest margin, so colors
-compare within a plot but not across plots.
+compare within a plot but not across plots. A short line marks the middle
+of the color bar, a score of zero, as the boundary.
 
 A stump has one split, so it shows two flat blocks; an ensemble shows a
 surface. That contrast is what boosting buys.
+}
+
+\section{Points}{
+
+Each point is filled with the color of its observed class. A point is
+misclassified when the sign of its score names the other class, the same
+score the surface is drawn from. Misclassified points are drawn paler and
+smaller, under the correct ones. A key at the top right, above the panel,
+shows both kinds. It is drawn whenever the points are and \code{legend_pos} is
+not \code{NULL}, even when no point is misclassified. The figure prints no
+count; the return value holds it.
 }
 
 \examples{
@@ -109,6 +128,9 @@ h <- rpart::rpart(
 )
 grid <- tutplot_boundary(h, train, resolution = 60)
 grid$features
+# the points the stump puts in the wrong class, and all points
+grid$n_misclassified
+grid$n_points
 
 # flat tints instead of the margin scale
 tutplot_boundary(h, train, resolution = 60, shade = "class")

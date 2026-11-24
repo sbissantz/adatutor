@@ -12,7 +12,7 @@ A data frame with 21 rows (study effects) and the 7 columns of
 Camerer CF, Dreber A, Holzmeister F, et al. (2018) Evaluating the
 replicability of social science experiments in Nature and Science
 between 2010 and 2015. Nature Human Behaviour 2: 637-644.
-\url{https://doi.org/10.1038/s41562-018-0399-z}
+\doi{10.1038/s41562-018-0399-z}
 
 Data: \url{https://osf.io/956xg/}, file \code{D3 - ReplicationResults.csv},
 downloaded in October 2026; the \code{ssrp.X} ids from Altmejd et al.'s
