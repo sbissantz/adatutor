@@ -1416,6 +1416,26 @@ test_that("tutplot_logocv() checks its arguments before it opens a device", {
   )
 })
 
+test_that("tutplot_logocv() rejects an unknown metric before it resamples", {
+  res <- logocv_res()
+  expect_null(res$ci)
+  # a stand-in that records the call and passes the result on unchanged, so
+  # the call still reaches the metric check when it resamples first
+  resampled <- FALSE
+  local_mocked_bindings(
+    bootstrap.logo_cv = function(x, ...) {
+      resampled <<- TRUE
+      x
+    }
+  )
+
+  expect_error(
+    tutplot_logocv(res, metric = "aurco"),
+    "no estimates for metric `aurco`"
+  )
+  expect_false(resampled)
+})
+
 test_that("tutplot_logocv() and plot() draw on the caller's device", {
   res <- logocv_res()
   grDevices::pdf(NULL)

@@ -131,6 +131,74 @@ test_that("tutplot_boundary() rejects malformed input", {
   )
 })
 
+test_that("a rejected argument leaves no device open and no file", {
+  data(altmejd)
+  fit <- fit_stump()
+  # no device of our own: it would hide one the call leaves open. One open
+  # here leaked from an earlier test
+  expect_null(grDevices::dev.list(), label = "the devices open at the start")
+  grDevices::graphics.off()
+  f <- tempfile(fileext = ".pdf")
+  on.exit(
+    {
+      # close a device the call opened, so a failure leaves none behind
+      grDevices::graphics.off()
+      unlink(f)
+    },
+    add = TRUE
+  )
+  # each of these once stopped only after pdf() had written the file
+  expect_clean <- function(case) {
+    expect_null(grDevices::dev.list(), label = paste("the devices after", case))
+    expect_false(file.exists(f), label = paste("a file after", case))
+    grDevices::graphics.off()
+    unlink(f)
+  }
+
+  expect_error(
+    tutplot_boundary(fit, altmejd, resolution = 1, file = f),
+    "`resolution` must be at least 2"
+  )
+  expect_clean("a resolution of 1")
+
+  expect_error(
+    tutplot_boundary("not a model", altmejd, file = f),
+    "`fit` must be an rpart object or the output of adaboost()",
+    fixed = TRUE
+  )
+  expect_clean("a fit that is no model")
+
+  expect_error(
+    tutplot_boundary(fit, altmejd, features = "power.o", file = f),
+    "`features` must name exactly two columns"
+  )
+  expect_clean("one feature")
+
+  expect_error(
+    tutplot_boundary(fit, as.list(altmejd), file = f),
+    "`data` is not a data frame"
+  )
+  expect_clean("data that is no data frame")
+
+  three <- altmejd
+  three$replicate <- factor(rep_len(c("yes", "no", "maybe"), nrow(three)))
+  expect_error(
+    tutplot_boundary(fit, three, file = f),
+    "`actual` must have exactly two levels.",
+    fixed = TRUE
+  )
+  expect_clean("an outcome of three classes")
+
+  words <- altmejd
+  words$replicate <- rep_len(c("yes", "no"), nrow(words))
+  expect_error(
+    tutplot_boundary(fit, words, file = f),
+    "`actual` must be a two-level factor, 0/1, -1/1, or logical.",
+    fixed = TRUE
+  )
+  expect_clean("an outcome of words")
+})
+
 test_that("a one-class window warns instead of drawing nothing", {
   # A root-only tree assigns the same class everywhere, so there is no boundary.
   # The hand-written code drew a boundary-less plot in silence: its contour ran
