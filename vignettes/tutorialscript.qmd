@@ -294,7 +294,7 @@ For applied work, we recommend `partition()` over the code of Listings 4 to 8. `
 
 #### Figure 1 
 
-Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. (HOLZ, 26), is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
+Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Replication Project Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Science Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. (HOLZ, 26), is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. Each project keeps its color along its row: the dark box in each column is the test set, and the pale boxes are the training set. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
 tutplot_logoscheme(
@@ -379,16 +379,21 @@ cstump <- rpart::rpart(
 
 #### Figure 2
 
-A classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power and the sample size of the original study. The upper rectangle is the root node, the two lower rectangles are the leaf nodes. The root node is split at a power of 0.927. The left leaf node contains about 63% of the training data and the right leaf node about 37%. The label in each node ("success", "failure") is the stump's prediction for each study effect in that node. For example, the left leaf predicts failure for every study effect with a power below 0.927. In the training data, 62 of these 89 study effects did fail.
+A classification tree of depth one or, equivalently, a classification stump. The stump was fitted to the training data using two reviewer metrics: the power and the sample size of the original study. The upper rectangle is the root node, the two lower rectangles are the leaf nodes. The root node is split at a power of 0.927. Study effects for which the condition "Power < 0.927" holds take the branch marked "Yes" to the left; the others take the branch marked "No" to the right. The left leaf node contains about 63% of the training data and the right leaf node about 37%. The label in each node ("Success", "Failure") is the stump's prediction for each study effect in that node. Below the label, each node shows how many of its study effects belong to the predicted class, out of all study effects in the node, and the node's share of the training data. For example, the left leaf predicts failure for every study effect with a power below 0.927. In the training data, 62 of these 89 study effects did fail. A node's color shows its share of successes, from purple (none) through teal to yellow (all), on the color scale of Figure 3.
 
 ```{r figure-2}
 # The stump of Listing 12, as a tree
-tutplot_cstump(cstump, extra = 102)
+tutplot_cstump(
+  cstump,
+  extra = 102,
+  labels = c(power.o = "Power", n.o = "Sample Size")
+)
 ```
 
 ::: {.callout-important title="Changed since submission"}
 - Drawn by `tutplot_cstump()` from the stump of Listing 12 (`cstump_int` is gone).
 - On `altmext`: 0.927, 63% / 37%, 62 of 89 (submitted: 0.9305, 62% / 38%, 49 of 66).
+- Readable labels: the split reads "Power", the class names are in title case, and the branch tags read "Yes" and "No" in upright type.
 :::
 
 #### Listing 13
@@ -419,21 +424,22 @@ The caption of `lst:vistree` says the plotted tree is "slightly different from F
 
 #### Figure 3
 
-The decision boundary of a classification stump. The x-axis shows the power of the original study, the y-axis its sample size. So the y-axis does not show the outcome variable, but a second study characteristic. Because a classification stump is a tree of depth one, only one characteristic, power, separates successfully replicated study effects from failed ones. The decision boundary is the vertical line at a power of 0.927. The stump predicts success for every point in the green region and failure for every point in the blue region. Yellow dots are study effects that replicated, according to the replication metric; purple dots are those that failed. Thus, yellow dots in the blue region are misclassifications, and so are purple dots in the green region.
+The decision boundary of a classification stump. The x-axis shows the power of the original study, the y-axis its sample size. So the y-axis does not show the outcome variable, but a second study characteristic. Because a classification stump is a tree of depth one, only one characteristic, power, separates successfully replicated study effects from failed ones. The decision boundary is the vertical line at a power of 0.927. The stump predicts success for every point in the green region and failure for every point in the blue region. The color bar above the panel gives the scale: the color of a region shows the share of successes in its leaf, from purple (none) through teal to yellow (all), so the left leaf, with 30% successes, is blue, and the right leaf, with 77%, is green. The mark labeled "Boundary" sits at the middle of the bar, a share of 0.5, where the prediction tips from failure to success. The dots are the 141 study effects of the training set. Yellow dots are study effects that replicated, according to the replication metric; purple dots are those that failed. Thus, yellow dots in the blue region are misclassifications, and so are purple dots in the green region. Misclassified study effects are drawn paler and smaller than correct ones, so against the shading the pale yellow dots look olive and the pale purple dots gray; the gray dots of the key at the top right stand for both classes. The stump misclassifies 39 of the 141 study effects: 27 that replicated, in the blue region, and 12 that failed, in the green region.
 
 ```{r figure-3}
 # The stump of Listing 12, as the boundary it draws
 tutplot_boundary(
   cstump,
   data = train,
-  xlab = "Power (Original Study)",
-  ylab = "Sample Size (Original Study)"
+  xlab = "Power",
+  ylab = "Sample Size"
 )
 ```
 
 ::: {.callout-important title="Changed since submission"}
 - New chunk: the submitted figure had no code. Drawn by `tutplot_boundary()` from the stump of Listing 12.
 - Axis labels (R1.C7) and viridis colors: blue and green regions, purple and yellow dots, a color-bar legend. The caption follows (submitted: gray triangles and blue circles).
+- Misclassified study effects are drawn paler and smaller, with a key at the top right; the color bar carries a "Boundary" mark; the boundary line is thinner; the axis titles read "Power" and "Sample Size".
 :::
 
 #### Figure 4
@@ -568,15 +574,20 @@ The paragraph before `lst:sensitive` says that with random weights "a different 
 
 #### Figure 5
 
-A classification stump fitted with normalized random weights. The argument `extra = 100` of `rpart.plot()` simplifies the node labels.
+A classification stump fitted with normalized random weights. As in Figure 2, the stump splits on power, now at 0.9206 (0.921 when rounded) instead of 0.927, and study effects for which the condition holds take the branch marked "Yes" to the left. The argument `extra = 100` of `rpart.plot()` simplifies the node labels. Each node shows only the predicted class and its share of the total weight, not of the study effects: the left leaf holds 86 of the 141 study effects but 59.85% of the weight, and the right leaf 55 study effects and 40.15% of the weight. A node's color shows its weighted share of successes, on the color scale of Figure 2.
 
 ```{r figure-5}
 # The stump of Listing 16
-tutplot_cstump(cstump_ast, extra = 100)
+tutplot_cstump(
+  cstump_ast,
+  extra = 100,
+  labels = c(power.o = "Power", n.o = "Sample Size")
+)
 ```
 
 ::: {.callout-important title="Changed since submission"}
 - Drawn by `tutplot_cstump()`; splits on `power.o` at 0.921 (submitted: on `p_value.o`, from the four-predictor stump).
+- Readable labels as in Figure 2; the figure prints the cutpoint as 0.9206.
 :::
 
 ##### TODO: Moving beyond classification stump Add trees 
@@ -741,7 +752,7 @@ D2 <- D2_raw / Z1
 
 #### Figure 7
 
-The update factor ($e^{-\alpha_t\chi_t}$) by classification result, for three model weights. A correctly classified study effect has $\chi_t = 1$, and its weight shrinks for the next round by a factor below 1 (right). A misclassified one has $\chi_t = -1$, and its weight grows by a factor above 1 (left). The heavier the model, the stronger the update in both directions. The middle curve uses the first stump's model weight of 0.499; the other two use 0.7 and 0.3.
+The update factor ($e^{-\alpha_t\chi_t}$) by classification result, for three model weights. A correctly classified study effect has $\chi_t = 1$, and its weight shrinks for the next round by a factor below 1 (right). A misclassified one has $\chi_t = -1$, and its weight grows by a factor above 1 (left). The heavier the model, the stronger the update in both directions. The middle curve uses the first stump's model weight of 0.499; the other two use 0.7 and 0.3. The dashed line marks a factor of 1, at which a weight stays the same. The dotted curves only join the two factors of each model weight; $\chi_t$ takes only the values $-1$ and $1$.
 
 ```{r figure-7}
 # Three model weights: a heavier one, the first stump's, a lighter one
@@ -757,7 +768,7 @@ tutplot_updatefactor(alpha = alpha_int)
 
 #### Figure 8
 
-The weights of the first 25 study effects in the training set before ($D_1$, purple) and after ($D_2$, teal) the first round. Every initial weight is 1/141. A study effect the first stump misclassified gains weight and moves up; the others lose weight and move down. The dots are sized by weight, so heavier study effects are drawn larger.
+The weights of the first 25 study effects in the training set before ($D_1$, purple) and after ($D_2$, teal) the first round. The x-axis numbers the study effects by their row in the training set: a tick marks each one, and every fifth is numbered. Every initial weight is 1/141. A study effect the first stump misclassified gains weight and moves up; the others lose weight and move down. Nine of the 25 were misclassified; a dotted line joins the two weights of each study effect. The dots are sized by weight, so heavier study effects are drawn larger.
 
 ```{r figure-8}
 # Weights before and after round 1
@@ -766,6 +777,7 @@ tutplot_weightupdate(d1 = D1, d2 = D2, chi = chi1)
 
 ::: {.callout-important title="Changed since submission"}
 - New drawing by `tutplot_weightupdate()`: dots sized by weight, $D_1$ purple and $D_2$ teal, and no mark for the misclassified study effects, which are the dots that moved up (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
+- A tick marks every data point; the numbers stay at 1, 5, 10, and so on.
 :::
 
 #### Listing 24
@@ -939,15 +951,23 @@ The numbers are relative: they show how the ensemble divided its weight, not wha
 
 #### Figure [NEW]
 
-The relative importance of the four predictors in the 1,000 boosted stumps of Module 3. For each predictor, the line and dot show the summed model weights of the stumps that split on it, as a percentage of the total. The p value of the original study carries about a third of the weight. Power, sample size, and effect size share the rest, with between 21 and 24 percent each.
+The relative importance of the four predictors in the 1,000 boosted stumps of Module 3. All four predictors describe the original study. For each predictor, the line and dot show the summed model weights of the stumps that split on it, as a percentage of the total. The 97 stumps that did not split count for no predictor. The *p* value of the original study carries about a third of the weight. Power, sample size, and effect size share the rest, with between 21 and 24 percent each. The colors only tell the predictors apart.
 
 ```{r figure-importance}
 # The lollipop chart of plot(imp_fit), drawn by the package's figure function
-tutplot_importance(imp_fit)
+tutplot_importance(
+  imp_fit,
+  labels = list(
+    p_value.o = quote(italic(p) ~ Value),
+    power.o = "Power",
+    n.o = "Sample Size",
+    effect_size.o = "Effect Size"
+  )
+)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New figure (R1.C6), drawn by `tutplot_importance()` on the result of `gauge()`. The `plot()` call of the package listing draws the same chart.
+- New figure (R1.C6), drawn by `tutplot_importance()` on the result of `gauge()`. The `plot()` call of the package listing draws the same chart, with the variable names as typed and the axis title in sentence case.
 :::
 
 ::: {.callout-note title="Add to tutorial (box)"}
@@ -1081,7 +1101,7 @@ Both match, the class labels and the margins, so we continue with the package fu
 
 #### Figure 10
 
-The decision boundary of 1,000 boosted classification stumps: the stump of Figure 3, boosted as in Listing 24. The x-axis shows the power of the original study, the y-axis its sample size. So the y-axis does not show the outcome variable, but a second study characteristic. The shading shows the margin, the weighted vote of Listing 25, on the color scale above the panel: purple where the ensemble votes for failure, yellow where it votes for success, and teal in between, where the vote is close to a tie. The further a color sits from that middle, the larger the vote. The black lines are the boundary, where the margin is zero. Yellow dots are study effects that replicated, according to the replication metric; purple dots are those that failed. Where the stump of Figure 3 draws one vertical line, the ensemble cuts the plane into many rectangles, because each stump splits on one of the two predictors.
+The decision boundary of 1,000 boosted classification stumps: the stump of Figure 3, boosted as in Listing 24. The x-axis shows the power of the original study, the y-axis its sample size. So the y-axis does not show the outcome variable, but a second study characteristic. The shading shows the margin, the weighted vote of Listing 25, on the color scale above the panel: purple where the ensemble votes for failure, yellow where it votes for success, and teal in between, where the vote is close to a tie. The further a color sits from that middle, the larger the vote. The color bar runs from a margin of $-5.4$ to $5.4$, set by the largest margin in the panel, so a color does not mean the same as in Figure 3, where it shows the share of successes in a leaf. The black lines are the boundary, where the margin is zero. The mark labeled "Boundary" at the middle of the bar is this zero. The dots are the 141 study effects of the training set, as in Figure 3. Yellow dots are study effects that replicated, according to the replication metric; purple dots are those that failed. The ensemble classifies all 141 correctly, so no dot is drawn pale; the key at the top right still shows both kinds, as in Figure 3. Where the stump of Figure 3 draws one vertical line, the ensemble cuts the plane into many rectangles, because each stump splits on one of the two predictors.
 
 ```{r figure-10}
 # The two-predictor stump of Figure 3, boosted as in Listing 24
@@ -1096,14 +1116,15 @@ ada_two <- cstump |>
 tutplot_boundary(
   ada_two,
   data = train,
-  xlab = "Power (Original Study)",
-  ylab = "Sample Size (Original Study)"
+  xlab = "Power",
+  ylab = "Sample Size"
 )
 ```
 
 ::: {.callout-important title="Changed since submission"}
 - New chunk: the submitted figure had no code. `ada_two` is the stump of Listing 12 boosted for `n_tree` rounds (submitted: 500 trees), drawn by `tutplot_boundary()` as Figure 3 is.
 - The margin surface with its color bar instead of two flat regions; viridis colors and axis labels (R1.C7). The caption follows (submitted: gray and blue regions, gray triangles and blue circles).
+- As in Figure 3: the key for misclassified study effects (none here), the "Boundary" mark on the color bar, thinner boundary lines, and the axis titles "Power" and "Sample Size".
 :::
 
 #### Listing 28
@@ -1446,7 +1467,7 @@ The ensemble here is still untuned: it is the stump ensemble of Module 3. Module
 
 #### Figure [NEW]
 
-The AUROC of the ensemble in leave-one-group-out cross-validation, one column per project, with the project's size above it. The dot is the estimate on the held-out project; the bands are its bootstrap intervals at 50, 80 and 95 percent from 1,000 resamples of the project's study effects, with the ensemble held fixed. The dashed line at 0.5 marks a random ranking. In ML1, 12 percent of the draws held successes only and were dropped, so its interval is optimistic.
+The AUROC of the ensemble in leave-one-group-out cross-validation, one column per project, with the project's size above it. The ensemble is the one of Module 3, 1,000 stumps at a learning rate of 1, refitted once per held-out project. The columns are the six held-out projects, in alphabetical order; the colors only tell them apart. The dot is the estimate on the held-out project; the bands are its bootstrap intervals at 50, 80 and 95 percent from 1,000 resamples of the project's study effects, with the ensemble held fixed. The thick, dark bar is the 50 percent interval, the medium bar the 80 percent interval, and the thin, pale line the 95 percent interval. The dashed line at 0.5 marks a random ranking. In ML1, 12 percent of the draws held successes only and were dropped, so its interval is optimistic. AUROC = area under the receiver operating characteristic curve; EERP = Experimental Economics Replication Project; ML1, ML2, ML3 = Many Labs 1, 2, 3; RPP = Replication Project Psychology; SSRP = Social Science Replication Project.
 
 ```{r figure-logocv}
 # The six estimates with the bands of ada_boot
