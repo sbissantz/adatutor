@@ -177,6 +177,25 @@ test_that("tutplot_cstump() refuses labels it cannot draw", {
   expect_error(tutplot_cstump(stump(), labels = "Power"), "must be named")
 })
 
+test_that("tutplot_cstump() tags its branches Yes and No, upright", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  skip_if_not(nzchar(Sys.which("pdffonts")), "pdffonts not available")
+  paths <- c(tempfile(fileext = ".pdf"), tempfile(fileext = ".pdf"))
+  on.exit(unlink(paths), add = TRUE)
+
+  # the node labels both printed stumps use
+  tutplot_cstump(stump(), extra = 102, file = paths[1])
+  tutplot_cstump(stump(), extra = 100, file = paths[2])
+  for (path in paths) {
+    drawn <- read_pdf_text(path)
+    expect_match(drawn, "\\bYes\\b", perl = TRUE, useBytes = TRUE)
+    expect_match(drawn, "\\bNo\\b", perl = TRUE, useBytes = TRUE)
+    expect_no_match(drawn, "\\b(yes|no)\\b", perl = TRUE, useBytes = TRUE)
+    # rpart.plot() sets the tags in italic unless told otherwise
+    expect_false(any(grepl("Oblique", read_pdf_fonts(path), useBytes = TRUE)))
+  }
+})
+
 test_that("tutplot_gini() returns the curve Figure 4's caption describes", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -651,6 +670,23 @@ test_that("tutplot_weightupdate() validates chi", {
   )
 })
 
+test_that("tutplot_weightupdate() ticks every point and numbers every fifth", {
+  out <- record_calls(tutplot_weightupdate())
+  # side 1 with tick positions: plot() also records its own x axis, without
+  # positions, which `xaxt = "n"` suppresses
+  x_axes <- Filter(
+    \(call) identical(call[[2]], 1) && !is.null(call[[3]]),
+    find_calls(out$calls, "C_axis")
+  )
+  at <- lapply(x_axes, \(call) call[[3]])
+  numbered <- vapply(x_axes, \(call) !isFALSE(call[[4]]), logical(1))
+
+  # the numbers stay at 1, 5, 10, ...
+  expect_identical(at[numbered], list(c(1, seq(5, 25, 5))))
+  # and a short tick without a number sits under each of the 25 points
+  expect_identical(at[!numbered], list(seq_len(25)))
+})
+
 test_that("the mark follows marked_eta, whatever the reader sets", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -759,9 +795,10 @@ test_that("each figure asks for the margins it needs", {
   on.exit(grDevices::dev.off(), add = TRUE)
 
   # gini, importance and logocv have no legend above the panel; the other
-  # three do
+  # three do. The importance chart sets its margins in the helper that
+  # tutplot_importance() and plot.gauge() share
   body_of <- function(f) paste(deparse(body(f)), collapse = " ")
-  for (f in list(tutplot_gini, tutplot_importance, tutplot_logocv)) {
+  for (f in list(tutplot_gini, draw_importance, tutplot_logocv)) {
     expect_match(
       body_of(f),
       "set_figure_par(reserve_legend = FALSE)",
@@ -912,6 +949,101 @@ test_that("tutplot_boundary() names the classes in title case", {
     useBytes = TRUE
   )
   expect_no_match(read_pdf_text(paths[4]), "n.o", fixed = TRUE, useBytes = TRUE)
+})
+
+test_that("tutplot_boundary() keys correct and misclassified points", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  paths <- replicate(4, tempfile(fileext = ".pdf"))
+  on.exit(unlink(paths), add = TRUE)
+  train <- altmejd_splits$train
+  perfect <- fit_separable()
+
+  flawed <- tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    file = paths[1]
+  )
+  # a perfect fit lists both entries too, so the stump and the ensemble share
+  # one key
+  flawless <- tutplot_boundary(
+    perfect$fit,
+    data = perfect$data,
+    resolution = 20,
+    file = paths[2]
+  )
+  expect_gt(flawed$n_misclassified, 0L)
+  expect_identical(flawless$n_misclassified, 0L)
+  for (path in paths[1:2]) {
+    drawn <- read_pdf_text(path)
+    expect_match(drawn, "Correct", fixed = TRUE, useBytes = TRUE)
+    expect_match(drawn, "Misclassified", fixed = TRUE, useBytes = TRUE)
+  }
+  # the count is the caption's, not the figure's
+  expect_no_match(
+    read_pdf_text(paths[1]),
+    paste(flawed$n_misclassified, "of"),
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+
+  # no key without the legend, or without the points
+  tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    legend_pos = NULL,
+    file = paths[3]
+  )
+  tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    show_points = FALSE,
+    file = paths[4]
+  )
+  for (path in paths[3:4]) {
+    drawn <- read_pdf_text(path)
+    expect_no_match(drawn, "Correct", fixed = TRUE, useBytes = TRUE)
+    expect_no_match(drawn, "Misclassified", fixed = TRUE, useBytes = TRUE)
+  }
+})
+
+test_that("only the color bar marks the boundary", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  paths <- replicate(3, tempfile(fileext = ".pdf"))
+  on.exit(unlink(paths), add = TRUE)
+  train <- altmejd_splits$train
+
+  tutplot_boundary(stump(), data = train, resolution = 20, file = paths[1])
+  tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    shade = "class",
+    file = paths[2]
+  )
+  tutplot_boundary(
+    stump(),
+    data = train,
+    resolution = 20,
+    add_colorbar = FALSE,
+    file = paths[3]
+  )
+  expect_match(
+    read_pdf_text(paths[1]),
+    "Boundary",
+    fixed = TRUE,
+    useBytes = TRUE
+  )
+  for (path in paths[2:3]) {
+    expect_no_match(
+      read_pdf_text(path),
+      "Boundary",
+      fixed = TRUE,
+      useBytes = TRUE
+    )
+  }
 })
 
 test_that("tutplot_logoscheme() builds one fold per project, test on the diagonal", {
@@ -1293,9 +1425,14 @@ test_that("tutplot_importance() refuses what gauge() did not make, or an empty g
   expect_error(tutplot_importance(empty), "no variable was split on")
 })
 
-test_that("plot.gauge() draws through tutplot_importance(), so both are one picture", {
+test_that("plot.gauge() and tutplot_importance() share one drawing", {
+  # one helper draws both, so the listing's plot() and the printed figure are
+  # one picture; only the axis title's case differs
   body_of <- function(f) paste(deparse(body(f)), collapse = " ")
-  expect_match(body_of(plot.gauge), "tutplot_importance(", fixed = TRUE)
+  expect_match(body_of(plot.gauge), "draw_importance(", fixed = TRUE)
+  expect_match(body_of(tutplot_importance), "draw_importance(", fixed = TRUE)
+  # and no argument was added to the figure function for it
+  expect_false("xlab" %in% names(formals(tutplot_importance)))
 })
 
 test_that("tutplot_importance() draws labels in place of variable names", {
@@ -1400,4 +1537,32 @@ test_that("plot.gauge() draws the variable names as typed", {
   text <- read_pdf_text(f)
   expect_match(text, "p_value.o", fixed = TRUE, useBytes = TRUE)
   expect_match(text, "n.o", fixed = TRUE, useBytes = TRUE)
+})
+
+test_that("the figure titles its axis in title case, plot() in sentence case", {
+  skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
+  imp <- gauge(boosted_stumps())
+  f <- tempfile(fileext = ".pdf")
+  g <- tempfile(fileext = ".pdf")
+  # a device of our own, so nothing is left open if a call fails
+  grDevices::pdf(NULL)
+  on.exit(
+    {
+      grDevices::dev.off()
+      unlink(c(f, g))
+    },
+    add = TRUE
+  )
+
+  tutplot_importance(imp, file = f)
+  grDevices::pdf(g)
+  plot(imp)
+  grDevices::dev.off()
+
+  figure <- read_pdf_text(f)
+  expect_match(figure, "Relative Importance (%)", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(figure, "Relative importance", fixed = TRUE, useBytes = TRUE)
+  method <- read_pdf_text(g)
+  expect_match(method, "Relative importance (%)", fixed = TRUE, useBytes = TRUE)
+  expect_no_match(method, "Relative Importance", fixed = TRUE, useBytes = TRUE)
 })
