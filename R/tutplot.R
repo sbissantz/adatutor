@@ -264,7 +264,8 @@ tutplot_gini <- function(
   }
 
   old_par <- set_figure_par(reserve_legend = FALSE)
-  on.exit(graphics::par(old_par), add = TRUE)
+  # run before the dev.off() above, so par() is restored on the right device
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
   # a single curve, so one color rather than a scale
   color <- viridisLite::viridis(1, end = tutplot_opts$viridis_end)
@@ -312,7 +313,8 @@ tutplot_updatefactor <- function(
   }
 
   old_par <- set_figure_par(reserve_legend = TRUE)
-  on.exit(graphics::par(old_par), add = TRUE)
+  # run before the dev.off() above, so par() is restored on the right device
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
   # same ordered palette as the eta curves: model weights are ordered too
   colors <- viridisLite::viridis(length(alpha), end = tutplot_opts$viridis_end)
@@ -413,7 +415,8 @@ tutplot_modelweight <- function(
   }
 
   old_par <- set_figure_par(reserve_legend = TRUE)
-  on.exit(graphics::par(old_par), add = TRUE)
+  # run before the dev.off() above, so par() is restored on the right device
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
   # ordered learning rates, so the palette runs with them
   colors <- viridisLite::viridis(length(eta), end = tutplot_opts$viridis_end)
@@ -614,7 +617,8 @@ tutplot_weightupdate <- function(
   }
 
   old_par <- set_figure_par(reserve_legend = TRUE)
-  on.exit(graphics::par(old_par), add = TRUE)
+  # run before the dev.off() above, so par() is restored on the right device
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
   # `end = 0.5` keeps d2 teal: yellow-green dots are faint on white
   colors <- viridisLite::viridis(2, end = 0.5)
@@ -1475,7 +1479,8 @@ tutplot_logocv <- function(
 
   # no keys above the panel, so no room reserved for them
   old_par <- set_figure_par(reserve_legend = FALSE)
-  on.exit(graphics::par(old_par), add = TRUE)
+  # run before the dev.off() above, so par() is restored on the right device
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
   # no title and no keys: the caption names the figure, the dashed line and
   # the intervals; project names in capitals, as in tutplot_logoscheme()
@@ -1581,11 +1586,13 @@ tutplot_logoscheme <- function(
   edges <- cumsum(c(0, heights))
   bottoms <- 1 - edges[-1]
   tops <- 1 - edges[-(n_projects + 1)]
-  colors <- viridisLite::viridis(n_projects, end = 0.92)
+  # by name, so a project has the color tutplot_logocv() gives it
+  colors <- unname(color_projects(names(sizes)))
 
   # no bottom label: the caption and column headers say it
   old_par <- graphics::par(mar = c(0.4, 2.0, 1.3, 0.3))
-  on.exit(graphics::par(old_par), add = TRUE)
+  # run before the dev.off() above, so par() is restored on the right device
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
   plot(
     NULL,
     xlim = c(-0.62, n_projects + 0.5),
