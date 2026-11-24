@@ -4,7 +4,7 @@
 #' extended to seven large-scale replication projects: 202 study effects
 #' and whether each one replicated. Many Labs 1 and 3, the Replication Project
 #' Psychology and the Experimental Economics Replication Project come from
-#' [altmejd723] unchanged. The Social Science Replication Project is rebuilt
+#' [altmejd723] unchanged. The Social Sciences Replication Project is rebuilt
 #' from its own results file ([ssrp1026]). Two projects are new: Holzmeister
 #' et al.'s decision-market replications ([holz1026]) and Many Labs 2
 #' ([mltwo1026]).
@@ -18,8 +18,8 @@
 #'   [altmejd]:
 #' * `eid`: Effect identifier, `<pid>.<number>`.
 #' * `pid`: Project identifier: Many Labs 1 (`ml1`), 2 (`ml2`) and 3 (`ml3`),
-#'   Replication Project Psychology (`rpp`), Experimental Economics
-#'   Replication Project (`eerp`), Social Science Replication Project
+#'   Reproducibility Project: Psychology (`rpp`), Experimental Economics
+#'   Replication Project (`eerp`), Social Sciences Replication Project
 #'   (`ssrp`) or Holzmeister et al. (`holz`).
 #' * `effect_size.o`: Effect size of the original study, as a correlation r.
 #' * `n.o`: Sample size of the original study.
@@ -59,7 +59,7 @@
 #' be shared under PLOS ONE's data policy, as A. Altmejd confirmed (personal
 #' communication). The database is available from <https://osf.io/4fn73/>
 #' (\doi{10.17605/OSF.IO/4FN73}). Of the projects behind it, the
-#' Replication Project Psychology and Many Labs 1 are licensed CC0 1.0 and
+#' Reproducibility Project: Psychology and Many Labs 1 are licensed CC0 1.0 and
 #' Many Labs 3 is licensed CC BY 4.0. The other three projects carry their own
 #' licenses: [ssrp1026] (CC0 1.0), [holz1026] (CC BY 4.0) and [mltwo1026]
 #' (CC0 1.0).

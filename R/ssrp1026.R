@@ -1,6 +1,6 @@
-#' Social Science Replication Project, from its own results
+#' Social Sciences Replication Project, from its own results
 #'
-#' The 21 studies of the Social Science Replication Project (SSRP), rebuilt
+#' The 21 studies of the Social Sciences Replication Project (SSRP), rebuilt
 #' from the project's own results file, used to build [altmext]. It replaces
 #' [ssrp723], Altmejd et al.'s copy, and keeps its `ssrp.X` ids.
 #'

@@ -1,7 +1,7 @@
 #' Replication database, SSRP only
 #'
 #' A subset of the replication database of Altmejd et al. (2019), used only
-#' to build [altmejd]. It holds one project: the Social Science Replication
+#' to build [altmejd]. It holds one project: the Social Sciences Replication
 #' Project (SSRP).
 #'
 #' It departs from the SSRP's own results file in a few places: `replicate`
