@@ -4309,10 +4309,13 @@ test_that("plot.logo_cv() draws with and without intervals", {
   expect_error(plot(res, metric = "not_a_metric"), "no estimates")
 })
 
-test_that("plot.logo_cv() opens no device for a metric it cannot draw", {
+test_that("plot.logo_cv() opens no device for an argument it cannot draw", {
   data(altmejd)
   res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
-  # no device of our own: par() set before the check would open R's default
+  # intervals, so the levels are used
+  boot <- res
+  boot$ci <- boot_by_project(n_resample = 20)
+  # no device of our own: par() set before the checks would open R's default
   # one, and a device of ours would hide it. One open here leaked from an
   # earlier test
   expect_null(dev.list(), label = "the devices open at the start")
@@ -4333,6 +4336,39 @@ test_that("plot.logo_cv() opens no device for a metric it cannot draw", {
 
   expect_error(plot(res, metric = "not_a_metric"), "no estimates")
   expect_null(dev.list(), label = "the devices after the failed plot()")
+
+  # each of these once stopped only after par() had opened a device
+  bad <- list(
+    "a missing metric" = list(metric = NA),
+    "two metrics" = list(metric = c("auroc", "acc")),
+    "levels in a list" = list(levels = list(0.5)),
+    "a level above 1" = list(levels = 1.5),
+    "no levels" = list(levels = numeric(0)),
+    "a baseline that is no number" = list(baseline = "chance"),
+    "an infinite baseline" = list(baseline = Inf),
+    "two baselines" = list(baseline = c(0.5, 0.6))
+  )
+  for (case in names(bad)) {
+    # a baseline that is no number warns on its way to the error
+    expect_error(
+      suppressWarnings(do.call(plot, c(list(boot), bad[[case]]))),
+      label = paste("plot() with", case)
+    )
+    expect_null(dev.list(), label = paste("the devices after", case))
+    graphics.off()
+    expect_identical(
+      list.files(wd),
+      character(0),
+      label = paste("the files after", case)
+    )
+    unlink(list.files(wd, full.names = TRUE))
+  }
+
+  # a metric that is no text
+  for (metric in list(mean, environment())) {
+    expect_error(plot(boot, metric = metric))
+  }
+  expect_null(dev.list(), label = "the devices after a metric that is no text")
 })
 
 test_that("plot.logo_cv() returns its input invisibly", {

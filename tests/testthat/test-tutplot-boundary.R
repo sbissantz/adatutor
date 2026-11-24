@@ -172,6 +172,61 @@ test_that("a one-class window warns instead of drawing nothing", {
   }
 })
 
+test_that("class shading tints a one-class window in that class's color", {
+  # image() draws a constant matrix in its first color unless told the range,
+  # so a window of the positive class was tinted like the negative one
+  separable <- fit_separable()
+  data <- separable$data
+  models <- list(
+    tree = rpart::rpart(
+      replicate ~ power.o + n.o,
+      data = data,
+      method = "class",
+      maxdepth = 1,
+      model = TRUE
+    ),
+    ensemble = separable$fit
+  )
+  # both models assign each window one class: success needs high power, and
+  # for the ensemble a large sample too
+  windows <- list(
+    failure = data[data$power.o < 0.5 & data$n.o < 200, ],
+    success = data[data$power.o > 0.7 & data$n.o > 250, ]
+  )
+  palette <- c("navy", "gold")
+  opacity <- 0.5
+  tints <- stats::setNames(
+    grDevices::adjustcolor(palette, alpha.f = opacity),
+    names(windows)
+  )
+
+  read_fill <- function(fit, window) {
+    expect_warning(
+      drawn <- record_calls(tutplot_boundary(
+        fit,
+        window,
+        shade = "class",
+        resolution = 10,
+        palette = palette,
+        opacity = opacity
+      )),
+      "one class over the whole plotting window"
+    )
+    raster <- find_calls(drawn$calls, "C_raster")
+    expect_length(raster, 1L)
+    unique(as.vector(raster[[1]][[2]]))
+  }
+  for (model in names(models)) {
+    for (side in names(windows)) {
+      expect_identical(
+        read_fill(models[[model]], windows[[side]]),
+        tints[[side]],
+        label = paste("the fill of the", model, "on a window of", side)
+      )
+    }
+  }
+})
+
 test_that("a custom palette is honored", {
   data(altmejd)
   quietly(

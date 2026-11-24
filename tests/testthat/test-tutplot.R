@@ -1352,6 +1352,86 @@ test_that("tutplot_logocv() restores par() and writes a file", {
   expect_error(tutplot_logocv(list()), "result of logo_cv")
 })
 
+test_that("tutplot_logocv() checks its arguments before it opens a device", {
+  set.seed(1)
+  # intervals, so the bands are used
+  boot <- suppressWarnings(bootstrap(logocv_res(), n_resample = 20))
+  # no device of our own: it would hide one the call opens. One open here
+  # leaked from an earlier test
+  expect_null(grDevices::dev.list(), label = "the devices open at the start")
+  grDevices::graphics.off()
+  # R's default device would write Rplots.pdf to the working directory
+  wd <- file.path(tempdir(), "tutplot-logocv")
+  dir.create(wd, showWarnings = FALSE)
+  old <- setwd(wd)
+  on.exit(
+    {
+      # close a device the call opened, so a failure leaves none behind
+      grDevices::graphics.off()
+      setwd(old)
+      unlink(wd, recursive = TRUE)
+    },
+    add = TRUE
+  )
+
+  # each of these once stopped only after pdf() or par() had opened a device
+  bad <- list(
+    "an unknown metric" = list(metric = "not_a_metric"),
+    "a missing metric" = list(metric = NA),
+    "two metrics" = list(metric = c("auroc", "acc")),
+    "bands in a list" = list(bands = list(0.5)),
+    "a band above 1" = list(bands = 1.5),
+    "no bands" = list(bands = numeric(0)),
+    # do.call() puts the name into the call, so the lookup fails when the
+    # label is first used, as a typo in a script would
+    "a label that does not exist" = list(ylab = quote(label_not_defined))
+  )
+  for (case in names(bad)) {
+    for (file in list(NULL, "figure.pdf")) {
+      label <- paste(case, if (is.null(file)) "and no file" else "and a file")
+      # two metrics warn on their way to the error
+      expect_error(
+        suppressWarnings(do.call(
+          tutplot_logocv,
+          c(list(boot), bad[[case]], list(file = file))
+        )),
+        label = paste("tutplot_logocv() with", label)
+      )
+      expect_null(
+        grDevices::dev.list(),
+        label = paste("the devices after", label)
+      )
+      grDevices::graphics.off()
+      expect_identical(
+        list.files(wd),
+        character(0),
+        label = paste("the files after", label)
+      )
+      unlink(list.files(wd, full.names = TRUE))
+    }
+  }
+  expect_error(
+    tutplot_logocv(boot, metric = "not_a_metric", file = "figure.pdf"),
+    "no estimates"
+  )
+})
+
+test_that("tutplot_logocv() and plot() draw on the caller's device", {
+  res <- logocv_res()
+  grDevices::pdf(NULL)
+  mine <- grDevices::dev.cur()
+  on.exit(grDevices::dev.off(mine), add = TRUE)
+  devices <- grDevices::dev.list()
+  grDevices::dev.control("enable")
+
+  tutplot_logocv(res, bootstrap = FALSE)
+  expect_identical(grDevices::dev.cur(), mine)
+  expect_gt(length(grDevices::recordPlot()[[1]]), 0L)
+  plot(res)
+  expect_identical(grDevices::dev.cur(), mine)
+  expect_identical(grDevices::dev.list(), devices)
+})
+
 test_that("tutplot_logocv() draws no keys, capitals and an italic n", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   res <- logocv_res()
