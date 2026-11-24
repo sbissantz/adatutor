@@ -274,7 +274,12 @@ tree <- rpart::rpart(
   data = altmejd,
   method = "class"
 )
-tune_logo_cv(tree, data.frame(depth = c(1, 3, 5)), data = altmejd, group = "pid")
+tune_logo_cv(
+  tree,
+  data.frame(depth = c(1, 3, 5)),
+  data = altmejd,
+  group = "pid"
+)
 
 }
 \seealso{
