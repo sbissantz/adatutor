@@ -32,7 +32,10 @@ test_that("tutplot_boundary() returns the grid it drew, invisibly", {
   })
   expect_false(out$visible)
   g <- out$value
-  expect_named(g, c("x1", "x2", "z", "features"))
+  expect_named(
+    g,
+    c("x1", "x2", "z", "features", "n_misclassified", "n_points")
+  )
   expect_length(g$x1, 30L)
   expect_length(g$x2, 30L)
   expect_equal(dim(g$z), c(30L, 30L))
@@ -477,4 +480,248 @@ test_that("the stump reads as two moderate tones, not two extremes", {
   # both regions sit well inside the ramp rather than on its ends
   expect_true(all(abs(range(g$z)) / top < 0.75))
   expect_length(unique(as.vector(g$z)), 2L)
+})
+
+# ---- misclassified points --------------------------------------------------
+
+# Figure 3's stump: the script's `cstump`, on the training set it was grown on
+fit_paper_stump <- function() {
+  rpart::rpart(
+    replicate ~ power.o + n.o,
+    data = altmext_splits$train,
+    method = "class",
+    model = TRUE,
+    parms = list(split = "gini"),
+    maxdepth = 1
+  )
+}
+
+test_that("tutplot_boundary() counts the stump's misclassified points", {
+  train <- altmext_splits$train
+  fit <- fit_paper_stump()
+  quietly(g <- tutplot_boundary(fit, train, resolution = 20))
+
+  # 39 of the 141 training points, for the caption
+  expect_identical(g$n_misclassified, 39L)
+  expect_identical(g$n_points, 141L)
+  # and what predict() says, so the count is not read off the drawing alone
+  predicted <- predict(fit, newdata = train, type = "class")
+  expect_identical(g$n_misclassified, sum(predicted != train$replicate))
+})
+
+test_that("a perfect ensemble has no misclassified point", {
+  perfect <- fit_separable()
+  quietly(g <- tutplot_boundary(perfect$fit, perfect$data, resolution = 20))
+
+  expect_identical(g$n_misclassified, 0L)
+  expect_identical(g$n_points, 60L)
+  predicted <- predict(
+    perfect$fit,
+    perfect$data,
+    verbose = FALSE,
+    check_inputs = FALSE
+  )
+  expect_true(all(
+    predicted == ifelse(perfect$data$replicate == "success", 1, -1)
+  ))
+})
+
+test_that("the counts do not depend on drawing the points", {
+  train <- altmext_splits$train
+  quietly({
+    hidden <- tutplot_boundary(
+      fit_paper_stump(),
+      train,
+      resolution = 20,
+      show_points = FALSE
+    )
+    # without the outcome there is nothing to count
+    blind <- tutplot_boundary(
+      fit_paper_stump(),
+      train[, c("power.o", "n.o")],
+      resolution = 20
+    )
+  })
+  expect_identical(hidden$n_misclassified, 39L)
+  expect_identical(hidden$n_points, 141L)
+  expect_identical(blind$n_misclassified, NA_integer_)
+  expect_identical(blind$n_points, NA_integer_)
+})
+
+test_that("an outcome that is not two classes stops only when drawn", {
+  train <- altmext_splits$train
+  fit <- fit_paper_stump()
+  words <- transform(train, replicate = as.character(replicate))
+  three <- transform(
+    train,
+    replicate = factor(rep_len(c("a", "b", "c"), nrow(train)))
+  )
+
+  for (bad in list(words, three)) {
+    expect_null(find_misclassified(fit, bad, "replicate"))
+    # without points the figure still draws, as it did before the count
+    quietly(
+      g <- tutplot_boundary(fit, bad, resolution = 20, show_points = FALSE)
+    )
+    expect_identical(g$n_misclassified, NA_integer_)
+    expect_identical(g$n_points, NA_integer_)
+  }
+  # with points, the error is the one it always was
+  expect_error(
+    quietly(tutplot_boundary(fit, words, resolution = 20)),
+    "two-level factor, 0/1, -1/1, or logical"
+  )
+  expect_error(
+    quietly(tutplot_boundary(fit, three, resolution = 20)),
+    "exactly two levels"
+  )
+})
+
+test_that("find_misclassified() reads the sign of the surface's own score", {
+  train <- altmext_splits$train
+  fit <- fit_paper_stump()
+  wrong <- find_misclassified(fit, train, "replicate")
+
+  expect_type(wrong, "logical")
+  expect_length(wrong, nrow(train))
+  # a positive score is the second class, as in the shading
+  positive <- score_grid(fit, train) > 0
+  expect_identical(wrong, unname(positive != (train$replicate == "success")))
+})
+
+test_that("style_points() makes a misclassified point paler and smaller", {
+  palette <- viridisLite::viridis(2)
+  look <- style_points(c(0L, 1L, 0L, 1L), c(FALSE, FALSE, TRUE, TRUE), palette)
+
+  # correct: the full class color and its contrasting ring
+  expect_identical(look$fill[1:2], palette)
+  expect_identical(look$ring[1:2], choose_ink(palette))
+  # misclassified: 45 percent paler fill, a fainter ring, a smaller dot
+  expect_identical(
+    look$fill[3:4],
+    grDevices::adjustcolor(palette, alpha.f = 0.55)
+  )
+  expect_identical(
+    look$ring[3:4],
+    grDevices::adjustcolor(choose_ink(palette), alpha.f = 0.8)
+  )
+  expect_identical(look$cex, c(1.2, 1.2, 1.05, 1.05))
+  expect_identical(look$lwd, c(1.1, 1.1, 0.7, 0.7))
+})
+
+test_that("misclassified points are drawn pale, then the correct ones on top", {
+  train <- altmext_splits$train
+  fit <- fit_paper_stump()
+  wrong <- find_misclassified(fit, train, "replicate")
+  out <- record_calls(tutplot_boundary(fit, train, resolution = 20))
+
+  # the one points() call that draws the data
+  drawn <- Filter(
+    \(call) length(call[[2]]$x) == nrow(train),
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(drawn, 1L)
+  drawn <- drawn[[1]]
+
+  first <- seq_len(sum(wrong))
+  expect_identical(drawn[[2]]$x[first], train$power.o[wrong])
+  expect_identical(drawn[[2]]$x[-first], train$power.o[!wrong])
+  look <- style_points(
+    as_binary(train$replicate),
+    wrong,
+    viridisLite::viridis(2)
+  )
+  # col, bg, cex and lwd, in drawing order
+  expect_identical(drawn[[6]], look$ring[order(!wrong)])
+  expect_identical(drawn[[7]], look$fill[order(!wrong)])
+  expect_identical(drawn[[8]], look$cex[order(!wrong)])
+  expect_identical(drawn[[9]], look$lwd[order(!wrong)])
+})
+
+test_that("the boundary line is drawn at width 1", {
+  out <- record_calls(
+    tutplot_boundary(fit_paper_stump(), altmext_splits$train, resolution = 20)
+  )
+  contour <- find_calls(out$calls, "C_contour")
+  expect_length(contour, 1L)
+  # lwd is the last argument contour() hands to the graphics engine
+  expect_identical(utils::tail(contour[[1]], 1)[[1]], 1.0)
+})
+
+test_that("the key clears the color bar's label and stays on the page", {
+  # measured at the manuscript's full width, once the bar, drawn last, is in
+  real_colorbar <- draw_colorbar
+  room <- NULL
+  local_mocked_bindings(
+    draw_colorbar = function(opacity, labels) {
+      real_colorbar(opacity, labels)
+      calls <- lapply(grDevices::recordPlot()[[1]], \(item) item[[2]])
+      texts <- find_calls(calls, "C_text")
+      find_text <- function(label) {
+        Filter(\(call) identical(call[[3]], label), texts)[[1]]
+      }
+      bar_end <- find_text("Success")
+      key <- find_text(c("Correct", "Misclassified"))
+      dots <- Filter(
+        \(call) length(call[[2]]$x) == 2L,
+        find_calls(calls, "C_plotXY")
+      )[[1]]
+      room <<- c(
+        # from the bar's end label to the key's dots, less a dot's width
+        gap = min(dots[[2]]$x) -
+          (bar_end[[2]]$x + graphics::strwidth("Success", cex = 0.72)) -
+          graphics::strwidth("M", cex = 1.2),
+        # from the end of the key's longest text to the page's right edge
+        margin = graphics::grconvertX(1, "ndc", "user") -
+          (key[[2]]$x[2] + graphics::strwidth("Misclassified", cex = 0.62))
+      )
+    }
+  )
+  record_calls(
+    tutplot_boundary(fit_paper_stump(), altmext_splits$train, resolution = 20),
+    width = tutplot_opts$full[["width"]],
+    height = tutplot_opts$full[["height"]],
+    pointsize = tutplot_opts$pointsize
+  )
+  expect_gt(room[["gap"]], 0)
+  expect_gt(room[["margin"]], 0)
+})
+
+test_that("the key's upper row shares the class legend's line", {
+  draw_rows <- function(...) {
+    # par("usr") outlives the call: only `mar` is restored
+    out <- record_calls(
+      {
+        tutplot_boundary(
+          fit_paper_stump(),
+          altmext_splits$train,
+          resolution = 20,
+          ...
+        )
+        graphics::par("usr")
+      },
+      width = tutplot_opts$full[["width"]],
+      height = tutplot_opts$full[["height"]],
+      pointsize = tutplot_opts$pointsize
+    )
+    texts <- find_calls(out$calls, "C_text")
+    find_y <- function(label) {
+      Filter(\(call) identical(call[[3]], label), texts)[[1]][[2]]$y
+    }
+    list(
+      key = find_y(c("Correct", "Misclassified")),
+      legend = find_y(c("Success", "Failure")),
+      usr = out$value
+    )
+  }
+
+  top <- draw_rows(shade = "class")
+  expect_identical(top$key[1], top$legend[1])
+  # the rows keep their spacing
+  height <- top$usr[4] - top$usr[3]
+  expect_equal(top$key[1] - top$key[2], 0.045 * height)
+
+  # an inside legend leaves the strip to the key, at its usual rows
+  inside <- draw_rows(shade = "class", legend_pos = "topleft")
+  expect_equal(inside$key, inside$usr[4] + c(0.085, 0.04) * height)
 })
