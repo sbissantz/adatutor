@@ -4,15 +4,17 @@
 #' in a vignette, so every printed figure is documented and tested.
 #'
 #' * `tutplot_cstump()`: a classification stump, with its class names in title
-#'   case.
+#'   case and its branches tagged "Yes" and "No" in upright type.
 #' * `tutplot_gini()`: Gini impurity by class proportion.
 #' * `tutplot_updatefactor()`: the factor by which one round multiplies an
 #'   observation's weight.
 #' * `tutplot_modelweight()`: the model weight a stump earns, by its
 #'   performance.
-#' * `tutplot_weightupdate()`: observation weights before and after one round.
+#' * `tutplot_weightupdate()`: observation weights before and after one round,
+#'   with a short tick under every data point and a number at every fifth.
 #' * `tutplot_importance()`: the relative importance of each predictor, as a
-#'   lollipop chart.
+#'   lollipop chart. Its axis title is in title case; `plot()` on a [gauge()]
+#'   draws the same chart with the title in sentence case.
 #' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
 #' * `tutplot_logocv()`: the leave-one-group-out estimates per project, with
 #'   or without bootstrap intervals. The project names are drawn in capitals.
@@ -34,8 +36,8 @@
 #'   the variables as they appear in the data, such as
 #'   `c(n.o = "Sample Size")`. A variable without an entry keeps its name. A
 #'   name that is not a predictor of `fit`, or not a variable in `importance`,
-#'   is an error. `NULL` (the default) draws the variable names. `tutplot_importance()` also takes
-#'   plotmath in a named list, such as
+#'   is an error. `NULL` (the default) draws the variable names.
+#'   `tutplot_importance()` also takes plotmath in a named list, such as
 #'   `list(p_value.o = quote(italic(p) ~ Value))`. `tutplot_cstump()` takes
 #'   plain text only, because `rpart.plot::rpart.plot()` draws strings.
 #' @param file A path to write a PDF to, or `NULL` to draw on the current
@@ -170,13 +172,18 @@ tutplot_cstump <- function(
   drawn <- fit
   attr(drawn, "ylevels") <- tools::toTitleCase(attr(fit, "ylevels"))
 
+  # branch tags in title case and upright; with node numbers off, `nn.font`
+  # sets only the tags' font, which is italic by default
   rpart.plot::rpart.plot(
     drawn,
     extra = extra,
     digits = 4,
     box.col = colors$box,
     col = colors$text,
-    split.fun = relabel_splits(labels)
+    split.fun = relabel_splits(labels),
+    yes.text = "Yes",
+    no.text = "No",
+    nn.font = 1
   )
 
   # what the caption claims, for tests, read off the fit as given rather than
@@ -627,6 +634,8 @@ tutplot_weightupdate <- function(
 
   # every fifth point: 25 labels do not fit the width of a column
   graphics::axis(1, at = c(1, seq(5, n, 5)))
+  # and a short, unnumbered tick under every point, so each one can be found
+  graphics::axis(1, at = seq_len(n), labels = FALSE, tcl = -0.22)
   graphics::segments(
     seq_len(n),
     d1[seq_len(n)],
@@ -680,10 +689,20 @@ tutplot_weightupdate <- function(
 #' classes sit at its ends and uncertainty sits in the middle. For a tree, the
 #' scale is fixed at -0.5 to 0.5, so a color always means the same
 #' probability. For an ensemble, it runs to the largest margin, so colors
-#' compare within a plot but not across plots.
+#' compare within a plot but not across plots. A short line marks the middle
+#' of the color bar, a score of zero, as the boundary.
 #'
 #' A stump has one split, so it shows two flat blocks; an ensemble shows a
 #' surface. That contrast is what boosting buys.
+#'
+#' @section Points:
+#' Each point is filled with the color of its observed class. A point is
+#' misclassified when the sign of its score names the other class, the same
+#' score the surface is drawn from. Misclassified points are drawn paler and
+#' smaller, under the correct ones. A key at the top right, above the panel,
+#' shows both kinds. It is drawn whenever the points are and `legend_pos` is
+#' not `NULL`, even when no point is misclassified. The figure prints no
+#' count; the return value holds it.
 #'
 #' @param fit An rpart tree or an [adaboost()] fit.
 #' @param data A data frame with the two features and the outcome. It sets the
@@ -698,11 +717,13 @@ tutplot_weightupdate <- function(
 #'   Defaults to `viridisLite::viridis(2)`.
 #' @param opacity The opacity of the fill. Defaults to 0.18 for `"class"` and
 #'   0.65 for `"margin"`.
-#' @param show_points Whether to draw the data. Defaults to `TRUE`.
+#' @param show_points Whether to draw the data. Defaults to `TRUE`. See the
+#'   section on points.
 #' @param legend_pos Where to put the legend. The default, `"top"`, puts it
 #'   above the panel; any other [graphics::legend()] keyword puts it inside.
-#'   `NULL` leaves it out. The legend and the color bar name the classes by
-#'   the outcome's levels, in title case.
+#'   `NULL` leaves it out, along with the key for misclassified points, which
+#'   always sits above the panel. The legend and the color bar name the
+#'   classes by the outcome's levels, in title case.
 #' @param add_colorbar Whether `shade = "margin"` draws a color bar in place of
 #'   the legend. Defaults to `TRUE`.
 #' @param main,subtitle An optional title and gray subtitle above the panel.
@@ -713,8 +734,13 @@ tutplot_weightupdate <- function(
 #'   `file` is `NULL`. They default to the full text width.
 #' @param ... Passed to [graphics::plot()].
 #'
-#' @return Invisibly, the grid: the two axis sequences, the matrix of scores
-#'   and the feature names.
+#' @return Invisibly, a list with the grid and the error count: the two axis
+#'   sequences `x1` and `x2`, the matrix of scores `z`, the feature names
+#'   `features`, the number of misclassified points `n_misclassified`, and
+#'   the number of points with an observed class `n_points`. The counts are
+#'   taken even with `show_points = FALSE`. They are `NA` when `data` has no
+#'   outcome column, or when its outcome is not a two-level factor, 0/1, -1/1,
+#'   or logical.
 #'
 #' @family tutorial plots
 #' @seealso [tutplot] for the other figures.
@@ -732,6 +758,9 @@ tutplot_weightupdate <- function(
 #' )
 #' grid <- tutplot_boundary(h, train, resolution = 60)
 #' grid$features
+#' # the points the stump puts in the wrong class, and all points
+#' grid$n_misclassified
+#' grid$n_points
 #'
 #' # flat tints instead of the margin scale
 #' tutplot_boundary(h, train, resolution = 60, shade = "class")
@@ -892,7 +921,7 @@ tutplot_boundary <- function(
     levels = 0,
     add = TRUE,
     drawlabels = FALSE,
-    lwd = 1.6,
+    lwd = 1.0,
     col = "grey15"
   )
 
@@ -952,21 +981,36 @@ tutplot_boundary <- function(
     labels <- tools::toTitleCase(labels)
   }
 
+  # counted whenever the outcome is two classes, drawn or not, for the caption
+  n_misclassified <- NA_integer_
+  n_points <- NA_integer_
+  misclassified <- NULL
+  if (!is.null(labels)) {
+    misclassified <- find_misclassified(fit, data, roles$outcome)
+  }
+  if (!is.null(misclassified)) {
+    n_misclassified <- sum(misclassified, na.rm = TRUE)
+    n_points <- sum(!is.na(misclassified))
+  }
+
   if (show_points && !is.null(labels)) {
+    # stops for an outcome that is not two classes, as it did before the count
     y <- as_binary(data[[roles$outcome]])
-    # full-strength, ringed endpoints keep the studies the most saturated marks
-    stroke <- choose_ink(palette)
+    look <- style_points(y, misclassified, palette)
+    # one call, misclassified first, so the correct points are drawn on top
+    drawn <- order(!misclassified)
     graphics::points(
-      data[[features[1]]],
-      data[[features[2]]],
+      data[[features[1]]][drawn],
+      data[[features[2]]][drawn],
       pch = 21,
-      cex = 1.2,
-      lwd = 1.1,
-      col = stroke[y + 1],
-      bg = palette[y + 1]
+      cex = look$cex[drawn],
+      lwd = look$lwd[drawn],
+      col = look$ring[drawn],
+      bg = look$fill[drawn]
     )
   }
 
+  key_row <- NULL
   if (shade == "class" && !is.null(legend_pos) && !is.null(labels)) {
     legend_args <- list(
       legend = rev(labels),
@@ -994,7 +1038,16 @@ tutplot_boundary <- function(
     } else {
       legend_args$x <- legend_pos
     }
-    do.call(graphics::legend, legend_args)
+    class_legend <- do.call(graphics::legend, legend_args)
+    if (identical(legend_pos, "top")) {
+      # the point key's upper row shares the class legend's line
+      key_row <- class_legend$text$y[1]
+    }
+  }
+
+  if (show_points && !is.null(labels) && !is.null(legend_pos)) {
+    # before the color bar, which is drawn last
+    draw_point_key(key_row)
   }
 
   if (shade == "margin" && isTRUE(add_colorbar) && !is.null(legend_pos)) {
@@ -1002,7 +1055,14 @@ tutplot_boundary <- function(
     draw_colorbar(opacity, labels)
   }
 
-  invisible(list(x1 = x1, x2 = x2, z = z, features = features))
+  invisible(list(
+    x1 = x1,
+    x2 = x2,
+    z = z,
+    features = features,
+    n_misclassified = n_misclassified,
+    n_points = n_points
+  ))
 }
 
 #' Read predictor and outcome names off a fitted model
@@ -1045,6 +1105,85 @@ score_grid <- function(fit, newdata) {
     type = "margin",
     verbose = FALSE,
     check_inputs = FALSE
+  )
+}
+
+#' Flag the points the model assigns to the other class
+#'
+#' Reads the sign of the score the surface is drawn from; a positive score is
+#' the second class. Returns one logical per row of `data`, `NA` where the
+#' outcome is missing, or `NULL` when the outcome is not two classes.
+#' @noRd
+find_misclassified <- function(fit, data, outcome) {
+  # only the outcome may fail quietly; a failing predict() still stops
+  observed <- tryCatch(as_binary(data[[outcome]]), error = \(e) NULL)
+  if (is.null(observed)) {
+    return(NULL)
+  }
+  predicted <- score_grid(fit, data) > 0
+  unname(predicted != (observed == 1L))
+}
+
+#' Style each point by its class and by whether the model got it right
+#'
+#' Correct points get the full class color and a ring that contrasts with
+#' it; misclassified ones are paler and smaller. Returns a data frame with one
+#' row per point, in the order given, and the columns `fill`, `ring`, `cex`
+#' and `lwd`.
+#' @noRd
+style_points <- function(class, misclassified, palette) {
+  fill <- palette[class + 1]
+  ring <- choose_ink(palette)[class + 1]
+  pale <- !is.na(misclassified) & misclassified
+  data.frame(
+    fill = ifelse(pale, grDevices::adjustcolor(fill, alpha.f = 0.55), fill),
+    ring = ifelse(pale, grDevices::adjustcolor(ring, alpha.f = 0.8), ring),
+    cex = ifelse(pale, 1.05, 1.2),
+    lwd = ifelse(pale, 0.7, 1.1)
+  )
+}
+
+#' Draw the key for correct and misclassified points
+#'
+#' Two class-neutral dots at the top right, in the strip above the panel that
+#' holds the color bar, styled by style_points(). `top`, a y in user units,
+#' moves the upper row there, onto the class legend's line.
+#' @noRd
+draw_point_key <- function(top = NULL) {
+  usr <- graphics::par("usr")
+  width <- usr[2] - usr[1]
+  height <- usr[4] - usr[3]
+  texts <- c("Correct", "Misclassified")
+  look <- style_points(c(0L, 0L), c(FALSE, TRUE), c("grey30", "grey30"))
+
+  # clear of the color bar's end label; pulled left on a narrow device, so
+  # the text never runs past the panel's right edge
+  gap <- 0.018 * width
+  text_width <- max(graphics::strwidth(texts, cex = 0.62))
+  x <- min(usr[1] + 0.84 * width, usr[2] - gap - text_width)
+  y <- usr[4] + c(0.085, 0.04) * height
+  if (!is.null(top)) {
+    y <- y - y[1] + top
+  }
+
+  graphics::points(
+    c(x, x),
+    y,
+    pch = 21,
+    cex = look$cex,
+    lwd = look$lwd,
+    col = look$ring,
+    bg = look$fill,
+    xpd = NA
+  )
+  graphics::text(
+    x + gap,
+    y,
+    texts,
+    adj = c(0, 0.5),
+    cex = 0.62,
+    col = "grey25",
+    xpd = NA
   )
 }
 
@@ -1106,6 +1245,26 @@ draw_colorbar <- function(opacity, labels) {
     xpd = NA
   )
 
+  # the scale is centered on zero, so the vote tips at the bar's middle
+  middle <- (left + right) / 2
+  graphics::segments(
+    middle,
+    bottom,
+    middle,
+    top + 0.006 * height,
+    lwd = 1,
+    col = "grey15",
+    xpd = NA
+  )
+  graphics::text(
+    middle,
+    top + 0.026 * height,
+    "Boundary",
+    cex = 0.55,
+    col = "grey25",
+    xpd = NA
+  )
+
   low_label <- if (is.null(labels)) "Negative" else labels[1]
   high_label <- if (is.null(labels)) "Positive" else labels[2]
   graphics::text(
@@ -1139,15 +1298,7 @@ tutplot_importance <- function(
   height = tutplot_opts$col[["height"]],
   pointsize = tutplot_opts$pointsize
 ) {
-  if (!inherits(importance, "gauge")) {
-    stop("`importance` must be the result of `gauge()`.", call. = FALSE)
-  }
-  if (nrow(importance) == 0L) {
-    stop(
-      "no variable was split on, so there is no importance to plot.",
-      call. = FALSE
-    )
-  }
+  check_gauge(importance)
   if (!is.null(labels)) {
     # every row, not only the top_n drawn: a label for a cut row is no error
     check_labels(labels, importance$variable, "`importance`")
@@ -1167,6 +1318,38 @@ tutplot_importance <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
+  # title case, as APA asks of a figure; plot.gauge() uses sentence case
+  drawn <- draw_importance(
+    importance,
+    top_n,
+    labels = labels,
+    xlab = "Relative Importance (%)"
+  )
+  invisible(drawn)
+}
+
+#' Stop unless `importance` is a gauge with a row to draw
+#' @noRd
+check_gauge <- function(importance) {
+  if (!inherits(importance, "gauge")) {
+    stop("`importance` must be the result of `gauge()`.", call. = FALSE)
+  }
+  if (nrow(importance) == 0L) {
+    stop(
+      "no variable was split on, so there is no importance to plot.",
+      call. = FALSE
+    )
+  }
+  invisible(importance)
+}
+
+#' Draw the lollipop chart of a gauge on the current device
+#'
+#' Shared by tutplot_importance() and plot.gauge(), so both draw one chart;
+#' each passes its own axis title. Sets and restores par() itself. Returns the
+#' rows drawn, most important first.
+#' @noRd
+draw_importance <- function(importance, top_n, labels, xlab) {
   # top_n predictors only, so the chart stays readable; gauge() sorts them
   drawn <- utils::head(importance, min(top_n, nrow(importance)))
   n_shown <- nrow(drawn)
@@ -1225,9 +1408,9 @@ tutplot_importance <- function(
   graphics::axis(1)
   graphics::axis(2, at = rows, labels = axis_labels, las = 1, lwd = 0)
   # no title: the caption carries it, as for every figure
-  graphics::title(xlab = "Relative Importance (%)")
+  graphics::title(xlab = xlab)
 
-  invisible(drawn)
+  drawn
 }
 
 #' Swap variable names for their labels, keeping the rest

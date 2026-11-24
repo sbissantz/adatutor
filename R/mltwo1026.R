@@ -28,7 +28,7 @@
 #' @source Klein RA, et al. (2018) Many Labs 2:
 #'   Investigating variation in replicability across samples and settings.
 #'   Advances in Methods and Practices in Psychological Science 1(4):
-#'   443-490. <https://doi.org/10.1177/2515245918810225>
+#'   443-490. \doi{10.1177/2515245918810225}
 #'
 #'   Data: <https://osf.io/8cd4r/>, files `table5data_RM.csv`,
 #'   `ML2_OriginalEffects.csv` and `ML2_KeyTable.csv`, downloaded in October

@@ -23,7 +23,7 @@
 #' @source Camerer CF, Dreber A, Holzmeister F, et al. (2018) Evaluating the
 #'   replicability of social science experiments in Nature and Science
 #'   between 2010 and 2015. Nature Human Behaviour 2: 637-644.
-#'   <https://doi.org/10.1038/s41562-018-0399-z>
+#'   \doi{10.1038/s41562-018-0399-z}
 #'
 #'   Data: <https://osf.io/956xg/>, file `D3 - ReplicationResults.csv`,
 #'   downloaded in October 2026; the `ssrp.X` ids from Altmejd et al.'s

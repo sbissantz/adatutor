@@ -21,7 +21,7 @@
 #' @source Holzmeister F, Johannesson M, Camerer CF, et al. (2024) Examining
 #'   the replicability of online experiments selected by a decision market.
 #'   Nature Human Behaviour 9: 316-330.
-#'   <https://doi.org/10.1038/s41562-024-02062-9>
+#'   \doi{10.1038/s41562-024-02062-9}
 #'
 #'   Data: <https://osf.io/sk82q/>, file `data/proc/data_to_use.csv`,
 #'   downloaded in October 2026.

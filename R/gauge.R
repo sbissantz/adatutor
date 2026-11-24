@@ -21,8 +21,9 @@
 #'   `variable` and `importance` (a percentage), one row per predictor of the
 #'   formula, sorted from most to least important; a predictor no tree split
 #'   on has 0. `plot()` draws a lollipop chart, a line and a dot per
-#'   predictor, by calling [tutplot_importance()], and returns `NULL`
-#'   invisibly.
+#'   predictor, and returns `NULL` invisibly. It is the chart
+#'   [tutplot_importance()] draws, with the variable names as typed and the
+#'   axis title in sentence case.
 #'
 #' @family tutorial plots
 #'
@@ -133,8 +134,9 @@ sum_primary_gain <- function(tree) {
 #' @rdname gauge
 #' @export
 plot.gauge <- function(x, top_n = 15, ...) {
-  # the manuscript's figure function draws, so the listing's plot() and the
-  # printed figure are one picture
-  tutplot_importance(x, top_n = top_n)
+  check_gauge(x)
+  # the manuscript figure's own drawing, so the listing's plot() and the
+  # printed figure are one picture; a plot() method titles in sentence case
+  draw_importance(x, top_n, labels = NULL, xlab = "Relative importance (%)")
   invisible(NULL)
 }
