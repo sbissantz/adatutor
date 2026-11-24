@@ -106,3 +106,23 @@ draw_roundrect <- function(
     border = border
   )
 }
+
+#' Give each project its color, the same in every figure
+#'
+#' Viridis up to `tutplot_opts$viridis_end`, dealt out in alphabetical order
+#' of the names, compared without case. Returns one color per distinct
+#' project, in the order given, named by project.
+#' @noRd
+color_projects <- function(projects) {
+  projects <- unique(as.character(projects))
+  # compare in lowercase, so "ML1" in the scheme gets the color of "ml1" in the
+  # estimates; radix sorts the same in every locale
+  alphabetical <- order(tolower(projects), projects, method = "radix")
+  colors <- character(length(projects))
+  colors[alphabetical] <- viridisLite::viridis(
+    length(projects),
+    end = tutplot_opts$viridis_end
+  )
+  names(colors) <- projects
+  colors
+}
