@@ -21,7 +21,7 @@ ssrp723
 }
 \description{
 A subset of the replication database of Altmejd et al. (2019), used only
-to build \link{altmejd}. It holds one project: the Social Science Replication
+to build \link{altmejd}. It holds one project: the Social Sciences Replication
 Project (SSRP).
 }
 \details{

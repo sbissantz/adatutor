@@ -3,7 +3,7 @@
 \docType{data}
 \name{ssrp1026}
 \alias{ssrp1026}
-\title{Social Science Replication Project, from its own results}
+\title{Social Sciences Replication Project, from its own results}
 \format{
 A data frame with 21 rows (study effects) and the 7 columns of
 \link{altmejd}, \code{replicate} coded 0/1.
@@ -22,7 +22,7 @@ codebook (\url{https://osf.io/7ad56/}).
 ssrp1026
 }
 \description{
-The 21 studies of the Social Science Replication Project (SSRP), rebuilt
+The 21 studies of the Social Sciences Replication Project (SSRP), rebuilt
 from the project's own results file, used to build \link{altmext}. It replaces
 \link{ssrp723}, Altmejd et al.'s copy, and keeps its \code{ssrp.X} ids.
 }

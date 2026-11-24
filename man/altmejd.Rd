@@ -9,8 +9,8 @@ A data frame with 152 rows (study effects) and 7 columns:
 \itemize{
 \item \code{eid}: Effect identifier.
 \item \code{pid}: Project identifier: Many Labs 1 (ML1), Many Labs 3 (ML3),
-Replication Project Psychology (RPP), Experimental Economics Replication
-Project (EERP) or Social Science Replication Project (SSRP).
+Reproducibility Project: Psychology (RPP), Experimental Economics
+Replication Project (EERP) or Social Sciences Replication Project (SSRP).
 \item \code{effect_size.o}: Standardized effect size of the original study.
 \item \code{n.o}: Sample size of the original study.
 \item \code{p_value.o}: P-value of the original study.
@@ -33,8 +33,8 @@ altmejd
 An adapted version of the replication database of Altmejd et al. (2019):
 152 study effects from five large-scale replication projects, and
 whether each one replicated. The projects are Many Labs 1 and 3, the
-Replication Project Psychology, the Experimental Economics Replication
-Project and the Social Science Replication Project.
+Reproducibility Project: Psychology, the Experimental Economics Replication
+Project and the Social Sciences Replication Project.
 }
 \seealso{
 Other datasets:

@@ -22,8 +22,8 @@ altmejd723
 \description{
 A subset of the replication database of Altmejd et al. (2019), used only
 to build \link{altmejd}. It holds four of the five projects: Many Labs 1 and 3,
-the Replication Project Psychology and the Experimental Economics
-Replication Project. The Social Science Replication Project is in
+the Reproducibility Project: Psychology and the Experimental Economics
+Replication Project. The Social Sciences Replication Project is in
 \link{ssrp723}.
 }
 \seealso{
