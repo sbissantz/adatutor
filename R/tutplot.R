@@ -849,7 +849,8 @@ tutplot_boundary <- function(
   }
   z <- matrix(score_grid(fit, grid), nrow = resolution)
 
-  if (all(z > 0, na.rm = TRUE) || all(z <= 0, na.rm = TRUE)) {
+  undivided <- all(z > 0, na.rm = TRUE) || all(z <= 0, na.rm = TRUE)
+  if (undivided) {
     warning(
       "the model assigns one class over the whole plotting window, so there ",
       "is no boundary to draw.",
@@ -918,16 +919,19 @@ tutplot_boundary <- function(
     )
   }
 
-  graphics::contour(
-    x1,
-    x2,
-    z,
-    levels = 0,
-    add = TRUE,
-    drawlabels = FALSE,
-    lwd = 1.0,
-    col = "grey15"
-  )
+  # no zero line to draw, and contour() warns on a flat surface
+  if (!undivided) {
+    graphics::contour(
+      x1,
+      x2,
+      z,
+      levels = 0,
+      add = TRUE,
+      drawlabels = FALSE,
+      lwd = 1.0,
+      col = "grey15"
+    )
+  }
 
   graphics::axis(
     1,
