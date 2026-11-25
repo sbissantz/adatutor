@@ -13,3 +13,6 @@
 ^\.vscode$
 ^[.]?air[.]toml$
 ^inst/context$
+^\.claude$
+^data-raw$
+^adatutor_.*\.pdf$
