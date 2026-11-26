@@ -1333,6 +1333,8 @@ scores <- list()
 runtime <- system.time({
   # LOGO-CV: each project is the test set once
   for (rp in proj_nms) {
+    # Progress report, one line per project
+    cat("Held-out project:", rp, "\n")
     # Training and test set
     test_cv <- df_split[[rp]]
     train_cv <- df_noholz[df_noholz$pid != rp, ]
@@ -1345,7 +1347,8 @@ runtime <- system.time({
       parms = list(split = "gini"),
       model = TRUE
     )
-    ada_cv <- cstump_cv |> adaboost(n_iter = n_tree, eta = eta, verbose = FALSE)
+    ada_cv <- cstump_cv |>
+      adaboost(n_iter = n_tree, eta = eta, verbose = FALSE)
     # Margins for the held-out project, with the observed outcomes
     scores[[rp]] <- data.frame(
       actual = test_cv[, out_nme],
@@ -1375,7 +1378,7 @@ sapply(scores, \(s) mean(s$actual == "success"))
 :::
 
 ::: {.callout-important title="Changed since submission"}
-- The HOLZ hold-out opens the listing (new: the submitted data had no HOLZ). The fold objects are `train_cv` and `test_cv`, so the split of Module 1 stays intact (submitted: `train`, `test`). `adaboost()` and `predict(type = "margin")` replace `trainAda()` and `testAda()`, `auroc()` replaces `auc(roc())`; the submitted loop scored class labels, so its "AUC" values were balanced accuracies (findings §1). The loop stores the held-out margins with the outcomes; the AUROC and the base rate per project are computed after it. `n_tree` and `eta` from Listing 24 instead of literal values; `verbose = FALSE` and no `message()` per project. The mean across projects is gone (R1.C4.a; Bengio & Grandvalet, 2004). Six tuning projects, with ML2 (submitted: five).
+- The HOLZ hold-out opens the listing (new: the submitted data had no HOLZ). The fold objects are `train_cv` and `test_cv`, so the split of Module 1 stays intact (submitted: `train`, `test`). `adaboost()` and `predict(type = "margin")` replace `trainAda()` and `testAda()`, `auroc()` replaces `auc(roc())`; the submitted loop scored class labels, so its "AUC" values were balanced accuracies (findings §1). The loop stores the held-out margins with the outcomes; the AUROC and the base rate per project are computed after it. `n_tree` and `eta` from Listing 24 instead of literal values; `verbose = FALSE`, and the progress line per project is a `cat()` (submitted: `message()`). The mean across projects is gone (R1.C4.a; Bengio & Grandvalet, 2004). Six tuning projects, with ML2 (submitted: five).
 :::
 
 #### The Package Solution [NEW]
@@ -2745,8 +2748,8 @@ auc_nested_craft <- setNames(rep(NA_real_, length(proj_all)), proj_all)
 winners_craft <- list()
 # Outer loop: each project is held out once and scored once
 for (rp in proj_all) {
-  # Progress report, overwritten in place
-  cat("\rHeld-out project:", rp)
+  # Progress report, one line per project
+  cat("Held-out project:", rp, "\n")
   # The held-out project leaves the data, so the search cannot see it
   train_cv <- df[df$pid != rp, ]
   test_cv <- df[df$pid == rp, ]
