@@ -165,10 +165,10 @@ check_train <- function(
   conclusion <- "! Outputs are retrodictions, not predictions."
 
   if (verbose) {
-    # faint reason, bold teal conclusion; unstyled, RStudio would paint the
+    # gray reason, plain conclusion; unstyled, RStudio would paint the
     # reason red
-    color_message(paste0(reason, "\n"), color_code = ansi_dim)
-    color_message(paste0(conclusion, "\n"), color_code = ansi_note)
+    color_message(reason, color_code = ansi_gray, newline = TRUE)
+    message(conclusion)
   } else {
     message(paste(c(reason, conclusion), collapse = "\n"))
   }
