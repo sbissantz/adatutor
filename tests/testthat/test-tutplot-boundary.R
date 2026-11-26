@@ -793,80 +793,343 @@ test_that("the boundary line is drawn at width 1", {
   expect_identical(utils::tail(contour[[1]], 1)[[1]], 1.0)
 })
 
-test_that("the key clears the color bar's label and stays on the page", {
-  # measured at the manuscript's full width, once the bar, drawn last, is in
-  real_colorbar <- draw_colorbar
-  room <- NULL
+# ---- the strip above the panel ---------------------------------------------
+
+# the text() calls that drew exactly `label`
+find_texts <- function(calls, label) {
+  Filter(\(call) identical(call[[3]], label), find_calls(calls, "C_text"))
+}
+
+# Figure 3 on a pdf device of `size` at `pointsize`. The panel's geometry is
+# read inside style_points(), while the figure's own margins hold: on.exit()
+# restores them before the call returns
+read_strip <- function(
+  size = tutplot_opts$full,
+  ...,
+  pointsize = tutplot_opts$pointsize
+) {
+  real_style <- style_points
+  frame <- NULL
   local_mocked_bindings(
-    draw_colorbar = function(opacity, labels) {
-      real_colorbar(opacity, labels)
-      calls <- lapply(grDevices::recordPlot()[[1]], \(item) item[[2]])
-      texts <- find_calls(calls, "C_text")
-      find_text <- function(label) {
-        Filter(\(call) identical(call[[3]], label), texts)[[1]]
-      }
-      bar_end <- find_text("Success")
-      key <- find_text(c("Correct", "Misclassified"))
-      dots <- Filter(
-        \(call) length(call[[2]]$x) == 2L,
-        find_calls(calls, "C_plotXY")
-      )[[1]]
-      room <<- c(
-        # from the bar's end label to the key's dots, less a dot's width
-        gap = min(dots[[2]]$x) -
-          (bar_end[[2]]$x + graphics::strwidth("Success", cex = 0.72)) -
-          graphics::strwidth("M", cex = 1.2),
-        # from the end of the key's longest text to the page's right edge
-        margin = graphics::grconvertX(1, "ndc", "user") -
-          (key[[2]]$x[2] + graphics::strwidth("Misclassified", cex = 0.62))
+    style_points = function(class, misclassified, palette) {
+      frame <<- list(
+        usr = graphics::par("usr"),
+        pin = graphics::par("pin"),
+        # inches per margin line
+        line = graphics::par("mai")[3] / graphics::par("mar")[3],
+        page_top = graphics::grconvertY(1, "ndc", "user")
       )
+      real_style(class, misclassified, palette)
     }
   )
-  record_calls(
-    tutplot_boundary(fit_paper_stump(), altmext_splits$train, resolution = 20),
-    width = tutplot_opts$full[["width"]],
-    height = tutplot_opts$full[["height"]],
-    pointsize = tutplot_opts$pointsize
+  out <- record_calls(
+    tutplot_boundary(
+      fit_paper_stump(),
+      altmext_splits$train,
+      resolution = 20,
+      ...
+    ),
+    width = size[["width"]],
+    height = size[["height"]],
+    pointsize = pointsize
   )
-  expect_gt(room[["gap"]], 0)
-  expect_gt(room[["margin"]], 0)
+  if (is.null(frame)) {
+    stop("style_points() was not called, so the panel was not read.")
+  }
+  list(calls = out$calls, frame = frame)
+}
+
+# the color bar's raster: the panel's shading is a raster too, but the bar's
+# lies above the panel
+find_bar <- function(strip) {
+  Filter(
+    \(call) call[[4]] > strip$frame$usr[4],
+    find_calls(strip$calls, "C_raster")
+  )
+}
+
+# the strip's parts in inches above the panel's top edge, NULL where absent
+locate_strip <- function(strip) {
+  usr <- strip$frame$usr
+  to_inches <- function(y) {
+    (y - usr[4]) / (usr[4] - usr[3]) * strip$frame$pin[2]
+  }
+  find_y <- function(label) {
+    found <- find_texts(strip$calls, label)
+    if (length(found)) to_inches(found[[1]][[2]]$y)
+  }
+  bar <- find_bar(strip)
+  subtitle <- Filter(
+    \(call) identical(call[[2]], "A subtitle"),
+    find_calls(strip$calls, "C_mtext")
+  )
+  list(
+    bar = if (length(bar)) to_inches(c(bar[[1]][[4]], bar[[1]][[6]])),
+    label = find_y("Boundary"),
+    # the color bar's end labels
+    ends = c(find_y("Failure"), find_y("Success")),
+    # one row: both labels share a y
+    legend = find_y(c("Success", "Failure"))[1],
+    page_top = to_inches(strip$frame$page_top),
+    subtitle = if (length(subtitle)) subtitle[[1]][[4]] * strip$frame$line,
+    line = strip$frame$line
+  )
+}
+
+# the strip's highest ink in inches above the panel: half a line above a row
+# covers a label's ink and a legend dot's
+find_highest <- function(parts) {
+  max(c(parts$bar, c(parts$ends, parts$legend) + parts$line / 2))
+}
+
+# the size of `label` in inches at `pointsize`
+measure_height <- function(label, cex, pointsize = tutplot_opts$pointsize) {
+  grDevices::pdf(NULL, pointsize = pointsize)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  graphics::strheight(label, units = "inches", cex = cex)
+}
+measure_width <- function(label, cex, pointsize = tutplot_opts$pointsize) {
+  grDevices::pdf(NULL, pointsize = pointsize)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  graphics::strwidth(label, units = "inches", cex = cex)
+}
+
+# the manuscript's full width, and a tall square device
+devices <- list(full = tutplot_opts$full, square = c(width = 7, height = 7))
+
+test_that("no key is drawn, and no point above the panel but the legend's", {
+  for (shade in c("margin", "class")) {
+    strip <- read_strip(shade = shade)
+    drawn <- unlist(lapply(
+      c(find_calls(strip$calls, "C_text"), find_calls(strip$calls, "C_mtext")),
+      \(call) if (identical(call[[1]]$name, "C_text")) call[[3]] else call[[2]]
+    ))
+    expect_false(any(c("Correct", "Misclassified") %in% drawn))
+
+    top <- strip$frame$usr[4]
+    above <- Filter(
+      \(call) any(call[[2]]$y > top),
+      find_calls(strip$calls, "C_plotXY")
+    )
+    if (shade == "margin") {
+      expect_length(above, 0L)
+    } else {
+      # the class legend's two dots, on its row
+      expect_length(above, 1L)
+      legend <- find_texts(strip$calls, c("Success", "Failure"))[[1]]
+      expect_identical(above[[1]][[2]]$y, legend[[2]]$y)
+    }
+  }
 })
 
-test_that("the key's upper row shares the class legend's line", {
-  draw_rows <- function(...) {
-    # par("usr") outlives the call: only `mar` is restored
-    out <- record_calls(
-      {
-        tutplot_boundary(
-          fit_paper_stump(),
-          altmext_splits$train,
-          resolution = 20,
-          ...
-        )
-        graphics::par("usr")
-      },
-      width = tutplot_opts$full[["width"]],
-      height = tutplot_opts$full[["height"]],
-      pointsize = tutplot_opts$pointsize
+test_that("under class shading the legend is all the strip holds", {
+  strip <- read_strip(shade = "class")
+  usr <- strip$frame$usr
+  rises <- function(...) any(c(...) > usr[4])
+
+  texts <- Filter(\(call) rises(call[[2]]$y), find_calls(strip$calls, "C_text"))
+  expect_length(texts, 1L)
+  expect_identical(texts[[1]][[3]], c("Success", "Failure"))
+  dots <- Filter(
+    \(call) rises(call[[2]]$y),
+    find_calls(strip$calls, "C_plotXY")
+  )
+  expect_length(dots, 1L)
+  expect_length(dots[[1]][[2]]$y, 2L)
+  # no bar, outline or mark
+  expect_length(find_bar(strip), 0L)
+  outlines <- Filter(
+    \(call) rises(call[[3]], call[[5]]),
+    find_calls(strip$calls, "C_rect")
+  )
+  expect_length(outlines, 0L)
+  expect_length(find_calls(strip$calls, "C_segments"), 0L)
+  # on its row
+  expect_equal(
+    locate_strip(strip)$legend,
+    strip_layout$legend * strip$frame$line
+  )
+})
+
+test_that("at full size the bar spans 0.36 of the panel, centered on it", {
+  strip <- read_strip()
+  usr <- strip$frame$usr
+  bar <- find_bar(strip)
+  expect_length(bar, 1L)
+  bar <- bar[[1]]
+  expect_equal((bar[[5]] - bar[[3]]) / (usr[2] - usr[1]), 0.36)
+  expect_equal((bar[[3]] + bar[[5]]) / 2, (usr[1] + usr[2]) / 2)
+})
+
+test_that("the end labels stay inside the panel on any device", {
+  cases <- list(
+    narrow = list(size = c(width = 3, height = 3), pointsize = 9),
+    large_text = list(size = tutplot_opts$full, pointsize = 12),
+    # so narrow at large text that the bar gives way
+    cramped = list(size = c(width = 2.6, height = 3), pointsize = 12)
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    strip <- read_strip(case$size, pointsize = case$pointsize)
+    usr <- strip$frame$usr
+    pin <- strip$frame$pin
+    # inches from the panel's left edge
+    to_inches <- function(x) (x - usr[1]) / (usr[2] - usr[1]) * pin[1]
+    low <- find_texts(strip$calls, "Failure")[[1]]
+    high <- find_texts(strip$calls, "Success")[[1]]
+    # "Failure" ends at its x, "Success" starts at its x
+    low_start <- to_inches(low[[2]]$x) -
+      measure_width("Failure", low[[8]], case$pointsize)
+    high_end <- to_inches(high[[2]]$x) +
+      measure_width("Success", high[[8]], case$pointsize)
+    expect_gte(low_start, -1e-9, label = paste("\"Failure\" on", name))
+    expect_lte(high_end, pin[1] + 1e-9, label = paste("\"Success\" on", name))
+
+    bar <- find_bar(strip)[[1]]
+    expect_equal(
+      (bar[[3]] + bar[[5]]) / 2,
+      (usr[1] + usr[2]) / 2,
+      label = paste("the bar's middle on", name)
     )
-    texts <- find_calls(out$calls, "C_text")
-    find_y <- function(label) {
-      Filter(\(call) identical(call[[3]], label), texts)[[1]][[2]]$y
+    share <- (bar[[5]] - bar[[3]]) / (usr[2] - usr[1])
+    if (name == "cramped") {
+      expect_lt(share, 0.36)
+      # the wider label reaches the panel's edge, and no further
+      expect_equal(high_end, pin[1])
+    } else {
+      expect_equal(share, 0.36, label = paste("the bar's share on", name))
     }
-    list(
-      key = find_y(c("Correct", "Misclassified")),
-      legend = find_y(c("Success", "Failure")),
-      usr = out$value
-    )
+  }
+})
+
+test_that("the strip keeps its layout in inches on a device of any size", {
+  # in lines
+  layouts <- list(
+    margin = strip_layout[c("bar", "label")],
+    class = strip_layout["legend"]
+  )
+  for (shade in names(layouts)) {
+    strips <- lapply(devices, \(size) {
+      locate_strip(read_strip(size, shade = shade))
+    })
+    for (part in names(layouts[[shade]])) {
+      expect_length(strips$square[[part]], length(layouts[[shade]][[part]]))
+      expect_equal(
+        strips$square[[part]],
+        strips$full[[part]],
+        tolerance = 1e-9,
+        label = paste("the", part, "under", shade, "shading on a 7 x 7 device")
+      )
+      # a line is 1.2 times the 9 pt text size: 0.15 inches
+      expect_equal(strips$full[[part]], layouts[[shade]][[part]] * 0.15)
+    }
+  }
+})
+
+test_that("the strip lies inside the page on a device of any size", {
+  for (size in devices) {
+    for (shade in c("margin", "class")) {
+      strip <- locate_strip(read_strip(size, shade = shade))
+      expect_lt(find_highest(strip), strip$page_top)
+      expect_gt(min(c(strip$bar, strip$label, strip$legend)), 0)
+    }
+  }
+})
+
+test_that("\"Boundary\" sits under the bar, clear of it and of the panel", {
+  strip <- read_strip()
+  label <- find_texts(strip$calls, "Boundary")
+  expect_length(label, 1L)
+  parts <- locate_strip(strip)
+  # a capital's height either side of the center covers the ink, the
+  # descender of the "y" included
+  reach <- measure_height("Boundary", cex = label[[1]][[8]])
+
+  # below the bar's bottom edge and above the panel's top edge
+  expect_lt(parts$label + reach, parts$bar[1])
+  expect_gt(parts$label - reach, 0)
+  # centered under the tick
+  tick <- find_calls(strip$calls, "C_segments")[[1]]
+  expect_identical(label[[1]][[2]]$x, tick[[2]])
+})
+
+test_that("the mark spans the bar's height and no more", {
+  strip <- read_strip()
+  bar <- find_bar(strip)[[1]]
+  tick <- find_calls(strip$calls, "C_segments")
+  expect_length(tick, 1L)
+  tick <- tick[[1]]
+  # y0 and y1 are the bar's bottom and top edges
+  expect_identical(c(tick[[3]], tick[[5]]), c(bar[[4]], bar[[6]]))
+  # flat ends, so the line's width does not carry it past either edge
+  expect_identical(tick$lend, "butt")
+  # at the bar's middle, a score of zero
+  expect_identical(tick[[2]], (bar[[3]] + bar[[5]]) / 2)
+})
+
+test_that("the color bar is one image in the panel's 64 colors", {
+  strip <- read_strip()
+  above <- find_bar(strip)
+  expect_length(above, 1L)
+  image <- above[[1]][[2]]
+  expect_identical(dim(image), c(1L, 64L))
+  # the same colors and opacity as the panel's shading
+  expect_identical(
+    as.vector(image),
+    grDevices::adjustcolor(viridisLite::viridis(64L), alpha.f = 0.65)
+  )
+  # after the angle: no smoothing, so the bins stay as crisp as the panel's
+  expect_false(above[[1]][[8]], label = "interpolation of the bar")
+  # one rectangle per rect() call: the outline, and no strip of bins
+  rect_sizes <- vapply(
+    find_calls(strip$calls, "C_rect"),
+    \(call) length(call[[2]]),
+    integer(1)
+  )
+  expect_true(all(rect_sizes == 1L))
+})
+
+test_that("the subtitle sits above the strip, and in place without it", {
+  for (size in devices) {
+    for (shade in c("margin", "class")) {
+      strip <- locate_strip(read_strip(
+        size,
+        shade = shade,
+        main = "A title",
+        subtitle = "A subtitle"
+      ))
+      # mtext() sets the baseline above its line, and a descender reaches
+      # less far down, so the line bounds the subtitle's ink from below
+      expect_gt(strip$subtitle, find_highest(strip))
+    }
   }
 
-  top <- draw_rows(shade = "class")
-  expect_identical(top$key[1], top$legend[1])
-  # the rows keep their spacing
-  height <- top$usr[4] - top$usr[3]
-  expect_equal(top$key[1] - top$key[2], 0.045 * height)
+  # with no strip, the subtitle keeps the line it had before the strip
+  bare <- record_calls(
+    tutplot_boundary(
+      fit_paper_stump(),
+      altmext_splits$train,
+      resolution = 20,
+      legend_pos = NULL,
+      subtitle = "A subtitle"
+    )
+  )
+  subtitle <- Filter(
+    \(call) identical(call[[2]], "A subtitle"),
+    find_calls(bare$calls, "C_mtext")
+  )[[1]]
+  expect_identical(subtitle[[4]], 0.5)
+})
 
-  # an inside legend leaves the strip to the key, at its usual rows
-  inside <- draw_rows(shade = "class", legend_pos = "topleft")
-  expect_equal(inside$key, inside$usr[4] + c(0.085, 0.04) * height)
+test_that("the strip's three labels share one cex, 7 pt at pointsize 9", {
+  out <- read_strip()
+  labels <- list("Failure", "Success", "Boundary")
+  cex <- vapply(
+    labels,
+    \(label) find_texts(out$calls, label)[[1]][[8]],
+    numeric(1)
+  )
+  expect_length(unique(cex), 1L)
+  # the pdf device rounds a text size to whole points
+  expect_identical(round(cex[[1]] * tutplot_opts$pointsize), 7)
 })

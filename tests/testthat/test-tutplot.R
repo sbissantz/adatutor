@@ -1000,12 +1000,11 @@ test_that("tutplot_boundary() names the classes in title case", {
   expect_no_match(read_pdf_text(paths[4]), "n.o", fixed = TRUE, useBytes = TRUE)
 })
 
-test_that("tutplot_boundary() keys correct and misclassified points", {
+test_that("tutplot_boundary() draws no key for misclassified points", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
-  paths <- replicate(4, tempfile(fileext = ".pdf"))
+  paths <- replicate(2, tempfile(fileext = ".pdf"))
   on.exit(unlink(paths), add = TRUE)
   train <- altmejd_splits$train
-  perfect <- fit_separable()
 
   flawed <- tutplot_boundary(
     stump(),
@@ -1013,20 +1012,19 @@ test_that("tutplot_boundary() keys correct and misclassified points", {
     resolution = 20,
     file = paths[1]
   )
-  # a perfect fit lists both entries too, so the stump and the ensemble share
-  # one key
-  flawless <- tutplot_boundary(
-    perfect$fit,
-    data = perfect$data,
+  tutplot_boundary(
+    stump(),
+    data = train,
     resolution = 20,
+    shade = "class",
     file = paths[2]
   )
+  # there are misclassified points to key, and still no key
   expect_gt(flawed$n_misclassified, 0L)
-  expect_identical(flawless$n_misclassified, 0L)
-  for (path in paths[1:2]) {
+  for (path in paths) {
     drawn <- read_pdf_text(path)
-    expect_match(drawn, "Correct", fixed = TRUE, useBytes = TRUE)
-    expect_match(drawn, "Misclassified", fixed = TRUE, useBytes = TRUE)
+    expect_no_match(drawn, "Correct", fixed = TRUE, useBytes = TRUE)
+    expect_no_match(drawn, "Misclassified", fixed = TRUE, useBytes = TRUE)
   }
   # the count is the caption's, not the figure's
   expect_no_match(
@@ -1035,27 +1033,6 @@ test_that("tutplot_boundary() keys correct and misclassified points", {
     fixed = TRUE,
     useBytes = TRUE
   )
-
-  # no key without the legend, or without the points
-  tutplot_boundary(
-    stump(),
-    data = train,
-    resolution = 20,
-    legend_pos = NULL,
-    file = paths[3]
-  )
-  tutplot_boundary(
-    stump(),
-    data = train,
-    resolution = 20,
-    show_points = FALSE,
-    file = paths[4]
-  )
-  for (path in paths[3:4]) {
-    drawn <- read_pdf_text(path)
-    expect_no_match(drawn, "Correct", fixed = TRUE, useBytes = TRUE)
-    expect_no_match(drawn, "Misclassified", fixed = TRUE, useBytes = TRUE)
-  }
 })
 
 test_that("only the color bar marks the boundary", {
