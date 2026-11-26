@@ -53,10 +53,12 @@ section on points.}
 \item{legend_pos}{Where to put the legend. The default, \code{"top"}, puts it
 above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
 \code{NULL} leaves it out, along with the color bar. The legend and the color
-bar name the classes by the outcome's levels, in title case.}
+bar name the classes by the outcome's levels, in title case. The top
+margin makes room only for a legend or color bar drawn above the panel.}
 
 \item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar in place of
-the legend. Defaults to \code{TRUE}.}
+the legend. Defaults to \code{TRUE}. A panel too narrow for the bar and its end
+labels gets no bar.}
 
 \item{main, subtitle}{An optional title and gray subtitle above the panel.}
 
