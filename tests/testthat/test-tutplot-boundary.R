@@ -485,7 +485,7 @@ test_that("the top margin is paid for by what is actually drawn", {
   expect_equal(par("mar"), before)
 })
 
-test_that("margin shading shows one key, not two", {
+test_that("margin shading shows the color bar, not the class legend", {
   # the ramp's ends are the classes, so a point legend beside it would repeat
   # the same information -- and the bar used to sit inside the panel
   data(altmejd)
@@ -505,7 +505,7 @@ test_that("margin shading shows one key, not two", {
         add_colorbar = FALSE
       )
     )
-    # legend_pos = NULL suppresses the key in both modes
+    # legend_pos = NULL suppresses the legend and the color bar
     expect_silent(
       tutplot_boundary(
         fit_ada(),
