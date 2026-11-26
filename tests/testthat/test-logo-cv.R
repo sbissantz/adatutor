@@ -15,7 +15,7 @@ fit_ada <- function(n_iter = 5, eta = 1, depth = 1, ...) {
 
 test_that("logo_cv() returns a setting x project x metric cube", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
 
   expect_s3_class(res, "logo_cv")
   expect_named(
@@ -53,7 +53,13 @@ test_that("logo_cv() returns a setting x project x metric cube", {
 test_that("as.data.frame() flattens the cube without losing a cell", {
   data(altmejd)
   grid <- expand.grid(n_iter = c(5, 10), eta = c(1, 0.5))
-  res <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
 
   d <- as.data.frame(res)
   expect_equal(nrow(d), length(res$estimates))
@@ -88,7 +94,12 @@ test_that("logo_cv() reproduces the published leave-project-out figures", {
   # eerp is 0.734 rather than the 0.714 of notes 2 because the base learners
   # now carry rpart's cp = 0.01; the other four folds are unmoved.
   data(altmejd)
-  res <- logo_cv(fit_ada(n_iter = 10), data = altmejd, group = "pid")
+  res <- logo_cv(
+    fit_ada(n_iter = 10),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   got <- res$estimates[1, , "auroc"]
 
   want <- c(eerp = 0.734, ml1 = 0.818, ml3 = 0.619, rpp = 0.620, ssrp = 0.676)
@@ -103,7 +114,12 @@ test_that("AdaBoost is scored on the margin, not on class labels", {
   # The submitted manuscript's bug: hard labels make auroc collapse onto
   # balanced accuracy. logo_cv() must never reintroduce it.
   data(altmejd)
-  res <- logo_cv(fit_ada(n_iter = 10), data = altmejd, group = "pid")
+  res <- logo_cv(
+    fit_ada(n_iter = 10),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   d <- as.data.frame(res)
 
   auroc <- d$estimate[d$metric == "auroc"]
@@ -114,7 +130,13 @@ test_that("AdaBoost is scored on the margin, not on class labels", {
 test_that("a grid is crossed with every fold", {
   data(altmejd)
   grid <- expand.grid(n_iter = c(5, 10), eta = c(1, 0.5))
-  res <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
 
   n_metrics <- length(assess(c(1, 0), c(1, -1)))
   expect_equal(dim(res$estimates), c(nrow(grid), 5L, n_metrics))
@@ -132,7 +154,8 @@ test_that("a grid may omit columns, which fall back to the fit's values", {
     fit_ada(eta = 0.5, depth = 2),
     grid = data.frame(n_iter = c(5, 10)),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   expect_equal(res$grid$n_iter, c(5, 10))
   expect_true(all(res$grid$eta == 0.5))
@@ -150,7 +173,8 @@ test_that("a grid column may set an rpart control, per row", {
     fit_ada(),
     grid = rbind(cbind(small, cp = 0), cbind(small, cp = 0.01)),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   expect_true("cp" %in% names(both$grid))
   expect_true("cp" %in% names(as.data.frame(both)))
@@ -158,7 +182,13 @@ test_that("a grid column may set an rpart control, per row", {
   d <- as.data.frame(both)
   key <- function(x) paste(x$depth, x$n_iter, x$eta, x$project, x$metric)
   for (cpv in c(0, 0.01)) {
-    arm <- tune_logo_cv(fit_ada(cp = cpv), small, data = altmejd, group = "pid")
+    arm <- tune_logo_cv(
+      fit_ada(cp = cpv),
+      small,
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    )
     ref <- as.data.frame(arm)
     got <- d[d$cp == cpv, ]
     expect_equal(ref$estimate, got$estimate[match(key(ref), key(got))])
@@ -169,13 +199,15 @@ test_that("a grid column may set an rpart control, per row", {
     fit_ada(cp = 0.5),
     grid = cbind(small, cp = 0),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   only_row <- tune_logo_cv(
     fit_ada(),
     grid = cbind(small, cp = 0),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   expect_equal(clash$estimates, only_row$estimates)
 })
@@ -193,12 +225,24 @@ test_that("a grid column that sets nothing is an error that names it", {
     runtime = NA
   )
   expect_error(
-    tune_logo_cv(fit, grid = noisy, data = altmejd, group = "pid"),
+    tune_logo_cv(
+      fit,
+      grid = noisy,
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "auc\\.mean, runtime"
   )
   # and the message says what a grid may hold
   expect_error(
-    tune_logo_cv(fit, grid = noisy, data = altmejd, group = "pid"),
+    tune_logo_cv(
+      fit,
+      grid = noisy,
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "`depth`, `n_iter`, `eta` and the rpart controls"
   )
   expect_silent(
@@ -206,7 +250,8 @@ test_that("a grid column that sets nothing is an error that names it", {
       fit,
       grid = data.frame(n_iter = 5, eta = 1, depth = 1, minbucket = 4),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     ))
   )
 })
@@ -216,7 +261,7 @@ test_that("the other learners run and report NA for settings they lack", {
 
   # a learner records NA in the grid for a setting it has no use for
   logit <- glm(fml, data = altmejd, family = binomial) |>
-    logo_cv(data = altmejd, group = "pid")
+    logo_cv(data = altmejd, group = "pid", verbose = FALSE)
   expect_equal(logit$model, "glm")
   expect_true(all(is.na(logit$grid$n_iter)))
   expect_true(all(is.na(logit$grid$eta)))
@@ -226,13 +271,13 @@ test_that("the other learners run and report NA for settings they lack", {
   expect_true(all(is.na(as.data.frame(logit)$n_iter)))
 
   stump <- rpart::rpart(fml, data = altmejd, method = "class", maxdepth = 1) |>
-    logo_cv(data = altmejd, group = "pid")
+    logo_cv(data = altmejd, group = "pid", verbose = FALSE)
   expect_equal(stump$model, "rpart")
   expect_true(all(is.na(stump$grid$n_iter)))
   expect_equal(unique(stump$grid$depth), 1)
 
   tree <- rpart::rpart(fml, data = altmejd, method = "class", maxdepth = 4) |>
-    logo_cv(data = altmejd, group = "pid")
+    logo_cv(data = altmejd, group = "pid", verbose = FALSE)
   expect_equal(unique(tree$grid$depth), 4)
 
   # probability models are thresholded at 0.5, so a fitted logit must not
@@ -249,7 +294,8 @@ test_that("the other learners refit their own call on each fold", {
   logit <- logo_cv(
     glm(fml, data = altmejd, family = binomial),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   by_hand <- glm(fml, data = train, family = binomial) |>
     predict(test, type = "response")
@@ -263,7 +309,8 @@ test_that("the other learners refit their own call on each fold", {
       family = binomial
     ),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   expect_identical(dotted$scores, logit$scores)
 })
@@ -274,7 +321,7 @@ test_that("random forest runs when the suggested package is available", {
   set.seed(1)
   # only the fit: randomForest() can warn about its own argument matching
   forest <- suppressWarnings(randomForest::randomForest(fml, data = altmejd))
-  rf <- logo_cv(forest, data = altmejd, group = "pid")
+  rf <- logo_cv(forest, data = altmejd, group = "pid", verbose = FALSE)
   expect_equal(rf$model, "rf")
   expect_true(all(is.finite(rf$estimates[1, , "auroc"])))
 })
@@ -282,40 +329,67 @@ test_that("random forest runs when the suggested package is available", {
 test_that("logo_cv() rejects malformed input", {
   data(altmejd)
   fit <- fit_ada()
-  expect_error(logo_cv(fit, data = altmejd, group = "nope"), "not found")
   expect_error(
-    logo_cv(fit, data = altmejd, group = c("pid", "eid")),
+    logo_cv(fit, data = altmejd, group = "nope", verbose = FALSE),
+    "not found"
+  )
+  expect_error(
+    logo_cv(fit, data = altmejd, group = c("pid", "eid"), verbose = FALSE),
     "single column"
   )
   expect_error(
-    logo_cv(fit, data = altmejd[altmejd$pid == "rpp", ], group = "pid"),
+    logo_cv(
+      fit,
+      data = altmejd[altmejd$pid == "rpp", ],
+      group = "pid",
+      verbose = FALSE
+    ),
     "at least two levels"
   )
   expect_error(
-    tune_logo_cv(fit, grid = data.frame(), data = altmejd, group = "pid"),
+    tune_logo_cv(
+      fit,
+      grid = data.frame(),
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "no rows"
   )
 
   # a formula is not a fit: the recipe lives on the fitted model
   expect_error(
-    logo_cv(fml, data = altmejd, group = "pid"),
+    logo_cv(fml, data = altmejd, group = "pid", verbose = FALSE),
     "must be a fitted model"
   )
   # a setting passed here would be dropped without a word
   expect_error(
-    logo_cv(fit, data = altmejd, group = "pid", n_iter = 10, grid = 1),
+    logo_cv(
+      fit,
+      data = altmejd,
+      group = "pid",
+      n_iter = 10,
+      grid = 1,
+      verbose = FALSE
+    ),
     "`n_iter`, `grid`.*tune_logo_cv"
   )
   # learners that give no probability of the second class
   expect_error(
-    logo_cv(glm(n.o ~ power.o, data = altmejd), data = altmejd, group = "pid"),
+    logo_cv(
+      glm(n.o ~ power.o, data = altmejd),
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "family = binomial"
   )
   expect_error(
     logo_cv(
       rpart::rpart(n.o ~ power.o, data = altmejd),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     ),
     "classification tree"
   )
@@ -329,7 +403,8 @@ test_that("tune_logo_cv() refuses a glm fit, which has nothing to tune", {
       logit,
       grid = data.frame(n_iter = 5),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     ),
     "no settings to tune. Cross-validate it with logo_cv().",
     fixed = TRUE
@@ -340,7 +415,8 @@ test_that("tune_logo_cv() refuses a glm fit, which has nothing to tune", {
       fml,
       grid = data.frame(depth = 1),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     ),
     "must be a fit from adaboost\\(\\)"
   )
@@ -356,7 +432,8 @@ test_that("the tuners reject arguments they do not take", {
         data.frame(depth = 1),
         data = altmejd,
         group = "pid",
-        n_iter = 5
+        n_iter = 5,
+        verbose = FALSE
       ),
       "Unused argument(s): `n_iter`.",
       fixed = TRUE
@@ -384,7 +461,7 @@ read_printed_table <- function(out) {
 
 test_that("the methods behave", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
 
   expect_true(is.array(res$estimates))
   expect_s3_class(as.data.frame(res), "data.frame")
@@ -423,11 +500,17 @@ test_that("print() shows the projects once, then one row per setting", {
   # wide enough that the table does not wrap
   local_reproducible_output(width = 200)
   data(altmejd)
-  res <- tune_logo_cv(fit_ada(), cp_grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    cp_grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   projects <- dimnames(res$estimates)$project
   out <- capture.output(print(res))
 
-  expect_true("  metric:   auroc" %in% out)
+  expect_true("  metric    auroc" %in% out)
   expect_false(any(grepl("measure", out)))
   # the spread across the projects, never a mean or SD of it
   expect_false(any(grepl("\\bmean\\b|\\bSE\\b|\\bsd\\b", out)))
@@ -476,7 +559,13 @@ test_that("print() shows the projects once, then one row per setting", {
 test_that("print() decides decimals by the metric's name, not its values", {
   local_reproducible_output(width = 200)
   data(altmejd)
-  res <- tune_logo_cv(fit_ada(), cp_grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    cp_grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   read_cells <- function(metric) {
     out <- capture.output(print(res, metric = metric))
     rows <- strsplit(trimws(read_printed_parts(out)$table[-1]), " +")
@@ -498,7 +587,8 @@ test_that("print() shows the settings unrounded", {
     fit_ada(),
     data.frame(n_iter = 3, eta = 0.0025, cp = 0.0125),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   table <- read_printed_parts(capture.output(print(res)))$table
   expect_identical(
@@ -514,11 +604,12 @@ test_that("print() shows one column per held-out group", {
     fit_ada(),
     data = altmejd,
     group = "pid",
-    holdout = c("ssrp", "eerp")
+    holdout = c("ssrp", "eerp"),
+    verbose = FALSE
   )
   out <- capture.output(print(res))
 
-  expect_true("  holdout:  ssrp, eerp" %in% out)
+  expect_true("  holdout   ssrp, eerp" %in% out)
   block <- read_printed_parts(out)$projects
   expect_equal(strsplit(trimws(block[1]), " +")[[1]], c("ssrp", "eerp"))
   table <- read_printed_table(out)
@@ -531,7 +622,13 @@ test_that("print() gives each held-out project its own n and base rate", {
   data(altmejd)
   # not the data's order, which is alphabetical
   holdout <- c("ssrp", "eerp", "ml3")
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", holdout = holdout)
+  res <- logo_cv(
+    fit_ada(),
+    data = altmejd,
+    group = "pid",
+    holdout = holdout,
+    verbose = FALSE
+  )
   block <- read_printed_parts(capture.output(print(res)))$projects
   in_project <- lapply(holdout, \(project) altmejd$pid == project)
 
@@ -560,7 +657,7 @@ test_that("a learner without settings prints and summarizes the projects only", 
   local_reproducible_output(width = 200)
   data(altmejd)
   logit <- glm(fml, data = altmejd, family = binomial) |>
-    logo_cv(data = altmejd, group = "pid")
+    logo_cv(data = altmejd, group = "pid", verbose = FALSE)
   projects <- dimnames(logit$estimates)$project
 
   table <- read_printed_table(capture.output(print(logit)))
@@ -581,7 +678,8 @@ test_that("print() shows the first 10 of more than 20 settings", {
     fit_ada(),
     data.frame(n_iter = 1:21),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   lines <- read_printed_parts(capture.output(print(long)))$table
   # the header, ten rows in grid order, and the note
@@ -594,14 +692,15 @@ test_that("print() shows the first 10 of more than 20 settings", {
     fit_ada(),
     data.frame(n_iter = 1:20),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   expect_equal(read_printed_table(capture.output(print(twenty)))$n_iter, 1:20)
 })
 
 test_that("print() needs one metric name, and notes one without estimates", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   # summary()'s error, raised before the header prints
   for (bad in list(NA, NA_character_, c("auroc", "acc"), character(0), 1)) {
     printed <- capture.output(
@@ -625,9 +724,9 @@ test_that("print() needs one metric name, and notes one without estimates", {
     printed,
     c(
       "Leave-one-group-out cross-validation",
-      "  model:    adaboost",
-      "  settings: 1",
-      "  metric:   nope",
+      "  model     adaboost",
+      "  settings  1",
+      "  metric    nope",
       "",
       "no estimates for `nope`"
     )
@@ -646,7 +745,7 @@ read_printed_intervals <- function(out) {
 test_that("print() shows each project's interval of the printed metric", {
   local_reproducible_output(width = 200)
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 200))
   projects <- dimnames(boot$estimates)$project
@@ -752,7 +851,8 @@ test_that("print() shows a given-up project's dropped draws in full", {
     fit,
     data = one_class,
     group = "pid",
-    holdout = c("ml3", "ssrp")
+    holdout = c("ml3", "ssrp"),
+    verbose = FALSE
   )
   # the default n_resample: ml3 drops 100,000 draws, which format() would print
   # as 1e+05; stratified, so ssrp drops none
@@ -782,7 +882,13 @@ test_that("print() names the level and the resamples of the intervals", {
   read_line <- function(x) read_printed_intervals(capture.output(print(x)))[1]
 
   # one held-out project keeps 1,000 resamples quick
-  one <- logo_cv(fit_ada(), data = altmejd, group = "pid", holdout = "ssrp")
+  one <- logo_cv(
+    fit_ada(),
+    data = altmejd,
+    group = "pid",
+    holdout = "ssrp",
+    verbose = FALSE
+  )
   set.seed(3)
   expect_identical(
     read_line(suppressWarnings(bootstrap(one, n_resample = 1000))),
@@ -802,7 +908,7 @@ test_that("print() names the level and the resamples of the intervals", {
     "95% bootstrap CI (1 stratified resample/project)"
   )
 
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   set.seed(3)
   stratified <- suppressWarnings(
     bootstrap(res, n_resample = 200, stratified = TRUE, conf = 0.9)
@@ -834,7 +940,7 @@ test_that("print() names the level and the resamples of the intervals", {
 test_that("print() adds the intervals only when bootstrap() attached them", {
   local_reproducible_output(width = 200)
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 20))
 
@@ -855,7 +961,13 @@ test_that("summary() gives each setting's statistics across the projects", {
   data(altmejd)
   # the caller's row names must not reach the summary
   grid <- cp_grid[c(3, 1, 2), ]
-  res <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   expect_equal(rownames(res$grid), c("3", "1", "2"))
 
   s <- summary(res, "auroc")
@@ -890,7 +1002,13 @@ test_that("summary() reproduces hypergrid's mean, sd, min and max exactly", {
   settings <- hypergrid$auroc[c("depth", "n_iter", "eta")]
   set.seed(2026)
   rows <- sample(which(settings$n_iter <= 100), 3)
-  res <- tune_logo_cv(recipe, settings[rows, ], data = tune, group = "pid")
+  res <- tune_logo_cv(
+    recipe,
+    settings[rows, ],
+    data = tune,
+    group = "pid",
+    verbose = FALSE
+  )
 
   for (metric in names(hypergrid)) {
     s <- summary(res, metric)
@@ -911,7 +1029,13 @@ test_that("summary() reproduces hypergrid's mean, sd, min and max exactly", {
 
 test_that("summary() of one held-out group has no sd", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", holdout = "ssrp")
+  res <- logo_cv(
+    fit_ada(),
+    data = altmejd,
+    group = "pid",
+    holdout = "ssrp",
+    verbose = FALSE
+  )
   s <- summary(res)
   estimate <- res$estimates[1, "ssrp", "auroc"]
 
@@ -923,7 +1047,7 @@ test_that("summary() of one held-out group has no sd", {
 
 test_that("summary() needs one metric of the result", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   for (bad in list("nope", c("auroc", "bacc"), NA_character_, NULL)) {
     expect_error(
       summary(res, metric = bad),
@@ -935,7 +1059,7 @@ test_that("summary() needs one metric of the result", {
 test_that("a factor metric acts as its name in print(), summary() and plot()", {
   local_reproducible_output(width = 200)
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   # the bands come from the bootstrap draws, so plot() has some to pick from
   set.seed(3)
   res <- suppressWarnings(bootstrap(res, n_resample = 20))
@@ -962,7 +1086,8 @@ test_that("a factor metric acts as its name in print(), summary() and plot()", {
     data.frame(n_iter = c(3, 5)),
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   expect_identical(
     capture.output(print(nested, metric = acc)),
@@ -980,7 +1105,8 @@ test_that("summary() sorts highest first, ties in grid order, NA last", {
     fit_ada(),
     data.frame(n_iter = 1:6),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   # planted estimates: rows 2, 3 and 5 tie exactly on every statistic, row 6
   # ties them on min only, and row 4 lacks a project
@@ -1013,7 +1139,7 @@ test_that("summary() sorts highest first, ties in grid order, NA last", {
 
 test_that("summary() rejects a sort_by it cannot use and names the columns", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   for (bad in list("nope", NA_character_, c("min", "min"), character(0), 1)) {
     expect_error(
       summary(res, sort_by = bad),
@@ -1028,12 +1154,13 @@ test_that("summary() rejects a sort_by it cannot use and names the columns", {
 test_that("holdout keeps only the named levels, in the order given", {
   data(altmejd)
   fit <- fit_ada()
-  every <- logo_cv(fit, data = altmejd, group = "pid")
+  every <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
   some <- logo_cv(
     fit,
     data = altmejd,
     group = "pid",
-    holdout = c("ssrp", "eerp")
+    holdout = c("ssrp", "eerp"),
+    verbose = FALSE
   )
 
   expect_named(some, names(every))
@@ -1048,7 +1175,7 @@ test_that("holdout keeps only the named levels, in the order given", {
 
   expect_equal(attr(some, "holdout"), c("ssrp", "eerp"))
   expect_null(attr(every, "holdout"))
-  expect_true("  holdout:  ssrp, eerp" %in% capture.output(print(some)))
+  expect_true("  holdout   ssrp, eerp" %in% capture.output(print(some)))
   expect_false(any(grepl("holdout", capture.output(print(every)))))
 })
 
@@ -1056,11 +1183,23 @@ test_that("holdout rejects a level the group does not have", {
   data(altmejd)
   fit <- fit_ada()
   expect_error(
-    logo_cv(fit, data = altmejd, group = "pid", holdout = c("eerp", "holz")),
+    logo_cv(
+      fit,
+      data = altmejd,
+      group = "pid",
+      holdout = c("eerp", "holz"),
+      verbose = FALSE
+    ),
     "not found in `pid`: holz"
   )
   expect_error(
-    logo_cv(fit, data = altmejd, group = "pid", holdout = c("eerp", "eerp")),
+    logo_cv(
+      fit,
+      data = altmejd,
+      group = "pid",
+      holdout = c("eerp", "eerp"),
+      verbose = FALSE
+    ),
     "more than once"
   )
 })
@@ -1075,7 +1214,8 @@ test_that("holding out HOLZ equals a fit on the other projects, scored on HOLZ",
     fit_ada(n_iter = 10),
     data = altmext,
     group = "pid",
-    holdout = "holz"
+    holdout = "holz",
+    verbose = FALSE
   )
   direct <- rpart::rpart(
     fml,
@@ -1105,7 +1245,13 @@ test_that("a Monte Carlo draw through holdout = \"test\" has one row", {
     replace = TRUE,
     prob = c(0.7, 0.3)
   )
-  res <- logo_cv(fit_ada(), data = draw, group = "part", holdout = "test")
+  res <- logo_cv(
+    fit_ada(),
+    data = draw,
+    group = "part",
+    holdout = "test",
+    verbose = FALSE
+  )
 
   expect_equal(dimnames(res$estimates)$project, "test")
   d <- as.data.frame(res)
@@ -1124,19 +1270,22 @@ test_that("rows that differ only in n_iter score as refits would", {
     fit_ada(),
     data.frame(depth = 1, n_iter = rounds, eta = 1),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   for (k in seq_along(rounds)) {
     alone <- tune_logo_cv(
       fit_ada(),
       data.frame(depth = 1, n_iter = rounds[k], eta = 1),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
     from_fit <- logo_cv(
       fit_ada(n_iter = rounds[k]),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
     in_row <- grouped$scores$setting == k
     expect_identical(grouped$estimates[k, , ], alone$estimates[1, , ])
@@ -1169,13 +1318,20 @@ test_that("rows group by every setting but n_iter, whatever their order", {
     eta = 1,
     cp = c(0.01, 0.01, 0.01, 0.01, 0)
   )
-  res <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   for (i in seq_len(nrow(grid))) {
     alone <- tune_logo_cv(
       fit_ada(),
       grid[i, ],
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
     expect_identical(res$estimates[i, , ], alone$estimates[1, , ])
   }
@@ -1184,8 +1340,21 @@ test_that("rows group by every setting but n_iter, whatever their order", {
 test_that("cores = 2 gives what one core gives", {
   data(altmejd)
   grid <- expand.grid(depth = 1:2, n_iter = c(3, 6), eta = c(1, 0.5))
-  one <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
-  two <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid", cores = 2)
+  one <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
+  two <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    cores = 2,
+    verbose = FALSE
+  )
   expect_identical(two, one)
 
   nested_one <- tune_logo_cv(
@@ -1193,7 +1362,8 @@ test_that("cores = 2 gives what one core gives", {
     grid[1:2, ],
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   nested_two <- tune_logo_cv(
     fit_ada(),
@@ -1201,7 +1371,8 @@ test_that("cores = 2 gives what one core gives", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    cores = 2
+    cores = 2,
+    verbose = FALSE
   )
   expect_identical(nested_two, nested_one)
 })
@@ -1216,12 +1387,19 @@ test_that("on Windows, cores = 2 runs a socket cluster and gives what one core g
       grid,
       data = altmejd,
       group = "pid",
-      cores = 2
+      cores = 2,
+      verbose = FALSE
     )
   )
   expect_identical(
     on_windows,
-    tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+    tune_logo_cv(
+      fit_ada(),
+      grid,
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    )
   )
 
   # each inner search starts a cluster, so two outer folds keep it short
@@ -1233,7 +1411,8 @@ test_that("on Windows, cores = 2 runs a socket cluster and gives what one core g
       group = "pid",
       holdout = c("eerp", "ml3"),
       nested = TRUE,
-      cores = cores
+      cores = cores,
+      verbose = FALSE
     )
   }
   expect_identical(run_nested(2), run_nested(1))
@@ -1306,7 +1485,7 @@ test_that("on Windows, a worker stops if adatutor changed on disk since loading"
   # the author changes a function and does not reload; the later definition
   # in the file wins
   cat(
-    "\ndescribe_settings <- function(rows, n_settings) \"changed\"\n",
+    "\ngroup_settings <- function(grid, model) \"changed\"\n",
     file = file.path(copy, "R", "logo-cv.R"),
     append = TRUE
   )
@@ -1407,7 +1586,8 @@ test_that("a grid row without rounds is an error, not a score", {
         fit_ada(),
         data.frame(n_iter = bad),
         data = altmejd,
-        group = "pid"
+        group = "pid",
+        verbose = FALSE
       ),
       "`n_iter` must be numbers of 1 or more"
     )
@@ -1445,12 +1625,13 @@ test_that("a tuner runs on the lowered cores", {
       grid,
       data = altmejd,
       group = "pid",
-      cores = 8
+      cores = 8,
+      verbose = FALSE
     ),
     "Specified `cores = 8`, but this computer has only 1 core. The run continues with `cores = 1`.",
     fixed = TRUE
   )
-  one <- tune_logo_cv(fit, grid, data = altmejd, group = "pid")
+  one <- tune_logo_cv(fit, grid, data = altmejd, group = "pid", verbose = FALSE)
   expect_identical(lowered, one)
 })
 
@@ -1460,7 +1641,7 @@ read_task_cores <- function(code, available) {
   seen <- integer()
   local_mocked_bindings(
     count_cores = function() available,
-    run_tasks = function(n_tasks, run_task, cores = 1L, globals = list()) {
+    run_tasks = function(n_tasks, run_task, cores = 1L, ...) {
       seen <<- c(seen, cores)
       lapply(seq_len(n_tasks), run_task)
     }
@@ -1481,7 +1662,14 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
   # one call for the whole search
   expect_message(
     ada_cores <- read_task_cores(
-      tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 8),
+      tune_logo_cv(
+        fit,
+        grid,
+        data = altmejd,
+        group = "pid",
+        cores = 8,
+        verbose = FALSE
+      ),
       available = 2L
     ),
     notice,
@@ -1499,7 +1687,8 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
         group = "pid",
         holdout = c("eerp", "ml3"),
         nested = TRUE,
-        cores = 8
+        cores = 8,
+        verbose = FALSE
       ),
       available = 2L
     ),
@@ -1515,7 +1704,8 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
         data.frame(depth = 1:2),
         data = altmejd,
         group = "pid",
-        cores = 8
+        cores = 8,
+        verbose = FALSE
       ),
       available = 2L
     ),
@@ -1527,7 +1717,14 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
   # a request the computer can serve passes on as it is
   expect_no_message(
     asked_cores <- read_task_cores(
-      tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2),
+      tune_logo_cv(
+        fit,
+        grid,
+        data = altmejd,
+        group = "pid",
+        cores = 2,
+        verbose = FALSE
+      ),
       available = 4L
     )
   )
@@ -1544,26 +1741,37 @@ test_that("cores must be one whole number, 1 or more", {
         data.frame(n_iter = 3),
         data = altmejd,
         group = "pid",
-        cores = bad
+        cores = bad,
+        verbose = FALSE
       ),
       "`cores` must be one whole number"
     )
   }
 })
 
-test_that("progress names the settings a fit serves", {
+test_that("progress counts the fits, which serve several settings", {
   data(altmejd)
-  expect_message(
+  steps <- integer()
+  real_open <- open_progress
+  local_mocked_bindings(open_progress = function(n_steps) {
+    steps <<- c(steps, n_steps)
+    real_open(n_steps)
+  })
+  err <- capture_stderr(
     tune_logo_cv(
       fit_ada(),
       data.frame(n_iter = c(3, 6)),
       data = altmejd,
       group = "pid",
       verbose = TRUE
-    ),
-    "settings 1-2/2 | fold eerp",
-    fixed = TRUE
+    )
   )
+  # rows that differ only in n_iter share one fit per fold
+  expect_identical(
+    read_lines(err)[1],
+    "Start the search: 2 settings, 5 folds, 5 fits"
+  )
+  expect_identical(steps, 5L)
 })
 
 # ---- nested LOGO-CV --------------------------------------------------------
@@ -1577,7 +1785,8 @@ test_that("nested tune_logo_cv() reports the setting each outer fold chose", {
     small_grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
 
   expect_s3_class(res, "logo_cv")
@@ -1624,12 +1833,19 @@ test_that("the inner search never sees the held-out project", {
     small_grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
 
   for (p in res$selected$project) {
     train <- altmejd[altmejd$pid != p, ]
-    inner <- tune_logo_cv(fit_ada(), small_grid, data = train, group = "pid")
+    inner <- tune_logo_cv(
+      fit_ada(),
+      small_grid,
+      data = train,
+      group = "pid",
+      verbose = FALSE
+    )
     s <- summary(inner, metric = "auroc", sort_by = "lower")
     expect_equal(
       res$selected$setting[res$selected$project == p],
@@ -1646,7 +1862,8 @@ pick_by_hand <- function(res, fit, grid, data) {
       fit,
       grid,
       data = data[data$pid != p, ],
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
     first <- summary(inner, metric = res$metric, sort_by = res$sort_by)[1, ]
     cbind(setting = as.integer(rownames(first)), first)
@@ -1665,7 +1882,8 @@ test_that("each outer fold picks summary()'s first row for any sort_by", {
       group = "pid",
       nested = TRUE,
       metric = "bacc",
-      sort_by = sort_by
+      sort_by = sort_by,
+      verbose = FALSE
     )
     by_hand <- pick_by_hand(res, fit, small_grid, altmejd)
     label <- paste(sort_by, collapse = ", ")
@@ -1692,14 +1910,16 @@ test_that("sort_by = \"mean\" picks as the nested search did before sort_by", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    sort_by = "mean"
+    sort_by = "mean",
+    verbose = FALSE
   )
   for (p in res$selected$project) {
     inner <- tune_logo_cv(
       fit,
       small_grid,
       data = altmejd[altmejd$pid != p, ],
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
     means <- rowMeans(inner$estimates[,, "auroc", drop = FALSE], na.rm = TRUE)
     chosen <- res$selected[res$selected$project == p, ]
@@ -1712,7 +1932,8 @@ test_that("sort_by = \"mean\" picks as the nested search did before sort_by", {
     small_grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   expect_false(identical(by_lower$selected$setting, res$selected$setting))
 })
@@ -1723,7 +1944,8 @@ test_that("a setting with an NA statistic cannot be picked", {
     fit_ada(),
     data.frame(n_iter = 1:3),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   # planted: row 1 has the best projects but lacks one, so its statistics are
   # NA, as in summary(); the old rule, rowMeans(na.rm = TRUE), would pick it
@@ -1761,7 +1983,8 @@ test_that("a setting with an NA statistic cannot be picked", {
       data = altmejd,
       group = "pid",
       nested = TRUE,
-      metric = "patk_5"
+      metric = "patk_5",
+      verbose = FALSE
     ),
     "inner search without `eerp`: every setting's `lower` of `patk_5` is NA",
     fixed = TRUE
@@ -1779,7 +2002,8 @@ test_that("a nested search with a holdout selects on the other groups", {
     data = tune,
     group = "pid",
     holdout = "ml2",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   expect_equal(res$selected$project, "ml2")
   expect_equal(dimnames(res$estimates)$project, "ml2")
@@ -1790,7 +2014,8 @@ test_that("a nested search with a holdout selects on the other groups", {
     fit_ada(),
     small_grid,
     data = tune[tune$pid != "ml2", ],
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   s <- summary(inner, metric = "auroc", sort_by = "lower")
   expect_equal(res$selected$setting, as.integer(rownames(s)[1]))
@@ -1809,7 +2034,13 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
   data(altmejd)
   grid <- expand.grid(depth = 1:3, n_iter = c(10, 30), eta = c(1, 0.1))
 
-  plain <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+  plain <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   s <- summary(plain, metric = "auroc")
   naive <- max(s$mean)
 
@@ -1821,7 +2052,8 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    sort_by = "mean"
+    sort_by = "mean",
+    verbose = FALSE
   )
   nested <- summary(nst, metric = "auroc")$mean
 
@@ -1841,7 +2073,8 @@ test_that("the metric decides what the inner search ranks by", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    metric = "auroc"
+    metric = "auroc",
+    verbose = FALSE
   )
   by_bacc <- tune_logo_cv(
     fit_ada(),
@@ -1849,7 +2082,8 @@ test_that("the metric decides what the inner search ranks by", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    metric = "bacc"
+    metric = "bacc",
+    verbose = FALSE
   )
 
   expect_equal(by_auroc$metric, "auroc")
@@ -1866,7 +2100,8 @@ test_that("the metric decides what the inner search ranks by", {
       data = altmejd,
       group = "pid",
       nested = TRUE,
-      criterion = "bacc"
+      criterion = "bacc",
+      verbose = FALSE
     ),
     "Unused argument(s): `criterion`.",
     fixed = TRUE
@@ -1888,7 +2123,14 @@ expect_checked_before_fit <- function(fit, grid, ...) {
   )
   run <- function(...) {
     tryCatch(
-      tune_logo_cv(fit, grid, data = altmejd, group = "pid", ...),
+      tune_logo_cv(
+        fit,
+        grid,
+        data = altmejd,
+        group = "pid",
+        ...,
+        verbose = FALSE
+      ),
       error = conditionMessage
     )
   }
@@ -1940,7 +2182,8 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
       grid = data.frame(n_iter = 5),
       data = altmejd,
       group = "pid",
-      nested = TRUE
+      nested = TRUE,
+      verbose = FALSE
     ),
     "needs a `grid` with two or more rows"
   )
@@ -1950,7 +2193,8 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
       small_grid,
       data = altmejd[altmejd$pid %in% c("ml1", "ml3"), ],
       group = "pid",
-      nested = TRUE
+      nested = TRUE,
+      verbose = FALSE
     ),
     "at least three groups"
   )
@@ -1961,7 +2205,8 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
       data = altmejd,
       group = "pid",
       nested = TRUE,
-      metric = "not_a_metric"
+      metric = "not_a_metric",
+      verbose = FALSE
     ),
     "`metric` must be one of the metrics assess() returns",
     fixed = TRUE
@@ -1980,7 +2225,8 @@ read_nested_errors <- function(fit, grid, ...) {
           data = altmejd,
           group = "pid",
           nested = nested,
-          ...
+          ...,
+          verbose = FALSE
         )
         "no error"
       },
@@ -2001,9 +2247,22 @@ test_that("an adaboost fit's `nested` must be TRUE or FALSE", {
   )
 
   # TRUE and FALSE work as before
-  plain <- tune_logo_cv(fit, grid, data = altmejd, group = "pid")
+  plain <- tune_logo_cv(
+    fit,
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   expect_identical(
-    tune_logo_cv(fit, grid, data = altmejd, group = "pid", nested = FALSE),
+    tune_logo_cv(
+      fit,
+      grid,
+      data = altmejd,
+      group = "pid",
+      nested = FALSE,
+      verbose = FALSE
+    ),
     plain
   )
   expect_false(plain$nested)
@@ -2012,7 +2271,8 @@ test_that("an adaboost fit's `nested` must be TRUE or FALSE", {
     grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   expect_true(nested$nested)
   expect_equal(nrow(nested$selected), 5L)
@@ -2025,7 +2285,8 @@ test_that("print() surfaces the selection instability", {
     small_grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   out <- capture.output(print(res))
 
@@ -2039,11 +2300,11 @@ test_that("print() surfaces the selection instability", {
     out,
     c(
       "Nested leave-one-group-out cross-validation",
-      "  model:    adaboost",
-      "  settings: 4",
-      "  holdout:  each group",
-      "  metric:   auroc",
-      "  selected: lower auroc",
+      "  model     adaboost",
+      "  settings  4",
+      "  holdout   each group",
+      "  metric    auroc",
+      "  selected  lower auroc",
       "",
       " depth n_iter eta project  n base_rate estimate",
       "     1      5   1    eerp 18     0.611    0.825",
@@ -2066,7 +2327,8 @@ test_that("a nested header names the metric shown and the one selected by", {
     group = "pid",
     holdout = c("ssrp", "ml1"),
     nested = TRUE,
-    sort_by = c("min", "lower")
+    sort_by = c("min", "lower"),
+    verbose = FALSE
   )
   read_header <- function(...) {
     out <- capture.output(print(res, ...))
@@ -2074,15 +2336,15 @@ test_that("a nested header names the metric shown and the one selected by", {
   }
   expected <- c(
     "Nested leave-one-group-out cross-validation",
-    "  model:    adaboost",
-    "  settings: 4",
-    "  holdout:  ssrp, ml1",
-    "  metric:   auroc",
-    "  selected: min, lower auroc"
+    "  model     adaboost",
+    "  settings  4",
+    "  holdout   ssrp, ml1",
+    "  metric    auroc",
+    "  selected  min, lower auroc"
   )
   expect_identical(read_header(), expected)
-  # `metric:` follows print(); `selected:` stays the result's own
-  expected[5] <- "  metric:   acc"
+  # `metric` follows print(); `selected` stays the result's own
+  expected[5] <- "  metric    acc"
   expect_identical(read_header(metric = "acc"), expected)
   n_distinct <- length(unique(res$selected$setting))
   expect_identical(
@@ -2106,7 +2368,8 @@ test_that("print() of a bootstrapped nested result adds three columns", {
     data.frame(n_iter = c(3, 5)),
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 20))
@@ -2187,7 +2450,7 @@ test_that("print() of a bootstrapped nested result adds three columns", {
 
 test_that("a plain run records that it was not nested", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   expect_false(res$nested)
   expect_null(res$selected)
   expect_false(any(grepl("Nested", capture.output(print(res)))))
@@ -2221,7 +2484,12 @@ test_that("the tree tuner equals one logo_cv() per depth, on every metric", {
   voi <- c(all.vars(fml)[-1L], "replicate")
   tune <- altmext[altmext$pid != "holz", ]
   res <- rpart::rpart(replicate ~ ., data = tune[, voi], method = "class") |>
-    tune_logo_cv(data.frame(depth = 1:8), data = tune, group = "pid")
+    tune_logo_cv(
+      data.frame(depth = 1:8),
+      data = tune,
+      group = "pid",
+      verbose = FALSE
+    )
 
   expect_equal(res$model, "rpart")
   for (depth in 1:8) {
@@ -2231,7 +2499,7 @@ test_that("the tree tuner equals one logo_cv() per depth, on every metric", {
       method = "class",
       maxdepth = depth
     ) |>
-      logo_cv(data = tune, group = "pid")
+      logo_cv(data = tune, group = "pid", verbose = FALSE)
     expect_identical(res$estimates[depth, , ], one$estimates[1, , ])
     expect_identical(
       res$scores$score[res$scores$setting == depth],
@@ -2254,7 +2522,7 @@ test_that("the tutorial's tree code picks depth 4 by the highest lower", {
     data = df_noholz[, voi_nms],
     method = "class"
   ) |>
-    tune_logo_cv(tree_hgrid, data = df_noholz, group = "pid")
+    tune_logo_cv(tree_hgrid, data = df_noholz, group = "pid", verbose = FALSE)
   tree_best <- summary(tree_tune, "auroc", sort_by = "lower")[1, ]
 
   expect_equal(tree_best$depth, 4)
@@ -2291,7 +2559,8 @@ test_that("on Windows, the tutorial's AdaBoost recipe gives what one core gives"
       data = df_noholz,
       group = "pid",
       cores = cores,
-      ...
+      ...,
+      verbose = FALSE
     )
   }
   expect_identical(run(2), run(1))
@@ -2337,8 +2606,15 @@ test_that("on Windows, an AdaBoost recipe needs nothing of its tree's call", {
     fit <- adaboost(stump, n_iter = 4, eta = 1, verbose = FALSE)
     expect_identical(list_globals(fit, altmejd), list())
     expect_identical(
-      tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2),
-      tune_logo_cv(fit, grid, data = altmejd, group = "pid")
+      tune_logo_cv(
+        fit,
+        grid,
+        data = altmejd,
+        group = "pid",
+        cores = 2,
+        verbose = FALSE
+      ),
+      tune_logo_cv(fit, grid, data = altmejd, group = "pid", verbose = FALSE)
     )
   }
 })
@@ -2358,8 +2634,15 @@ test_that("on Windows, a tree fitted with bare rpart() gives what one core gives
   expect_identical(list_globals(tree, altmejd), list())
   grid <- data.frame(depth = 1:2)
   expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+    tune_logo_cv(
+      tree,
+      grid,
+      data = altmejd,
+      group = "pid",
+      cores = 2,
+      verbose = FALSE
+    ),
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid", verbose = FALSE)
   )
 })
 
@@ -2383,7 +2666,8 @@ test_that("on Windows, the tutorial's XGBoost fit gives what one core gives", {
       group = "pid",
       outcome = out_nme,
       cores = cores,
-      ...
+      ...,
+      verbose = FALSE
     )
   }
   expect_identical(run(2), run(1))
@@ -2415,7 +2699,8 @@ test_that("on Windows, the vignette's tree and forest give what one core gives",
       data.frame(depth = 1:4),
       data = df,
       group = "pid",
-      cores = cores
+      cores = cores,
+      verbose = FALSE
     )
   }
   expect_identical(run_tree(2), run_tree(1))
@@ -2429,7 +2714,14 @@ test_that("on Windows, the vignette's tree and forest give what one core gives",
   run_forest <- function(cores) {
     set.seed(112)
     muffle_partial_matching(
-      tune_logo_cv(rf_fit, rf_hgrid, data = df, group = "pid", cores = cores)
+      tune_logo_cv(
+        rf_fit,
+        rf_hgrid,
+        data = df,
+        group = "pid",
+        cores = cores,
+        verbose = FALSE
+      )
     )
   }
   expect_identical(run_forest(2), run_forest(1))
@@ -2485,8 +2777,15 @@ test_that("on Windows, the session's plain values reach the workers", {
   )
   grid <- data.frame(depth = 2:3)
   expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+    tune_logo_cv(
+      tree,
+      grid,
+      data = altmejd,
+      group = "pid",
+      cores = 2,
+      verbose = FALSE
+    ),
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid", verbose = FALSE)
   )
 
   # do.call() puts rpart() itself in the call, which a worker has as well
@@ -2495,8 +2794,15 @@ test_that("on Windows, the session's plain values reach the workers", {
     list(formula = formula, data = altmejd, method = "class")
   )
   expect_identical(
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-    tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+    tune_logo_cv(
+      tree,
+      grid,
+      data = altmejd,
+      group = "pid",
+      cores = 2,
+      verbose = FALSE
+    ),
+    tune_logo_cv(tree, grid, data = altmejd, group = "pid", verbose = FALSE)
   )
 })
 
@@ -2518,8 +2824,15 @@ test_that("on Windows, an argument left out where the fit was made needs nothing
   for (tree in list(make_tree(), make_outer())) {
     expect_identical(list_globals(tree, altmejd), list())
     expect_identical(
-      tune_logo_cv(tree, grid, data = altmejd, group = "pid", cores = 2),
-      tune_logo_cv(tree, grid, data = altmejd, group = "pid")
+      tune_logo_cv(
+        tree,
+        grid,
+        data = altmejd,
+        group = "pid",
+        cores = 2,
+        verbose = FALSE
+      ),
+      tune_logo_cv(tree, grid, data = altmejd, group = "pid", verbose = FALSE)
     )
   }
 })
@@ -2567,7 +2880,14 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   )
   grid <- data.frame(depth = 1:2)
   tune <- function(fit) {
-    tune_logo_cv(fit, grid, data = altmejd, group = "pid", cores = 2)
+    tune_logo_cv(
+      fit,
+      grid,
+      data = altmejd,
+      group = "pid",
+      cores = 2,
+      verbose = FALSE
+    )
   }
   tree_of <- function(term) {
     formula <- stats::as.formula(
@@ -2771,7 +3091,8 @@ test_that("on Windows, a fit that uses code of the session stops before any work
       data.frame(mtry = 1:2),
       data = altmejd,
       group = "pid",
-      cores = 2
+      cores = 2,
+      verbose = FALSE
     )),
     "`pick_size` from this session"
   )
@@ -2788,7 +3109,7 @@ test_that("the check runs once per call on Windows, and never off it", {
       check(fit, data)
     },
     # the tasks run here, so no cluster starts
-    run_socket_tasks = function(n_tasks, run_task, n_workers, globals) {
+    run_socket_tasks = function(n_tasks, run_task, n_workers, globals, ...) {
       lapply(seq_len(n_tasks), run_task)
     }
   )
@@ -2799,7 +3120,8 @@ test_that("the check runs once per call on Windows, and never off it", {
       data = altmejd,
       group = "pid",
       cores = cores,
-      ...
+      ...,
+      verbose = FALSE
     )
   }
   one <- run(1)
@@ -2858,7 +3180,7 @@ test_that("a tree's grid row sets its rpart controls, over the fit's own", {
     minsplit = c(10, 30),
     minbucket = c(3, 10)
   )
-  res <- tune_logo_cv(fit, grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(fit, grid, data = altmejd, group = "pid", verbose = FALSE)
 
   direct <- list(
     rpart::rpart(
@@ -2881,7 +3203,7 @@ test_that("a tree's grid row sets its rpart controls, over the fit's own", {
     )
   )
   for (i in seq_along(direct)) {
-    one <- logo_cv(direct[[i]], data = altmejd, group = "pid")
+    one <- logo_cv(direct[[i]], data = altmejd, group = "pid", verbose = FALSE)
     expect_identical(res$estimates[i, , ], one$estimates[1, , ])
   }
   expect_false(identical(res$estimates[1, , ], res$estimates[2, , ]))
@@ -2924,7 +3246,8 @@ test_that("a tree's depth reaches its refits, however the fit set its controls",
       fit,
       data.frame(depth = c(1, 3)),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
     expect_identical(res$scores$score[res$scores$setting == 1], by_hand(1))
     expect_identical(res$scores$score[res$scores$setting == 2], by_hand(3))
@@ -2934,9 +3257,10 @@ test_that("a tree's depth reaches its refits, however the fit set its controls",
       fit,
       data.frame(depth = 2),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     )
-    plain <- logo_cv(fit, data = altmejd, group = "pid")
+    plain <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
     expect_identical(own$estimates, plain$estimates)
     expect_identical(own$scores, plain$scores)
   }
@@ -2951,7 +3275,8 @@ test_that("a tree's or a forest's grid may hold only its own columns", {
       tree,
       data.frame(depth = 1, n_iter = 5),
       data = altmejd,
-      group = "pid"
+      group = "pid",
+      verbose = FALSE
     ),
     "n_iter set nothing. A grid may hold `depth` and the rpart controls (",
     fixed = TRUE
@@ -2959,7 +3284,13 @@ test_that("a tree's or a forest's grid may hold only its own columns", {
   set.seed(1)
   forest <- fit_forest()
   expect_error(
-    tune_logo_cv(forest, data.frame(depth = 2), data = altmejd, group = "pid"),
+    tune_logo_cv(
+      forest,
+      data.frame(depth = 2),
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "depth set nothing. A grid may hold `mtry`, `nodesize`, `ntree` and `maxnodes`.",
     fixed = TRUE
   )
@@ -2987,7 +3318,8 @@ test_that("a tree, a forest and other objects refuse nested = TRUE", {
         grids[[k]],
         data = altmejd,
         group = "pid",
-        nested = TRUE
+        nested = TRUE,
+        verbose = FALSE
       ),
       paste0(
         "^`nested = TRUE` is currently only supported with fits from ",
@@ -2998,7 +3330,13 @@ test_that("a tree, a forest and other objects refuse nested = TRUE", {
   }
   # without nesting, the default method says what it needs
   expect_error(
-    tune_logo_cv(linear, grids[[3]], data = altmejd, group = "pid"),
+    tune_logo_cv(
+      linear,
+      grids[[3]],
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "`x` must be a fit from adaboost(), rpart(), randomForest() or xgboost()",
     fixed = TRUE
   )
@@ -3020,7 +3358,8 @@ test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
       data.frame(depth = 1:2),
       data = altmejd,
       group = "pid",
-      nested = TRUE
+      nested = TRUE,
+      verbose = FALSE
     ),
     not_nestable
   )
@@ -3035,7 +3374,8 @@ test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
       data.frame(mtry = 1:2),
       data = altmejd,
       group = "pid",
-      nested = TRUE
+      nested = TRUE,
+      verbose = FALSE
     ),
     not_nestable
   )
@@ -3052,7 +3392,8 @@ test_that("the forest tuner refuses an argument it does not take", {
       data.frame(mtry = 1:2),
       data = altmejd,
       group = "pid",
-      ntree = 50
+      ntree = 50,
+      verbose = FALSE
     ),
     "Unused argument(s): `ntree`.",
     fixed = TRUE
@@ -3073,7 +3414,8 @@ test_that("the forest tuner hands the lowered cores to run_tasks()", {
           data.frame(mtry = 1:2),
           data = altmejd,
           group = "pid",
-          cores = 8
+          cores = 8,
+          verbose = FALSE
         )
       ),
       available = 2L
@@ -3093,7 +3435,7 @@ test_that("the forest tuner sets one seed per fold, drawn from the session", {
   grid <- data.frame(mtry = c(1, 3), maxnodes = c(4, NA))
   set.seed(5)
   res <- muffle_partial_matching(
-    tune_logo_cv(forest, grid, data = altmejd, group = "pid")
+    tune_logo_cv(forest, grid, data = altmejd, group = "pid", verbose = FALSE)
   )
   expect_equal(res$model, "rf")
 
@@ -3123,7 +3465,13 @@ test_that("the forest tuner sets one seed per fold, drawn from the session", {
   # so a row's result does not depend on the rows before it
   set.seed(5)
   alone <- muffle_partial_matching(
-    tune_logo_cv(forest, grid[2, ], data = altmejd, group = "pid")
+    tune_logo_cv(
+      forest,
+      grid[2, ],
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    )
   )
   expect_identical(alone$estimates[1, , ], res$estimates[2, , ])
 })
@@ -3159,7 +3507,7 @@ test_that("nodesize and ntree in a forest's grid reach the refit", {
     row[[column]] <- changes[[column]][[1L]]
     set.seed(5)
     res <- muffle_partial_matching(
-      tune_logo_cv(forest, row, data = altmejd, group = "pid")
+      tune_logo_cv(forest, row, data = altmejd, group = "pid", verbose = FALSE)
     )
     want <- do.call(by_hand, utils::modifyList(base_args, changes[[column]]))
     expect_identical(res$scores$score, want, label = column)
@@ -3181,7 +3529,8 @@ test_that("the forest tuner repeats after set.seed(), at any number of cores", {
       grid,
       data = altmejd,
       group = "pid",
-      cores = cores
+      cores = cores,
+      verbose = FALSE
     ))
     list(res = res, stream = get(".Random.seed", envir = globalenv()))
   }
@@ -3205,7 +3554,8 @@ test_that("on Windows, the forest tuner repeats one core, whatever the RNG kind"
       data.frame(mtry = 1:2),
       data = altmejd,
       group = "pid",
-      cores = cores
+      cores = cores,
+      verbose = FALSE
     ))
     list(res = res, stream = get(".Random.seed", envir = globalenv()))
   }
@@ -3243,7 +3593,8 @@ test_that("the forest tuner leaves the session's stream just past its seeds", {
       data.frame(mtry = 1:2),
       data = altmejd,
       group = "pid",
-      cores = cores
+      cores = cores,
+      verbose = FALSE
     ))
     get(".Random.seed", envir = globalenv())
   }
@@ -3259,7 +3610,12 @@ test_that("logo_cv() on a forest still draws from the session's stream", {
   set.seed(1)
   forest <- fit_forest()
   set.seed(3)
-  res <- muffle_partial_matching(logo_cv(forest, data = altmejd, group = "pid"))
+  res <- muffle_partial_matching(logo_cv(
+    forest,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  ))
   after_res <- get(".Random.seed", envir = globalenv())
 
   set.seed(3)
@@ -3287,7 +3643,8 @@ test_that("logo_cv() on a forest still draws from the session's stream", {
   logo_rf <- muffle_partial_matching(logo_cv(
     fit_rf,
     data = tune,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   ))
   rf_row <- benchmark$auroc[benchmark$auroc$model == "rf", ]
   projects <- dimnames(logo_rf$estimates)$project
@@ -3310,9 +3667,20 @@ test_that("a forest's refits mute randomForest's own partial match", {
     "partial argument match of 'along' to 'along.with'",
     fixed = TRUE
   )
-  expect_no_warning(logo_cv(forest, data = altmejd, group = "pid"))
+  expect_no_warning(logo_cv(
+    forest,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  ))
   expect_no_warning(
-    tune_logo_cv(forest, data.frame(mtry = 1:2), data = altmejd, group = "pid")
+    tune_logo_cv(
+      forest,
+      data.frame(mtry = 1:2),
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    )
   )
 })
 
@@ -3339,12 +3707,13 @@ test_that("another warning in a forest's refit still reaches the user", {
   }
   withCallingHandlers(
     {
-      logo_cv(forest, data = altmejd, group = "pid")
+      logo_cv(forest, data = altmejd, group = "pid", verbose = FALSE)
       tune_logo_cv(
         forest,
         data.frame(mtry = 1:2),
         data = altmejd,
-        group = "pid"
+        group = "pid",
+        verbose = FALSE
       )
     },
     warning = collect
@@ -3371,7 +3740,8 @@ test_that("print() and summary() show a tree's or a forest's own settings", {
     tree,
     data.frame(cp = c(0, 0.01)),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
   projects <- dimnames(res_tree$estimates)$project
   expect_equal(res_tree$grid$depth, c(3, 3))
@@ -3390,7 +3760,8 @@ test_that("print() and summary() show a tree's or a forest's own settings", {
     forest,
     data.frame(mtry = 1:2),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   ))
   expect_equal(res_rf$grid$ntree, c(25, 25))
   expect_false(any(c("nodesize", "maxnodes") %in% names(res_rf$grid)))
@@ -3438,7 +3809,13 @@ test_that("logo_cv() on an XGBoost fit equals LOGO-CV by hand", {
   skip_if_not_installed("xgboost", "3.0.0")
   data(altmejd)
   fit <- fit_xgb(nrounds = 4, max_depth = 2, learning_rate = 0.5)
-  res <- logo_cv(fit, data = altmejd, group = "pid", outcome = "replicate")
+  res <- logo_cv(
+    fit,
+    data = altmejd,
+    group = "pid",
+    outcome = "replicate",
+    verbose = FALSE
+  )
 
   expect_equal(res$model, "xgboost")
   expect_identical(
@@ -3500,7 +3877,8 @@ test_that("each XGBoost grid column reaches its xgboost() argument", {
         row,
         data = altmejd,
         group = "pid",
-        outcome = "replicate"
+        outcome = "replicate",
+        verbose = FALSE
       )
     )
     by_hand <- do.call(
@@ -3528,7 +3906,8 @@ test_that("the XGBoost tuner equals one logo_cv() per setting", {
     grid,
     data = altmejd,
     group = "pid",
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   for (i in seq_len(nrow(grid))) {
     own <- fit_xgb(
@@ -3538,7 +3917,13 @@ test_that("the XGBoost tuner equals one logo_cv() per setting", {
       min_child_weight = grid$min_child_weight[i],
       reg_lambda = grid$lambda[i]
     )
-    one <- logo_cv(own, data = altmejd, group = "pid", outcome = "replicate")
+    one <- logo_cv(
+      own,
+      data = altmejd,
+      group = "pid",
+      outcome = "replicate",
+      verbose = FALSE
+    )
     expect_identical(res$estimates[i, , ], one$estimates[1, , ])
     expect_identical(
       res$scores$score[res$scores$setting == i],
@@ -3552,7 +3937,7 @@ test_that("XGBoost rows that differ only in n_iter read one fit's rounds", {
   data(altmejd)
   fit <- fit_xgb()
   # one fit of 6 rounds per fold serves both rows
-  messages <- capture_messages(
+  err <- capture_stderr(
     res <- tune_logo_cv(
       fit,
       data.frame(n_iter = c(2, 6)),
@@ -3563,8 +3948,14 @@ test_that("XGBoost rows that differ only in n_iter read one fit's rounds", {
     )
   )
   expect_identical(
-    messages,
-    paste0("settings 1-2/2 | fold ", unique(altmejd$pid), "\n")
+    read_lines(err)[1],
+    paste0(
+      "Start the search: 2 settings, ",
+      length(unique(altmejd$pid)),
+      " folds, ",
+      length(unique(altmejd$pid)),
+      " fits"
+    )
   )
   short <- res$scores$score[res$scores$setting == 1]
   long <- res$scores$score[res$scores$setting == 2]
@@ -3574,7 +3965,8 @@ test_that("XGBoost rows that differ only in n_iter read one fit's rounds", {
     data.frame(n_iter = 2),
     data = altmejd,
     group = "pid",
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_identical(short, alone$scores$score)
   expect_identical(short, xgb_by_hand(altmejd, nrounds = 2))
@@ -3592,7 +3984,8 @@ test_that("an XGBoost grid's missing columns take the fit's own values", {
     data.frame(lambda = c(1, 5)),
     data = altmejd,
     group = "pid",
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_equal(
     res$grid,
@@ -3619,7 +4012,8 @@ test_that("an XGBoost grid's missing columns take the fit's own values", {
     fit_xgb(learning_rate = 0.05),
     data = altmejd,
     group = "pid",
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_identical(given$grid$eta, 0.05)
 })
@@ -3629,12 +4023,18 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
   data(altmejd)
   fit <- fit_xgb()
   expect_error(
-    logo_cv(fit, data = altmejd, group = "pid"),
+    logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE),
     "`outcome` is missing. An XGBoost fit keeps no formula",
     fixed = TRUE
   )
   expect_error(
-    tune_logo_cv(fit, data.frame(n_iter = 2), data = altmejd, group = "pid"),
+    tune_logo_cv(
+      fit,
+      data.frame(n_iter = 2),
+      data = altmejd,
+      group = "pid",
+      verbose = FALSE
+    ),
     "`outcome` is missing.",
     fixed = TRUE
   )
@@ -3643,13 +4043,20 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
       fit,
       data = altmejd,
       group = "pid",
-      outcome = c("replicate", "pid")
+      outcome = c("replicate", "pid"),
+      verbose = FALSE
     ),
     "`outcome` must be a single column name.",
     fixed = TRUE
   )
   expect_error(
-    logo_cv(fit, data = altmejd, group = "pid", outcome = "nope"),
+    logo_cv(
+      fit,
+      data = altmejd,
+      group = "pid",
+      outcome = "nope",
+      verbose = FALSE
+    ),
     "`outcome` column `nope` not found in `data`.",
     fixed = TRUE
   )
@@ -3658,7 +4065,13 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
     "\"failure\" and \"success\", in that order."
   )
   expect_error(
-    logo_cv(fit, data = altmejd, group = "pid", outcome = "n.o"),
+    logo_cv(
+      fit,
+      data = altmejd,
+      group = "pid",
+      outcome = "n.o",
+      verbose = FALSE
+    ),
     levels_message,
     fixed = TRUE
   )
@@ -3668,7 +4081,13 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
     levels = c("success", "failure")
   )
   expect_error(
-    logo_cv(fit, data = reversed, group = "pid", outcome = "replicate"),
+    logo_cv(
+      fit,
+      data = reversed,
+      group = "pid",
+      outcome = "replicate",
+      verbose = FALSE
+    ),
     levels_message,
     fixed = TRUE
   )
@@ -3678,7 +4097,13 @@ test_that("each check of an XGBoost fit gives its message", {
   skip_if_not_installed("xgboost", "3.0.0")
   data(altmejd)
   run <- function(fit, data = altmejd) {
-    logo_cv(fit, data = data, group = "pid", outcome = "replicate")
+    logo_cv(
+      fit,
+      data = data,
+      group = "pid",
+      outcome = "replicate",
+      verbose = FALSE
+    )
   }
   # three levels: multi:softprob, not a probability of the second level
   three <- xgboost::xgboost(
@@ -3745,7 +4170,8 @@ test_that("an XGBoost fit refuses what it cannot honor", {
       data = altmejd,
       group = "pid",
       nested = TRUE,
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     ),
     "needs a `grid` with two or more rows"
   )
@@ -3756,7 +4182,8 @@ test_that("an XGBoost fit refuses what it cannot honor", {
       data = altmejd[altmejd$pid %in% c("ml1", "ml3"), ],
       group = "pid",
       nested = TRUE,
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     ),
     "at least three groups"
   )
@@ -3766,7 +4193,8 @@ test_that("an XGBoost fit refuses what it cannot honor", {
       data.frame(mtry = 1),
       data = altmejd,
       group = "pid",
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     ),
     paste0(
       "mtry set nothing. A grid may hold `depth`, `n_iter`, `eta`, ",
@@ -3781,7 +4209,8 @@ test_that("an XGBoost fit refuses what it cannot honor", {
       data = altmejd,
       group = "pid",
       outcome = "replicate",
-      n_iter = 5
+      n_iter = 5,
+      verbose = FALSE
     ),
     "Unused argument(s): `n_iter`.",
     fixed = TRUE
@@ -3792,7 +4221,8 @@ test_that("an XGBoost fit refuses what it cannot honor", {
       data = altmejd,
       group = "pid",
       outcome = "replicate",
-      grid = 1
+      grid = 1,
+      verbose = FALSE
     ),
     "Unused argument(s): `grid`.",
     fixed = TRUE
@@ -3808,7 +4238,13 @@ test_that("an XGBoost fit refuses what it cannot honor", {
     nrounds = 2
   )
   expect_error(
-    logo_cv(booster, data = altmejd, group = "pid", outcome = "replicate"),
+    logo_cv(
+      booster,
+      data = altmejd,
+      group = "pid",
+      outcome = "replicate",
+      verbose = FALSE
+    ),
     "Fit the model with xgboost::xgboost(x = <data frame>, y = <factor>)",
     fixed = TRUE
   )
@@ -3818,7 +4254,8 @@ test_that("an XGBoost fit refuses what it cannot honor", {
       data.frame(n_iter = 2),
       data = altmejd,
       group = "pid",
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     ),
     "Fit the model with xgboost::xgboost(x = <data frame>, y = <factor>)",
     fixed = TRUE
@@ -3842,7 +4279,8 @@ test_that("an XGBoost fit's `nested` must be TRUE or FALSE", {
     data = altmejd,
     group = "pid",
     nested = FALSE,
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_false(plain$nested)
   nested <- tune_logo_cv(
@@ -3851,7 +4289,8 @@ test_that("an XGBoost fit's `nested` must be TRUE or FALSE", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_true(nested$nested)
   expect_equal(nrow(nested$selected), 5L)
@@ -3896,7 +4335,8 @@ test_that("a nested XGBoost fold equals the by-hand route of the tutorial", {
     group = "pid",
     holdout = folds,
     nested = TRUE,
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_identical(res$model, "xgboost")
   expect_identical(res$selected$project, folds)
@@ -3922,7 +4362,8 @@ test_that("a nested XGBoost fold equals the by-hand route of the tutorial", {
       xgb_nested_grid,
       data = tune[tune$pid != fold, ],
       group = "pid",
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     )
     pick <- summary(inner, "auroc", sort_by = "lower")[1, ]
     final <- tune_logo_cv(
@@ -3931,7 +4372,8 @@ test_that("a nested XGBoost fold equals the by-hand route of the tutorial", {
       data = tune,
       group = "pid",
       holdout = fold,
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     )
     chosen <- res$selected[res$selected$project == fold, ]
     expect_identical(chosen$setting, as.integer(rownames(pick)), label = fold)
@@ -3959,7 +4401,8 @@ test_that("the methods work on a nested XGBoost result", {
     data = altmejd,
     group = "pid",
     nested = TRUE,
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   projects <- unique(as.character(altmejd$pid))
 
@@ -3969,11 +4412,11 @@ test_that("the methods work on a nested XGBoost result", {
     out[1:7],
     c(
       "Nested leave-one-group-out cross-validation",
-      "  model:    xgboost",
-      "  settings: 8",
-      "  holdout:  each group",
-      "  metric:   auroc",
-      "  selected: lower auroc",
+      "  model     xgboost",
+      "  settings  8",
+      "  holdout   each group",
+      "  metric    auroc",
+      "  selected  lower auroc",
       ""
     )
   )
@@ -4051,7 +4494,8 @@ test_that("a nested XGBoost search gives the same at any number of cores", {
       group = "pid",
       nested = TRUE,
       cores = cores,
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     )
   }
   expect_identical(run(2), run(1))
@@ -4071,7 +4515,8 @@ test_that("an XGBoost held-out group of one row keeps a column per setting", {
     data = data,
     group = "part",
     holdout = "solo",
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   expect_identical(res$projects$n, 1L)
   by_hand <- vapply(
@@ -4110,7 +4555,8 @@ test_that("the XGBoost tuner gives the same at any number of cores", {
       data = altmejd,
       group = "pid",
       cores = cores,
-      outcome = "replicate"
+      outcome = "replicate",
+      verbose = FALSE
     )
   }
   one <- run(1)
@@ -4134,7 +4580,8 @@ test_that("the XGBoost tuner hands the lowered cores to run_tasks()", {
         group = "pid",
         cores = 8,
         outcome = "replicate",
-        ...
+        ...,
+        verbose = FALSE
       ),
       available = 2L
     )
@@ -4162,7 +4609,8 @@ test_that("print() and summary() show an XGBoost fit's five settings", {
     data.frame(depth = 1:2),
     data = altmejd,
     group = "pid",
-    outcome = "replicate"
+    outcome = "replicate",
+    verbose = FALSE
   )
   projects <- dimnames(res$estimates)$project
   expect_named(
@@ -4201,7 +4649,8 @@ test_that("the tutorial's XGBoost pick rebuilds the benchmark's xgboost row", {
     best,
     data = df_noholz,
     group = "pid",
-    outcome = out_nme
+    outcome = out_nme,
+    verbose = FALSE
   )
   final <- tune_logo_cv(
     xgb_fit,
@@ -4209,7 +4658,8 @@ test_that("the tutorial's XGBoost pick rebuilds the benchmark's xgboost row", {
     data = df,
     group = "pid",
     holdout = "holz",
-    outcome = out_nme
+    outcome = out_nme,
+    verbose = FALSE
   )
   projects <- dimnames(tuning$estimates)$project
   for (metric in names(benchmark)) {
@@ -4278,7 +4728,7 @@ test_that("bootstrap() keeps the draws so any level can be asked for later", {
 
 test_that("plot.logo_cv() draws with and without intervals", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
 
   pf <- tempfile(fileext = ".png")
   png(pf)
@@ -4311,7 +4761,7 @@ test_that("plot.logo_cv() draws with and without intervals", {
 
 test_that("plot.logo_cv() opens no device for an argument it cannot draw", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   # intervals, so the levels are used
   boot <- res
   boot$ci <- boot_by_project(n_resample = 20)
@@ -4373,7 +4823,7 @@ test_that("plot.logo_cv() opens no device for an argument it cannot draw", {
 
 test_that("plot.logo_cv() returns its input invisibly", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   png(tempfile(fileext = ".png"))
   out <- withVisible(plot(res))
   dev.off()
@@ -4384,7 +4834,7 @@ test_that("plot.logo_cv() returns its input invisibly", {
 test_that("plot.logo_cv() keys the intervals only when it has them, starring none", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   boot <- res
   boot$ci <- boot_by_project()
   # pdftotext prints UTF-8 and pdf() draws a hyphen as a minus sign, so match
@@ -4443,7 +4893,7 @@ test_that("the fit's control reaches every refit", {
   # for adaboost's base learners alike.
   data(altmejd)
   au <- function(fit) {
-    res <- logo_cv(fit, data = altmejd, group = "pid")
+    res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
     summary(res, metric = "auroc")$mean
   }
 
@@ -4465,7 +4915,7 @@ test_that("the fit's control reaches every refit", {
   # and the tree's refit is its own call run again on the training rows
   train <- altmejd[altmejd$pid != "eerp", ]
   test <- altmejd[altmejd$pid == "eerp", ]
-  res <- logo_cv(loose_tree, data = altmejd, group = "pid")
+  res <- logo_cv(loose_tree, data = altmejd, group = "pid", verbose = FALSE)
   by_hand <- rpart::rpart(
     fml,
     data = train,
@@ -4507,7 +4957,12 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
     )
   )
 
-  res <- logo_cv(fit_ada(n_iter = 10), data = altmejd, group = "pid")
+  res <- logo_cv(
+    fit_ada(n_iter = 10),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   expect_equal(res$estimates[1, "eerp", "auroc"], want, tolerance = 1e-12)
 })
 test_that("the learner's control reaches every boosted tree", {
@@ -4590,12 +5045,13 @@ test_that("logo_cv() on an adaboost fit equals tune_logo_cv() with the fit's own
   )
   fit <- adaboost(h, n_iter = 5, eta = 0.5, verbose = FALSE)
 
-  from_fit <- logo_cv(fit, data = altmejd, group = "pid")
+  from_fit <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
   from_grid <- tune_logo_cv(
     fit,
     grid = data.frame(depth = 1, n_iter = 5, eta = 0.5),
     data = altmejd,
-    group = "pid"
+    group = "pid",
+    verbose = FALSE
   )
 
   expect_identical(from_fit$estimates, from_grid$estimates)
@@ -4606,7 +5062,12 @@ test_that("logo_cv() on an adaboost fit equals tune_logo_cv() with the fit's own
   )
 
   # the `.` of the learner's formula reads the same columns as the names
-  spelled_out <- logo_cv(fit_ada(eta = 0.5), data = altmejd, group = "pid")
+  spelled_out <- logo_cv(
+    fit_ada(eta = 0.5),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   expect_identical(from_fit$estimates, spelled_out$estimates)
 })
 
@@ -4623,8 +5084,18 @@ test_that("logo_cv() refits the fit's split rule, not the default", {
     ) |>
       adaboost(n_iter = 5, eta = 1, verbose = FALSE)
   }
-  info <- logo_cv(fit_split("information"), data = altmejd, group = "pid")
-  gini <- logo_cv(fit_split("gini"), data = altmejd, group = "pid")
+  info <- logo_cv(
+    fit_split("information"),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
+  gini <- logo_cv(
+    fit_split("gini"),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   expect_identical(attr(fit_split("information"), "split"), "information")
   expect_false(identical(info$scores$score, gini$scores$score))
 })
@@ -4632,7 +5103,7 @@ test_that("logo_cv() refits the fit's split rule, not the default", {
 test_that("logo_cv() keeps the held-out scores of every fold", {
   data(altmejd)
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
 
   expect_equal(nrow(res$scores), nrow(altmejd))
   expect_setequal(unique(res$scores$project), res$projects$project)
@@ -4656,7 +5127,7 @@ test_that("logo_cv() keeps the held-out scores of every fold", {
 
 test_that("bootstrap() on logo_cv equals the per-project loop", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
 
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 50))
@@ -4679,7 +5150,7 @@ test_that("bootstrap() on logo_cv equals the per-project loop", {
 
 test_that("bootstrap() names the project in its warnings", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   set.seed(3)
   warning_texts <- capture_warnings(
     bootstrap(res, n_resample = 50, stratified = TRUE)
@@ -4693,7 +5164,7 @@ test_that("bootstrap() names the project in its warnings", {
 
 test_that("bootstrap() reports a project's rejected resamples by name", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   set.seed(3)
   warning_texts <- capture_warnings(bootstrap(res, n_resample = 50))
   # it informs and gives no advice
@@ -4709,7 +5180,13 @@ test_that("bootstrap() reports a project's rejected resamples by name", {
 test_that("bootstrap() on logo_cv needs one setting and stored scores", {
   data(altmejd)
   grid <- expand.grid(n_iter = c(3, 5), eta = 1, depth = 1)
-  res <- tune_logo_cv(fit_ada(), grid, data = altmejd, group = "pid")
+  res <- tune_logo_cv(
+    fit_ada(),
+    grid,
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
 
   expect_error(bootstrap(res, n_resample = 20), "Choose one with `setting`")
   expect_error(bootstrap(res, n_resample = 20, setting = 3), "one row number")
@@ -4731,7 +5208,8 @@ test_that("bootstrap() keeps the holdout of a logo_cv result", {
     fit_ada(),
     data = altmejd,
     group = "pid",
-    holdout = c("rpp", "ssrp")
+    holdout = c("rpp", "ssrp"),
+    verbose = FALSE
   )
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 20))
@@ -4747,7 +5225,8 @@ test_that("nested tune_logo_cv keeps the chosen setting's scores and bootstraps"
     grid,
     data = altmejd,
     group = "pid",
-    nested = TRUE
+    nested = TRUE,
+    verbose = FALSE
   )
   expect_equal(nrow(res$scores), nrow(altmejd))
   set.seed(3)
@@ -4784,7 +5263,7 @@ test_that("every reference line has a key in sentence case", {
 
 test_that("every patk budget gets the base-rate floor, not only the default", {
   data(altmejd)
-  res <- logo_cv(fit_ada(), data = altmejd, group = "pid")
+  res <- logo_cv(fit_ada(), data = altmejd, group = "pid", verbose = FALSE)
   calls <- function(...) {
     pdf(NULL)
     on.exit(dev.off())
@@ -4799,7 +5278,12 @@ test_that("every patk budget gets the base-rate floor, not only the default", {
 
 test_that("the y-axis keeps its tick at 1 and draws none above", {
   data(altmejd)
-  res <- logo_cv(fit_ada(n_iter = 50), data = altmejd, group = "pid")
+  res <- logo_cv(
+    fit_ada(n_iter = 50),
+    data = altmejd,
+    group = "pid",
+    verbose = FALSE
+  )
   y_ticks <- function(metric) {
     pdf(NULL)
     on.exit(dev.off())

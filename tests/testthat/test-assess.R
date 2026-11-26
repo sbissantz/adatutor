@@ -473,31 +473,32 @@ test_that("assess() keeps full precision and carries its cut for print()", {
   expect_false(inherits(out["auroc"], "assessment"))
 })
 
-test_that("print.assessment() shows the matrix, then one line per cut", {
+test_that("print.assessment() shows a title, the matrix, then the cuts", {
   y <- c(rep(1, 12), rep(0, 9))
   set.seed(41)
   s <- rnorm(21) + y
   out <- capture.output(print(assess(y, s)))
 
-  expect_match(out[1], "^ +actual 1  actual 0$")
-  expect_match(out[2], "^predicted 1 +tp \\d+ +fp \\d+$")
-  expect_match(out[3], "^predicted 0 +fn \\d+ +tn \\d+$")
-  expect_identical(out[4], "")
-  expect_length(out, 8L)
+  expect_identical(out[1], "Performance metrics")
+  expect_match(out[2], "^ +actual 1  actual 0$")
+  expect_match(out[3], "^predicted 1 +tp \\d+ +fp \\d+$")
+  expect_match(out[4], "^predicted 0 +fn \\d+ +tn \\d+$")
+  expect_identical(out[5], "")
+  expect_length(out, 9L)
   expect_identical(
-    trimws(substr(out[5:8], 1, 16)),
+    trimws(substr(out[6:9], 1, 16)),
     c("At threshold 0", "", "Among top k", "Over thresholds")
   )
-  expect_match(out[7], "k=3 .*k=5 .*k=12 ")
+  expect_match(out[8], "k=3 .*k=5 .*k=12 ")
   expect_false(any(grepl("attr(", out, fixed = TRUE)))
   # nothing colored outside a live console
   expect_false(any(grepl("\033[", out, fixed = TRUE)))
   # every rate has three decimals
-  rates <- regmatches(out[5:8], gregexpr("\\d+\\.\\d+", out[5:8]))
+  rates <- regmatches(out[6:9], gregexpr("\\d+\\.\\d+", out[6:9]))
   expect_true(all(grepl("^\\d\\.\\d{3}$", unlist(rates))))
 
   two <- capture.output(print(assess(y, s), digits = 2))
-  rates <- regmatches(two[5:8], gregexpr("\\d+\\.\\d+", two[5:8]))
+  rates <- regmatches(two[6:9], gregexpr("\\d+\\.\\d+", two[6:9]))
   expect_true(all(grepl("^\\d\\.\\d{2}$", unlist(rates))))
 })
 
@@ -523,18 +524,19 @@ test_that("assess(cm) prints no ranking lines, and print() returns invisibly", {
   cm <- confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))
   out <- capture.output(res <- withVisible(print(assess(cm))))
 
-  expect_length(out, 6L)
-  expect_match(out[5], "^At threshold 0 ")
+  expect_length(out, 7L)
+  expect_match(out[6], "^At threshold 0 ")
   expect_false(res$visible)
 
   # a hand-built table carries no threshold, so the label stays plain
   hand <- structure(c(tp = 4, tn = 3, fp = 2, fn = 1), class = "confusion")
-  expect_match(capture.output(print(assess(hand)))[5], "^At threshold  ")
+  expect_match(capture.output(print(assess(hand)))[6], "^At threshold  ")
 })
 
 test_that("print.confusion() names its threshold above the matrix", {
   out <- capture.output(print(confusion(c(1, 1, 0, 0), c(2, -1, 1, -2), 0.5)))
-  expect_identical(out[1], "At threshold 0.5")
-  expect_match(out[3], "^predicted 1 +tp 1 +fp 1$")
-  expect_length(out, 4L)
+  expect_identical(out[1], "Confusion matrix")
+  expect_identical(out[2], "At threshold 0.5")
+  expect_match(out[4], "^predicted 1 +tp 1 +fp 1$")
+  expect_length(out, 5L)
 })

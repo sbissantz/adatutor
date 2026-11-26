@@ -123,7 +123,13 @@ test_that("tune_logo_cv() reproduces stored settings on every metric", {
   settings <- hypergrid$auroc[c("depth", "n_iter", "eta")]
   set.seed(2026)
   rows <- sample(which(settings$n_iter <= 100), 3)
-  res <- tune_logo_cv(recipe, settings[rows, ], data = tune, group = "pid")
+  res <- tune_logo_cv(
+    recipe,
+    settings[rows, ],
+    data = tune,
+    group = "pid",
+    verbose = FALSE
+  )
 
   for (metric in names(hypergrid)) {
     expect_equal(

@@ -132,7 +132,7 @@ test_that("summary() and print() run on nested", {
   expect_equal(top$lower, mean(auc) - sd(auc))
 
   expect_output(print(nested), "Nested leave-one-group-out cross-validation")
-  expect_output(print(nested), "settings: 1320", fixed = TRUE)
-  expect_output(print(nested), "selected: lower auroc", fixed = TRUE)
+  expect_output(print(nested), "settings  1320", fixed = TRUE)
+  expect_output(print(nested), "selected  lower auroc", fixed = TRUE)
   expect_output(print(nested), "The 7 inner searches selected", fixed = TRUE)
 })

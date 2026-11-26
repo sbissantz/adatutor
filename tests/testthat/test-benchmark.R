@@ -90,8 +90,14 @@ test_that("benchmark's logit cells match logo_cv() on a glm", {
     data = tune[, c(predictors, "replicate")],
     family = binomial
   )
-  tuning <- logo_cv(fit, data = tune, group = "pid")
-  final <- logo_cv(fit, data = altmext, group = "pid", holdout = "holz")
+  tuning <- logo_cv(fit, data = tune, group = "pid", verbose = FALSE)
+  final <- logo_cv(
+    fit,
+    data = altmext,
+    group = "pid",
+    holdout = "holz",
+    verbose = FALSE
+  )
   for (metric in names(benchmark)) {
     row <- benchmark[[metric]][benchmark[[metric]]$model == "logit", ]
     expect_equal(

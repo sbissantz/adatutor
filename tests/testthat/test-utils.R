@@ -30,65 +30,61 @@ test_that("color_message() wraps the text in the code and resets it", {
 test_that("feedback goes to the message stream, not stdout", {
   # progress is diagnostic, so it must not land in captured results
   expect_identical(capture.output(color_message("abc")), character(0))
-  expect_identical(
-    capture.output(mark_done(n = 1, delay = 0)),
-    character(0)
-  )
+  expect_identical(capture.output(mark_done(n = 1)), character(0))
   expect_message(color_message("abc"))
 })
 
 test_that("color_message() honors `newline`", {
   # `newline` was accepted but ignored until it was restored, so this asserts on
   # the raw bytes: capture.output() splits on newlines and would hide it
-  raw <- function(...) {
-    f <- tempfile()
-    on.exit(unlink(f), add = TRUE)
-    # binary, so Windows does not write "\n" as "\r\n"
-    con <- file(f, open = "wb")
-    sink(con, type = "message")
-    color_message(...)
-    sink(type = "message")
-    close(con)
-    readChar(f, file.size(f), useBytes = TRUE)
-  }
+  raw <- function(...) capture_stderr(color_message(...))
   # built from the palette constants rather than literal codes, so a re-theme
-  # does not have to be re-typed here
-  plain <- paste0("\033[", ansi_teal, "mabc\033[0m")
+  # does not have to be re-typed here; gray is the default, for step lines
+  plain <- paste0("\033[", ansi_gray, "mabc\033[0m")
   expect_identical(raw("abc", newline = FALSE), plain)
   expect_identical(raw("abc", newline = TRUE), paste0(plain, "\n"))
 })
 
 test_that("mark_done() colors `Done`, not the dots", {
-  out <- paste(
-    capture.output(
-      mark_done(n = 2, delay = 0, color_code = 34),
-      type = "message"
-    ),
-    collapse = ""
-  )
-  # dots stay faint whatever `color_code` says. Faint rather than a grey:
-  # ANSI 30 is plain black, which vanishes on a dark terminal.
-  expect_true(grepl(paste0("\033[", ansi_dim, "m."), out, fixed = TRUE))
-  # and "Done" takes the requested color, which was ignored before
-  expect_true(grepl("\033[34m Done", out, fixed = TRUE))
-  expect_false(grepl("\033[34m.\033", out, fixed = TRUE))
+  out <- capture_stderr(mark_done(n = 2, color_code = 34))
+  # dots stay gray whatever `color_code` says. A mid-gray rather than
+  # ANSI 30, plain black, which vanishes on a dark terminal.
+  expect_identical(out, "\033[38;5;244m..\033[0m \033[34mDone\033[0m\n")
+  expect_identical(strip_ansi(out), ".. Done\n")
 })
 
-test_that("mark_done() defaults to bold teal Done", {
-  out <- paste(
-    capture.output(mark_done(n = 1, delay = 0), type = "message"),
-    collapse = ""
-  )
-  # the same style as the retrodiction notice, on purpose
-  expect_true(grepl(paste0("\033[", ansi_note, "m Done"), out, fixed = TRUE))
+test_that("mark_done() defaults to plain teal Done", {
+  out <- capture_stderr(mark_done())
+  expect_true(grepl(paste0("\033[", ansi_teal, "mDone"), out, fixed = TRUE))
+  expect_identical(strip_ansi(out), "... Done\n")
+  expect_false(has_bold(out))
+})
+
+test_that("mark_done() does not pause", {
+  expect_false("Sys.sleep" %in% all.names(body(mark_done)))
+  # loose: ten calls took three seconds with the old pause
+  elapsed <- system.time(
+    for (i in 1:10) {
+      suppressMessages(mark_done())
+    }
+  )[["elapsed"]]
+  expect_lt(elapsed, 1)
+})
+
+test_that("nothing in the palette is bold", {
+  palette <- c(ansi_gray, ansi_teal)
+  expect_false(any(palette == "1" | startsWith(palette, "1;")))
+  namespace <- asNamespace("adatutor")
+  expect_false(exists("ansi_bold", envir = namespace, inherits = FALSE))
+  expect_false(exists("ansi_note", envir = namespace, inherits = FALSE))
 })
 
 test_that("style_ansi() colors only when asked", {
   expect_identical(
-    style_ansi("abc", ansi_note, use = TRUE),
-    paste0("\033[", ansi_note, "mabc\033[0m")
+    style_ansi("abc", ansi_gray, use = TRUE),
+    paste0("\033[", ansi_gray, "mabc\033[0m")
   )
-  expect_identical(style_ansi("abc", ansi_note, use = FALSE), "abc")
+  expect_identical(style_ansi("abc", ansi_gray, use = FALSE), "abc")
   # never under testthat, which is not a live console
   expect_false(use_ansi())
 })

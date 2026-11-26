@@ -97,7 +97,7 @@ test_that("a path writes one PDF and leaves the open devices as they were", {
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  res <- logo_cv(boosted, data = altmejd, group = "pid")
+  res <- logo_cv(boosted, data = altmejd, group = "pid", verbose = FALSE)
   # every figure that takes `file`
   figures <- list(
     tutplot_cstump = \(file) tutplot_cstump(stump(), file = file),
@@ -1265,7 +1265,7 @@ logocv_res <- function() {
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  logo_cv(fit, data = altmejd, group = "pid")
+  logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
 }
 
 test_that("tutplot_logocv(bootstrap = FALSE) draws estimates without resampling", {
@@ -1483,7 +1483,7 @@ test_that("Figure 1 and the estimates figure give a project one color", {
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  res <- logo_cv(fit, data = six, group = "pid")
+  res <- logo_cv(fit, data = six, group = "pid", verbose = FALSE)
   paper <- c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2")
 
   # the colored dots, one per project; the white halos come first

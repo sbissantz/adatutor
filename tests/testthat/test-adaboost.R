@@ -504,7 +504,7 @@ test_that("the notice comes after the transcript, on its own line", {
 
   # last, where the cursor lands -- not inside the run and not above it
   notice <- grep("^! ", lines)
-  done <- grep("Test process successfully completed", lines)
+  done <- grep("^Test process completed\\.$", lines)
   expect_gt(notice[1], done[1])
 })
 
