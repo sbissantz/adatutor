@@ -16,7 +16,8 @@
 #' scale is fixed at -0.5 to 0.5, so a color always means the same
 #' probability. For an ensemble, it runs to the largest margin, so colors
 #' compare within a plot but not across plots. A short line marks the middle
-#' of the color bar, a score of zero, as the boundary.
+#' of the color bar, a score of zero, as the boundary; the label "Boundary"
+#' sits under the bar.
 #'
 #' A stump has one split, so it shows two flat blocks; an ensemble shows a
 #' surface. That contrast is what boosting buys.
@@ -25,10 +26,8 @@
 #' Each point is filled with the color of its observed class. A point is
 #' misclassified when the sign of its score names the other class, the same
 #' score the surface is drawn from. Misclassified points are drawn paler and
-#' smaller, under the correct ones. A key at the top right, above the panel,
-#' shows both kinds. It is drawn whenever the points are and `legend_pos` is
-#' not `NULL`, even when no point is misclassified. The figure prints no
-#' count; the return value holds it.
+#' smaller, under the correct ones. The figure has no key for them, and it
+#' prints no count; the return value holds it.
 #'
 #' @param fit An rpart tree or an [adaboost()] fit.
 #' @param data A data frame with the two features and the outcome. It sets the
@@ -47,9 +46,8 @@
 #'   section on points.
 #' @param legend_pos Where to put the legend. The default, `"top"`, puts it
 #'   above the panel; any other [graphics::legend()] keyword puts it inside.
-#'   `NULL` leaves it out, along with the key for misclassified points, which
-#'   always sits above the panel. The legend and the color bar name the
-#'   classes by the outcome's levels, in title case.
+#'   `NULL` leaves it out, along with the color bar. The legend and the color
+#'   bar name the classes by the outcome's levels, in title case.
 #' @param add_colorbar Whether `shade = "margin"` draws a color bar in place of
 #'   the legend. Defaults to `TRUE`.
 #' @param main,subtitle An optional title and gray subtitle above the panel.
@@ -321,10 +319,11 @@ tutplot_boundary <- function(
     )
   }
   if (!is.null(subtitle)) {
+    # above the strip that holds the legend or the color bar
     graphics::mtext(
       subtitle,
       3,
-      line = 0.5,
+      line = if (is.null(legend_pos)) 0.5 else strip_layout$subtitle,
       adj = 0,
       cex = 0.78,
       col = "grey45"
@@ -346,7 +345,6 @@ tutplot_boundary <- function(
     )
   }
 
-  key_row <- NULL
   if (shade == "class" && !is.null(legend_pos) && !is.null(labels)) {
     legend_args <- list(
       legend = rev(labels),
@@ -364,9 +362,10 @@ tutplot_boundary <- function(
       # centered in the margin above the panel, so it never covers a study
       usr <- graphics::par("usr")
       legend_args$x <- (usr[1] + usr[2]) / 2
-      legend_args$y <- usr[4] + 0.055 * (usr[4] - usr[3])
+      # one row, so the box's middle is the text's line
+      legend_args$y <- find_strip_y(strip_layout$legend)
       legend_args$xjust <- 0.5
-      legend_args$yjust <- 0
+      legend_args$yjust <- 0.5
       legend_args$horiz <- TRUE
       # each key its own width; `horiz` otherwise pads all to the widest label
       legend_args$text.width <- NA
@@ -374,16 +373,7 @@ tutplot_boundary <- function(
     } else {
       legend_args$x <- legend_pos
     }
-    class_legend <- do.call(graphics::legend, legend_args)
-    if (identical(legend_pos, "top")) {
-      # the point key's upper row shares the class legend's line
-      key_row <- class_legend$text$y[1]
-    }
-  }
-
-  if (show_points && !is.null(labels) && !is.null(legend_pos)) {
-    # before the color bar, which is drawn last
-    draw_point_key(key_row)
+    do.call(graphics::legend, legend_args)
   }
 
   if (shade == "margin" && isTRUE(add_colorbar) && !is.null(legend_pos)) {
@@ -479,48 +469,30 @@ style_points <- function(class, misclassified, palette) {
   )
 }
 
-#' Draw the key for correct and misclassified points
+#' Lay out the strip above the panel
 #'
-#' Two class-neutral dots at the top right, in the strip above the panel that
-#' holds the color bar, styled by style_points(). `top`, a y in user units,
-#' moves the upper row there, onto the class legend's line.
+#' Margin lines up from the panel's top edge. A line follows the text size,
+#' not the device, so the strip looks the same at any figure size.
 #' @noRd
-draw_point_key <- function(top = NULL) {
+strip_layout <- list(
+  # "Boundary", halfway between the panel and the bar's bottom edge
+  label = 0.65,
+  # the color bar's bottom and top edges
+  bar = c(1.3, 1.83),
+  # the class legend's row, level with the bar's top edge
+  legend = 1.83,
+  # at least 4 pt above the strip's highest ink, the class legend's dots, at
+  # pointsize 9; 2.4 left 3.9 pt
+  subtitle = 2.41
+)
+
+#' Turn margin lines above the panel's top edge into a y in user units
+#' @noRd
+find_strip_y <- function(lines) {
   usr <- graphics::par("usr")
-  width <- usr[2] - usr[1]
-  height <- usr[4] - usr[3]
-  texts <- c("Correct", "Misclassified")
-  look <- style_points(c(0L, 0L), c(FALSE, TRUE), c("grey30", "grey30"))
-
-  # clear of the color bar's end label; pulled left on a narrow device, so
-  # the text never runs past the panel's right edge
-  gap <- 0.018 * width
-  text_width <- max(graphics::strwidth(texts, cex = 0.62))
-  x <- min(usr[1] + 0.84 * width, usr[2] - gap - text_width)
-  y <- usr[4] + c(0.085, 0.04) * height
-  if (!is.null(top)) {
-    y <- y - y[1] + top
-  }
-
-  graphics::points(
-    c(x, x),
-    y,
-    pch = 21,
-    cex = look$cex,
-    lwd = look$lwd,
-    col = look$ring,
-    bg = look$fill,
-    xpd = NA
-  )
-  graphics::text(
-    x + gap,
-    y,
-    texts,
-    adj = c(0, 0.5),
-    cex = 0.62,
-    col = "grey25",
-    xpd = NA
-  )
+  # inches per line, then user units per inch
+  line_height <- graphics::par("mai")[3] / graphics::par("mar")[3]
+  usr[4] + lines * line_height * (usr[4] - usr[3]) / graphics::par("pin")[2]
 }
 
 #' Find how far the color scale should reach
@@ -551,24 +523,31 @@ draw_colorbar <- function(opacity, labels) {
   # carry the class names, so no caption
   usr <- graphics::par("usr")
   width <- usr[2] - usr[1]
-  height <- usr[4] - usr[3]
-  left <- (usr[1] + usr[2]) / 2 - 0.18 * width
-  right <- (usr[1] + usr[2]) / 2 + 0.18 * width
-  bottom <- usr[4] + 0.045 * height
-  top <- bottom + 0.028 * height
+  # 7 pt at pointsize 9, the class legend's size
+  cex <- 0.8
+  low_label <- if (is.null(labels)) "Negative" else labels[1]
+  high_label <- if (is.null(labels)) "Positive" else labels[2]
+  center <- (usr[1] + usr[2]) / 2
+  gap <- 0.015 * width
+  # shorter on a narrow device or at a large pointsize, so neither end label
+  # leaves the panel; the same room on both sides keeps the bar centered
+  label_width <- max(graphics::strwidth(c(low_label, high_label), cex = cex))
+  half <- min(0.18 * width, width / 2 - gap - label_width)
+  left <- center - half
+  right <- center + half
+  bottom <- find_strip_y(strip_layout$bar[1])
+  top <- find_strip_y(strip_layout$bar[2])
 
-  n_colors <- 64L
-  edges <- seq(left, right, length.out = n_colors + 1L)
-  graphics::rect(
-    utils::head(edges, -1),
+  # one image, not 64 rectangles, so no seams show between the colors; the
+  # panel's 64 colors, so the bar matches its shading
+  ramp <- grDevices::adjustcolor(viridisLite::viridis(64L), alpha.f = opacity)
+  graphics::rasterImage(
+    grDevices::as.raster(matrix(ramp, nrow = 1L)),
+    left,
     bottom,
-    utils::tail(edges, -1),
+    right,
     top,
-    col = grDevices::adjustcolor(
-      viridisLite::viridis(n_colors),
-      alpha.f = opacity
-    ),
-    border = NA,
+    interpolate = FALSE,
     xpd = NA
   )
   graphics::rect(
@@ -581,43 +560,44 @@ draw_colorbar <- function(opacity, labels) {
     xpd = NA
   )
 
-  # the scale is centered on zero, so the vote tips at the bar's middle
+  # the scale is centered on zero, so the vote tips at the bar's middle; flat
+  # ends, so the mark stops at the bar's edges
   middle <- (left + right) / 2
   graphics::segments(
     middle,
     bottom,
     middle,
-    top + 0.006 * height,
+    top,
     lwd = 1,
+    lend = "butt",
     col = "grey15",
     xpd = NA
   )
+  # under the tick, halfway between the bar and the panel
   graphics::text(
     middle,
-    top + 0.026 * height,
+    find_strip_y(strip_layout$label),
     "Boundary",
-    cex = 0.55,
+    cex = cex,
     col = "grey25",
     xpd = NA
   )
 
-  low_label <- if (is.null(labels)) "Negative" else labels[1]
-  high_label <- if (is.null(labels)) "Positive" else labels[2]
   graphics::text(
-    left - 0.015 * width,
+    left - gap,
     (bottom + top) / 2,
     low_label,
     adj = c(1, 0.5),
-    cex = 0.72,
+    cex = cex,
     col = "grey25",
     xpd = NA
   )
   graphics::text(
-    right + 0.015 * width,
+    right + gap,
     (bottom + top) / 2,
     high_label,
     adj = c(0, 0.5),
-    cex = 0.72,
+    cex = cex,
     col = "grey25",
     xpd = NA
   )

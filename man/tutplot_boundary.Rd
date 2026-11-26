@@ -52,9 +52,8 @@ section on points.}
 
 \item{legend_pos}{Where to put the legend. The default, \code{"top"}, puts it
 above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
-\code{NULL} leaves it out, along with the key for misclassified points, which
-always sits above the panel. The legend and the color bar name the
-classes by the outcome's levels, in title case.}
+\code{NULL} leaves it out, along with the color bar. The legend and the color
+bar name the classes by the outcome's levels, in title case.}
 
 \item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar in place of
 the legend. Defaults to \code{TRUE}.}
@@ -98,7 +97,8 @@ classes sit at its ends and uncertainty sits in the middle. For a tree, the
 scale is fixed at -0.5 to 0.5, so a color always means the same
 probability. For an ensemble, it runs to the largest margin, so colors
 compare within a plot but not across plots. A short line marks the middle
-of the color bar, a score of zero, as the boundary.
+of the color bar, a score of zero, as the boundary; the label "Boundary"
+sits under the bar.
 
 A stump has one split, so it shows two flat blocks; an ensemble shows a
 surface. That contrast is what boosting buys.
@@ -109,10 +109,8 @@ surface. That contrast is what boosting buys.
 Each point is filled with the color of its observed class. A point is
 misclassified when the sign of its score names the other class, the same
 score the surface is drawn from. Misclassified points are drawn paler and
-smaller, under the correct ones. A key at the top right, above the panel,
-shows both kinds. It is drawn whenever the points are and \code{legend_pos} is
-not \code{NULL}, even when no point is misclassified. The figure prints no
-count; the return value holds it.
+smaller, under the correct ones. The figure has no key for them, and it
+prints no count; the return value holds it.
 }
 
 \examples{
