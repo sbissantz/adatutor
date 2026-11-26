@@ -47,9 +47,11 @@
 #' @param legend_pos Where to put the legend. The default, `"top"`, puts it
 #'   above the panel; any other [graphics::legend()] keyword puts it inside.
 #'   `NULL` leaves it out, along with the color bar. The legend and the color
-#'   bar name the classes by the outcome's levels, in title case.
+#'   bar name the classes by the outcome's levels, in title case. The top
+#'   margin makes room only for a legend or color bar drawn above the panel.
 #' @param add_colorbar Whether `shade = "margin"` draws a color bar in place of
-#'   the legend. Defaults to `TRUE`.
+#'   the legend. Defaults to `TRUE`. A panel too narrow for the bar and its end
+#'   labels gets no bar.
 #' @param main,subtitle An optional title and gray subtitle above the panel.
 #' @param xlab,ylab Axis labels. `NULL` (the default) uses the feature names.
 #' @param file A path to write a PDF to, or `NULL` to draw on the current
@@ -205,9 +207,19 @@ tutplot_boundary <- function(
     opacity <- if (shade == "class") 0.18 else 0.65
   }
 
-  # size the top margin from what is drawn: legend, sub-title and title
+  # the same tests decide what is drawn and the room it gets: only the class
+  # legend at "top" and the color bar sit in the strip above the panel
+  legend_drawn <- shade == "class" && !is.null(legend_pos) && !is.null(labels)
+  colorbar_drawn <- shade == "margin" &&
+    isTRUE(add_colorbar) &&
+    !is.null(legend_pos)
+  strip_drawn <- (legend_drawn && identical(legend_pos, "top")) ||
+    colorbar_drawn
+
+  # size the top margin from what is drawn: strip, sub-title and title. A bar
+  # too wide for the panel keeps its band: the width is known only after par()
   top_margin <- 1.0 +
-    (if (!is.null(legend_pos)) 1.9 else 0) +
+    (if (strip_drawn) 1.9 else 0) +
     (if (!is.null(subtitle)) 1.2 else 0) +
     (if (!is.null(main)) 1.4 else 0)
   # after the checks and the grid, so a rejected argument writes no file
@@ -319,11 +331,11 @@ tutplot_boundary <- function(
     )
   }
   if (!is.null(subtitle)) {
-    # above the strip that holds the legend or the color bar
+    # above the strip that holds the legend or the color bar, if one is drawn
     graphics::mtext(
       subtitle,
       3,
-      line = if (is.null(legend_pos)) 0.5 else strip_layout$subtitle,
+      line = if (strip_drawn) strip_layout$subtitle else 0.5,
       adj = 0,
       cex = 0.78,
       col = "grey45"
@@ -345,7 +357,7 @@ tutplot_boundary <- function(
     )
   }
 
-  if (shade == "class" && !is.null(legend_pos) && !is.null(labels)) {
+  if (legend_drawn) {
     legend_args <- list(
       legend = rev(labels),
       pch = 21,
@@ -376,7 +388,7 @@ tutplot_boundary <- function(
     do.call(graphics::legend, legend_args)
   }
 
-  if (shade == "margin" && isTRUE(add_colorbar) && !is.null(legend_pos)) {
+  if (colorbar_drawn) {
     # the ramp's ends are the classes, so the bar is the legend
     draw_colorbar(opacity, labels)
   }
@@ -533,6 +545,10 @@ draw_colorbar <- function(opacity, labels) {
   # leaves the panel; the same room on both sides keeps the bar centered
   label_width <- max(graphics::strwidth(c(low_label, high_label), cex = cex))
   half <- min(0.18 * width, width / 2 - gap - label_width)
+  # no room for the bar between its end labels: draw none rather than mirror it
+  if (half <= 0) {
+    return(invisible())
+  }
   left <- center - half
   right <- center + half
   bottom <- find_strip_y(strip_layout$bar[1])
