@@ -10,19 +10,19 @@
 \alias{logo_cv.default}
 \title{Leave-one-group-out cross-validation}
 \usage{
-logo_cv(x, data, group, holdout = NULL, verbose = FALSE, ...)
+logo_cv(x, data, group, holdout = NULL, verbose = TRUE, ...)
 
-\method{logo_cv}{adaboost}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+\method{logo_cv}{adaboost}(x, data, group, holdout = NULL, verbose = TRUE, ...)
 
-\method{logo_cv}{rpart}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+\method{logo_cv}{rpart}(x, data, group, holdout = NULL, verbose = TRUE, ...)
 
-\method{logo_cv}{glm}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+\method{logo_cv}{glm}(x, data, group, holdout = NULL, verbose = TRUE, ...)
 
-\method{logo_cv}{randomForest}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+\method{logo_cv}{randomForest}(x, data, group, holdout = NULL, verbose = TRUE, ...)
 
-\method{logo_cv}{xgboost}(x, data, group, holdout = NULL, verbose = FALSE, outcome, ...)
+\method{logo_cv}{xgboost}(x, data, group, holdout = NULL, verbose = TRUE, outcome, ...)
 
-\method{logo_cv}{default}(x, data, group, holdout = NULL, verbose = FALSE, ...)
+\method{logo_cv}{default}(x, data, group, holdout = NULL, verbose = TRUE, ...)
 }
 \arguments{
 \item{x}{A fitted model: a fit from \code{\link[=adaboost]{adaboost()}}, a classification tree
@@ -38,7 +38,10 @@ column, holding every group.}
 \item{holdout}{The levels of \code{group} to hold out, one fold each. Defaults
 to \code{NULL}, which holds out every level once.}
 
-\item{verbose}{Whether to report progress. Defaults to \code{FALSE}.}
+\item{verbose}{Whether to report progress on the console. Defaults to
+\code{TRUE}, which prints a start line, a line per held-out group that ends
+in "Done" when its refit is scored, and a closing line. \code{FALSE} prints
+nothing, for loops, reports and scripts.}
 
 \item{...}{Must be empty. The settings belong to the fit, so an argument
 such as \code{n_iter} or \code{grid} is an error.}
@@ -142,7 +145,7 @@ h <- rpart::rpart(
   model = TRUE
 )
 fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
-res <- logo_cv(fit, data = altmejd, group = "pid")
+res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
 res
 plot(res)
 
@@ -152,12 +155,12 @@ glm(
   data = altmejd,
   family = binomial
 ) |>
-  logo_cv(data = altmejd, group = "pid")
+  logo_cv(data = altmejd, group = "pid", verbose = FALSE)
 
 # random five-fold cross-validation: random folds as the groups
 set.seed(1)
 altmejd$fold <- sample(rep(1:5, length.out = nrow(altmejd)))
-logo_cv(fit, data = altmejd, group = "fold")
+logo_cv(fit, data = altmejd, group = "fold", verbose = FALSE)
 
 # one Monte Carlo draw: a random split, holding out the test part only
 altmejd$part <- sample(
@@ -166,11 +169,23 @@ altmejd$part <- sample(
   replace = TRUE,
   prob = c(0.7, 0.3)
 )
-logo_cv(fit, data = altmejd, group = "part", holdout = "test")
+logo_cv(
+  fit,
+  data = altmejd,
+  group = "part",
+  holdout = "test",
+  verbose = FALSE
+)
 
 # the final test on HOLZ, the project kept back from tuning
 data(altmext)
-logo_cv(fit, data = altmext, group = "pid", holdout = "holz")
+logo_cv(
+  fit,
+  data = altmext,
+  group = "pid",
+  holdout = "holz",
+  verbose = FALSE
+)
 
 }
 \references{

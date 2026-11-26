@@ -19,7 +19,7 @@ tune_logo_cv(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 )
 
@@ -33,7 +33,7 @@ tune_logo_cv(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 )
 
@@ -47,7 +47,7 @@ tune_logo_cv(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 )
 
@@ -61,7 +61,7 @@ tune_logo_cv(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 )
 
@@ -75,7 +75,7 @@ tune_logo_cv(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   outcome,
   ...
 )
@@ -90,7 +90,7 @@ tune_logo_cv(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 )
 }
@@ -143,10 +143,17 @@ frames, but not the functions defined in the session. So a fit whose
 formula or call uses such a function, even by its name in a string, or
 an object that holds code, such as a fitted model, stops with a
 message; then set \code{cores = 1}, or compute the column first and use it
-in the formula.
-Progress messages from \code{verbose} appear only on one core.}
+in the formula.}
 
-\item{verbose}{Whether to report progress. Defaults to \code{FALSE}.}
+\item{verbose}{Whether to report progress on the console. Defaults to
+\code{TRUE}, which prints a start line that counts the settings, the folds
+and the cores in use if more than one, then a progress bar over the fits
+and a closing line. On several cores, the workers hand back their fits
+in batches of 16 per core, and the bar moves after each batch; a search
+that fits in one batch jumps from start to end. A nested search prints a
+line per outer fold instead of the bar, which ends in "Done" when that
+fold's search and refit have finished. \code{FALSE} prints nothing, for
+loops, reports and scripts.}
 
 \item{...}{Must be empty. An argument the method does not take is an
 error, not ignored.}
@@ -251,7 +258,8 @@ res <- tune_logo_cv(
   fit,
   grid = data.frame(n_iter = c(5, 10)),
   data = altmejd,
-  group = "pid"
+  group = "pid",
+  verbose = FALSE
 )
 # the settings, ranked by the mean across the projects minus their SD
 summary(res, sort_by = "lower")
@@ -265,7 +273,8 @@ tune_logo_cv(
   data = altmejd,
   group = "pid",
   nested = TRUE,
-  sort_by = "lower"
+  sort_by = "lower",
+  verbose = FALSE
 )
 
 # a classification tree: the depth varies
@@ -278,7 +287,8 @@ tune_logo_cv(
   tree,
   data.frame(depth = c(1, 3, 5)),
   data = altmejd,
-  group = "pid"
+  group = "pid",
+  verbose = FALSE
 )
 
 }
