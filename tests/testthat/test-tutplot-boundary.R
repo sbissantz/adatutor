@@ -800,9 +800,10 @@ find_texts <- function(calls, label) {
   Filter(\(call) identical(call[[3]], label), find_calls(calls, "C_text"))
 }
 
-# Figure 3 on a pdf device of `size` at `pointsize`. The panel's geometry is
-# read inside style_points(), while the figure's own margins hold: on.exit()
-# restores them before the call returns
+# Figure 3 on a pdf device of `size` at `pointsize`, with the calls it drew and
+# the value it returned. The panel's geometry is read inside style_points(),
+# while the figure's own margins hold: on.exit() restores them before the call
+# returns
 read_strip <- function(
   size = tutplot_opts$full,
   ...,
@@ -815,6 +816,7 @@ read_strip <- function(
       frame <<- list(
         usr = graphics::par("usr"),
         pin = graphics::par("pin"),
+        mar = graphics::par("mar"),
         # inches per margin line
         line = graphics::par("mai")[3] / graphics::par("mar")[3],
         page_top = graphics::grconvertY(1, "ndc", "user")
@@ -836,7 +838,7 @@ read_strip <- function(
   if (is.null(frame)) {
     stop("style_points() was not called, so the panel was not read.")
   }
-  list(calls = out$calls, frame = frame)
+  list(calls = out$calls, frame = frame, value = out$value)
 }
 
 # the color bar's raster: the panel's shading is a raster too, but the bar's
@@ -1132,4 +1134,153 @@ test_that("the strip's three labels share one cex, 7 pt at pointsize 9", {
   expect_length(unique(cex), 1L)
   # the pdf device rounds a text size to whole points
   expect_identical(round(cex[[1]] * tutplot_opts$pointsize), 7)
+})
+
+test_that("a panel too narrow for the bar and its end labels gets no bar", {
+  # draw_colorbar()'s half-width in inches on a panel `pin` inches wide: what
+  # is left between the end labels, at most 0.18 of the panel
+  label_width <- max(measure_width(c("Failure", "Success"), cex = 0.8))
+  find_half <- function(pin) {
+    min(0.18 * pin, pin / 2 - 0.015 * pin - label_width)
+  }
+  normal <- read_strip()
+  # the threshold lies near 1.72 inches of device width at pointsize 9
+  narrow <- expect_silent(read_strip(c(width = 1.6, height = 3)))
+  # the case is real: the end labels leave the bar no width
+  expect_lte(find_half(narrow$frame$pin[1]), 0)
+
+  # no bar, outline, mark or label; under margin shading and with no title,
+  # the strip makes the only rect(), segments() and text() calls
+  expect_length(find_bar(narrow), 0L)
+  strip_counts <- c(C_rect = 1L, C_segments = 1L, C_text = 3L)
+  for (part in names(strip_counts)) {
+    expect_length(find_calls(normal$calls, part), strip_counts[[part]])
+    expect_length(find_calls(narrow$calls, part), 0L)
+  }
+
+  # all else is drawn with the same arguments as on a full-size device, and
+  # the same values come back
+  strip_parts <- c("C_raster", names(strip_counts))
+  drop_strip <- function(calls) {
+    Filter(\(call) !(call[[1]]$name %in% strip_parts), calls)
+  }
+  expect_identical(drop_strip(narrow$calls), drop_strip(normal$calls))
+  # the panel's shading is the one raster left
+  panel <- Filter(
+    \(call) call[[4]] <= normal$frame$usr[4],
+    find_calls(normal$calls, "C_raster")
+  )
+  expect_length(panel, 1L)
+  expect_identical(find_calls(narrow$calls, "C_raster"), panel)
+  expect_identical(narrow$value, normal$value)
+
+  # just above the threshold the bar is drawn, as wide as the rule allows
+  wide <- read_strip(c(width = 1.75, height = 3))
+  usr <- wide$frame$usr
+  pin <- wide$frame$pin[1]
+  expect_gt(find_half(pin), 0)
+  bar <- find_bar(wide)
+  expect_length(bar, 1L)
+  share <- (bar[[1]][[5]] - bar[[1]][[3]]) / (usr[2] - usr[1])
+  expect_gt(share, 0)
+  expect_equal(share * pin, 2 * find_half(pin))
+})
+
+test_that("the top margin holds a strip only when one is drawn", {
+  # in lines, the margins are c(4.4, 4.8, top, 1.4) + 0.1; the top is 1 line,
+  # plus 1.9 for a strip, 1.2 for a subtitle and 1.4 for a title. A line is
+  # 0.15 inches at pointsize 9
+  size <- tutplot_opts$full
+  expect_frame <- function(strip, top, label) {
+    expect_equal(strip$frame$mar, c(4.5, 4.9, top + 0.1, 1.5), label = label)
+    expect_equal(
+      strip$frame$pin,
+      c(
+        size[["width"]] - (4.9 + 1.5) * 0.15,
+        size[["height"]] - (4.5 + top + 0.1) * 0.15
+      ),
+      label = label
+    )
+  }
+  read_subtitle_line <- function(strip) {
+    found <- Filter(
+      \(call) identical(call[[2]], "A subtitle"),
+      find_calls(strip$calls, "C_mtext")
+    )
+    if (length(found)) found[[1]][[4]]
+  }
+  titles <- list(
+    none = list(),
+    both = list(main = "A title", subtitle = "A subtitle")
+  )
+  for (name in names(titles)) {
+    read <- function(...) do.call(read_strip, c(list(...), titles[[name]]))
+    top <- if (name == "both") 1.0 + 1.2 + 1.4 else 1.0
+    bare <- read(legend_pos = NULL)
+    expect_frame(bare, top, paste("no legend with titles:", name))
+
+    # nothing above the panel: the margin and the subtitle as with no legend
+    no_strip <- list(
+      inside = read(shade = "class", legend_pos = "bottomright"),
+      no_bar = read(add_colorbar = FALSE)
+    )
+    for (case in names(no_strip)) {
+      strip <- no_strip[[case]]
+      label <- paste(case, "with titles:", name)
+      expect_identical(strip$frame$mar, bare$frame$mar, label = label)
+      expect_identical(strip$frame$pin, bare$frame$pin, label = label)
+      expect_frame(strip, top, label)
+      expect_identical(
+        read_subtitle_line(strip),
+        read_subtitle_line(bare),
+        label = label
+      )
+      if (name == "both") {
+        expect_identical(read_subtitle_line(strip), 0.5, label = label)
+      }
+    }
+    # the inside legend is still drawn, inside the panel
+    legend <- find_texts(no_strip$inside$calls, c("Success", "Failure"))
+    expect_length(legend, 1L)
+    expect_true(all(legend[[1]][[2]]$y < no_strip$inside$frame$usr[4]))
+
+    # a strip above the panel: the margin and the panel as they were
+    strips <- list(
+      bar = read(),
+      bar_inside_keyword = read(legend_pos = "bottomright"),
+      legend = read(shade = "class")
+    )
+    for (case in names(strips)) {
+      strip <- strips[[case]]
+      label <- paste(case, "with titles:", name)
+      expect_frame(strip, top + 1.9, label)
+      if (name == "both") {
+        expect_identical(
+          read_subtitle_line(strip),
+          strip_layout$subtitle,
+          label = label
+        )
+      }
+    }
+  }
+
+  # with no outcome there is no legend, so no strip either; the title's line
+  # is the top margin less 1.5 lines
+  read_title_line <- function(legend_pos) {
+    out <- record_calls(tutplot_boundary(
+      fit_paper_stump(),
+      altmext_splits$train[, feat],
+      resolution = 20,
+      shade = "class",
+      legend_pos = legend_pos,
+      main = "A title"
+    ))
+    found <- Filter(
+      \(call) identical(call[[2]], "A title"),
+      find_calls(out$calls, "C_mtext")
+    )
+    found[[1]][[4]]
+  }
+  expect_identical(read_title_line("top"), read_title_line(NULL))
+  expect_equal(read_title_line("top"), 1.0 + 1.4 - 1.5)
 })
