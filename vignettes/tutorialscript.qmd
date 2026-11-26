@@ -1623,9 +1623,10 @@ Score every setting of the grid by leave-one-group-out cross-validation (about 3
 
 ```{r listing-34}
 # Hyperparameter optimization: one LOGO-CV per setting
-for (i in seq_len(nrow(ada_hgrid))) {
-  # Progress report, overwritten in place
-  cat("\rSetting", i, "of", nrow(ada_hgrid))
+n_setting <- nrow(ada_hgrid)
+for (i in seq_len(n_setting)) {
+  # Progress report, one line per setting
+  cat("Setting ", i, "/", n_setting, "\n", sep = "")
   runtime <- system.time({
     # The pipeline of Modules 2, 3 and 6 at this setting: the depth goes to
     # the tree, the rounds and the learning rate to the boosting
@@ -1663,7 +1664,7 @@ ada_hgrid[order(-ada_hgrid$lower), ] |> round(2)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-Listing 34 wraps one loop around the cross-validation of Module 6. The loop visits each row of the grid, and the statement inside it is the pipeline of Modules 2, 3 and 6 at that row's setting: `rpart()` grows the weak learner at the row's depth, `adaboost()` boosts it for the row's rounds at the row's learning rate, and `logo_cv()` cross-validates that ensemble by project, as in Module 6. Each hyperparameter appears where it lives. The ensemble fitted on the way is never used as a model: `logo_cv()` reads only its recipe and refits it once per project, so the fit's own data play no part. Appendix D shows the same search with the by-hand steps of Modules 2, 3, 5 and 6 pasted in: the package calls fold those layers and nothing else. The result holds the AUROC of every held-out project, which the loop copies into the row together with the run time. The progress report uses a carriage return, so `cat()` overwrites one line instead of printing 18. After the loop, three columns summarize each row: the mean AUROC across the six projects, their standard deviation, and the difference of the two, which we call `lower`: the mean minus the SD, the lower end of the band of one SD around the mean. The mean alone would favor a setting that excels on three projects and fails on the other three. The mean minus the SD favors a setting that does well everywhere. `lower` is a ranking device, not a performance estimate. Module 6 explained why six unequal and overlapping folds give no honest mean with a standard error, and nothing here reports one.
+Listing 34 wraps one loop around the cross-validation of Module 6. The loop visits each row of the grid, and the statement inside it is the pipeline of Modules 2, 3 and 6 at that row's setting: `rpart()` grows the weak learner at the row's depth, `adaboost()` boosts it for the row's rounds at the row's learning rate, and `logo_cv()` cross-validates that ensemble by project, as in Module 6. Each hyperparameter appears where it lives. The ensemble fitted on the way is never used as a model: `logo_cv()` reads only its recipe and refits it once per project, so the fit's own data play no part. Appendix D shows the same search with the by-hand steps of Modules 2, 3, 5 and 6 pasted in: the package calls fold those layers and nothing else. The result holds the AUROC of every held-out project, which the loop copies into the row together with the run time. The progress report prints one line per setting, and `logo_cv()` reports its folds below it. After the loop, three columns summarize each row: the mean AUROC across the six projects, their standard deviation, and the difference of the two, which we call `lower`: the mean minus the SD, the lower end of the band of one SD around the mean. The mean alone would favor a setting that excels on three projects and fails on the other three. The mean minus the SD favors a setting that does well everywhere. `lower` is a ranking device, not a performance estimate. Module 6 explained why six unequal and overlapping folds give no honest mean with a standard error, and nothing here reports one.
 
 **A Fourth Look at Performance.** Ranked by `lower`, the best of the 18 settings is a stump boosted for 1,000 rounds at a learning rate of 0.1 (`lower` 0.66, from a mean of 0.78 and an SD of 0.12). Its worst project is ML3 at 0.64, its best ML1 at 0.95. The ensemble of Module 3, the same stump for 1,000 rounds at a rate of 1, has the lowest `lower` of all (0.54): on ML3 it ranks below chance (0.48). At many rounds, the learning rate has to come down. Ten rounds at a rate of 1 come close to the top (0.64 for depth 2, 0.63 for the stump), so the cheapest settings of the grid are nearly as good as its best. Deeper trees buy nothing here: at a rate of 0.1, depth 2 and 3 rank below depth 1 at every number of rounds, and at a rate of 1 the three depths trade places near the bottom. The run time shows the cost: 20 to 30 s for 1,000 rounds against less than half a second for 10. In short, a stump at a low learning rate is the safe choice on this grid, but the differences among the top settings are smaller than six projects can resolve.
 :::
@@ -1672,7 +1673,7 @@ Listing 34 wraps one loop around the cross-validation of Module 6. The loop visi
 - The inner loop is one pipeline per setting, `rpart()` into `adaboost()` into `logo_cv()` (submitted: the loop of Listing 32 written out with `trainAda()`, `testAda()` and `auc(roc())` on class labels, so its "AUC" was a balanced accuracy, findings §1; its `treehypar = rpart.control(maxdepth = )` also reset `cp`, `xval` and `maxsurrogate` to rpart's defaults, findings §9).
 - `replicate ~ .` on `df_noholz[, voi_nms]`, as in Listing 32; `df_noholz` and the six tuning projects (submitted: `df` and five); `train` and `test` of Module 1 are no longer overwritten.
 - `lower`, the mean minus the SD, ranks the settings (submitted: the plain mean); the summary columns `mean`, `sd` and `lower` are computed after the loop in snake_case (submitted: `auc.mean` inside the loop).
-- The progress line is one `cat()` with the setting's index.
+- The progress line is one `cat()` with the setting's index and the number of settings, `n_setting`.
 - Run time: about 3 minutes on this machine, as submitted.
 :::
 
@@ -2010,8 +2011,8 @@ winners_diy <- list()
 runtime_nested <- system.time({
   # Outer loop: each project is held out once and scored once
   for (rp in proj_all) {
-    # Progress report, overwritten in place
-    cat("\rHeld-out project:", rp)
+    # Progress report, one line per project
+    cat("Held-out project:", rp, "\n")
     # The held-out project leaves the data, so the search cannot see it
     train_cv <- df[df$pid != rp, ]
     # Inner loop: the grid search of Listing 34 on the other six projects
