@@ -64,7 +64,10 @@
 #' @param group The name of the column that defines the folds, e.g. `"pid"`.
 #' @param holdout The levels of `group` to hold out, one fold each. Defaults
 #'   to `NULL`, which holds out every level once.
-#' @param verbose Whether to report progress. Defaults to `FALSE`.
+#' @param verbose Whether to report progress on the console. Defaults to
+#'   `TRUE`, which prints a start line, a line per held-out group that ends
+#'   in "Done" when its refit is scored, and a closing line. `FALSE` prints
+#'   nothing, for loops, reports and scripts.
 #' @param outcome The name of the outcome column in `data`, e.g.
 #'   `"replicate"`, for an XGBoost fit, which needs it. Such a fit keeps no
 #'   formula, so its predictors are the columns named by its feature names.
@@ -104,7 +107,7 @@
 #'   model = TRUE
 #' )
 #' fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
-#' res <- logo_cv(fit, data = altmejd, group = "pid")
+#' res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
 #' res
 #' plot(res)
 #'
@@ -114,12 +117,12 @@
 #'   data = altmejd,
 #'   family = binomial
 #' ) |>
-#'   logo_cv(data = altmejd, group = "pid")
+#'   logo_cv(data = altmejd, group = "pid", verbose = FALSE)
 #'
 #' # random five-fold cross-validation: random folds as the groups
 #' set.seed(1)
 #' altmejd$fold <- sample(rep(1:5, length.out = nrow(altmejd)))
-#' logo_cv(fit, data = altmejd, group = "fold")
+#' logo_cv(fit, data = altmejd, group = "fold", verbose = FALSE)
 #'
 #' # one Monte Carlo draw: a random split, holding out the test part only
 #' altmejd$part <- sample(
@@ -128,14 +131,26 @@
 #'   replace = TRUE,
 #'   prob = c(0.7, 0.3)
 #' )
-#' logo_cv(fit, data = altmejd, group = "part", holdout = "test")
+#' logo_cv(
+#'   fit,
+#'   data = altmejd,
+#'   group = "part",
+#'   holdout = "test",
+#'   verbose = FALSE
+#' )
 #'
 #' # the final test on HOLZ, the project kept back from tuning
 #' data(altmext)
-#' logo_cv(fit, data = altmext, group = "pid", holdout = "holz")
+#' logo_cv(
+#'   fit,
+#'   data = altmext,
+#'   group = "pid",
+#'   holdout = "holz",
+#'   verbose = FALSE
+#' )
 #'
 #' @export
-logo_cv <- function(x, data, group, holdout = NULL, verbose = FALSE, ...) {
+logo_cv <- function(x, data, group, holdout = NULL, verbose = TRUE, ...) {
   UseMethod("logo_cv")
 }
 
@@ -146,18 +161,29 @@ logo_cv.adaboost <- function(
   data,
   group,
   holdout = NULL,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
-  # one recipe is a grid of one row, the fit's own
-  tune_logo_cv(
+  check_ada_fit(x)
+  # one recipe is a grid of one row, the fit's own; tune_logo_cv() would
+  # check it the same way but report progress as a search
+  grid <- normalize_grid(
+    read_setting(x),
+    own = read_setting(x),
+    settings = c("depth", "n_iter", "eta"),
+    controls = list_tree_controls()
+  )
+  cross_validate(
     x,
-    grid = read_setting(x),
     data = data,
     group = group,
+    grid = grid,
+    folds = read_folds(data, group, holdout),
+    model = "adaboost",
     holdout = holdout,
-    verbose = verbose
+    verbose = verbose,
+    progress = "folds"
   )
 }
 
@@ -168,7 +194,7 @@ logo_cv.rpart <- function(
   data,
   group,
   holdout = NULL,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
@@ -186,7 +212,8 @@ logo_cv.rpart <- function(
     folds = read_folds(data, group, holdout),
     model = "rpart",
     holdout = holdout,
-    verbose = verbose
+    verbose = verbose,
+    progress = "folds"
   )
 }
 
@@ -197,7 +224,7 @@ logo_cv.glm <- function(
   data,
   group,
   holdout = NULL,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
@@ -216,7 +243,8 @@ logo_cv.glm <- function(
     folds = read_folds(data, group, holdout),
     model = "glm",
     holdout = holdout,
-    verbose = verbose
+    verbose = verbose,
+    progress = "folds"
   )
 }
 
@@ -227,7 +255,7 @@ logo_cv.randomForest <- function(
   data,
   group,
   holdout = NULL,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
@@ -240,7 +268,8 @@ logo_cv.randomForest <- function(
     folds = read_folds(data, group, holdout),
     model = "rf",
     holdout = holdout,
-    verbose = verbose
+    verbose = verbose,
+    progress = "folds"
   )
 }
 
@@ -251,7 +280,7 @@ logo_cv.xgboost <- function(
   data,
   group,
   holdout = NULL,
-  verbose = FALSE,
+  verbose = TRUE,
   outcome,
   ...
 ) {
@@ -268,6 +297,7 @@ logo_cv.xgboost <- function(
     model = "xgboost",
     holdout = holdout,
     verbose = verbose,
+    progress = "folds",
     outcome = outcome
   )
 }
@@ -279,7 +309,7 @@ logo_cv.default <- function(
   data,
   group,
   holdout = NULL,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_not_booster(x)
@@ -309,23 +339,34 @@ group_settings <- function(grid, model) {
   unname(split(rows, factor(key, levels = unique(key))))
 }
 
-#' Describe a task's settings for a progress message
+#' Write the start line of a search
+#'
+#' Names the fits when rows that differ only in `n_iter` share one, and the
+#' cores when there are several.
 #' @noRd
-describe_settings <- function(rows, n_settings) {
-  if (length(rows) == 1L) {
-    return(paste0("setting ", rows, "/", n_settings))
-  }
-  contiguous <- identical(rows, seq(rows[1L], rows[length(rows)]))
-  paste0(
-    "settings ",
-    if (contiguous) {
-      paste0(rows[1L], "-", rows[length(rows)])
-    } else {
-      paste(rows, collapse = ",")
-    },
-    "/",
-    n_settings
+describe_search <- function(n_settings, n_folds, n_fits, n_cores = 1L) {
+  line <- paste0(
+    "Start the search: ",
+    count_noun(n_settings, "setting"),
+    ", ",
+    count_noun(n_folds, "fold")
   )
+  if (n_fits != n_settings * n_folds) {
+    line <- paste0(line, ", ", count_noun(n_fits, "fit"))
+  }
+  paste0(line, describe_cores(n_cores))
+}
+
+#' Write the cores item of a start line, empty on one core
+#' @noRd
+describe_cores <- function(n_cores) {
+  if (n_cores > 1L) paste0(", ", count_noun(n_cores, "core")) else ""
+}
+
+#' Pair a count with its noun, plural unless the count is 1
+#' @noRd
+count_noun <- function(n, noun) {
+  paste(format(n, big.mark = ","), if (n == 1) noun else paste0(noun, "s"))
 }
 
 #' Check `data`, `group` and `holdout`, and return the folds
@@ -386,6 +427,9 @@ read_formula <- function(fit) {
 #' Score every setting on every fold, keeping the held-out scores
 #'
 #' `globals` is evaluated only if run_tasks() starts a socket cluster.
+#' `progress` sets what `verbose` prints: `"folds"` a line per fold, as for
+#' logo_cv(), which runs on one core; `"search"` a bar between a start and a
+#' closing line, as for tune_logo_cv(), on any number of cores.
 #' @noRd
 cross_validate <- function(
   fit,
@@ -397,6 +441,7 @@ cross_validate <- function(
   holdout = NULL,
   cores = 1L,
   verbose = FALSE,
+  progress = "search",
   outcome = all.vars(read_formula(fit))[1L],
   seeds = NULL,
   globals = list_globals(fit, data)
@@ -410,15 +455,46 @@ cross_validate <- function(
   # one task per group of settings and fold, the fold varying fastest; each
   # returns the held-out scores, one column per setting of its group
   tasks <- expand.grid(fold = seq_along(folds), group = seq_along(groups))
+
+  # the bar counts tasks, which are fits; on exit, an error closes the bar or
+  # the open fold line and resets the style
+  bar <- NULL
+  report <- NULL
+  finished <- TRUE
+  by_fold <- verbose && progress == "folds"
+  if (verbose) {
+    on.exit(close_progress(bar, finished), add = TRUE)
+    if (by_fold) {
+      message("Start leave-one-group-out cross-validation:")
+    } else {
+      # run_tasks() starts no more workers than tasks
+      n_cores <- min(cores, nrow(tasks))
+      message(
+        describe_search(n_settings, length(folds), nrow(tasks), n_cores)
+      )
+      bar <- open_progress(nrow(tasks))
+      finished <- FALSE
+      # runs here, not on a worker, so the bar moves on any number of cores
+      report <- function(done) utils::setTxtProgressBar(bar, done)
+    }
+  }
+
   run_task <- function(k) {
     rows <- groups[[tasks$group[k]]]
     in_fold <- held_out[[tasks$fold[k]]]
-    if (verbose) {
-      message(
-        describe_settings(rows, n_settings),
-        " | fold ",
-        folds[tasks$fold[k]]
+    if (by_fold) {
+      color_message(
+        paste0(
+          "Fold ",
+          tasks$fold[k],
+          "/",
+          length(folds),
+          ", test: ",
+          folds[tasks$fold[k]]
+        ),
+        color_code = ansi_gray
       )
+      finished <<- FALSE
     }
     # the fold's seed, the same in any task and on any core
     if (!is.null(seeds)) {
@@ -431,10 +507,27 @@ cross_validate <- function(
       setting = grid[rows, , drop = FALSE],
       outcome = outcome
     )
+    if (by_fold) {
+      mark_done()
+      finished <<- TRUE
+    }
     # the other learners score one setting, as a vector
     matrix(score, ncol = length(rows))
   }
-  results <- run_tasks(nrow(tasks), run_task, cores, globals = globals)
+  results <- run_tasks(
+    nrow(tasks),
+    run_task,
+    cores,
+    globals = globals,
+    report = report
+  )
+  if (!is.null(bar)) {
+    finished <- TRUE
+    close(bar)
+    # reset now, not on exit: plain text follows the bar
+    close_progress(bar, finished)
+    bar <- NULL
+  }
 
   # where each setting's scores sit: the task of its group on a fold, and the
   # column within that task
@@ -489,6 +582,12 @@ cross_validate <- function(
     row.names = NULL,
     stringsAsFactors = FALSE
   )
+
+  if (by_fold) {
+    message("Cross-validation completed.")
+  } else if (verbose && progress == "search") {
+    message("Search completed.")
+  }
 
   structure(
     list(

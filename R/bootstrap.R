@@ -73,7 +73,7 @@
 #' ci[ci$metric %in% c("auroc", "auprc", "bacc"), ]
 #'
 #' # every held-out project of a cross-validation, then plotted as bands
-#' res <- logo_cv(fit, data = altmejd, group = "pid")
+#' res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
 #' set.seed(1)
 #' res |>
 #'   bootstrap(n_resample = 200) |>

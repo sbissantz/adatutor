@@ -100,7 +100,15 @@
 #'   an object that holds code, such as a fitted model, stops with a
 #'   message; then set `cores = 1`, or compute the column first and use it
 #'   in the formula.
-#'   Progress messages from `verbose` appear only on one core.
+#' @param verbose Whether to report progress on the console. Defaults to
+#'   `TRUE`, which prints a start line that counts the settings, the folds
+#'   and the cores in use if more than one, then a progress bar over the fits
+#'   and a closing line. On several cores, the workers hand back their fits
+#'   in batches of 16 per core, and the bar moves after each batch; a search
+#'   that fits in one batch jumps from start to end. A nested search prints a
+#'   line per outer fold instead of the bar, which ends in "Done" when that
+#'   fold's search and refit have finished. `FALSE` prints nothing, for
+#'   loops, reports and scripts.
 #' @param ... Must be empty. An argument the method does not take is an
 #'   error, not ignored.
 #'
@@ -130,7 +138,8 @@
 #'   fit,
 #'   grid = data.frame(n_iter = c(5, 10)),
 #'   data = altmejd,
-#'   group = "pid"
+#'   group = "pid",
+#'   verbose = FALSE
 #' )
 #' # the settings, ranked by the mean across the projects minus their SD
 #' summary(res, sort_by = "lower")
@@ -144,7 +153,8 @@
 #'   data = altmejd,
 #'   group = "pid",
 #'   nested = TRUE,
-#'   sort_by = "lower"
+#'   sort_by = "lower",
+#'   verbose = FALSE
 #' )
 #'
 #' # a classification tree: the depth varies
@@ -157,7 +167,8 @@
 #'   tree,
 #'   data.frame(depth = c(1, 3, 5)),
 #'   data = altmejd,
-#'   group = "pid"
+#'   group = "pid",
+#'   verbose = FALSE
 #' )
 #'
 #' @export
@@ -171,7 +182,7 @@ tune_logo_cv <- function(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   UseMethod("tune_logo_cv")
@@ -189,7 +200,7 @@ tune_logo_cv.adaboost <- function(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
@@ -203,8 +214,6 @@ tune_logo_cv.adaboost <- function(
   )
   folds <- read_folds(data, group, holdout)
   cores <- choose_cores(cores)
-  # messages from forked workers would interleave
-  verbose <- verbose && cores == 1L
 
   if (!nested) {
     return(cross_validate(
@@ -248,7 +257,7 @@ tune_logo_cv.rpart <- function(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
@@ -275,8 +284,7 @@ tune_logo_cv.rpart <- function(
     model = "rpart",
     holdout = holdout,
     cores = cores,
-    # messages from forked workers would interleave
-    verbose = verbose && cores == 1L
+    verbose = verbose
   )
 }
 
@@ -292,7 +300,7 @@ tune_logo_cv.randomForest <- function(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   check_dots_empty(...)
@@ -329,7 +337,7 @@ tune_logo_cv.randomForest <- function(
     model = "rf",
     holdout = holdout,
     cores = cores,
-    verbose = verbose && cores == 1L,
+    verbose = verbose,
     seeds = seeds
   )
 }
@@ -346,7 +354,7 @@ tune_logo_cv.xgboost <- function(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   outcome,
   ...
 ) {
@@ -361,8 +369,6 @@ tune_logo_cv.xgboost <- function(
     settings = names(list_xgb_settings())
   )
   cores <- choose_cores(cores)
-  # messages from forked workers would interleave
-  verbose <- verbose && cores == 1L
 
   if (!nested) {
     return(cross_validate(
@@ -408,7 +414,7 @@ tune_logo_cv.default <- function(
   metric = "auroc",
   sort_by = "lower",
   cores = 1,
-  verbose = FALSE,
+  verbose = TRUE,
   ...
 ) {
   if (inherits(x, "glm")) {
@@ -569,10 +575,34 @@ cross_validate_nested <- function(
   selected <- vector("list", length(folds))
   scores <- vector("list", length(folds))
 
+  # one line per outer fold, printed here: the outer folds run one after
+  # another, and only the inner fits go to the cores. On exit, an error
+  # closes the open line.
+  finished <- TRUE
+  if (verbose) {
+    on.exit(close_progress(NULL, finished), add = TRUE)
+    # each inner search holds out each other group once, and run_tasks()
+    # starts no more workers than tasks
+    n_inner <- length(unique(as.character(data[[group]]))) - 1L
+    n_cores <- min(cores, n_inner * length(group_settings(grid, model)))
+    message(
+      "Start the nested search: ",
+      count_noun(length(folds), "outer fold"),
+      ", ",
+      count_noun(nrow(grid), "setting"),
+      " each",
+      describe_cores(n_cores)
+    )
+  }
+
   for (k in seq_along(folds)) {
     fold <- folds[k]
     if (verbose) {
-      message("outer fold ", k, "/", length(folds), ": ", fold)
+      color_message(
+        paste0("Outer fold ", k, "/", length(folds), ", test: ", fold),
+        color_code = ansi_gray
+      )
+      finished <- FALSE
     }
 
     # drop the held-out project entirely, which keeps the selection honest
@@ -580,7 +610,9 @@ cross_validate_nested <- function(
     train <- data[!held_out, , drop = FALSE]
     test <- data[held_out, , drop = FALSE]
 
-    # what tune_logo_cv() runs on `train`; the checks and `cores` are done
+    # what tune_logo_cv() runs on `train`; the checks and `cores` are done.
+    # Quiet: the outer fold's line stands for it, and a quiet search sends
+    # its fits to the cores in one batch.
     inner_cv <- cross_validate(
       fit,
       data = train,
@@ -605,6 +637,10 @@ cross_validate_nested <- function(
 
     actual <- test[[outcome]]
     metrics <- assess(actual, score, threshold = choose_threshold(model))
+    if (verbose) {
+      mark_done()
+      finished <- TRUE
+    }
 
     # keep the whole grid row, so a control tuned in the grid travels along;
     # depth, n_iter and eta keep fixed positions
@@ -632,6 +668,9 @@ cross_validate_nested <- function(
     )
     projects$n[k] <- nrow(test)
     projects$base_rate[k] <- mean(as_binary(actual))
+  }
+  if (verbose) {
+    message("Nested search completed.")
   }
 
   structure(
