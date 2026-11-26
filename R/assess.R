@@ -231,6 +231,7 @@ print.assessment <- function(x, digits = 3, ...) {
 
   labels <- vapply(rows, `[[`, character(1), "label")
   width <- max(nchar(c(labels, "predicted 1"))) + 2L
+  cat("Performance metrics\n")
   cat(format_confusion(values, width), sep = "\n")
   cat("\n")
 
@@ -280,7 +281,7 @@ label_threshold <- function(threshold) {
 pad_label <- function(label, width) {
   padded <- formatC(label, width = -width)
   if (nzchar(label)) {
-    style_ansi(padded, ansi_note)
+    style_ansi(padded, ansi_gray)
   } else {
     padded
   }
@@ -296,9 +297,9 @@ format_confusion <- function(cm, width) {
   c(
     paste0(
       strrep(" ", width),
-      style_ansi(header[1], ansi_note),
+      style_ansi(header[1], ansi_gray),
       "  ",
-      style_ansi(trimws(header[2]), ansi_note)
+      style_ansi(trimws(header[2]), ansi_gray)
     ),
     paste0(
       pad_label("predicted 1", width),
@@ -374,8 +375,10 @@ print.confusion <- function(x, ...) {
   values <- unclass(x)
   attributes(values) <- list(names = names(x))
   width <- nchar("predicted 1") + 2L
+  # a plain title, as print.assessment() has: the threshold is a label
+  cat("Confusion matrix\n")
   cat(
-    style_ansi(label_threshold(attr(x, "threshold")), ansi_note),
+    style_ansi(label_threshold(attr(x, "threshold")), ansi_gray),
     "\n",
     sep = ""
   )

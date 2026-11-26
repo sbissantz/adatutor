@@ -14,7 +14,7 @@ choose_cores <- function(cores) {
   # more processes than cores bring no gain; an unknown count is NA
   available <- count_cores()
   if (!is.na(available) && cores > available) {
-    color_message(
+    message(
       sprintf(
         paste(
           "Specified `cores = %d`, but this computer has only %d %s.",
@@ -24,8 +24,7 @@ choose_cores <- function(cores) {
         available,
         if (available == 1L) "core" else "cores",
         available
-      ),
-      newline = TRUE
+      )
     )
     cores <- as.integer(available)
   }
@@ -50,24 +49,81 @@ read_os_type <- function() {
 #' `globals` holds the plain values of this session the tasks read. Only
 #' socket workers need it, so it is evaluated only there, and it is where
 #' list_globals() stops a fit the workers may not refit as this session does.
+#'
+#' `report`, if given, runs in this session with the number of tasks done:
+#' after each task on one core, and after each batch on several, since a
+#' worker cannot report to this session while it runs. Without `report`, the
+#' tasks go out in one batch.
 #' @noRd
-run_tasks <- function(n_tasks, run_task, cores = 1L, globals = list()) {
+run_tasks <- function(
+  n_tasks,
+  run_task,
+  cores = 1L,
+  globals = list(),
+  report = NULL
+) {
   if (cores == 1L || n_tasks == 1L) {
-    return(lapply(seq_len(n_tasks), run_task))
+    if (is.null(report)) {
+      return(lapply(seq_len(n_tasks), run_task))
+    }
+    return(lapply(seq_len(n_tasks), function(k) {
+      result <- run_task(k)
+      report(k)
+      result
+    }))
   }
+  n_workers <- min(cores, n_tasks)
+  batches <- split_batches(n_tasks, n_workers, batched = !is.null(report))
   if (read_os_type() == "windows") {
     # before any worker starts, so a stop leaves none behind
     force(globals)
-    return(run_socket_tasks(n_tasks, run_task, min(cores, n_tasks), globals))
+    return(run_socket_tasks(
+      n_tasks,
+      run_task,
+      n_workers,
+      globals,
+      batches = batches,
+      report = report
+    ))
   }
-  # a fresh fork per task: tasks differ in cost (depth, largest n_iter), and
-  # handing them out as cores free up balances the load
-  results <- parallel::mclapply(
-    seq_len(n_tasks),
-    run_task,
-    mc.cores = min(cores, n_tasks),
-    mc.preschedule = FALSE
-  )
+
+  # each mclapply() call restarts the L'Ecuyer-CMRG streams at the session's
+  # seed, so shift each batch's start to where one call would be; task k
+  # draws from stream k either way
+  shifted <- length(batches) > 1L && RNGkind()[1L] == "L'Ecuyer-CMRG"
+  if (shifted) {
+    # as mclapply() does when the session has no seed yet
+    if (!exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+      sample.int(1L)
+    }
+    seed <- get(".Random.seed", envir = globalenv(), inherits = FALSE)
+    on.exit(assign(".Random.seed", seed, envir = globalenv()), add = TRUE)
+    stream <- seed
+  }
+  parts <- vector("list", length(batches))
+  for (b in seq_along(batches)) {
+    batch <- batches[[b]]
+    if (shifted) {
+      assign(".Random.seed", stream, envir = globalenv())
+      for (i in seq_along(batch)) {
+        stream <- parallel::nextRNGStream(stream)
+      }
+    }
+    # a fresh fork per task: tasks differ in cost (depth, largest n_iter), and
+    # handing them out as cores free up balances the load
+    parts[[b]] <- parallel::mclapply(
+      batch,
+      run_task,
+      mc.cores = min(n_workers, length(batch)),
+      mc.preschedule = FALSE
+    )
+    if (!is.null(report)) {
+      report(batch[length(batch)])
+    }
+  }
+  # checked after all batches, so the first error in task order wins, as in
+  # a single batch
+  results <- do.call(c, parts)
   for (result in results) {
     if (inherits(result, "try-error")) {
       stop(conditionMessage(attr(result, "condition")), call. = FALSE)
@@ -83,13 +139,42 @@ run_tasks <- function(n_tasks, run_task, cores = 1L, globals = list()) {
   results
 }
 
+#' Split the task numbers into batches, one for each report of progress
+#'
+#' Each batch ends in a wait for its slowest task, which leaves the other
+#' workers idle. 16 tasks per worker keep that cost to a few seconds in 100;
+#' smaller batches move the bar more often but cost more.
+#' @noRd
+split_batches <- function(n_tasks, n_workers, batched, per_worker = 16L) {
+  tasks <- seq_len(n_tasks)
+  if (!batched) {
+    return(list(tasks))
+  }
+  size <- n_workers * per_worker
+  batches <- unname(split(tasks, (tasks - 1L) %/% size))
+  # mclapply() runs a batch of one task in this session, not on a fork
+  last <- length(batches)
+  if (last > 1L && length(batches[[last]]) == 1L) {
+    batches[[last - 1L]] <- c(batches[[last - 1L]], batches[[last]])
+    batches[[last]] <- NULL
+  }
+  batches
+}
+
 #' Run tasks on a socket cluster of new R processes; keep their order
 #'
 #' The workers start empty. Each first loads what this session runs, then
 #' gets `globals` and the task closure once, and takes the next task as it
-#' frees up.
+#' frees up. `batches` and `report` work as in run_tasks().
 #' @noRd
-run_socket_tasks <- function(n_tasks, run_task, n_workers, globals) {
+run_socket_tasks <- function(
+  n_tasks,
+  run_task,
+  n_workers,
+  globals,
+  batches = list(seq_len(n_tasks)),
+  report = NULL
+) {
   # without the user's profile: a worker's state comes from this session
   cl <- parallel::makePSOCKcluster(n_workers, rscript_args = "--no-init-file")
   on.exit(stop_workers(cl), add = TRUE)
@@ -115,22 +200,39 @@ run_socket_tasks <- function(n_tasks, run_task, n_workers, globals) {
   }
   check_workers(prepared, session)
 
-  results <- tryCatch(
-    {
-      parallel::clusterExport(cl, names(globals), envir = list2env(globals))
-      # once per worker, not once per task: it carries the data and the fit
-      parallel::clusterCall(cl, store_task, run_task)
-      parallel::clusterApplyLB(cl, seq_len(n_tasks), call_task)
-    },
-    # a worker that died, e.g. for lack of memory, breaks its connection
-    error = function(e) NULL
-  )
-  if (is.null(results)) {
-    stop(
-      "A parallel worker returned no result. Rerun with fewer `cores`.",
-      call. = FALSE
+  parts <- vector("list", length(batches))
+  for (b in seq_along(batches)) {
+    part <- tryCatch(
+      {
+        if (b == 1L) {
+          parallel::clusterExport(
+            cl,
+            names(globals),
+            envir = list2env(globals)
+          )
+          # once per worker, not once per task: it carries the data and the
+          # fit
+          parallel::clusterCall(cl, store_task, run_task)
+        }
+        parallel::clusterApplyLB(cl, batches[[b]], call_task)
+      },
+      # a worker that died, e.g. for lack of memory, breaks its connection
+      error = function(e) NULL
     )
+    if (is.null(part)) {
+      stop(
+        "A parallel worker returned no result. Rerun with fewer `cores`.",
+        call. = FALSE
+      )
+    }
+    parts[[b]] <- part
+    if (!is.null(report)) {
+      report(batches[[b]][length(batches[[b]])])
+    }
   }
+  # checked after all batches, so the first error in task order wins, as in
+  # a single batch
+  results <- do.call(c, parts)
   for (result in results) {
     if (inherits(result, "task_error")) {
       stop(result$message, call. = FALSE)

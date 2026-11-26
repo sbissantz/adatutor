@@ -81,7 +81,9 @@ print.logo_cv <- function(x, metric = "auroc", ...) {
     metric = metric,
     selected = if (nested) paste(paste(x$sort_by, collapse = ", "), x$metric)
   )
-  cat(sprintf("  %-9s %s\n", paste0(names(header), ":"), header), sep = "")
+  # pad first, then style, so the escape bytes cannot shift the values
+  labels <- style_ansi(formatC(names(header), width = -9), ansi_gray)
+  cat(paste0("  ", labels, " ", header, "\n"), sep = "")
   cat("\n")
 
   if (!metric %in% dimnames(x$estimates)$metric) {
@@ -220,7 +222,7 @@ print_by_setting <- function(x, metric) {
     `base rate` = format(round(info$base_rate, 2), nsmall = 2)
   )
   colnames(projects) <- colnames(estimates)
-  print(noquote(projects), right = TRUE)
+  print_labeled(projects)
   cat("\n")
 
   # by name, not by value: the counts print whole, every other metric with
@@ -248,8 +250,26 @@ print_by_setting <- function(x, metric) {
   if (!is.null(x$ci)) {
     intervals <- format_intervals(x, metric, colnames(estimates))
     cat("\n", intervals$label, "\n", sep = "")
-    print(noquote(intervals$block), right = TRUE)
+    print_labeled(intervals$block)
   }
+}
+
+#' Print a character matrix with its row labels gray
+#'
+#' Styles the lines print() gives, so the columns never shift.
+#' @noRd
+print_labeled <- function(block, use = use_ansi()) {
+  lines <- utils::capture.output(print(noquote(block), right = TRUE))
+  # print() pads the row labels to one width; a wrapped table repeats them,
+  # and its header lines leave that width blank
+  width <- max(nchar(rownames(block)))
+  label <- substr(lines, 1L, width)
+  labeled <- nzchar(trimws(label))
+  lines[labeled] <- paste0(
+    style_ansi(label[labeled], ansi_gray, use = use),
+    substring(lines[labeled], width + 1L)
+  )
+  cat(paste0(lines, "\n"), sep = "")
 }
 
 #' Print one row per outer fold, with the setting that fold selected

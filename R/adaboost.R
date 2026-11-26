@@ -101,15 +101,12 @@ adaboost <- function(
   finished <- FALSE
   if (verbose) {
     on.exit(close_progress(progress, finished), add = TRUE)
-    color_message(
-      "Start the AdaBoost training process:\n",
-      color_code = ansi_bold
-    )
+    message("Start the AdaBoost training process:")
   }
 
   if (check_inputs) {
     if (verbose) {
-      color_message("Run mild input checks", color_code = ansi_dim)
+      color_message("Run mild input checks", color_code = ansi_gray)
     }
     check_df(model_frame)
     check_length(model_frame)
@@ -119,7 +116,7 @@ adaboost <- function(
   }
 
   if (verbose) {
-    color_message("Start the initialization process", color_code = ansi_dim)
+    color_message("Start the initialization process", color_code = ansi_gray)
   }
 
   m <- nrow(model_frame)
@@ -130,7 +127,7 @@ adaboost <- function(
     mark_done()
     color_message(
       "Steps 1-4: Run through the algorithm steps",
-      color_code = ansi_dim
+      color_code = ansi_gray
     )
     progress <- open_progress(n_iter)
   }
@@ -162,13 +159,9 @@ adaboost <- function(
 
   if (verbose) {
     close(progress)
-    color_message("Create output", color_code = ansi_dim)
+    color_message("Create output", color_code = ansi_gray)
     mark_done()
-    color_message(
-      "Training process successfully completed.\n",
-      color_code = ansi_bold,
-      newline = TRUE
-    )
+    message("Training process completed.\n")
   }
 
   names(H) <- paste0("t", seq_len(n_iter))
@@ -265,29 +258,6 @@ read_split_rule <- function(h) {
   # rpart stores a code; passing the code back gives NA and a silent gini
   rule <- c("gini", "information")[h$parms$split]
   if (is.na(rule)) "gini" else rule
-}
-
-#' Open a faint progress bar on stderr
-#' @noRd
-open_progress <- function(n_iter) {
-  # stdout would mix the bar into the results, and plain stderr is red in
-  # RStudio; close_progress() resets the style
-  message("\033[", ansi_dim, "m", appendLF = FALSE)
-  utils::txtProgressBar(min = 0, max = n_iter, style = 3, file = stderr())
-}
-
-#' Reset the progress style and close a half-finished line
-#'
-#' Runs from on.exit(), which unlike tryCatch() also runs on a user interrupt.
-#' @noRd
-close_progress <- function(progress, finished) {
-  if (!is.null(progress)) {
-    cat("\033[0m", file = stderr())
-  }
-  if (!finished) {
-    # closing the bar breaks the line; without one, break it directly
-    if (!is.null(progress)) close(progress) else message("")
-  }
 }
 
 #' Weigh a learner by its weighted error `epsilon`
@@ -392,11 +362,11 @@ predict.adaboost <- function(
   }
 
   if (verbose) {
-    color_message("Start the AdaBoost test process:\n", color_code = ansi_bold)
+    message("Start the AdaBoost test process:")
   }
   if (check_inputs) {
     if (verbose) {
-      color_message("Run mild input checks", color_code = ansi_dim)
+      color_message("Run mild input checks", color_code = ansi_gray)
     }
     check_list(object)
     check_length(object)
@@ -405,20 +375,20 @@ predict.adaboost <- function(
     if (verbose) mark_done()
   }
   if (verbose) {
-    color_message("Extract the trees", color_code = ansi_dim)
+    color_message("Extract the trees", color_code = ansi_gray)
     mark_done()
   }
   h <- lapply(object, "[[", "h")
   check_length(h)
   if (verbose) {
-    color_message("Extract the model weights", color_code = ansi_dim)
+    color_message("Extract the model weights", color_code = ansi_gray)
     mark_done()
   }
   alpha <- vapply(object, "[[", numeric(1), "alpha")
   check_length(alpha)
 
   if (verbose) {
-    color_message(paste0("Make ", kind, "\n"), color_code = ansi_dim)
+    color_message(paste0("Make ", kind, "\n"), color_code = ansi_gray)
   }
 
   n <- nrow(newdata)
@@ -434,7 +404,7 @@ predict.adaboost <- function(
   )
 
   if (verbose) {
-    color_message(paste0("Combine ", kind), color_code = ansi_dim)
+    color_message(paste0("Combine ", kind), color_code = ansi_gray)
   }
 
   # rpart codes the classes 1 and 2; the vote needs -1 and 1
@@ -445,10 +415,7 @@ predict.adaboost <- function(
 
   if (verbose) {
     mark_done()
-    color_message(
-      "Test process successfully completed.\n",
-      color_code = ansi_bold
-    )
+    message("Test process completed.")
   }
 
   # last: a transcript scrolls, so the note sits next to its values

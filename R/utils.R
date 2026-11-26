@@ -34,39 +34,66 @@ as_binary <- function(actual) {
 
 #' Console feedback while a fit runs
 #'
-#' Styled messages, and faint dots that end in "Done". They write to stderr, so
-#' progress stays out of results, and adaboost() and predict() call them when
-#' `verbose = TRUE`.
+#' Gray step lines, gray dots that end in "Done", and a gray progress bar.
+#' They write to stderr, so progress stays out of results. adaboost(),
+#' predict(), logo_cv() and tune_logo_cv() call them when `verbose = TRUE`.
 #'
 #' @noRd
 NULL
 
-# one place to re-theme the transcript; only mid-viridis is legible on both
-# light and dark terminals, and faint (2) replaces black, which vanished on dark
-ansi_bold <- "1"
-ansi_dim <- "2"
+# one place to re-theme the console: plain text informs, gray marks labels
+# and steps, teal marks "Done" only, and nothing is bold. Mid-viridis teal and
+# mid-gray are legible on light and dark terminals; a fixed gray, since
+# Positron ignores the faint code (2)
+ansi_gray <- "38;5;244"
 ansi_teal <- "38;5;30"
-ansi_note <- "1;38;5;30"
 
 #' Print text in an ANSI style, then reset it
 #' @noRd
-color_message <- function(text, color_code = ansi_teal, newline = FALSE) {
+color_message <- function(text, color_code = ansi_gray, newline = FALSE) {
   styled <- paste0("\033[", color_code, "m", text, "\033[0m")
   message(styled, appendLF = newline)
   invisible(NULL)
 }
 
-#' Print faint dots, then "Done" in `color_code`
+#' Print gray dots, then "Done" in `color_code`
 #'
-#' The dots stay faint so the eye follows the "Done" markers.
+#' The dots stay gray so the eye follows the "Done" markers.
 #' @noRd
-mark_done <- function(n = 3, delay = 0.1, color_code = ansi_note) {
-  for (i in seq_len(n)) {
-    # faint, always: the dots are filler and should not compete with "Done"
-    color_message(".", color_code = ansi_dim)
-    Sys.sleep(delay)
+mark_done <- function(n = 3, color_code = ansi_teal) {
+  # one message, printed at once
+  message(
+    "\033[",
+    ansi_gray,
+    "m",
+    strrep(".", n),
+    "\033[0m \033[",
+    color_code,
+    "mDone\033[0m"
+  )
+}
+
+#' Open a gray progress bar on stderr
+#' @noRd
+open_progress <- function(n_steps) {
+  # stdout would mix the bar into the results, and plain stderr is red in
+  # RStudio; close_progress() resets the style
+  message("\033[", ansi_gray, "m", appendLF = FALSE)
+  utils::txtProgressBar(min = 0, max = n_steps, style = 3, file = stderr())
+}
+
+#' Reset the progress style and close a half-finished line
+#'
+#' Runs from on.exit(), which unlike tryCatch() also runs on a user interrupt.
+#' @noRd
+close_progress <- function(progress, finished) {
+  if (!is.null(progress)) {
+    cat("\033[0m", file = stderr())
   }
-  color_message(" Done", color_code = color_code, newline = TRUE)
+  if (!finished) {
+    # closing the bar breaks the line; without one, break it directly
+    if (!is.null(progress)) close(progress) else message("")
+  }
 }
 
 #' Whether printed output may carry color
