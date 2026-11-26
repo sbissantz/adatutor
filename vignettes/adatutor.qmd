@@ -524,7 +524,7 @@ fitted model.
 ```{r}
 #| label: logo-cv
 # LOGO-CV: refit the recipe of ada_fit with each project held out
-ada_logo <- logo_cv(ada_fit, data = df, group = "pid")
+ada_logo <- logo_cv(ada_fit, data = df, group = "pid", verbose = FALSE)
 
 # Results per project
 ada_logo
@@ -618,7 +618,7 @@ logit_fit <- glm(
   data = df,
   family = binomial
 )
-logit_logo <- logo_cv(logit_fit, data = df, group = "pid")
+logit_logo <- logo_cv(logit_fit, data = df, group = "pid", verbose = FALSE)
 logit_logo
 ```
 
@@ -633,7 +633,7 @@ tree_fit <- rpart::rpart(
   method = "class",
   maxdepth = 2
 )
-tree_logo <- logo_cv(tree_fit, data = df, group = "pid")
+tree_logo <- logo_cv(tree_fit, data = df, group = "pid", verbose = FALSE)
 tree_logo
 ```
 
@@ -653,7 +653,7 @@ forest's refits, which `logo_cv()` draws from the same random-number stream:
 # LOGO-CV for a random forest at its defaults
 set.seed(112)
 rf_fit <- randomForest::randomForest(replicate ~ ., data = df[, voi_nms])
-rf_logo <- logo_cv(rf_fit, data = df, group = "pid")
+rf_logo <- logo_cv(rf_fit, data = df, group = "pid", verbose = FALSE)
 rf_logo
 ```
 
@@ -673,7 +673,13 @@ xgb_fit <- xgboost::xgboost(
   learning_rate = 0.1,
   nthreads = 1
 )
-xgb_logo <- logo_cv(xgb_fit, data = df, group = "pid", outcome = out_nme)
+xgb_logo <- logo_cv(
+  xgb_fit,
+  data = df,
+  group = "pid",
+  outcome = out_nme,
+  verbose = FALSE
+)
 xgb_logo
 ```
 
@@ -700,7 +706,8 @@ ada_ssrp <- logo_cv(
   ada_fit,
   data = df,
   group = "pid",
-  holdout = "ssrp"
+  holdout = "ssrp",
+  verbose = FALSE
 )
 ada_ssrp
 ```
@@ -738,7 +745,13 @@ ada_hgrid <- expand.grid(
 )
 
 # One LOGO-CV per setting
-ada_tune <- tune_logo_cv(ada_fit, ada_hgrid, data = df, group = "pid")
+ada_tune <- tune_logo_cv(
+  ada_fit,
+  ada_hgrid,
+  data = df,
+  group = "pid",
+  verbose = FALSE
+)
 ada_tune
 ```
 
@@ -793,7 +806,8 @@ logo_rnd <- tune_logo_cv(
   ada_fit,
   ada_hgrid_rnd,
   data = df,
-  group = "pid"
+  group = "pid",
+  verbose = FALSE
 )
 summary(logo_rnd, sort_by = "lower") |> round(3)
 ```
@@ -803,9 +817,8 @@ summary(logo_rnd, sort_by = "lower") |> round(3)
 A search refits the model many times. `cores` spreads that work over several
 R processes on every system: forked processes on macOS and Linux, and on
 Windows a socket cluster whose processes first load adatutor and the packages
-the fit needs. The results are the same at any number of cores, and progress
-messages from `verbose` appear only on one core. This vignette runs on one
-core, the default, so the call below is shown but not run:
+the fit needs. The results are the same at any number of cores. This vignette
+runs on one core, the default, so the call below is shown but not run:
 
 ```{r}
 #| label: tune-cores
@@ -832,7 +845,8 @@ tree_tune <- tune_logo_cv(
   tree_fit,
   data.frame(depth = 1:4),
   data = df,
-  group = "pid"
+  group = "pid",
+  verbose = FALSE
 )
 summary(tree_tune, sort_by = "lower") |> round(3)
 ```
@@ -847,7 +861,13 @@ random-number stream, so a seed makes the result repeatable:
 # Predictors tried per split, and the smallest leaf size
 rf_hgrid <- expand.grid(mtry = 1:2, nodesize = c(1, 10))
 set.seed(112)
-rf_tune <- tune_logo_cv(rf_fit, rf_hgrid, data = df, group = "pid")
+rf_tune <- tune_logo_cv(
+  rf_fit,
+  rf_hgrid,
+  data = df,
+  group = "pid",
+  verbose = FALSE
+)
 summary(rf_tune, sort_by = "lower") |> round(3)
 ```
 
@@ -864,7 +884,8 @@ xgb_tune <- tune_logo_cv(
   expand.grid(depth = 1:2, n_iter = c(20, 50)),
   data = df,
   group = "pid",
-  outcome = out_nme
+  outcome = out_nme,
+  verbose = FALSE
 )
 summary(xgb_tune, sort_by = "lower") |> round(3)
 ```
@@ -992,7 +1013,8 @@ ada_nested <- tune_logo_cv(
   group = "pid",
   nested = TRUE,
   metric = "auroc",
-  sort_by = "lower"
+  sort_by = "lower",
+  verbose = FALSE
 )
 ada_nested
 ```
@@ -1066,7 +1088,8 @@ xgb_nested <- tune_logo_cv(
   group = "pid",
   outcome = out_nme,
   nested = TRUE,
-  sort_by = c("min", "lower")
+  sort_by = c("min", "lower"),
+  verbose = FALSE
 )
 xgb_nested
 summary(xgb_nested) |> round(3)
