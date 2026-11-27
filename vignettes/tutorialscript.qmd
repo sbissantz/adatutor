@@ -782,7 +782,7 @@ tutplot_weightupdate(d1 = D1, d2 = D2, chi = chi1)
 
 #### Listing 24
 
-Loop through the steps of the algorithm (a few seconds).
+Loop through the steps of the algorithm.
 
 ```{r listing-24}
 # Number of trees, T
@@ -1316,7 +1316,7 @@ Listing 32 runs LOGO-CV by hand. The first lines set HOLZ aside. `split()` then 
 
 #### Listing 32
 
-Run a leave-one-group-out cross-validation (about 20 seconds).
+Run a leave-one-group-out cross-validation (about half a minute).
 
 ```{r listing-32}
 # Hold out the newest project for the final test (Module 8)
@@ -1383,7 +1383,7 @@ sapply(scores, \(s) mean(s$actual == "success"))
 
 #### The Package Solution [NEW]
 
-Run the same cross-validation with adatutor (about 20 seconds).
+Run the same cross-validation with adatutor (about half a minute).
 
 ```{r listing-32-pkg}
 # LOGO-CV with the ensemble of Module 3
@@ -1504,7 +1504,7 @@ set.seed(112)
 df_noholz$fold <- sample(rep(1:5, length.out = nrow(df_noholz)))
 ```
 
-The fold column is the whole design. How to score it is the reader's choice: the loop of Listing 32 with `fold` in place of `pid`, or one call.
+The fold column is the whole design. How to score it is the reader's choice: the loop of Listing 32 with `fold` in place of `pid`, or one call (about half a minute).
 
 ```{r kfold-random-score}
 # Hold each fold out once: the loop of Listing 32 with `fold` in place of
@@ -1535,7 +1535,7 @@ res_mc$estimates[1, "test", "auroc"]
 
 **todo** code in indexing too long. Ideas on how to make more readable? Store the result in a variable and then index it? Code in listing below then needs to change too...?
 
-Repeating the draw and keeping the test column each time gives the distribution of the Monte Carlo estimate. Over twenty draws its median is 0.68, and its 2.5 and 97.5 percent quantiles are 0.55 and 0.75. That spread shows how much one estimate depends on the luck of the split, which the project folds, being fixed, cannot show.
+Repeating the draw and keeping the test column each time gives the distribution of the Monte Carlo estimate (about a minute). Over twenty draws its median is 0.68, and its 2.5 and 97.5 percent quantiles are 0.55 and 0.75. That spread shows how much one estimate depends on the luck of the split, which the project folds, being fixed, cannot show.
 
 ```{r mc-repeat}
 # Twenty draws, the test column of each
@@ -1622,7 +1622,7 @@ ada_hgrid$runtime <- NA_real_
 
 #### Listing 34
 
-Score every setting of the grid by leave-one-group-out cross-validation (about 3 minutes).
+Score every setting of the grid by leave-one-group-out cross-validation (under 5 minutes).
 
 ```{r listing-34}
 # Hyperparameter optimization: one LOGO-CV per setting
@@ -1733,7 +1733,7 @@ ada_hgrid_rnd <- ada_hgrid[
 
 #### Listing [NEW]
 
-Score the drawn settings: with the loop of Listing 34, or in one call on four cores (about 20 seconds).
+Score the drawn settings: with the loop of Listing 34, or in one call on four cores (about half a minute).
 
 ```{r listing-random-score}
 # The loop of Listing 34 with `ada_hgrid_rnd` in place of `ada_hgrid`, or
@@ -1766,7 +1766,7 @@ Listing 34 searched 18 settings in about 3 minutes. The package ships a much lar
 
 #### Listing [NEW]
 
-Load the shipped grid search, rank its settings, and choose one (0 minutes).
+Load the shipped grid search, rank its settings, and choose one.
 
 ```{r hypergrid-load}
 # The shipped search: a table per metric, a row per setting
@@ -1910,7 +1910,7 @@ On HOLZ, AdaBoost (0.77) is on par with the forest (0.76) and XGBoost (0.79), an
 
 #### Listing [NEW]
 
-Load the shipped benchmark models (0 minutes).
+Load the shipped benchmark models.
 
 ```{r listing-benchmark}
 # Five models, each scored by LOGO-CV on the six tuning projects and once on
@@ -2070,7 +2070,7 @@ Listing 36 wraps one more loop around the search of Listing 34. The outer loop t
 
 #### The Package Solution [NEW]
 
-Run the same nested cross-validation with adatutor on four cores (about 6 minutes).
+Run the same nested cross-validation with adatutor on four cores (about 5 minutes).
 
 ```{r listing-36-pkg}
 # The nested search in one call
@@ -2110,7 +2110,7 @@ all.equal(
 
 #### Listing [NEW]
 
-Load the shipped nested search of the full grid (0 minutes).
+Load the shipped nested search of the full grid.
 
 ```{r nested-load}
 # The nested search of the full grid, as shipped
@@ -2224,7 +2224,7 @@ The adatutor package is a teaching package. It accompanies this tutorial and ser
 
 #### Listing [NEW]
 
-Search the XGBoost grid by project with tidymodels (under a minute).
+Search the XGBoost grid by project with tidymodels (about half a minute).
 
 ```{r listing-tidymodels}
 # Install once: install.packages("tidymodels")
@@ -2320,7 +2320,7 @@ A tree runs this search in every node, one level at a time. All study effects st
 
 The listing copies two defaults of `rpart()`. It skips a split that leaves fewer than 7 study effects on one side (`minbucket`), and it does not split a node with fewer than 20 (`minsplit`). For the comparison, we tell `rpart()` to keep every split (`cp = -1`). By default, it drops a split that lowers the error too little: for a stump, by less than 1 percent of the root's error.
 
-Grow a tree of depth 3 under the weights of round 2 in Listing 24, with every step by hand (under a second).
+Grow a tree of depth 3 under the weights of round 2 in Listing 24, with every step by hand.
 
 ```{r tree-craft}
 # The weights after round 1 (Listing 23), and the maximum depth
@@ -2458,7 +2458,7 @@ Under `D2`, the weights that round 2 of Listing 24 fits its stump to, the first 
 ::: {.callout-note title="Add to tutorial (appendix, decide at port)"}
 **The same tree as functions.** We can also write the loop as four short functions. `measure_impurity()` and `find_split()` search one node, and `grow_tree()` splits it and calls itself on each side, one level shallower. `predict_tree()` follows the questions down to a leaf. At depth 1 under `D1`, the functions ask the question of the first stump in Listing 19; at depth 3 under `D2`, they grow the tree above.
 
-Write the tree search as functions, and grow the first stump of Listing 19 and the tree above with them (under a second).
+Write the tree search as functions, and grow the first stump of Listing 19 and the tree above with them.
 
 ```{r tree-diy}
 # The weighted Gini impurity of a group of study effects, as in Module 2
@@ -2580,7 +2580,7 @@ No threshold enters, which separates the AUROC from the balanced accuracy. On th
 
 Counting each tie as half turns the share into the balanced accuracy: 0.61 on our test set, where 117 of the 240 pairs are ties. On the margin, no pair is a tie, and the AUROC is 0.70.
 
-Compute the AUROC of Listing 31 by hand, on the margin and on the class labels (under a second).
+Compute the AUROC of Listing 31 by hand, on the margin and on the class labels.
 
 ```{r auroc-craft}
 # The AUROC by hand: the share of success-failure pairs that the margin
@@ -2635,7 +2635,7 @@ The listings of the modules fold earlier steps into function calls. Appendices D
 ::: {.callout-note title="Add to tutorial (appendix)"}
 **The same search, unfolded.** Listing 34 folds the steps of the earlier modules into three calls. Unfolded one layer, the search is the fold loop of Listing 32 inside the loop over the grid. Unfolded all the way, it is that loop around the boosting rounds of Listing 24 and the margin of Listing 28, with the AUROC of Listing 31 at the end. Nothing else changes, and the 18 rows come out the same both times, to the digit.
 
-One layer out: the LOGO-CV of Listing 32 written out in place of `logo_cv()` (about 2 minutes).
+One layer out: the LOGO-CV of Listing 32 written out in place of `logo_cv()` (under 5 minutes).
 
 ```{r listing-34-diy}
 # The grid again, with the LOGO-CV of Listing 32 written out in place of
@@ -2677,7 +2677,7 @@ for (i in seq_len(nrow(ada_hgrid_diy))) {
 all.equal(ada_hgrid_diy[proj_nms], ada_hgrid[proj_nms])
 ```
 
-All layers out: the boosting rounds of Listing 24 and the margin of Listing 28 pasted in as well (about 3 minutes).
+All layers out: the boosting rounds of Listing 24 and the margin of Listing 28 pasted in as well (under 5 minutes).
 
 "Its all in the loop"
 
@@ -2739,7 +2739,7 @@ all.equal(ada_hgrid_craft[proj_nms], ada_hgrid[proj_nms])
 ::: {.callout-note title="Add to tutorial (appendix)"}
 **The nested search, unfolded.** Listing 36 folds the inner search into `tune_logo_cv()`, the pick into `summary()`, and the refit into `logo_cv()`. Unfolded all the way, the search and the refit are the by-hand steps of Appendix D: the boosting rounds of Listing 24 and the margin of Listing 28, with the AUROC of Listing 31 at the end. The pick computes `lower` by hand, as Listing 34 did, and takes the setting with the highest. The listing runs them once for every setting and inner project, and once more for each winner on all six projects. The seven estimates and the seven winners come out the same as in Listing 36.
 
-Run the same nested cross-validation with every step by hand (about 24 minutes).
+Run the same nested cross-validation with every step by hand (about 25 minutes).
 
 ```{r listing-36-craft}
 # The nested search of Listing 36 again, with the by-hand steps of Modules 2,
