@@ -50,7 +50,7 @@ step, and for why each step is needed, see the tutorial and its
 `vignette("tutorialscript", package = "adatutor")`.
 
 Our example predicts whether the replication of a social science lab
-experiment succeeds, using data from @altmejd2019.
+experiment succeeds, using an extended version of the data of @altmejd2019.
 
 ## Setup
 
@@ -522,12 +522,13 @@ As in the tutorial, we first set HOLZ aside for a final test:
 ```{r}
 #| label: set-aside-holz
 # Set HOLZ aside: the six tuning projects
-tuning <- df[df$pid != "holz", ]
-table(tuning$pid)
+df_noholz <- df[df$pid != "holz", ]
+table(df_noholz$pid)
 ```
 
-From here on, the examples run on these six projects, the tuning data. Each
-of them is held out once, and the model is trained on the other five.
+From here on, the examples run on these six projects, the tuning data in
+`df_noholz`. Each of them is held out once, and the model is trained on the
+other five.
 
 `logo_cv()` takes the fitted ensemble, reads its settings (the formula, the
 tree settings, `n_iter` and `eta`), and refits them once per project. It does
@@ -537,7 +538,7 @@ fitted model.
 ```{r}
 #| label: logo-cv
 # LOGO-CV: refit the recipe of ada_fit with each project held out
-ada_logo <- logo_cv(ada_fit, data = tuning, group = "pid", verbose = FALSE)
+ada_logo <- logo_cv(ada_fit, data = df_noholz, group = "pid", verbose = FALSE)
 
 # Results per project
 ada_logo
@@ -592,11 +593,10 @@ The printout adds each project's 95 percent interval and the number of dropped
 resamples. A resample with one class only has no AUROC, so it is dropped and
 drawn again. Small projects with few cases of one class drop many draws; ML1,
 for example, has
-`r sum(tuning$pid == "ml1" & tuning$replicate == "failure")` failures among
-its `r sum(tuning$pid == "ml1")` study effects. The interval of such
-a project rests only on the resamples that hold both classes, so it is too
-narrow. The warning above reports the share of rejected resamples for each
-such project.
+`r sum(df_noholz$pid == "ml1" & df_noholz$replicate == "failure")` failures
+among its `r sum(df_noholz$pid == "ml1")` study effects. The interval of such a
+project rests only on the resamples that hold both classes, so it is too narrow.
+The warning above reports the share of rejected resamples for each such project.
 
 `stratified = TRUE` resamples each class separately, so it drops no draw. But
 it holds the base rate fixed. That suits `auroc` and `bacc`, but it
@@ -628,10 +628,15 @@ predictors:
 # LOGO-CV for a logistic regression
 logit_fit <- glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
-  data = tuning,
+  data = df_noholz,
   family = binomial
 )
-logit_logo <- logo_cv(logit_fit, data = tuning, group = "pid", verbose = FALSE)
+logit_logo <- logo_cv(
+  logit_fit,
+  data = df_noholz,
+  group = "pid",
+  verbose = FALSE
+)
 logit_logo
 ```
 
@@ -642,11 +647,11 @@ A single classification tree, the weak learner grown deeper:
 # LOGO-CV for a classification tree of depth 2
 tree_fit <- rpart::rpart(
   replicate ~ .,
-  data = tuning[, voi_nms],
+  data = df_noholz[, voi_nms],
   method = "class",
   maxdepth = 2
 )
-tree_logo <- logo_cv(tree_fit, data = tuning, group = "pid", verbose = FALSE)
+tree_logo <- logo_cv(tree_fit, data = df_noholz, group = "pid", verbose = FALSE)
 tree_logo
 ```
 
@@ -665,8 +670,8 @@ forest's refits, which `logo_cv()` draws from the same random-number stream:
 #| eval: !expr rf_installed
 # LOGO-CV for a random forest at its defaults
 set.seed(112)
-rf_fit <- randomForest::randomForest(replicate ~ ., data = tuning[, voi_nms])
-rf_logo <- logo_cv(rf_fit, data = tuning, group = "pid", verbose = FALSE)
+rf_fit <- randomForest::randomForest(replicate ~ ., data = df_noholz[, voi_nms])
+rf_logo <- logo_cv(rf_fit, data = df_noholz, group = "pid", verbose = FALSE)
 rf_logo
 ```
 
@@ -679,8 +684,8 @@ it with `nthreads = 1`: each refit runs on as many threads as the fit.
 #| eval: !expr xgb_installed
 # LOGO-CV for gradient boosting with XGBoost
 xgb_fit <- xgboost::xgboost(
-  x = tuning[, pred_nms],
-  y = tuning[, out_nme],
+  x = df_noholz[, pred_nms],
+  y = df_noholz[, out_nme],
   nrounds = 50,
   max_depth = 2,
   learning_rate = 0.1,
@@ -688,7 +693,7 @@ xgb_fit <- xgboost::xgboost(
 )
 xgb_logo <- logo_cv(
   xgb_fit,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   outcome = out_nme,
   verbose = FALSE
@@ -703,7 +708,7 @@ instead. A formula, for example, is not a fitted model:
 #| label: logo-cv-default
 #| error: true
 # A formula is not a fit: logo_cv() needs the fitted model
-logo_cv(replicate ~ power.o + n.o, data = tuning, group = "pid")
+logo_cv(replicate ~ power.o + n.o, data = df_noholz, group = "pid")
 ```
 
 ### One Held-Out Group
@@ -717,7 +722,7 @@ data. Here it trains on the other five tuning projects and scores SSRP once:
 # Hold out SSRP only
 ada_ssrp <- logo_cv(
   ada_fit,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   holdout = "ssrp",
   verbose = FALSE
@@ -761,7 +766,7 @@ ada_hgrid <- expand.grid(
 ada_tune <- tune_logo_cv(
   ada_fit,
   ada_hgrid,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   verbose = FALSE
 )
@@ -818,7 +823,7 @@ ada_hgrid_rnd <- ada_space[rnd_smpl, ]
 logo_rnd <- tune_logo_cv(
   ada_fit,
   ada_hgrid_rnd,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   verbose = FALSE
 )
@@ -840,7 +845,7 @@ runs on one core, the default, so the call below is shown but not run:
 ada_tune <- tune_logo_cv(
   ada_fit,
   ada_hgrid,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   cores = 2
 )
@@ -857,7 +862,7 @@ a tree, `depth` sets its `maxdepth`:
 tree_tune <- tune_logo_cv(
   tree_fit,
   data.frame(depth = 1:4),
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   verbose = FALSE
 )
@@ -877,7 +882,7 @@ set.seed(112)
 rf_tune <- tune_logo_cv(
   rf_fit,
   rf_hgrid,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   verbose = FALSE
 )
@@ -895,7 +900,7 @@ for AdaBoost, and two more of its own (see `?tune_logo_cv`). As in
 xgb_tune <- tune_logo_cv(
   xgb_fit,
   expand.grid(depth = 1:2, n_iter = c(20, 50)),
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   outcome = out_nme,
   verbose = FALSE
@@ -911,7 +916,7 @@ instead:
 #| label: tune-default
 #| error: true
 # A glm has nothing to tune
-tune_logo_cv(logit_fit, data.frame(depth = 1), data = tuning, group = "pid")
+tune_logo_cv(logit_fit, data.frame(depth = 1), data = df_noholz, group = "pid")
 ```
 
 ### The Shipped Grid
@@ -1022,7 +1027,7 @@ ada_hgrid_nst <- expand.grid(depth = 1:2, n_iter = c(10, 25))
 ada_nested <- tune_logo_cv(
   ada_fit,
   ada_hgrid_nst,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   nested = TRUE,
   metric = "auroc",
@@ -1097,7 +1102,7 @@ xgb_hgrid <- expand.grid(
 xgb_nested <- tune_logo_cv(
   xgb_fit,
   xgb_hgrid,
-  data = tuning,
+  data = df_noholz,
   group = "pid",
   outcome = out_nme,
   nested = TRUE,
