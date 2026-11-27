@@ -20,7 +20,7 @@ A number for a single \code{k}. For several, a vector named by \code{k}.
 }
 \description{
 Computes the share of positives among the \code{k} highest scores: precision
-under a budget, when you can act on only the top of the ranking.
+under a budget, when only the top of the ranking is acted on.
 }
 \details{
 By default \code{k} is the number of positives (R-precision), which scales with

@@ -40,7 +40,7 @@ and returns class labels or the vote itself, the margin.
 Scoring the data the model was trained on is a \emph{retrodiction}: it shows how
 well the model fits data it has already seen, not how well it predicts.
 Scoring held-out data is a prediction. The call looks the same either way,
-so \code{predict()} tells you when the data were also used for training. With no
+so \code{predict()} notes when the data were also used for training. With no
 \code{newdata}, it scores the training data on purpose, like \code{predict()} for
 \code{\link[stats:lm]{stats::lm()}}.
 }

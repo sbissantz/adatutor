@@ -8,7 +8,7 @@ A list of nine settings:
 \itemize{
 \item \code{col}: 4.30 x 3.06 inches, one column of the paper's two-column layout.
 \item \code{full}: 5.55 x 3.95 inches, the full text width. Not used yet.
-\item \code{pointsize}: 9. Raise it when you enlarge a figure, or the text stays
+\item \code{pointsize}: 9. Raise it when enlarging a figure, or the text stays
 small.
 \item \code{mar_plain}, \code{mar_legend}: Margins. The legend version has more room on
 top.
@@ -26,8 +26,8 @@ with, kept in one place so the figures match.
 }
 \details{
 This list is for reference only. Changing a copy has no effect, because a
-function's defaults are looked up inside the package. Pass the value you
-want instead:
+function's defaults are looked up inside the package. Pass the new value
+instead:
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{tutplot_gini(pointsize = 12)
 }\if{html}{\out{</div>}}

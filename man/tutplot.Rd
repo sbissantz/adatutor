@@ -33,7 +33,7 @@ tutplot_gini(
 
 tutplot_updatefactor(
   alpha = NULL,
-  pch = c(20, 17, 15),
+  pch = 20,
   lty = 3,
   lwd = 1,
   ylim = c(0.3, 2.2),
@@ -45,7 +45,7 @@ tutplot_updatefactor(
 
 tutplot_modelweight(
   eta = c(1, 0.5, 0.1),
-  lty = c(1, 2, 4, 5),
+  lty = 1,
   lwd = 2,
   from = 0.5,
   marked_perf = NULL,
@@ -60,7 +60,6 @@ tutplot_weightupdate(
   data = adatutor::altmext_splits$train,
   d1 = NULL,
   d2 = NULL,
-  chi = NULL,
   n = 25,
   scaling = 2,
   ylim = NULL,
@@ -133,11 +132,16 @@ between 0 and 1.}
 \item{alpha}{The model weights, one curve each. \code{NULL} (the default) draws
 the three of Figure 7: 0.7, the model weight of the tutorial's first
 stump on the training set of \link{altmext_splits}, rounded to three digits,
-and 0.3.}
+and 0.3. For three decreasing weights whose middle one is that first
+stump's, the legend reads \verb{Larger alpha_t}, \code{alpha_1} and
+\verb{Smaller alpha_t}, drawn with Greek letters and without numbers. For any
+other \code{alpha}, it shows the numbers.}
 
-\item{pch}{The plotting symbols for the end points, recycled over \code{alpha}.}
+\item{pch}{The plotting symbols for the end points, recycled over \code{alpha}.
+Defaults to one filled dot for every curve, so color tells them apart.}
 
-\item{lty}{The line types, recycled over the curves.}
+\item{lty}{The line types, recycled over the curves. \code{tutplot_modelweight()}
+draws every curve solid by default, so color tells them apart.}
 
 \item{ylim}{The vertical range. Defaults to the manuscript's.}
 
@@ -153,16 +157,14 @@ is left out when it lies below \code{from}. \code{NA} draws no mark.}
 
 \item{marked_eta}{The curve the mark belongs to. Defaults to the first.}
 
-\item{data}{The training data for the first boosting round, used when \code{d1}
-and \code{d2} are \code{NULL}. Defaults to the training set of \link{altmext_splits},
-as in Figure 8.}
+\item{data}{The training data. Each point's observed class is read from
+its \code{replicate} column, and the first boosting round runs on it when \code{d1}
+or \code{d2} is \code{NULL}. Defaults to the training set of \link{altmext_splits}, as
+in Figure 8.}
 
-\item{d1, d2}{The observation weights before and after one round. \code{NULL}
+\item{d1, d2}{The observation weights before and after one round, one per
+row of \code{data} and in its row order; other lengths are an error. \code{NULL}
 computes them from \code{data}.}
-
-\item{chi}{\code{+1} where the learner was right and \code{-1} where it was wrong,
-like the tutorial's \code{chi1}. Required when you pass \code{d1} or \code{d2}, because
-the weights alone cannot show which points were missed.}
 
 \item{n}{The number of data points to draw. 25 fits a column.}
 
@@ -212,7 +214,11 @@ is shared by size. Defaults to 0.06; 0 gives exact proportions.}
 Invisibly, the facts the figure's caption states, so tests can
 check them. \code{tutplot_cstump()} returns the fit, the split variable, the
 cutpoint and the leaf sizes; \code{tutplot_gini()} the curve and its peak;
-\code{tutplot_importance()} the rows it drew, most important first;
+\code{tutplot_updatefactor()} the factors, the legend labels and the named
+ticks; \code{tutplot_weightupdate()} the weights, the class and colors of each
+point drawn, the legend labels and the named ticks. The ticks are \code{NULL}
+when ordinary ticks were drawn instead. \code{tutplot_importance()} returns
+the rows it drew, most important first;
 \code{tutplot_logoscheme()} the project sizes, their count, the order and the
 row heights; \code{tutplot_logocv()} one row per project with its estimate,
 the widest interval, and the share of resamples its bootstrap rejected.
@@ -229,11 +235,16 @@ in a vignette, so every printed figure is documented and tested.
 case and its branches tagged "Yes" and "No" in upright type.
 \item \code{tutplot_gini()}: Gini impurity by class proportion.
 \item \code{tutplot_updatefactor()}: the factor by which one round multiplies an
-observation's weight.
+observation's weight. The y-axis names each factor drawn, unless more
+than three curves are drawn or two labels would collide.
 \item \code{tutplot_modelweight()}: the model weight a stump earns, by its
 performance.
 \item \code{tutplot_weightupdate()}: observation weights before and after one round,
 with a short tick under every data point and a number at every fifth.
+Both dots of a point are filled with the color of its observed class, as
+in \code{\link[=tutplot_boundary]{tutplot_boundary()}}. The y-axis names zero and each weight drawn,
+unless the weights take more than four values or two labels would
+collide.
 \item \code{tutplot_importance()}: the relative importance of each predictor, as a
 lollipop chart. Its axis title is in title case; \code{plot()} on a \code{\link[=gauge]{gauge()}}
 draws the same chart with the title in sentence case.
@@ -246,8 +257,8 @@ or without bootstrap intervals. The project names are drawn in capitals.
 
 With \code{file = NULL} (the default), the figure is drawn on the current
 device. With a path, a PDF is written at the manuscript's size. \code{width},
-\code{height} and \code{pointsize} apply only then; raise \code{pointsize} when you
-enlarge \code{width}. A session without a device, such as \code{Rscript}, writes
+\code{height} and \code{pointsize} apply only then; raise \code{pointsize} when
+enlarging \code{width}. A session without a device, such as \code{Rscript}, writes
 \code{Rplots.pdf}, which is ordinary R behavior.
 
 To draw a weighted stump, pass the fit that was grown with the weights; the
@@ -277,8 +288,8 @@ gini$peak
 # Figure 1: the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
 # kept back for the final test, so six projects take part
 data(altmext)
-tuning <- altmext[altmext$pid != "holz", ]
-folds <- tutplot_logoscheme(tuning$pid)
+df_noholz <- altmext[altmext$pid != "holz", ]
+folds <- tutplot_logoscheme(df_noholz$pid)
 folds$n
 
 }

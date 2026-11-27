@@ -29,7 +29,7 @@ margin or a predicted probability.}
 and 0.5 for probabilities.}
 
 \item{k}{The budgets for \code{patk}. By default 3, 5 and the number of
-positives. Budgets you pass are named by their value, e.g. \code{patk_10}.}
+positives. Budgets passed are named by their value, e.g. \code{patk_10}.}
 
 \item{digits}{The number of decimals \code{print()} shows.}
 }

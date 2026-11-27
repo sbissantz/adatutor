@@ -27,7 +27,7 @@ The same as \link{altmext}.
 }
 
 \seealso{
-\code{\link[=partition]{partition()}} to make your own split.
+\code{\link[=partition]{partition()}} to make a new split.
 
 Other datasets:
 \code{\link{altmejd723}},

@@ -18,7 +18,7 @@ cannot be refit.}
 \item{keep_data}{Whether to store the training data on the fit. Defaults to
 \code{TRUE}. This lets \code{predict()} run without \code{newdata} and makes the
 retrodiction check exact. It costs no memory, but a saved file grows by
-the size of the data; set \code{FALSE} when you save many fits.}
+the size of the data; set \code{FALSE} when saving many fits.}
 
 \item{check_inputs}{Whether to check the inputs. Defaults to \code{TRUE}.}
 
@@ -53,8 +53,8 @@ textbook advice is unpruned trees, \code{cp = 0} (Hastie, Tibshirani & Friedman,
 \section{What is refused}{
 
 \code{adaboost()} stops with an error rather than boost a different model than
-the one you passed. It refuses a tree that is not \code{method = "class"}, one
-fitted with \code{weights}, and one with a \code{prior} or a \code{loss} matrix.
+\code{h}. It refuses a tree that is not \code{method = "class"}, one fitted with
+\code{weights}, and one with a \code{prior} or a \code{loss} matrix.
 }
 
 \examples{

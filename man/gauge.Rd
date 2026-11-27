@@ -34,7 +34,7 @@ variable. A deeper tree splits its weight across its variables by the gain
 of its primary splits, rpart's improvement measure; surrogate splits earn
 nothing. A tree that never split adds nothing.
 }
-\section{What it does not tell you}{
+\section{What it does not show}{
 
 The numbers are relative: they show how the ensemble divided its weight,
 not what a variable is worth on its own. They have no sign, correlated

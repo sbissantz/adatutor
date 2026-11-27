@@ -137,43 +137,43 @@ share most of their training data, so the usual standard error is too small
 data(altmext)
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 # the six tuning projects; HOLZ is kept back for the final test below
-tuning <- altmext[altmext$pid != "holz", ]
+df_noholz <- altmext[altmext$pid != "holz", ]
 
 # cross-validate the recipe of a fitted ensemble
 h <- rpart::rpart(
   replicate ~ .,
-  data = tuning[, c(prednms, "replicate")],
+  data = df_noholz[, c(prednms, "replicate")],
   maxdepth = 1,
   model = TRUE
 )
 fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
-res <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+res <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
 res
 plot(res)
 
 # another learner: pass its fit
 glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
-  data = tuning,
+  data = df_noholz,
   family = binomial
 ) |>
-  logo_cv(data = tuning, group = "pid", verbose = FALSE)
+  logo_cv(data = df_noholz, group = "pid", verbose = FALSE)
 
 # random five-fold cross-validation: random folds as the groups
 set.seed(1)
-tuning$fold <- sample(rep(1:5, length.out = nrow(tuning)))
-logo_cv(fit, data = tuning, group = "fold", verbose = FALSE)
+df_noholz$fold <- sample(rep(1:5, length.out = nrow(df_noholz)))
+logo_cv(fit, data = df_noholz, group = "fold", verbose = FALSE)
 
 # one Monte Carlo draw: a random split, holding out the test part only
-tuning$part <- sample(
+df_noholz$part <- sample(
   c("train", "test"),
-  nrow(tuning),
+  nrow(df_noholz),
   replace = TRUE,
   prob = c(0.7, 0.3)
 )
 logo_cv(
   fit,
-  data = tuning,
+  data = df_noholz,
   group = "part",
   holdout = "test",
   verbose = FALSE
