@@ -1316,7 +1316,7 @@ Listing 32 runs LOGO-CV by hand. The first lines set HOLZ aside. `split()` then 
 
 #### Listing 32
 
-Run a leave-one-group-out cross-validation.
+Run a leave-one-group-out cross-validation (about 20 seconds).
 
 ```{r listing-32}
 # Hold out the newest project for the final test (Module 8)
@@ -1383,7 +1383,7 @@ sapply(scores, \(s) mean(s$actual == "success"))
 
 #### The Package Solution [NEW]
 
-Run the same cross-validation with adatutor.
+Run the same cross-validation with adatutor (about 20 seconds).
 
 ```{r listing-32-pkg}
 # LOGO-CV with the ensemble of Module 3
