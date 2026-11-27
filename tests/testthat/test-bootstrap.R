@@ -131,15 +131,15 @@ test_that("intervals on the folds of the tuning projects track fold size", {
   # notes 4: the interval is wide exactly where the fold is small. This is the
   # point the forest plot has to make, so it is worth pinning.
   skip_on_cran()
-  tuning <- drop_holz()
+  df_noholz <- drop_holz()
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
 
   widths <- vapply(
     c("ml3", "rpp"),
     function(rp) {
-      tr <- tuning[tuning$pid != rp, ]
-      te <- tuning[tuning$pid == rp, ]
+      tr <- df_noholz[df_noholz$pid != rp, ]
+      te <- df_noholz[df_noholz$pid == rp, ]
       fit <- rpart::rpart(
         replicate ~ .,
         data = tr[, voinms],

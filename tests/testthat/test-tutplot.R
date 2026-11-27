@@ -27,6 +27,26 @@ read_pdf_text <- function(path) {
 }
 read_pdf_fonts <- function(path) system2("pdffonts", path, stdout = TRUE)
 
+# record a figure on a device of the manuscript's column size, where the
+# named ticks and their fallback are decided
+record_column <- function(expr) {
+  record_calls(
+    expr,
+    width = tutplot_opts$col[["width"]],
+    height = tutplot_opts$col[["height"]],
+    pointsize = tutplot_opts$pointsize
+  )
+}
+
+# the y-axis calls that carry positions: plot() also records one without
+# them, which `yaxt = "n"` suppresses
+find_y_axes <- function(calls) {
+  Filter(
+    \(call) identical(call[[2]], 2) && !is.null(call[[3]]),
+    find_calls(calls, "C_axis")
+  )
+}
+
 test_that("tutplot_cstump() returns the numbers Figure 2's caption states", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -89,16 +109,16 @@ test_that("a path writes one PDF and leaves the open devices as they were", {
   # a stray device
   expect_null(grDevices::dev.list(), label = "the devices open at the start")
   grDevices::graphics.off()
-  tuning <- drop_holz()
+  df_noholz <- drop_holz()
   boosted <- rpart::rpart(
     replicate ~ power.o + n.o + effect_size.o + p_value.o,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  res <- logo_cv(boosted, data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(boosted, data = df_noholz, group = "pid", verbose = FALSE)
   # every figure that takes `file`
   figures <- list(
     tutplot_cstump = \(file) tutplot_cstump(stump(), file = file),
@@ -117,7 +137,7 @@ test_that("a path writes one PDF and leaves the open devices as they were", {
     tutplot_importance = \(file) {
       tutplot_importance(gauge(boosted), file = file)
     },
-    tutplot_logoscheme = \(file) tutplot_logoscheme(tuning$pid, file = file),
+    tutplot_logoscheme = \(file) tutplot_logoscheme(df_noholz$pid, file = file),
     tutplot_logocv = \(file) tutplot_logocv(res, bootstrap = FALSE, file = file)
   )
 
@@ -374,6 +394,188 @@ test_that("tutplot_updatefactor() validates alpha and writes nothing by default"
   expect_identical(list.files(wd), character(0))
 })
 
+test_that("Figure 7 draws one point shape, told apart by color alone", {
+  expect_identical(eval(formals(tutplot_updatefactor)$pch), 20)
+
+  out <- record_column(tutplot_updatefactor())
+  # the end points: two per curve, at chi = 1 and chi = -1
+  ends <- Filter(
+    \(call) identical(call[[3]], "p") && identical(call[[2]]$x, c(1, -1)),
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(ends, 3)
+  expect_identical(vapply(ends, \(call) call[[4]], numeric(1)), c(20, 20, 20))
+  expect_false(anyDuplicated(vapply(ends, \(call) call[[6]], character(1))) > 0)
+})
+
+test_that("Figure 7's legend names the tutorial's curves without numbers", {
+  out <- record_column(tutplot_updatefactor())
+  words <- expression("Larger" ~ alpha[t], alpha[1], "Smaller" ~ alpha[t])
+
+  expect_identical(out$value$legend, words)
+  # and the legend draws them
+  texts <- lapply(find_calls(out$calls, "C_text"), \(call) call[[3]])
+  expect_identical(texts, list(words))
+
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  # the tutorial's call, its numbers typed out, and its first stump's weight
+  # unrounded: compared at the three digits the default keeps
+  alpha1 <- run_round_one(altmext_splits$train)$alpha
+  expect_identical(
+    tutplot_updatefactor(alpha = c(0.7, 0.499, 0.3))$legend,
+    words
+  )
+  expect_identical(
+    tutplot_updatefactor(alpha = c(0.7, alpha1, 0.3))$legend,
+    words
+  )
+})
+
+test_that("Figure 7's legend shows the numbers for any other alpha", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  others <- list(
+    # not the first stump's weight, at three digits
+    c(0.8, 0.5, 0.2),
+    c(0.7, 0.498, 0.3),
+    # not decreasing
+    c(0.3, 0.499, 0.7),
+    c(0.7, 0.499, 0.499),
+    # not three
+    c(0.7, 0.499),
+    c(0.8, 0.7, 0.499, 0.3)
+  )
+  for (alpha in others) {
+    legend <- tutplot_updatefactor(alpha = alpha, ylim = c(0.2, 2.6))$legend
+    expect_identical(
+      vapply(legend, deparse1, character(1)),
+      paste0("alpha[t] * \" = \" * \"", vapply(alpha, format, ""), "\"")
+    )
+  }
+})
+
+test_that("Figure 7's legend gives each key the same room on both sides", {
+  # the label widths and the panel's scale, read while the legend draws
+  real_legend <- draw_legend
+  seen <- NULL
+  local_mocked_bindings(
+    draw_legend = function(labels, cex = 1, ...) {
+      seen <<- list(
+        widths = graphics::strwidth(labels, units = "user", cex = cex),
+        pt = 72 * graphics::par("pin")[1] / diff(graphics::par("usr")[1:2])
+      )
+      real_legend(labels, cex = cex, ...)
+    }
+  )
+  out <- record_column(tutplot_updatefactor())
+
+  # one segments() call draws the three keys, one text() call the labels,
+  # left aligned
+  keys <- find_calls(out$calls, "C_segments")
+  expect_length(keys, 1)
+  key_left <- keys[[1]][[2]]
+  key_right <- keys[[1]][[4]]
+  label_left <- find_calls(out$calls, "C_text")[[1]][[2]]$x
+  label_right <- label_left + seen$widths
+  own_label <- (label_left - key_right) * seen$pt
+  label_before <- (key_left[-1] - label_right[-3]) * seen$pt
+
+  expect_true(all(own_label > 0))
+  expect_equal(label_before, own_label[-1])
+})
+
+test_that("Figure 7 names its six factors and 1 on the y-axis, with no grid", {
+  out <- record_column(tutplot_updatefactor())
+  uf <- out$value
+
+  expect_equal(uf$ticks$at, sort(c(uf$correct, uf$wrong, 1)))
+  expect_identical(
+    uf$ticks$labels,
+    c("0.50", "0.61", "0.74", "1", "1.35", "1.65", "2.01")
+  )
+  y_axes <- find_y_axes(out$calls)
+  expect_length(y_axes, 1)
+  expect_identical(y_axes[[1]][[3]], uf$ticks$at)
+  expect_identical(y_axes[[1]][[4]], uf$ticks$labels)
+  expect_identical(y_axes[[1]]$las, 1)
+
+  # the only line across the panel is the dashed one at 1: no grid. abline()
+  # records `a`, `b`, `h`, `v` in that order
+  ablines <- find_calls(out$calls, "C_abline")
+  expect_length(ablines, 1)
+  expect_identical(ablines[[1]][[4]], 1)
+  expect_null(ablines[[1]][[5]])
+  # no line from a point to its tick: the only segments are the legend's
+  # keys, above the panel
+  ylim <- eval(formals(tutplot_updatefactor)$ylim)
+  segments <- find_calls(out$calls, "C_segments")
+  expect_gt(length(segments), 0)
+  for (call in segments) {
+    expect_true(all(c(call[[3]], call[[5]]) > ylim[2]))
+  }
+})
+
+test_that("Figure 7's tick labels are smaller, but not below Figure 3's", {
+  # the y-axis call that sets its own label size; the boundary figure's has
+  # no positions, so find_y_axes() would miss it
+  axis_cex <- function(out) {
+    sized <- Filter(
+      \(call) identical(call[[2]], 2) && !is.null(call$cex.axis),
+      find_calls(out$calls, "C_axis")
+    )
+    sized[[1]]$cex.axis
+  }
+  factor_cex <- axis_cex(record_column(tutplot_updatefactor()))
+  boundary <- record_calls(
+    tutplot_boundary(stump(), data = altmext_splits$train, resolution = 20),
+    width = tutplot_opts$full[["width"]],
+    height = tutplot_opts$full[["height"]],
+    pointsize = tutplot_opts$pointsize
+  )
+  boundary_cex <- axis_cex(boundary)
+
+  # both figures print at the same pointsize, so cex compares their points
+  expect_identical(
+    eval(formals(tutplot_updatefactor)$pointsize),
+    eval(formals(tutplot_boundary)$pointsize)
+  )
+  expect_lt(factor_cex, tutplot_opts$cex_axis)
+  expect_gte(factor_cex, boundary_cex)
+})
+
+test_that("Figure 7 falls back to ordinary ticks and the grid", {
+  # grid() draws its vertical and horizontal lines in one abline() call; the
+  # dashed line at 1 is the other
+  expect_fallback <- function(out) {
+    expect_null(out$value$ticks)
+    expect_length(find_y_axes(out$calls), 0)
+    ablines <- find_calls(out$calls, "C_abline")
+    expect_length(ablines, 2)
+    expect_false(is.null(ablines[[1]][[5]]))
+    expect_identical(ablines[[2]][[4]], 1)
+  }
+
+  # more than three curves
+  expect_fallback(record_column(tutplot_updatefactor(
+    alpha = c(0.8, 0.6, 0.4, 0.2),
+    ylim = c(0.2, 2.6)
+  )))
+  # labels that would collide: 0.50 and 0.50
+  expect_fallback(record_column(tutplot_updatefactor(
+    alpha = c(0.7, 0.69, 0.3)
+  )))
+
+  # the two rules are separate: numbers in the legend, names on the axis.
+  # The top factor, 2.23, lies past `ylim` but on the panel, so it is named
+  other <- record_column(tutplot_updatefactor(alpha = c(0.8, 0.5, 0.2)))
+  expect_identical(
+    other$value$ticks$labels,
+    c("0.45", "0.61", "0.82", "1", "1.22", "1.65", "2.23")
+  )
+})
+
 test_that("tutplot_modelweight() shows what its caption claims", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -454,10 +656,11 @@ test_that("tutplot_weightupdate() derives the misclassified set from the weights
   )
   y_retro <- predict(h1, newdata = train, type = "class")
 
-  expect_identical(w$wrong, which((w$d2 > w$d1)[seq_len(w$n)]))
-  expect_identical(w$wrong, which((y_retro != y)[seq_len(w$n)]))
+  # the figure marks no misclassified point; they are the dots that moved up
+  grew <- which((w$d2 > w$d1)[seq_len(w$n)])
+  expect_identical(grew, which((y_retro != y)[seq_len(w$n)]))
   # what the caption states: 9 of the first 25 were misclassified
-  expect_length(w$wrong, 9)
+  expect_length(grew, 9)
 })
 
 test_that("tutplot_weightupdate() shows the mechanism its caption describes", {
@@ -481,17 +684,21 @@ test_that("tutplot_weightupdate() takes its own weights and honors n", {
 
   ten <- tutplot_weightupdate(n = 10)
   expect_identical(ten$n, 10)
-  expect_true(all(ten$wrong <= 10))
+  # one class and one color per point drawn, not per row
+  expect_length(ten$class, 10)
+  expect_length(ten$fill, 10)
 
-  # weights supplied directly, no model in sight -- chi comes with them
+  # weights supplied directly, no model in sight; one per row of `data`
+  rows <- altmext_splits$train[1:10, ]
   d1 <- rep(0.1, 10)
   d2 <- c(rep(0.05, 8), 0.3, 0.3)
-  chi <- c(rep(1, 8), -1, -1)
-  own <- tutplot_weightupdate(d1 = d1, d2 = d2, chi = chi, n = 10)
-  expect_identical(own$wrong, c(9L, 10L))
+  own <- tutplot_weightupdate(data = rows, d1 = d1, d2 = d2, n = 10)
+  expect_identical(own$d1, d1)
+  expect_identical(own$d2, d2)
+  expect_identical(which(own$d2 > own$d1), c(9L, 10L))
 
   expect_error(
-    tutplot_weightupdate(d1 = rep(0.1, 10), d2 = rep(0.1, 9), chi = rep(1, 10)),
+    tutplot_weightupdate(data = rows, d1 = rep(0.1, 10), d2 = rep(0.1, 9)),
     "same length"
   )
 })
@@ -611,14 +818,28 @@ test_that("a duplicated eta draws the same curve twice, silently", {
   expect_identical(dup$weight[, 1], dup$weight[, 2])
 })
 
-test_that("four curves get four line types", {
-  # `eta` merged with the three references can reach four, and `lty` is
-  # recycled across them -- three entries would give curves 1 and 4 the same
-  # line type, separable only by color on a color print
-  default <- eval(formals(tutplot_modelweight)$lty)
-  expect_false(anyDuplicated(rep_len(default, 4)) > 0)
-  # and the shipped three-curve figure is untouched by the fourth entry
-  expect_identical(rep_len(default, 3), c(1, 2, 4))
+test_that("Figure 6 draws solid curves, told apart by color alone", {
+  # the curves lines() draws, type "l"; the legend keys are segments
+  draw_curves <- function(...) {
+    out <- record_column(tutplot_modelweight(...))
+    Filter(\(call) identical(call[[3]], "l"), find_calls(out$calls, "C_plotXY"))
+  }
+  read_lty <- function(curves) vapply(curves, \(call) call[[5]], numeric(1))
+  read_col <- function(curves) vapply(curves, \(call) call[[6]], character(1))
+
+  # one solid line type, recycled over however many curves `eta` gives
+  expect_identical(eval(formals(tutplot_modelweight)$lty), 1)
+  curves <- draw_curves()
+  expect_length(curves, 3)
+  expect_identical(read_lty(curves), c(1, 1, 1))
+  expect_false(anyDuplicated(read_col(curves)) > 0)
+  expect_identical(
+    read_lty(draw_curves(eta = c(1, 0.75, 0.5, 0.1))),
+    c(1, 1, 1, 1)
+  )
+
+  # the argument stays, so a caller can still vary the line type
+  expect_identical(read_lty(draw_curves(lty = c(1, 2, 4))), c(1, 2, 4))
 })
 
 test_that("the spliced call marks the reader's own alpha", {
@@ -636,55 +857,268 @@ test_that("the spliced call marks the reader's own alpha", {
   expect_true(eta %in% imp$eta)
 })
 
-test_that("tutplot_weightupdate() reports what `chi` says, not what the weights imply", {
+test_that("tutplot_weightupdate() reads the class from `data`, not a chi", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # a worse-than-chance learner: alpha goes negative and the update reverses,
-  # so the weights that grew are the ones it got RIGHT
-  m <- 20
-  d1 <- rep(1, m) / m
-  chi <- c(rep(-1, 13), rep(1, 7))
-  perf <- 0.35
-  alpha <- 0.5 * log(perf / (1 - perf))
-  d2 <- d1 * exp(-alpha * chi)
-  d2 <- d2 / sum(d2)
+  # the class colors the dots, so no argument says which points were missed
+  expect_false("chi" %in% names(formals(tutplot_weightupdate)))
+  # no message to match: R translates its own "unused argument"
+  expect_error(tutplot_weightupdate(chi = rep(1, 141)))
 
-  expect_lt(alpha, 0)
-  # the trap: deriving would pick out the seven correct points
-  expect_identical(which(d2 > d1), 14:20)
-
-  w <- tutplot_weightupdate(d1 = d1, d2 = d2, chi = chi, n = m)
-  expect_identical(w$wrong, 1:13)
-  expect_false(identical(w$wrong, which(d2 > d1)))
-})
-
-test_that("supplied weights must come with chi, because it cannot be inferred", {
-  grDevices::pdf(NULL)
-  on.exit(grDevices::dev.off(), add = TRUE)
-
-  m <- 20
-  d1 <- rep(1, m) / m
-  build <- function(perf, n_wrong) {
-    chi <- c(rep(-1, n_wrong), rep(1, m - n_wrong))
-    a <- 0.5 * log(perf / (1 - perf))
-    d2 <- d1 * exp(-a * chi)
-    list(chi = chi, d2 = d2 / sum(d2), grew = sum(d2 / sum(d2) > d1))
-  }
-
-  # the reason it cannot be inferred: whether the learner beat chance or not,
-  # the grown set is the minority, so its size gives nothing away
-  good <- build(0.75, 5)
-  bad <- build(0.35, 13)
-  expect_lt(good$grew, m / 2)
-  expect_lt(bad$grew, m / 2)
-
+  # the class comes from the `replicate` column, as a two-class outcome
+  train <- altmext_splits$train
   expect_error(
-    tutplot_weightupdate(d1 = d1, d2 = bad$d2, n = m),
-    "cannot say which points were missed"
+    tutplot_weightupdate(data = train[, names(train) != "replicate"]),
+    "`replicate` column"
   )
+  three <- train
+  three$replicate <- factor(rep(c("a", "b", "c"), length.out = nrow(train)))
+  expect_error(tutplot_weightupdate(data = three), "two levels")
 })
 
+test_that("d1 and d2 need one value per row of `data`, in row order", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  rows <- altmext_splits$train[1:10, ]
+
+  # ten weights for the 141 rows of the default data: whose class is whose?
+  expect_error(
+    tutplot_weightupdate(d1 = rep(0.1, 10), d2 = rep(0.1, 10)),
+    "one value per row of `data`"
+  )
+  expect_error(
+    tutplot_weightupdate(data = rows, d1 = rep(0.1, 11), d2 = rep(0.1, 11)),
+    "one value per row of `data`"
+  )
+  # a missing one is computed from `data`: 141 weights against the 10 given
+  expect_error(
+    tutplot_weightupdate(d1 = rep(0.1, 10)),
+    "same length"
+  )
+
+  # row order: the class of row i colors the dots of weight i
+  reordered <- rows[10:1, ]
+  flipped <- tutplot_weightupdate(
+    data = reordered,
+    d1 = rep(0.1, 10),
+    d2 = rep(0.1, 10),
+    n = 10
+  )
+  expect_identical(flipped$class, as_binary(reordered$replicate))
+})
+
+test_that("both dots of a point take its observed class, as in Figure 3", {
+  out <- record_column(tutplot_weightupdate())
+  w <- out$value
+  palette <- viridisLite::viridis(2)
+  observed <- as_binary(altmext_splits$train$replicate)[1:25]
+
+  expect_identical(w$class, observed)
+  # failure purple, success yellow, as tutplot_boundary() fills them; full
+  # color, so a misclassified point is not drawn paler. One dark ring for all
+  expect_identical(w$fill, palette[observed + 1])
+  expect_identical(w$ring, rep("grey15", 25))
+  expect_identical(
+    w$fill,
+    style_points(observed, rep(FALSE, 25), palette)$fill
+  )
+
+  # the two points() calls, d1 and d2, draw these fills and rings
+  dots <- Filter(
+    \(call) identical(call[[4]], 21) && length(call[[2]]$x) == 25,
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(dots, 2)
+  for (call in dots) {
+    expect_identical(call[[7]], w$fill)
+    expect_identical(call[[6]], w$ring)
+  }
+  expect_identical(dots[[1]][[2]]$y, w$d1[1:25])
+  expect_identical(dots[[2]][[2]]$y, w$d2[1:25])
+  # and no horizontal reference line
+  expect_length(find_calls(out$calls, "C_abline"), 0)
+})
+
+test_that("Figure 8's legend names the classes as the boundary legend does", {
+  out <- record_column(tutplot_weightupdate())
+  w <- out$value
+
+  # the boundary figure's rule: the levels in title case, the second first
+  expect_identical(w$legend, c("Success", "Failure"))
+  expect_identical(
+    w$legend,
+    rev(tools::toTitleCase(levels(altmext_splits$train$replicate)))
+  )
+  # the only text drawn: no key for D1 and D2
+  texts <- lapply(find_calls(out$calls, "C_text"), \(call) call[[3]])
+  expect_identical(texts, list(c("Success", "Failure")))
+  # each key in its class's fill, so the labels cannot swap colors, and in the
+  # dots' dark ring
+  palette <- viridisLite::viridis(2)
+  keys <- Filter(
+    \(call) length(call[[2]]$x) == 2 && all(call[[4]] == 21),
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(keys, 1)
+  expect_identical(keys[[1]][[7]], rev(palette))
+  expect_identical(keys[[1]][[6]], rep("grey15", 2))
+})
+
+test_that("Figure 8 rings both classes in the same dark ink", {
+  out <- record_column(tutplot_weightupdate())
+  w <- out$value
+  palette <- viridisLite::viridis(2)
+  # both classes are among the points drawn, so one ring color is a finding
+  expect_setequal(w$class, c(0L, 1L))
+
+  # the ring Figure 3 gives yellow dots, on purple dots too: a white ring
+  # vanishes on the white panel, and the dot looks smaller than its weight
+  dark <- style_points(1L, FALSE, palette)$ring
+  expect_identical(dark, "grey15")
+  dots <- Filter(
+    \(call) identical(call[[4]], 21) && length(call[[2]]$x) == 25,
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(dots, 2)
+  for (call in dots) {
+    expect_identical(call[[6]], rep(dark, 25))
+  }
+  # and the legend keys, so a key matches the dots it names
+  keys <- Filter(
+    \(call) length(call[[2]]$x) == 2 && all(call[[4]] == 21),
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(keys, 1)
+  expect_identical(keys[[1]][[6]], rep(dark, 2))
+})
+
+test_that("the boundary figure keeps its white ring on purple dots", {
+  train <- altmext_splits$train
+  palette <- viridisLite::viridis(2)
+  fit <- stump()
+  out <- record_calls(tutplot_boundary(fit, data = train, resolution = 20))
+  drawn <- Filter(
+    \(call) length(call[[2]]$x) == nrow(train),
+    find_calls(out$calls, "C_plotXY")
+  )
+  expect_length(drawn, 1)
+  drawn <- drawn[[1]]
+
+  # in drawing order, misclassified first; their rings are paler, so only the
+  # correctly classified points carry the plain ring
+  wrong <- find_misclassified(fit, train, "replicate")
+  in_order <- order(!wrong)
+  class <- as_binary(train$replicate)[in_order]
+  purple <- !wrong[in_order] & class == 0L
+  yellow <- !wrong[in_order] & class == 1L
+  # on the colored regions a white ring shows, so Figure 3 keeps it
+  expect_identical(unique(drawn[[7]][purple]), palette[1])
+  expect_identical(unique(drawn[[6]][purple]), "white")
+  expect_identical(unique(drawn[[6]][yellow]), "grey15")
+})
+
+test_that("Figure 8 names zero and each weight drawn on its y-axis", {
+  out <- record_column(tutplot_weightupdate())
+  w <- out$value
+
+  # after round one: the initial 1/141 and the two weights it becomes
+  expect_identical(
+    w$ticks$at,
+    c(0, sort(unique(c(w$d1[1:25], w$d2[1:25]))))
+  )
+  expect_identical(w$ticks$labels, c("0", "0.0049", "0.0071", "0.0132"))
+  y_axes <- find_y_axes(out$calls)
+  expect_length(y_axes, 1)
+  expect_identical(y_axes[[1]][[3]], w$ticks$at)
+  expect_identical(y_axes[[1]][[4]], w$ticks$labels)
+  # horizontal, so strheight() measures what can collide
+  expect_identical(y_axes[[1]]$las, 1)
+
+  # the top stays at the largest weight plus 15 percent
+  window <- find_calls(out$calls, "C_plot_window")
+  expect_equal(window[[1]][[3]], c(0, max(c(w$d1, w$d2)) * 1.15))
+})
+
+test_that("Figure 8 keeps a caller's ylim, naming only the ticks inside it", {
+  out <- record_column(tutplot_weightupdate(ylim = c(0, 0.01)))
+  w <- out$value
+
+  window <- find_calls(out$calls, "C_plot_window")
+  expect_identical(window[[1]][[3]], c(0, 0.01))
+  expect_identical(w$ticks$labels, c("0", "0.0049", "0.0071"))
+})
+
+test_that("Figure 8 falls back past four weights or on a collision", {
+  rows <- altmext_splits$train[1:10, ]
+  d1 <- rep(0.1, 10)
+  draw <- function(d2) record_column(tutplot_weightupdate(rows, d1, d2, n = 10))
+
+  # four distinct weights are named
+  four <- draw(c(0.02, 0.04, rep(0.1, 6), 0.22, 0.22))
+  expect_identical(
+    four$value$ticks$labels,
+    c("0", "0.02", "0.04", "0.10", "0.22")
+  )
+
+  # five are not: plot() draws its own axis, and no y-axis has positions
+  five <- draw(c(0.02, 0.04, 0.06, rep(0.1, 5), 0.22, 0.22))
+  expect_null(five$value$ticks)
+  expect_length(find_y_axes(five$calls), 0)
+
+  # two weights too close for their labels: ordinary ticks as well
+  close <- draw(c(0.1005, rep(0.1, 9)))
+  expect_null(close$value$ticks)
+  expect_length(find_y_axes(close$calls), 0)
+})
+
+test_that("has_collision() flags ticks closer than one label height", {
+  # one label height apart, the labels touch but do not overlap
+  expect_false(has_collision(c(0, 1, 2), 1))
+  expect_true(has_collision(c(0, 0.99, 2), 1))
+  # in any order
+  expect_true(has_collision(c(2, 0, 0.5), 1))
+  # a single tick has nothing to collide with
+  expect_false(has_collision(0.5, 1))
+  expect_false(has_collision(numeric(0), 1))
+})
+
+test_that("plan_named_ticks() keeps the ticks inside ylim and makes room", {
+  grDevices::pdf(
+    NULL,
+    width = tutplot_opts$col[["width"]],
+    height = tutplot_opts$col[["height"]],
+    pointsize = tutplot_opts$pointsize
+  )
+  on.exit(grDevices::dev.off(), add = TRUE)
+  old_par <- set_figure_par(reserve_legend = TRUE)
+  on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
+
+  plan <- plan_named_ticks(
+    at = c(3, 0, 1, 2),
+    labels = c("3.00", "0", "1.00", "2.00"),
+    ylim = c(0, 2.5),
+    cex = 0.85
+  )
+  # sorted, and the tick above the panel dropped
+  expect_identical(plan$at, c(0, 1, 2))
+  expect_identical(plan$labels, c("0", "1.00", "2.00"))
+  # horizontal labels are wider than tall, so the margin grows
+  expect_gt(plan$shift, 0)
+
+  # a tick past `ylim` but on the panel, which plot() widens by 4 percent
+  edge <- plan_named_ticks(c(0, 2.55), c("0", "2.55"), c(0, 2.5), 0.85)
+  expect_identical(edge$at, c(0, 2.55))
+
+  # nothing on the panel, or two labels on top of each other: no names
+  expect_null(plan_named_ticks(c(5, 6), c("5", "6"), c(0, 2.5), 0.85))
+  expect_null(plan_named_ticks(
+    c(1, 1.001),
+    c("1.000", "1.001"),
+    c(0, 2.5),
+    0.85
+  ))
+})
 test_that("run_round_one() hands back a real chi, so nothing is derived", {
   r <- run_round_one(altmext_splits$train)
 
@@ -702,26 +1136,6 @@ test_that("run_round_one() hands back a real chi, so nothing is derived", {
 
   expect_identical(r$chi == -1, unname(y_retro != train$replicate))
   expect_true(all(r$chi %in% c(-1, 1)))
-})
-
-test_that("tutplot_weightupdate() validates chi", {
-  grDevices::pdf(NULL)
-  on.exit(grDevices::dev.off(), add = TRUE)
-
-  d1 <- rep(0.1, 10)
-  d2 <- c(rep(0.05, 8), 0.3, 0.3)
-  expect_error(
-    tutplot_weightupdate(d1 = d1, d2 = d2, chi = rep(-1, 9), n = 10),
-    "one per weight"
-  )
-  expect_error(
-    tutplot_weightupdate(d1 = d1, d2 = d2, n = 10),
-    "`chi` is required"
-  )
-  expect_error(
-    tutplot_weightupdate(d1 = d1, d2 = d2, chi = rep(0, 10), n = 10),
-    "must be \\+1 or -1"
-  )
 })
 
 test_that("tutplot_weightupdate() ticks every point and numbers every fifth", {
@@ -858,10 +1272,10 @@ test_that("each bare call draws what the tutorial's call draws", {
     tutplot_updatefactor(),
     tutplot_updatefactor(alpha = script$alpha_int)
   )
-  # Figure 8
+  # Figure 8: the tutorial's call passes the weights only
   expect_identical(
     tutplot_weightupdate(),
-    tutplot_weightupdate(d1 = script$D1, d2 = script$D2, chi = script$chi1)
+    tutplot_weightupdate(d1 = script$D1, d2 = script$D2)
   )
 })
 
@@ -1308,6 +1722,51 @@ test_that("tutplot_logoscheme() refuses a minimum the projects cannot fit", {
   )
 })
 
+test_that("Figure 1's first column draws each project as its test box does", {
+  paper <- c("ml1", "rpp", "ml3", "eerp", "ssrp", "ml2")
+  drawn <- record_calls(
+    tutplot_logoscheme(drop_holz()$pid, levels = paper),
+    width = tutplot_opts$full[["width"]],
+    height = tutplot_opts$full[["height"]],
+    pointsize = tutplot_opts$pointsize
+  )
+  colors <- unname(color_projects(paper))
+  fill_of <- \(calls) vapply(calls, \(call) call[[4]], character(1))
+  boxes <- find_calls(drawn$calls, "C_polygon")
+
+  # the first column ends left of x = 0.5, where Iteration 1 begins
+  first <- Filter(\(call) max(call[[2]]) < 0.5, boxes)
+  expect_length(first, length(paper))
+  expect_identical(fill_of(first), colors)
+  # project j's test box: column j, row j, above the performance boxes
+  test_boxes <- lapply(seq_along(paper), \(j) {
+    column <- Filter(
+      \(call) {
+        min(call[[2]]) > j - 0.5 &&
+          max(call[[2]]) < j + 0.5 &&
+          min(call[[3]]) >= 0
+      },
+      boxes
+    )
+    column[[j]]
+  })
+  expect_identical(fill_of(first), fill_of(test_boxes))
+
+  # each name in its test box's ink, so a dark fill gets white letters
+  ink_of <- \(calls) vapply(calls, \(call) call[[9]], character(1))
+  texts <- find_calls(drawn$calls, "C_text")
+  names_drawn <- Filter(\(call) identical(call[[2]]$x, -0.07), texts)
+  expect_identical(
+    vapply(names_drawn, \(call) call[[3]], character(1)),
+    toupper(paper)
+  )
+  test_labels <- Filter(\(call) identical(call[[3]], "Test"), texts)
+  expect_identical(ink_of(names_drawn), ink_of(test_labels))
+  expect_identical(ink_of(names_drawn), choose_ink(colors))
+  # the paper's six colors need both inks
+  expect_setequal(ink_of(names_drawn), c("white", "grey15"))
+})
+
 test_that("draw_roundrect() keeps its corners circular on any panel", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -1390,16 +1849,16 @@ test_that("tutplot_logoscheme() leaves the figure's title to the caption", {
 # ---- tutplot_logocv ---------------------------------------------------------
 
 logocv_res <- function() {
-  tuning <- drop_holz()
+  df_noholz <- drop_holz()
   fit <- rpart::rpart(
     replicate ~ power.o + effect_size.o + n.o + p_value.o,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+  logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
 }
 
 test_that("tutplot_logocv(bootstrap = FALSE) draws estimates without resampling", {
@@ -1645,7 +2104,9 @@ test_that("Figure 1 and the estimates figure give a project one color", {
       \(call) call[[4]],
       character(1)
     )
-    # full strength: each column's test box, then its performance box
+    # past the first column's boxes, full strength: each column's test box,
+    # then its performance box
+    fills <- fills[-seq_along(levels)]
     full <- fills[endsWith(fills, "FF")]
     expect_identical(full[c(TRUE, FALSE)], full[c(FALSE, TRUE)])
     stats::setNames(full[c(TRUE, FALSE)], tolower(levels))

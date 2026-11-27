@@ -2,12 +2,12 @@
 # steps, teal marks "Done" only. Nothing is bold.
 
 # the six tuning projects; the fold and fit counts below follow from them
-tuning <- drop_holz()
+df_noholz <- drop_holz()
 
 console_fit <- function(n_iter = 3) {
   h <- rpart::rpart(
     replicate ~ power.o + n.o,
-    data = tuning,
+    data = df_noholz,
     maxdepth = 1,
     model = TRUE
   )
@@ -62,7 +62,7 @@ test_that("adaboost() prints plain start and closing lines, gray steps", {
 
 test_that("predict() prints plain start, closing and conclusion lines", {
   fit <- console_fit()
-  run <- capture_run(predict(fit, tuning, type = "margin"))
+  run <- capture_run(predict(fit, df_noholz, type = "margin"))
   err <- run$err
 
   expect_false(has_bold(err))
@@ -73,7 +73,7 @@ test_that("predict() prints plain start, closing and conclusion lines", {
   expect_true(grepl("\nTest process completed.\n", err, fixed = TRUE))
   # the reason gray, the conclusion plain
   expect_true(grepl(
-    "\033[38;5;244m  `tuning` was also used for training.\033[0m\n",
+    "\033[38;5;244m  `df_noholz` was also used for training.\033[0m\n",
     err,
     fixed = TRUE
   ))
@@ -106,9 +106,9 @@ test_that("verbose adaboost() and predict() return what quiet ones do", {
 
 test_that("logo_cv(verbose = TRUE) prints a line per fold", {
   fit <- console_fit()
-  folds <- unique(as.character(tuning$pid))
+  folds <- unique(as.character(df_noholz$pid))
   run <- record_steps(
-    logo_cv(fit, data = tuning, group = "pid", verbose = TRUE)
+    logo_cv(fit, data = df_noholz, group = "pid", verbose = TRUE)
   )
   err <- run$err
 
@@ -146,7 +146,7 @@ test_that("logo_cv(verbose = TRUE) prints a line per fold", {
   # the inner fits stay silent, and verbose = FALSE prints nothing
   quiet <- capture_run(logo_cv(
     fit,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   ))
@@ -158,13 +158,13 @@ test_that("logo_cv(verbose = TRUE) prints a line per fold", {
 test_that("logo_cv() of any learner reports its folds alike", {
   glm_fit <- glm(
     replicate ~ power.o + n.o,
-    data = tuning,
+    data = df_noholz,
     family = binomial
   )
   run <- capture_run(
     logo_cv(
       glm_fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = "ssrp",
       verbose = TRUE
@@ -180,7 +180,7 @@ test_that("logo_cv() of any learner reports its folds alike", {
   )
   quiet <- logo_cv(
     glm_fit,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = "ssrp",
     verbose = FALSE
@@ -192,12 +192,12 @@ test_that("logo_cv() of any learner reports its folds alike", {
 
 test_that("tune_logo_cv(verbose = TRUE) prints one bar over the fits", {
   fit <- console_fit()
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   run <- record_steps(
     tune_logo_cv(
       fit,
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = TRUE
     )
@@ -230,7 +230,7 @@ test_that("tune_logo_cv(verbose = TRUE) prints one bar over the fits", {
     tune_logo_cv(
       fit,
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -243,15 +243,15 @@ test_that("tune_logo_cv(verbose = TRUE) prints one bar over the fits", {
 test_that("a search whose settings each need a fit names no fits", {
   tree <- rpart::rpart(
     replicate ~ power.o + n.o,
-    data = tuning,
+    data = df_noholz,
     method = "class"
   )
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   run <- record_steps(
     tune_logo_cv(
       tree,
       data.frame(depth = 1:3),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = TRUE
     )
@@ -286,7 +286,7 @@ test_that("the start line names the cores only when there are several", {
 test_that("on several cores, the bar moves as each batch of fits comes back", {
   skip_on_os("windows")
   fit <- console_fit()
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   n_fits <- 2L * n_folds
   real_split <- split_batches
   local_mocked_bindings(
@@ -297,7 +297,7 @@ test_that("on several cores, the bar moves as each batch of fits comes back", {
     }
   )
   run <- record_steps(
-    tune_logo_cv(fit, console_grid, data = tuning, group = "pid", cores = 2)
+    tune_logo_cv(fit, console_grid, data = df_noholz, group = "pid", cores = 2)
   )
   err <- run$err
   lines <- read_lines(err)
@@ -350,7 +350,7 @@ test_that("verbose = FALSE prints nothing, on one core and on two", {
   fit <- console_fit()
   local_mocked_bindings(count_cores = function() 2L)
   quiet_runs <- list(
-    capture_run(logo_cv(fit, data = tuning, group = "pid", verbose = FALSE))
+    capture_run(logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE))
   )
   for (cores in 1:2) {
     quiet_runs <- c(
@@ -359,7 +359,7 @@ test_that("verbose = FALSE prints nothing, on one core and on two", {
         capture_run(tune_logo_cv(
           fit,
           console_grid,
-          data = tuning,
+          data = df_noholz,
           group = "pid",
           cores = cores,
           verbose = FALSE
@@ -367,7 +367,7 @@ test_that("verbose = FALSE prints nothing, on one core and on two", {
         capture_run(tune_logo_cv(
           fit,
           console_grid,
-          data = tuning,
+          data = df_noholz,
           group = "pid",
           holdout = c("ssrp", "ml1"),
           nested = TRUE,
@@ -391,7 +391,7 @@ test_that("on two cores, verbose changes no result", {
     capture_run(tune_logo_cv(
       fit,
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = cores,
       verbose = verbose
@@ -401,7 +401,7 @@ test_that("on two cores, verbose changes no result", {
     capture_run(tune_logo_cv(
       fit,
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -461,9 +461,9 @@ test_that("on the socket path, the bar shows and no result changes", {
   # the only mock socket workers accept: their code check leaves it out
   local_mocked_bindings(read_os_type = function() "windows")
   fit <- console_fit()
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   loud <- capture_run(
-    tune_logo_cv(fit, console_grid, data = tuning, group = "pid", cores = 2)
+    tune_logo_cv(fit, console_grid, data = df_noholz, group = "pid", cores = 2)
   )
   lines <- read_lines(loud$err)
   expect_identical(
@@ -479,7 +479,7 @@ test_that("on the socket path, the bar shows and no result changes", {
   quiet <- tune_logo_cv(
     fit,
     console_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     cores = 2,
     verbose = FALSE
@@ -507,7 +507,7 @@ test_that("the nested search prints one line per outer fold, and no bar", {
     tune_logo_cv(
       fit,
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -548,7 +548,7 @@ test_that("the nested search prints one line per outer fold, and no bar", {
     tune_logo_cv(
       fit,
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -567,7 +567,7 @@ test_that("on several cores, the nested search names them, same lines", {
     tune_logo_cv(
       console_fit(),
       console_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -608,11 +608,11 @@ fail_refit <- function(n, env = parent.frame()) {
 
 test_that("an error closes the open fold line", {
   fit <- console_fit()
-  folds <- unique(as.character(tuning$pid))
+  folds <- unique(as.character(df_noholz$pid))
   fail_refit(2L)
   err <- capture_stderr(
     expect_error(
-      logo_cv(fit, data = tuning, group = "pid", verbose = TRUE),
+      logo_cv(fit, data = df_noholz, group = "pid", verbose = TRUE),
       "forced failure"
     )
   )
@@ -631,7 +631,7 @@ test_that("an error closes the bar and resets its style", {
       tune_logo_cv(
         fit,
         console_grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         verbose = TRUE
       ),
@@ -650,7 +650,7 @@ test_that("an error in a nested search closes its outer fold's line", {
         tune_logo_cv(
           fit,
           console_grid,
-          data = tuning,
+          data = df_noholz,
           group = "pid",
           holdout = c("ssrp", "ml1"),
           nested = TRUE,
@@ -663,7 +663,7 @@ test_that("an error in a nested search closes its outer fold's line", {
   # the inner search of the first outer fold makes 2 fits on each of the
   # other groups; the next one is its refit, and the 3rd is in its inner
   # search
-  n_inner <- 2L * (length(unique(tuning$pid)) - 1L)
+  n_inner <- 2L * (length(unique(df_noholz$pid)) - 1L)
   for (n in c(n_inner + 1L, 3L)) {
     local({
       fail_refit(n)
@@ -691,7 +691,7 @@ test_that("a worker's error reads the same with verbose and closes the bar", {
         suppressWarnings(tune_logo_cv(
           fit,
           console_grid,
-          data = tuning,
+          data = df_noholz,
           group = "pid",
           cores = 2,
           verbose = verbose
@@ -759,7 +759,7 @@ test_that("assess() prints a plain title, gray labels and plain values", {
 
 test_that("logo_cv results print gray labels without colons", {
   fit <- console_fit()
-  res <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
   both <- print_both(res)
   expect_gray_labels_only(both)
   expect_identical(both$plain[1], "Leave-one-group-out cross-validation")
@@ -784,7 +784,7 @@ test_that("logo_cv results print gray labels without colons", {
   long <- tune_logo_cv(
     fit,
     data.frame(n_iter = 1:21),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )

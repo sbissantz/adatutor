@@ -1,14 +1,14 @@
 fml <- replicate ~ power.o + effect_size.o + n.o + p_value.o
 
 # the six tuning projects; fold counts and project names follow from them
-tuning <- drop_holz()
+df_noholz <- drop_holz()
 
 # a boosted tree on the tuning projects; `...` reaches the rpart controls,
 # e.g. cp
 fit_ada <- function(n_iter = 5, eta = 1, depth = 1, ...) {
   h <- rpart::rpart(
     fml,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     model = TRUE,
     maxdepth = depth,
@@ -18,7 +18,7 @@ fit_ada <- function(n_iter = 5, eta = 1, depth = 1, ...) {
 }
 
 test_that("logo_cv() returns a setting x project x metric cube", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
 
   expect_s3_class(res, "logo_cv")
   expect_named(
@@ -40,14 +40,14 @@ test_that("logo_cv() returns a setting x project x metric cube", {
   expect_identical(res$sort_by, NA_character_)
 
   n_metrics <- length(assess(c(1, 0), c(1, -1)))
-  projects <- unique(tuning$pid)
+  projects <- unique(df_noholz$pid)
   expect_equal(dim(res$estimates), c(1L, length(projects), n_metrics))
   expect_named(dimnames(res$estimates), c("setting", "project", "metric"))
   expect_setequal(dimnames(res$estimates)$project, projects)
   expect_equal(dimnames(res$estimates)$metric, names(assess(c(1, 0), c(1, -1))))
 
   # every fold is held out exactly once, so the fold sizes must total the data
-  expect_equal(sum(res$projects$n), nrow(tuning))
+  expect_equal(sum(res$projects$n), nrow(df_noholz))
   expect_setequal(res$projects$project, dimnames(res$estimates)$project)
 })
 
@@ -56,7 +56,7 @@ test_that("as.data.frame() flattens the cube without losing a cell", {
   res <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -95,7 +95,7 @@ test_that("logo_cv() keeps its leave-project-out AUROCs", {
   # them. A mismatch means the folds or the scoring changed.
   res <- logo_cv(
     fit_ada(n_iter = 10),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -121,7 +121,7 @@ test_that("AdaBoost is scored on the margin, not on class labels", {
   # balanced accuracy. logo_cv() must never reintroduce it.
   res <- logo_cv(
     fit_ada(n_iter = 10),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -137,13 +137,13 @@ test_that("a grid is crossed with every fold", {
   res <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
 
   n_metrics <- length(assess(c(1, 0), c(1, -1)))
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   expect_equal(dim(res$estimates), c(nrow(grid), n_folds, n_metrics))
 
   d <- as.data.frame(res)
@@ -157,7 +157,7 @@ test_that("a grid may omit columns, which fall back to the fit's values", {
   res <- tune_logo_cv(
     fit_ada(eta = 0.5, depth = 2),
     grid = data.frame(n_iter = c(5, 10)),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -175,7 +175,7 @@ test_that("a grid column may set an rpart control, per row", {
   both <- tune_logo_cv(
     fit_ada(),
     grid = rbind(cbind(small, cp = 0), cbind(small, cp = 0.01)),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -188,7 +188,7 @@ test_that("a grid column may set an rpart control, per row", {
     arm <- tune_logo_cv(
       fit_ada(cp = cpv),
       small,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -201,14 +201,14 @@ test_that("a grid column may set an rpart control, per row", {
   clash <- tune_logo_cv(
     fit_ada(cp = 0.5),
     grid = cbind(small, cp = 0),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
   only_row <- tune_logo_cv(
     fit_ada(),
     grid = cbind(small, cp = 0),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -230,7 +230,7 @@ test_that("a grid column that sets nothing is an error that names it", {
     tune_logo_cv(
       fit,
       grid = noisy,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -241,7 +241,7 @@ test_that("a grid column that sets nothing is an error that names it", {
     tune_logo_cv(
       fit,
       grid = noisy,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -251,7 +251,7 @@ test_that("a grid column that sets nothing is an error that names it", {
     suppressMessages(tune_logo_cv(
       fit,
       grid = data.frame(n_iter = 5, eta = 1, depth = 1, minbucket = 4),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ))
@@ -260,8 +260,8 @@ test_that("a grid column that sets nothing is an error that names it", {
 
 test_that("the other learners run and report NA for settings they lack", {
   # a learner records NA in the grid for a setting it has no use for
-  logit <- glm(fml, data = tuning, family = binomial) |>
-    logo_cv(data = tuning, group = "pid", verbose = FALSE)
+  logit <- glm(fml, data = df_noholz, family = binomial) |>
+    logo_cv(data = df_noholz, group = "pid", verbose = FALSE)
   expect_equal(logit$model, "glm")
   expect_true(all(is.na(logit$grid$n_iter)))
   expect_true(all(is.na(logit$grid$eta)))
@@ -270,14 +270,19 @@ test_that("the other learners run and report NA for settings they lack", {
   # and the flattened view still shows them, since it reads the grid
   expect_true(all(is.na(as.data.frame(logit)$n_iter)))
 
-  stump <- rpart::rpart(fml, data = tuning, method = "class", maxdepth = 1) |>
-    logo_cv(data = tuning, group = "pid", verbose = FALSE)
+  stump <- rpart::rpart(
+    fml,
+    data = df_noholz,
+    method = "class",
+    maxdepth = 1
+  ) |>
+    logo_cv(data = df_noholz, group = "pid", verbose = FALSE)
   expect_equal(stump$model, "rpart")
   expect_true(all(is.na(stump$grid$n_iter)))
   expect_equal(unique(stump$grid$depth), 1)
 
-  tree <- rpart::rpart(fml, data = tuning, method = "class", maxdepth = 4) |>
-    logo_cv(data = tuning, group = "pid", verbose = FALSE)
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class", maxdepth = 4) |>
+    logo_cv(data = df_noholz, group = "pid", verbose = FALSE)
   expect_equal(unique(tree$grid$depth), 4)
 
   # probability models are thresholded at 0.5, so a fitted logit must not
@@ -286,13 +291,13 @@ test_that("the other learners run and report NA for settings they lack", {
 })
 
 test_that("the other learners refit their own call on each fold", {
-  train <- tuning[tuning$pid != "eerp", ]
-  test <- tuning[tuning$pid == "eerp", ]
+  train <- df_noholz[df_noholz$pid != "eerp", ]
+  test <- df_noholz[df_noholz$pid == "eerp", ]
   in_eerp <- function(res) res$scores$score[res$scores$project == "eerp"]
 
   logit <- logo_cv(
-    glm(fml, data = tuning, family = binomial),
-    data = tuning,
+    glm(fml, data = df_noholz, family = binomial),
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -304,10 +309,10 @@ test_that("the other learners refit their own call on each fold", {
   dotted <- logo_cv(
     glm(
       replicate ~ .,
-      data = tuning[, all.vars(fml)],
+      data = df_noholz[, all.vars(fml)],
       family = binomial
     ),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -318,8 +323,8 @@ test_that("random forest runs when the suggested package is available", {
   skip_if_not_installed("randomForest")
   set.seed(1)
   # only the fit: randomForest() can warn about its own argument matching
-  forest <- suppressWarnings(randomForest::randomForest(fml, data = tuning))
-  rf <- logo_cv(forest, data = tuning, group = "pid", verbose = FALSE)
+  forest <- suppressWarnings(randomForest::randomForest(fml, data = df_noholz))
+  rf <- logo_cv(forest, data = df_noholz, group = "pid", verbose = FALSE)
   expect_equal(rf$model, "rf")
   expect_true(all(is.finite(rf$estimates[1, , "auroc"])))
 })
@@ -327,17 +332,17 @@ test_that("random forest runs when the suggested package is available", {
 test_that("logo_cv() rejects malformed input", {
   fit <- fit_ada()
   expect_error(
-    logo_cv(fit, data = tuning, group = "nope", verbose = FALSE),
+    logo_cv(fit, data = df_noholz, group = "nope", verbose = FALSE),
     "not found"
   )
   expect_error(
-    logo_cv(fit, data = tuning, group = c("pid", "eid"), verbose = FALSE),
+    logo_cv(fit, data = df_noholz, group = c("pid", "eid"), verbose = FALSE),
     "single column"
   )
   expect_error(
     logo_cv(
       fit,
-      data = tuning[tuning$pid == "rpp", ],
+      data = df_noholz[df_noholz$pid == "rpp", ],
       group = "pid",
       verbose = FALSE
     ),
@@ -347,7 +352,7 @@ test_that("logo_cv() rejects malformed input", {
     tune_logo_cv(
       fit,
       grid = data.frame(),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -356,14 +361,14 @@ test_that("logo_cv() rejects malformed input", {
 
   # a formula is not a fit: the recipe lives on the fitted model
   expect_error(
-    logo_cv(fml, data = tuning, group = "pid", verbose = FALSE),
+    logo_cv(fml, data = df_noholz, group = "pid", verbose = FALSE),
     "must be a fitted model"
   )
   # a setting passed here would be dropped without a word
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       n_iter = 10,
       grid = 1,
@@ -374,8 +379,8 @@ test_that("logo_cv() rejects malformed input", {
   # learners that give no probability of the second class
   expect_error(
     logo_cv(
-      glm(n.o ~ power.o, data = tuning),
-      data = tuning,
+      glm(n.o ~ power.o, data = df_noholz),
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -383,8 +388,8 @@ test_that("logo_cv() rejects malformed input", {
   )
   expect_error(
     logo_cv(
-      rpart::rpart(n.o ~ power.o, data = tuning),
-      data = tuning,
+      rpart::rpart(n.o ~ power.o, data = df_noholz),
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -393,12 +398,12 @@ test_that("logo_cv() rejects malformed input", {
 })
 
 test_that("tune_logo_cv() refuses a glm fit, which has nothing to tune", {
-  logit <- glm(fml, data = tuning, family = binomial)
+  logit <- glm(fml, data = df_noholz, family = binomial)
   expect_error(
     tune_logo_cv(
       logit,
       grid = data.frame(n_iter = 5),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -410,7 +415,7 @@ test_that("tune_logo_cv() refuses a glm fit, which has nothing to tune", {
     tune_logo_cv(
       fml,
       grid = data.frame(depth = 1),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -419,13 +424,13 @@ test_that("tune_logo_cv() refuses a glm fit, which has nothing to tune", {
 })
 
 test_that("the tuners reject arguments they do not take", {
-  tree <- rpart::rpart(fml, data = tuning, method = "class")
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class")
   for (fit in list(fit_ada(), tree)) {
     expect_error(
       tune_logo_cv(
         fit,
         data.frame(depth = 1),
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         n_iter = 5,
         verbose = FALSE
@@ -455,7 +460,7 @@ read_printed_table <- function(out) {
 }
 
 test_that("the methods behave", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
 
   expect_true(is.array(res$estimates))
   expect_s3_class(as.data.frame(res), "data.frame")
@@ -496,7 +501,7 @@ test_that("print() shows the projects once, then one row per setting", {
   res <- tune_logo_cv(
     fit_ada(),
     cp_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -554,11 +559,11 @@ test_that("print() decides decimals by the metric's name, not its values", {
   res <- tune_logo_cv(
     fit_ada(),
     cp_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   read_cells <- function(metric) {
     out <- capture.output(print(res, metric = metric))
     rows <- strsplit(trimws(read_printed_parts(out)$table[-1]), " +")
@@ -581,7 +586,7 @@ test_that("print() shows the settings unrounded", {
   res <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = 3, eta = 0.0025, cp = 0.0125),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -596,7 +601,7 @@ test_that("print() shows one column per held-out group", {
   local_reproducible_output(width = 200)
   res <- logo_cv(
     fit_ada(),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = c("ssrp", "eerp"),
     verbose = FALSE
@@ -617,13 +622,13 @@ test_that("print() gives each held-out project its own n and base rate", {
   holdout <- c("ssrp", "eerp", "ml3")
   res <- logo_cv(
     fit_ada(),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = holdout,
     verbose = FALSE
   )
   block <- read_printed_parts(capture.output(print(res)))$projects
-  in_project <- lapply(holdout, \(project) tuning$pid == project)
+  in_project <- lapply(holdout, \(project) df_noholz$pid == project)
 
   expect_equal(strsplit(trimws(block[1]), " +")[[1]], holdout)
   expect_equal(
@@ -634,7 +639,7 @@ test_that("print() gives each held-out project its own n and base rate", {
     strsplit(sub("^base rate +", "", block[3]), " +")[[1]],
     vapply(
       in_project,
-      \(rows) sprintf("%.2f", mean(tuning$replicate[rows] == "success")),
+      \(rows) sprintf("%.2f", mean(df_noholz$replicate[rows] == "success")),
       ""
     )
   )
@@ -648,8 +653,8 @@ test_that("print() gives each held-out project its own n and base rate", {
 
 test_that("a learner without settings prints and summarizes the projects only", {
   local_reproducible_output(width = 200)
-  logit <- glm(fml, data = tuning, family = binomial) |>
-    logo_cv(data = tuning, group = "pid", verbose = FALSE)
+  logit <- glm(fml, data = df_noholz, family = binomial) |>
+    logo_cv(data = df_noholz, group = "pid", verbose = FALSE)
   projects <- dimnames(logit$estimates)$project
 
   table <- read_printed_table(capture.output(print(logit)))
@@ -668,7 +673,7 @@ test_that("print() shows the first 10 of more than 20 settings", {
   long <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = 1:21),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -682,7 +687,7 @@ test_that("print() shows the first 10 of more than 20 settings", {
   twenty <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = 1:20),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -690,7 +695,7 @@ test_that("print() shows the first 10 of more than 20 settings", {
 })
 
 test_that("print() needs one metric name, and notes one without estimates", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   # summary()'s error, raised before the header prints
   for (bad in list(NA, NA_character_, c("auroc", "acc"), character(0), 1)) {
     printed <- capture.output(
@@ -734,7 +739,7 @@ read_printed_intervals <- function(out) {
 
 test_that("print() shows each project's interval of the printed metric", {
   local_reproducible_output(width = 200)
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 200))
   projects <- dimnames(boot$estimates)$project
@@ -824,8 +829,8 @@ test_that("print() shows each project's interval of the printed metric", {
 test_that("print() shows a given-up project's dropped draws in full", {
   local_reproducible_output(width = 200)
   # ml3 without its successes: every resample has one class
-  one_class <- tuning[
-    !(tuning$pid == "ml3" & tuning$replicate == "success"),
+  one_class <- df_noholz[
+    !(df_noholz$pid == "ml3" & df_noholz$replicate == "success"),
   ]
   h <- rpart::rpart(
     fml,
@@ -871,7 +876,7 @@ test_that("print() names the level and the resamples of the intervals", {
   # one held-out project keeps 1,000 resamples quick
   one <- logo_cv(
     fit_ada(),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = "ssrp",
     verbose = FALSE
@@ -895,7 +900,7 @@ test_that("print() names the level and the resamples of the intervals", {
     "95% bootstrap CI (1 stratified resample/project)"
   )
 
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   set.seed(3)
   stratified <- suppressWarnings(
     bootstrap(res, n_resample = 200, stratified = TRUE, conf = 0.9)
@@ -926,7 +931,7 @@ test_that("print() names the level and the resamples of the intervals", {
 
 test_that("print() adds the intervals only when bootstrap() attached them", {
   local_reproducible_output(width = 200)
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 20))
 
@@ -949,7 +954,7 @@ test_that("summary() gives each setting's statistics across the projects", {
   res <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -1015,7 +1020,7 @@ test_that("summary() reproduces hypergrid's mean, sd, min and max exactly", {
 test_that("summary() of one held-out group has no sd", {
   res <- logo_cv(
     fit_ada(),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = "ssrp",
     verbose = FALSE
@@ -1030,7 +1035,7 @@ test_that("summary() of one held-out group has no sd", {
 })
 
 test_that("summary() needs one metric of the result", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   for (bad in list("nope", c("auroc", "bacc"), NA_character_, NULL)) {
     expect_error(
       summary(res, metric = bad),
@@ -1041,7 +1046,7 @@ test_that("summary() needs one metric of the result", {
 
 test_that("a factor metric acts as its name in print(), summary() and plot()", {
   local_reproducible_output(width = 200)
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   # the bands come from the bootstrap draws, so plot() has some to pick from
   set.seed(3)
   res <- suppressWarnings(bootstrap(res, n_resample = 20))
@@ -1066,7 +1071,7 @@ test_that("a factor metric acts as its name in print(), summary() and plot()", {
   nested <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = c(3, 5)),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
@@ -1085,7 +1090,7 @@ test_that("summary() sorts highest first, ties in grid order, NA last", {
   res <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = 1:6),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -1119,7 +1124,7 @@ test_that("summary() sorts highest first, ties in grid order, NA last", {
 })
 
 test_that("summary() rejects a sort_by it cannot use and names the columns", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   for (bad in list("nope", NA_character_, c("min", "min"), character(0), 1)) {
     expect_error(
       summary(res, sort_by = bad),
@@ -1133,10 +1138,10 @@ test_that("summary() rejects a sort_by it cannot use and names the columns", {
 
 test_that("holdout keeps only the named levels, in the order given", {
   fit <- fit_ada()
-  every <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+  every <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
   some <- logo_cv(
     fit,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = c("ssrp", "eerp"),
     verbose = FALSE
@@ -1163,7 +1168,7 @@ test_that("holdout rejects a level the group does not have", {
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("eerp", "holz"),
       verbose = FALSE
@@ -1173,7 +1178,7 @@ test_that("holdout rejects a level the group does not have", {
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("eerp", "eerp"),
       verbose = FALSE
@@ -1214,7 +1219,7 @@ test_that("holding out HOLZ equals a fit on the other projects, scored on HOLZ",
 })
 
 test_that("a Monte Carlo draw through holdout = \"test\" has one row", {
-  draw <- tuning
+  draw <- df_noholz
   set.seed(7)
   draw$part <- sample(
     c("train", "test"),
@@ -1245,7 +1250,7 @@ test_that("rows that differ only in n_iter score as refits would", {
   grouped <- tune_logo_cv(
     fit_ada(),
     data.frame(depth = 1, n_iter = rounds, eta = 1),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -1253,13 +1258,13 @@ test_that("rows that differ only in n_iter score as refits would", {
     alone <- tune_logo_cv(
       fit_ada(),
       data.frame(depth = 1, n_iter = rounds[k], eta = 1),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
     from_fit <- logo_cv(
       fit_ada(n_iter = rounds[k]),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -1271,8 +1276,8 @@ test_that("rows that differ only in n_iter score as refits would", {
   }
 
   # and a refit by hand, scored by predict(), gives the same margins exactly
-  train <- tuning[tuning$pid != "ml1", ]
-  test <- tuning[tuning$pid == "ml1", ]
+  train <- df_noholz[df_noholz$pid != "ml1", ]
+  test <- df_noholz[df_noholz$pid == "ml1", ]
   by_hand <- rpart::rpart(fml, data = train, maxdepth = 1, model = TRUE) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE) |>
     predict(test, type = "margin", verbose = FALSE)
@@ -1296,7 +1301,7 @@ test_that("rows group by every setting but n_iter, whatever their order", {
   res <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -1304,7 +1309,7 @@ test_that("rows group by every setting but n_iter, whatever their order", {
     alone <- tune_logo_cv(
       fit_ada(),
       grid[i, ],
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -1317,14 +1322,14 @@ test_that("cores = 2 gives what one core gives", {
   one <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
   two <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     cores = 2,
     verbose = FALSE
@@ -1334,7 +1339,7 @@ test_that("cores = 2 gives what one core gives", {
   nested_one <- tune_logo_cv(
     fit_ada(),
     grid[1:2, ],
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
@@ -1342,7 +1347,7 @@ test_that("cores = 2 gives what one core gives", {
   nested_two <- tune_logo_cv(
     fit_ada(),
     grid[1:2, ],
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     cores = 2,
@@ -1358,7 +1363,7 @@ test_that("on Windows, cores = 2 runs a socket cluster and gives what one core g
     on_windows <- tune_logo_cv(
       fit_ada(),
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 2,
       verbose = FALSE
@@ -1369,7 +1374,7 @@ test_that("on Windows, cores = 2 runs a socket cluster and gives what one core g
     tune_logo_cv(
       fit_ada(),
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -1380,7 +1385,7 @@ test_that("on Windows, cores = 2 runs a socket cluster and gives what one core g
     tune_logo_cv(
       fit_ada(),
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       holdout = c("eerp", "ml3"),
       nested = TRUE,
@@ -1557,7 +1562,7 @@ test_that("a grid row without rounds is an error, not a score", {
       tune_logo_cv(
         fit_ada(),
         data.frame(n_iter = bad),
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         verbose = FALSE
       ),
@@ -1594,7 +1599,7 @@ test_that("a tuner runs on the lowered cores", {
     lowered <- tune_logo_cv(
       fit,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 8,
       verbose = FALSE
@@ -1602,7 +1607,13 @@ test_that("a tuner runs on the lowered cores", {
     "Specified `cores = 8`, but this computer has only 1 core. The run continues with `cores = 1`.",
     fixed = TRUE
   )
-  one <- tune_logo_cv(fit, grid, data = tuning, group = "pid", verbose = FALSE)
+  one <- tune_logo_cv(
+    fit,
+    grid,
+    data = df_noholz,
+    group = "pid",
+    verbose = FALSE
+  )
   expect_identical(lowered, one)
 })
 
@@ -1625,7 +1636,7 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
   # the results are the same on any number of cores, so only the number
   # run_tasks() receives shows that the tuner passes the lowered one on
   fit <- fit_ada()
-  tree <- rpart::rpart(fml, data = tuning, method = "class")
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class")
   grid <- data.frame(n_iter = c(3, 6))
   notice <- "Specified `cores = 8`, but this computer has only 2 cores. The run continues with `cores = 2`."
 
@@ -1635,7 +1646,7 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
       tune_logo_cv(
         fit,
         grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = 8,
         verbose = FALSE
@@ -1653,7 +1664,7 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
       tune_logo_cv(
         fit,
         grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         holdout = c("eerp", "ml3"),
         nested = TRUE,
@@ -1672,7 +1683,7 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
       tune_logo_cv(
         tree,
         data.frame(depth = 1:2),
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = 8,
         verbose = FALSE
@@ -1690,7 +1701,7 @@ test_that("each tuner hands the lowered cores to run_tasks()", {
       tune_logo_cv(
         fit,
         grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = 2,
         verbose = FALSE
@@ -1708,7 +1719,7 @@ test_that("cores must be one whole number, 1 or more", {
       tune_logo_cv(
         fit,
         data.frame(n_iter = 3),
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = bad,
         verbose = FALSE
@@ -1729,13 +1740,13 @@ test_that("progress counts the fits, which serve several settings", {
     tune_logo_cv(
       fit_ada(),
       data.frame(n_iter = c(3, 6)),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = TRUE
     )
   )
   # rows that differ only in n_iter share one fit per fold
-  n_folds <- length(unique(tuning$pid))
+  n_folds <- length(unique(df_noholz$pid))
   expect_identical(
     read_lines(err)[1],
     sprintf("Start the search: 2 settings, %d folds, %d fits", n_folds, n_folds)
@@ -1751,7 +1762,7 @@ test_that("nested tune_logo_cv() reports the setting each outer fold chose", {
   res <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
@@ -1765,7 +1776,7 @@ test_that("nested tune_logo_cv() reports the setting each outer fold chose", {
     res$selected,
     c("project", "setting", "depth", "n_iter", "eta", "inner_value")
   )
-  projects <- unique(tuning$pid)
+  projects <- unique(df_noholz$pid)
   expect_equal(nrow(res$selected), length(projects))
   expect_setequal(res$selected$project, projects)
   expect_true(all(res$selected$setting %in% seq_len(nrow(small_grid))))
@@ -1799,14 +1810,14 @@ test_that("the inner search never sees the held-out project", {
   res <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
   )
 
   for (p in res$selected$project) {
-    train <- tuning[tuning$pid != p, ]
+    train <- df_noholz[df_noholz$pid != p, ]
     inner <- tune_logo_cv(
       fit_ada(),
       small_grid,
@@ -1845,14 +1856,14 @@ test_that("each outer fold picks summary()'s first row for any sort_by", {
     res <- tune_logo_cv(
       fit,
       small_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       metric = "bacc",
       sort_by = sort_by,
       verbose = FALSE
     )
-    by_hand <- pick_by_hand(res, fit, small_grid, tuning)
+    by_hand <- pick_by_hand(res, fit, small_grid, df_noholz)
     label <- paste(sort_by, collapse = ", ")
     expect_identical(res$sort_by, sort_by)
     expect_identical(res$metric, "bacc")
@@ -1873,7 +1884,7 @@ test_that("sort_by = \"mean\" picks as the nested search did before sort_by", {
   res <- tune_logo_cv(
     fit,
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     sort_by = "mean",
@@ -1883,7 +1894,7 @@ test_that("sort_by = \"mean\" picks as the nested search did before sort_by", {
     inner <- tune_logo_cv(
       fit,
       small_grid,
-      data = tuning[tuning$pid != p, ],
+      data = df_noholz[df_noholz$pid != p, ],
       group = "pid",
       verbose = FALSE
     )
@@ -1896,7 +1907,7 @@ test_that("sort_by = \"mean\" picks as the nested search did before sort_by", {
   by_lower <- tune_logo_cv(
     fit,
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
@@ -1908,7 +1919,7 @@ test_that("a setting with an NA statistic cannot be picked", {
   inner <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = 1:3),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -1945,7 +1956,7 @@ test_that("a setting with an NA statistic cannot be picked", {
     tune_logo_cv(
       fit_ada(),
       small_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       metric = "patk_5",
@@ -2004,7 +2015,7 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
   plain <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -2016,7 +2027,7 @@ test_that("nesting removes the optimism of scoring the winner on its own folds",
   nst <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     sort_by = "mean",
@@ -2036,7 +2047,7 @@ test_that("the metric decides what the inner search ranks by", {
   by_auroc <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     metric = "auroc",
@@ -2045,7 +2056,7 @@ test_that("the metric decides what the inner search ranks by", {
   by_bacc <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     metric = "bacc",
@@ -2056,14 +2067,14 @@ test_that("the metric decides what the inner search ranks by", {
   expect_equal(by_bacc$metric, "bacc")
   # both are valid runs; the metric is recorded so a reader can see which
   # decision rule produced the selections
-  expect_equal(nrow(by_bacc$selected), length(unique(tuning$pid)))
+  expect_equal(nrow(by_bacc$selected), length(unique(df_noholz$pid)))
 
   # the old name is an error, not ignored
   expect_error(
     tune_logo_cv(
       fit_ada(),
       small_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       criterion = "bacc",
@@ -2092,7 +2103,7 @@ expect_checked_before_fit <- function(fit, grid, ...) {
       tune_logo_cv(
         fit,
         grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         ...,
         verbose = FALSE
@@ -2144,7 +2155,7 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
     tune_logo_cv(
       fit,
       grid = data.frame(n_iter = 5),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       verbose = FALSE
@@ -2155,7 +2166,7 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
     tune_logo_cv(
       fit,
       small_grid,
-      data = tuning[tuning$pid %in% c("ml1", "ml3"), ],
+      data = df_noholz[df_noholz$pid %in% c("ml1", "ml3"), ],
       group = "pid",
       nested = TRUE,
       verbose = FALSE
@@ -2166,7 +2177,7 @@ test_that("nested tune_logo_cv() rejects input it cannot honor", {
     tune_logo_cv(
       fit,
       small_grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       metric = "not_a_metric",
@@ -2186,7 +2197,7 @@ read_nested_errors <- function(fit, grid, ...) {
         tune_logo_cv(
           fit,
           grid,
-          data = tuning,
+          data = df_noholz,
           group = "pid",
           nested = nested,
           ...,
@@ -2213,7 +2224,7 @@ test_that("an adaboost fit's `nested` must be TRUE or FALSE", {
   plain <- tune_logo_cv(
     fit,
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -2221,7 +2232,7 @@ test_that("an adaboost fit's `nested` must be TRUE or FALSE", {
     tune_logo_cv(
       fit,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = FALSE,
       verbose = FALSE
@@ -2232,20 +2243,20 @@ test_that("an adaboost fit's `nested` must be TRUE or FALSE", {
   nested <- tune_logo_cv(
     fit,
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
   )
   expect_true(nested$nested)
-  expect_equal(nrow(nested$selected), length(unique(tuning$pid)))
+  expect_equal(nrow(nested$selected), length(unique(df_noholz$pid)))
 })
 
 test_that("print() surfaces the selection instability", {
   res <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
@@ -2285,7 +2296,7 @@ test_that("a nested header names the metric shown and the one selected by", {
   res <- tune_logo_cv(
     fit_ada(),
     small_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = c("ssrp", "ml1"),
     nested = TRUE,
@@ -2327,7 +2338,7 @@ test_that("print() of a bootstrapped nested result adds three columns", {
   res <- tune_logo_cv(
     fit_ada(),
     data.frame(n_iter = c(3, 5)),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
@@ -2410,7 +2421,7 @@ test_that("print() of a bootstrapped nested result adds three columns", {
 })
 
 test_that("a plain run records that it was not nested", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   expect_false(res$nested)
   expect_null(res$selected)
   expect_false(any(grepl("Nested", capture.output(print(res)))))
@@ -2434,7 +2445,7 @@ muffle_partial_matching <- function(code) {
 # a small classification forest on the tuning projects
 fit_forest <- function() {
   muffle_partial_matching(
-    randomForest::randomForest(fml, data = tuning, ntree = 25)
+    randomForest::randomForest(fml, data = df_noholz, ntree = 25)
   )
 }
 
@@ -2544,17 +2555,17 @@ test_that("on Windows, an AdaBoost recipe needs nothing of its tree's call", {
   assign("d", 2, envir = globalenv())
   on.exit(rm(list = c("best", "d"), envir = globalenv()), add = TRUE)
   stumps <- list(
-    rpart(fml, data = tuning, method = "class", maxdepth = 1, model = TRUE),
+    rpart(fml, data = df_noholz, method = "class", maxdepth = 1, model = TRUE),
     rpart::rpart(
       fml,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       maxdepth = best$depth,
       model = TRUE
     ),
     rpart::rpart(
       fml,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       maxdepth = d,
       model = TRUE
@@ -2563,17 +2574,17 @@ test_that("on Windows, an AdaBoost recipe needs nothing of its tree's call", {
   grid <- data.frame(n_iter = c(2, 4))
   for (stump in stumps) {
     fit <- adaboost(stump, n_iter = 4, eta = 1, verbose = FALSE)
-    expect_identical(list_globals(fit, tuning), list())
+    expect_identical(list_globals(fit, df_noholz), list())
     expect_identical(
       tune_logo_cv(
         fit,
         grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = 2,
         verbose = FALSE
       ),
-      tune_logo_cv(fit, grid, data = tuning, group = "pid", verbose = FALSE)
+      tune_logo_cv(fit, grid, data = df_noholz, group = "pid", verbose = FALSE)
     )
   }
 })
@@ -2588,19 +2599,19 @@ test_that("on Windows, a tree fitted with bare rpart() gives what one core gives
   }
   formula <- fml
   environment(formula) <- globalenv()
-  tree <- rpart(formula, data = tuning, method = "class")
-  expect_identical(list_globals(tree, tuning), list())
+  tree <- rpart(formula, data = df_noholz, method = "class")
+  expect_identical(list_globals(tree, df_noholz), list())
   grid <- data.frame(depth = 1:2)
   expect_identical(
     tune_logo_cv(
       tree,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 2,
       verbose = FALSE
     ),
-    tune_logo_cv(tree, grid, data = tuning, group = "pid", verbose = FALSE)
+    tune_logo_cv(tree, grid, data = df_noholz, group = "pid", verbose = FALSE)
   )
 })
 
@@ -2642,7 +2653,7 @@ test_that("on Windows, the tutorial's XGBoost fit gives what one core gives", {
 
 test_that("on Windows, the vignette's tree and forest give what one core gives", {
   local_mocked_bindings(read_os_type = function() "windows")
-  df <- tuning
+  df <- df_noholz
   voi_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
   tree_fit <- rpart::rpart(
     replicate ~ .,
@@ -2715,13 +2726,13 @@ test_that("on Windows, the session's plain values reach the workers", {
   environment(formula) <- globalenv()
   tree <- rpart::rpart(
     formula,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     maxdepth = best$depth,
     parms = tree_parms
   )
   expect_identical(
-    list_globals(tree, tuning),
+    list_globals(tree, df_noholz),
     # the call's order, which match.call() sets by rpart()'s arguments
     list(
       sd = 0.2,
@@ -2736,29 +2747,29 @@ test_that("on Windows, the session's plain values reach the workers", {
     tune_logo_cv(
       tree,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 2,
       verbose = FALSE
     ),
-    tune_logo_cv(tree, grid, data = tuning, group = "pid", verbose = FALSE)
+    tune_logo_cv(tree, grid, data = df_noholz, group = "pid", verbose = FALSE)
   )
 
   # do.call() puts rpart() itself in the call, which a worker has as well
   tree <- do.call(
     rpart::rpart,
-    list(formula = formula, data = tuning, method = "class")
+    list(formula = formula, data = df_noholz, method = "class")
   )
   expect_identical(
     tune_logo_cv(
       tree,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 2,
       verbose = FALSE
     ),
-    tune_logo_cv(tree, grid, data = tuning, group = "pid", verbose = FALSE)
+    tune_logo_cv(tree, grid, data = df_noholz, group = "pid", verbose = FALSE)
   )
 })
 
@@ -2768,7 +2779,7 @@ test_that("on Windows, an argument left out where the fit was made needs nothing
   make_tree <- function(p) {
     rpart::rpart(
       replicate ~ power.o + n.o,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       parms = p
     )
@@ -2777,17 +2788,17 @@ test_that("on Windows, an argument left out where the fit was made needs nothing
   make_outer <- function(p) make_tree(p)
   grid <- data.frame(depth = 1:2)
   for (tree in list(make_tree(), make_outer())) {
-    expect_identical(list_globals(tree, tuning), list())
+    expect_identical(list_globals(tree, df_noholz), list())
     expect_identical(
       tune_logo_cv(
         tree,
         grid,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = 2,
         verbose = FALSE
       ),
-      tune_logo_cv(tree, grid, data = tuning, group = "pid", verbose = FALSE)
+      tune_logo_cv(tree, grid, data = df_noholz, group = "pid", verbose = FALSE)
     )
   }
 })
@@ -2802,7 +2813,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     {
       bin_power <- function(x) round(10 * x)
       round <- function(x, digits = 0) x %% 7
-      # top level sees the package's data, not this file's `tuning`
+      # top level sees the package's data, not this file's `df_noholz`
       calib <- lm(n.o ~ power.o, data = altmext)
       adjust_n <- function(x) predict(calib, newdata = data.frame(power.o = x))
       rules <- list(bin = function(x) x %/% 10)
@@ -2838,7 +2849,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     tune_logo_cv(
       fit,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 2,
       verbose = FALSE
@@ -2849,7 +2860,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
       paste("replicate ~ power.o +", term),
       env = globalenv()
     )
-    rpart::rpart(formula, data = tuning, method = "class")
+    rpart::rpart(formula, data = df_noholz, method = "class")
   }
 
   expect_error(
@@ -2905,7 +2916,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   environment(formula) <- globalenv()
   tree <- rpart::rpart(
     formula,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     parms = make_parms()
   )
@@ -2922,7 +2933,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   # up by that name
   tree <- rpart::rpart(
     formula,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     na.action = "my_na"
   )
@@ -2931,7 +2942,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   # gini(), but no check can tell the two apart
   tree <- rpart::rpart(
     formula,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     parms = list(split = "gini")
   )
@@ -2942,7 +2953,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     shift_n <- function(x) x + 1
     rpart::rpart(
       replicate ~ power.o + shift_n(n.o),
-      data = tuning,
+      data = df_noholz,
       method = "class"
     )
   }
@@ -2951,7 +2962,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   make_binned <- function(bin = bin_power) {
     rpart::rpart(
       replicate ~ power.o + bin(n.o),
-      data = tuning,
+      data = df_noholz,
       method = "class"
     )
   }
@@ -2962,7 +2973,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     rpart::rpart,
     list(
       formula = formula,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       na.action = function(x) x
     )
@@ -3004,7 +3015,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   }
   environment(make_capped) <- tools
   expect_error(
-    tune(make_capped(tuning)),
+    tune(make_capped(df_noholz)),
     paste0(
       "The fit's formula looks up its objects through the attached ",
       "environment `package:adatutor_tools`. On Windows, parallel workers ",
@@ -3036,7 +3047,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
   on.exit(rm("pick_size", envir = globalenv()), add = TRUE)
   forest <- muffle_partial_matching(randomForest::randomForest(
     formula,
-    data = tuning,
+    data = df_noholz,
     ntree = 25,
     nodesize = pick_size()
   ))
@@ -3044,7 +3055,7 @@ test_that("on Windows, a fit that uses code of the session stops before any work
     muffle_partial_matching(tune_logo_cv(
       forest,
       data.frame(mtry = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = 2,
       verbose = FALSE
@@ -3071,7 +3082,7 @@ test_that("the check runs once per call on Windows, and never off it", {
     tune_logo_cv(
       fit_ada(),
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = cores,
       ...,
@@ -3114,30 +3125,36 @@ test_that("list_globals() reads a call with an empty argument and classed lists"
   environment(formula) <- globalenv()
   tree <- rpart::rpart(
     formula,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     parms = list(prior = prior_table[1, ])
   )
-  globals <- list_globals(tree, tuning)
+  globals <- list_globals(tree, df_noholz)
   expect_identical(globals$prior_table, rbind(c(0.5, 0.5)))
   expect_identical(globals$stamps, get("stamps", envir = globalenv()))
 })
 
 test_that("a tree's grid row sets its rpart controls, over the fit's own", {
   # the fit's cp of 0.5 stops at the root; each row's cp replaces it
-  fit <- rpart::rpart(fml, data = tuning, method = "class", cp = 0.5)
+  fit <- rpart::rpart(fml, data = df_noholz, method = "class", cp = 0.5)
   grid <- data.frame(
     depth = 4,
     cp = c(0, 0.02),
     minsplit = c(10, 30),
     minbucket = c(3, 10)
   )
-  res <- tune_logo_cv(fit, grid, data = tuning, group = "pid", verbose = FALSE)
+  res <- tune_logo_cv(
+    fit,
+    grid,
+    data = df_noholz,
+    group = "pid",
+    verbose = FALSE
+  )
 
   direct <- list(
     rpart::rpart(
       fml,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       maxdepth = 4,
       cp = 0,
@@ -3146,7 +3163,7 @@ test_that("a tree's grid row sets its rpart controls, over the fit's own", {
     ),
     rpart::rpart(
       fml,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       maxdepth = 4,
       cp = 0.02,
@@ -3155,7 +3172,12 @@ test_that("a tree's grid row sets its rpart controls, over the fit's own", {
     )
   )
   for (i in seq_along(direct)) {
-    one <- logo_cv(direct[[i]], data = tuning, group = "pid", verbose = FALSE)
+    one <- logo_cv(
+      direct[[i]],
+      data = df_noholz,
+      group = "pid",
+      verbose = FALSE
+    )
     expect_identical(res$estimates[i, , ], one$estimates[1, , ])
   }
   expect_false(identical(res$estimates[1, , ], res$estimates[2, , ]))
@@ -3164,30 +3186,32 @@ test_that("a tree's grid row sets its rpart controls, over the fit's own", {
 test_that("a tree's depth reaches its refits, however the fit set its controls", {
   # rpart() lets a control list override its direct arguments, so a depth set
   # beside `control` would not take
-  folds <- unique(tuning$pid)
+  folds <- unique(df_noholz$pid)
   by_hand <- function(depth) {
     unlist(lapply(folds, function(fold) {
       tree <- rpart::rpart(
         fml,
-        data = tuning[tuning$pid != fold, ],
+        data = df_noholz[df_noholz$pid != fold, ],
         method = "class",
         maxdepth = depth,
         cp = 0.001
       )
-      unname(predict(tree, tuning[tuning$pid == fold, ], type = "prob")[, 2])
+      unname(predict(tree, df_noholz[df_noholz$pid == fold, ], type = "prob")[,
+        2
+      ])
     }))
   }
   shapes <- list(
     direct = rpart::rpart(
       fml,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       maxdepth = 2,
       cp = 0.001
     ),
     control = rpart::rpart(
       fml,
-      data = tuning,
+      data = df_noholz,
       method = "class",
       control = rpart::rpart.control(maxdepth = 2, cp = 0.001)
     )
@@ -3196,7 +3220,7 @@ test_that("a tree's depth reaches its refits, however the fit set its controls",
     res <- tune_logo_cv(
       fit,
       data.frame(depth = c(1, 3)),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -3207,11 +3231,11 @@ test_that("a tree's depth reaches its refits, however the fit set its controls",
     own <- tune_logo_cv(
       fit,
       data.frame(depth = 2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
-    plain <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+    plain <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
     expect_identical(own$estimates, plain$estimates)
     expect_identical(own$scores, plain$scores)
   }
@@ -3219,12 +3243,12 @@ test_that("a tree's depth reaches its refits, however the fit set its controls",
 
 test_that("a tree's or a forest's grid may hold only its own columns", {
   skip_if_not_installed("randomForest")
-  tree <- rpart::rpart(fml, data = tuning, method = "class")
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class")
   expect_error(
     tune_logo_cv(
       tree,
       data.frame(depth = 1, n_iter = 5),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -3237,7 +3261,7 @@ test_that("a tree's or a forest's grid may hold only its own columns", {
     tune_logo_cv(
       forest,
       data.frame(depth = 2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -3248,24 +3272,24 @@ test_that("a tree's or a forest's grid may hold only its own columns", {
 
 test_that("a tree, a forest and other objects refuse nested = TRUE", {
   skip_if_not_installed("randomForest")
-  tree <- rpart::rpart(fml, data = tuning, method = "class")
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class")
   set.seed(1)
   forest <- fit_forest()
   # the default method: a fit the package does not tune, and no fit at all
-  linear <- lm(n.o ~ power.o, data = tuning)
+  linear <- lm(n.o ~ power.o, data = df_noholz)
   grids <- list(
     data.frame(depth = 1:2),
     data.frame(mtry = 1:2),
     data.frame(n_iter = 1:2),
     data.frame(n_iter = 1:2)
   )
-  fits <- list(tree, forest, linear, tuning)
+  fits <- list(tree, forest, linear, df_noholz)
   for (k in seq_along(fits)) {
     expect_error(
       tune_logo_cv(
         fits[[k]],
         grids[[k]],
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         nested = TRUE,
         verbose = FALSE
@@ -3282,7 +3306,7 @@ test_that("a tree, a forest and other objects refuse nested = TRUE", {
     tune_logo_cv(
       linear,
       grids[[3]],
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -3298,13 +3322,13 @@ test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
     "^`nested = TRUE` is currently only supported with fits from ",
     "adaboost\\(\\) and xgboost\\(\\)\\.$"
   )
-  tree <- rpart::rpart(fml, data = tuning, method = "class")
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class")
   expect_identical(read_nested_errors(tree, data.frame(depth = 1:2)), flag)
   expect_error(
     tune_logo_cv(
       tree,
       data.frame(depth = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       verbose = FALSE
@@ -3320,7 +3344,7 @@ test_that("a tree's or a forest's `nested` must be TRUE or FALSE", {
     tune_logo_cv(
       forest,
       data.frame(mtry = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       verbose = FALSE
@@ -3337,7 +3361,7 @@ test_that("the forest tuner refuses an argument it does not take", {
     tune_logo_cv(
       forest,
       data.frame(mtry = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       ntree = 50,
       verbose = FALSE
@@ -3358,7 +3382,7 @@ test_that("the forest tuner hands the lowered cores to run_tasks()", {
         tune_logo_cv(
           forest,
           data.frame(mtry = 1:2),
-          data = tuning,
+          data = df_noholz,
           group = "pid",
           cores = 8,
           verbose = FALSE
@@ -3380,12 +3404,12 @@ test_that("the forest tuner sets one seed per fold, drawn from the session", {
   grid <- data.frame(mtry = c(1, 3), maxnodes = c(4, NA))
   set.seed(5)
   res <- muffle_partial_matching(
-    tune_logo_cv(forest, grid, data = tuning, group = "pid", verbose = FALSE)
+    tune_logo_cv(forest, grid, data = df_noholz, group = "pid", verbose = FALSE)
   )
   expect_equal(res$model, "rf")
 
   # by hand: the seeds first, then each fold's forest after its fold's seed
-  folds <- unique(tuning$pid)
+  folds <- unique(df_noholz$pid)
   set.seed(5)
   seeds <- sample.int(.Machine$integer.max, length(folds))
   by_hand <- function(...) {
@@ -3393,11 +3417,11 @@ test_that("the forest tuner sets one seed per fold, drawn from the session", {
       set.seed(seeds[j])
       refit <- muffle_partial_matching(randomForest::randomForest(
         fml,
-        data = tuning[tuning$pid != folds[j], ],
+        data = df_noholz[df_noholz$pid != folds[j], ],
         ntree = 25,
         ...
       ))
-      test <- tuning[tuning$pid == folds[j], ]
+      test <- df_noholz[df_noholz$pid == folds[j], ]
       unname(predict(refit, test, type = "prob")[, 2])
     }))
   }
@@ -3413,7 +3437,7 @@ test_that("the forest tuner sets one seed per fold, drawn from the session", {
     tune_logo_cv(
       forest,
       grid[2, ],
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -3426,7 +3450,7 @@ test_that("nodesize and ntree in a forest's grid reach the refit", {
   skip_if_not_installed("randomForest")
   set.seed(1)
   forest <- fit_forest()
-  folds <- unique(tuning$pid)
+  folds <- unique(df_noholz$pid)
   # by hand, with the tuner's seeds: one per fold, drawn after set.seed(5)
   by_hand <- function(...) {
     set.seed(5)
@@ -3435,10 +3459,10 @@ test_that("nodesize and ntree in a forest's grid reach the refit", {
       set.seed(seeds[j])
       refit <- muffle_partial_matching(randomForest::randomForest(
         fml,
-        data = tuning[tuning$pid != folds[j], ],
+        data = df_noholz[df_noholz$pid != folds[j], ],
         ...
       ))
-      test <- tuning[tuning$pid == folds[j], ]
+      test <- df_noholz[df_noholz$pid == folds[j], ]
       unname(predict(refit, test, type = "prob")[, 2])
     }))
   }
@@ -3451,7 +3475,13 @@ test_that("nodesize and ntree in a forest's grid reach the refit", {
     row[[column]] <- changes[[column]][[1L]]
     set.seed(5)
     res <- muffle_partial_matching(
-      tune_logo_cv(forest, row, data = tuning, group = "pid", verbose = FALSE)
+      tune_logo_cv(
+        forest,
+        row,
+        data = df_noholz,
+        group = "pid",
+        verbose = FALSE
+      )
     )
     want <- do.call(by_hand, utils::modifyList(base_args, changes[[column]]))
     expect_identical(res$scores$score, want, label = column)
@@ -3470,7 +3500,7 @@ test_that("the forest tuner repeats after set.seed(), at any number of cores", {
     res <- muffle_partial_matching(tune_logo_cv(
       forest,
       grid,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = cores,
       verbose = FALSE
@@ -3494,7 +3524,7 @@ test_that("on Windows, the forest tuner repeats one core, whatever the RNG kind"
     res <- muffle_partial_matching(tune_logo_cv(
       forest,
       data.frame(mtry = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = cores,
       verbose = FALSE
@@ -3525,14 +3555,14 @@ test_that("the forest tuner leaves the session's stream just past its seeds", {
   forest <- fit_forest()
   # the stream right after the tuner's draw of one seed per fold
   set.seed(5)
-  sample.int(.Machine$integer.max, length(unique(tuning$pid)))
+  sample.int(.Machine$integer.max, length(unique(df_noholz$pid)))
   past_seeds <- get(".Random.seed", envir = globalenv())
   run <- function(cores) {
     set.seed(5)
     muffle_partial_matching(tune_logo_cv(
       forest,
       data.frame(mtry = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = cores,
       verbose = FALSE
@@ -3552,20 +3582,22 @@ test_that("logo_cv() on a forest still draws from the session's stream", {
   set.seed(3)
   res <- muffle_partial_matching(logo_cv(
     forest,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   ))
   after_res <- get(".Random.seed", envir = globalenv())
 
   set.seed(3)
-  by_hand <- unlist(lapply(unique(tuning$pid), function(fold) {
+  by_hand <- unlist(lapply(unique(df_noholz$pid), function(fold) {
     refit <- muffle_partial_matching(randomForest::randomForest(
       fml,
-      data = tuning[tuning$pid != fold, ],
+      data = df_noholz[df_noholz$pid != fold, ],
       ntree = 25
     ))
-    unname(predict(refit, tuning[tuning$pid == fold, ], type = "prob")[, 2])
+    unname(predict(refit, df_noholz[df_noholz$pid == fold, ], type = "prob")[,
+      2
+    ])
   }))
   expect_identical(res$scores$score, by_hand)
   expect_identical(get(".Random.seed", envir = globalenv()), after_res)
@@ -3602,13 +3634,13 @@ test_that("a forest's refits mute randomForest's own partial match", {
   on.exit(options(old), add = TRUE)
   # the warning randomForest() gives from its own code
   expect_warning(
-    randomForest::randomForest(fml, data = tuning, ntree = 5),
+    randomForest::randomForest(fml, data = df_noholz, ntree = 5),
     "partial argument match of 'along' to 'along.with'",
     fixed = TRUE
   )
   expect_no_warning(logo_cv(
     forest,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   ))
@@ -3616,7 +3648,7 @@ test_that("a forest's refits mute randomForest's own partial match", {
     tune_logo_cv(
       forest,
       data.frame(mtry = 1:2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     )
@@ -3632,7 +3664,7 @@ test_that("another warning in a forest's refit still reaches the user", {
   set.seed(1)
   forest <- muffle_partial_matching(randomForest::randomForest(
     formula,
-    data = tuning,
+    data = df_noholz,
     ntree = 25,
     nodesize = choose_nodesize()
   ))
@@ -3645,11 +3677,11 @@ test_that("another warning in a forest's refit still reaches the user", {
   }
   withCallingHandlers(
     {
-      logo_cv(forest, data = tuning, group = "pid", verbose = FALSE)
+      logo_cv(forest, data = df_noholz, group = "pid", verbose = FALSE)
       tune_logo_cv(
         forest,
         data.frame(mtry = 1:2),
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         verbose = FALSE
       )
@@ -3661,7 +3693,7 @@ test_that("another warning in a forest's refit still reaches the user", {
     warned,
     rep(
       "partial argument match of 'len' to 'length.out'",
-      3L * length(unique(tuning$pid))
+      3L * length(unique(df_noholz$pid))
     )
   )
 })
@@ -3672,11 +3704,11 @@ test_that("print() and summary() show a tree's or a forest's own settings", {
   statistics <- c("mean", "sd", "lower", "min", "max")
 
   # the grid's column, then the fit's depth; n_iter and eta are all NA
-  tree <- rpart::rpart(fml, data = tuning, method = "class", maxdepth = 3)
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class", maxdepth = 3)
   res_tree <- tune_logo_cv(
     tree,
     data.frame(cp = c(0, 0.01)),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -3696,7 +3728,7 @@ test_that("print() and summary() show a tree's or a forest's own settings", {
   res_rf <- muffle_partial_matching(tune_logo_cv(
     forest,
     data.frame(mtry = 1:2),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   ))
@@ -3720,8 +3752,8 @@ xgb_predictors <- all.vars(fml)[-1L]
 # a small XGBoost fit on the tuning projects; `...` reaches xgboost()
 fit_xgb <- function(nrounds = 5, ...) {
   xgboost::xgboost(
-    x = tuning[, xgb_predictors],
-    y = tuning$replicate,
+    x = df_noholz[, xgb_predictors],
+    y = df_noholz$replicate,
     nrounds = nrounds,
     nthreads = 1,
     ...
@@ -3747,7 +3779,7 @@ test_that("logo_cv() on an XGBoost fit equals LOGO-CV by hand", {
   fit <- fit_xgb(nrounds = 4, max_depth = 2, learning_rate = 0.5)
   res <- logo_cv(
     fit,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     outcome = "replicate",
     verbose = FALSE
@@ -3756,7 +3788,7 @@ test_that("logo_cv() on an XGBoost fit equals LOGO-CV by hand", {
   expect_equal(res$model, "xgboost")
   expect_identical(
     res$scores$score,
-    xgb_by_hand(tuning, nrounds = 4, max_depth = 2, learning_rate = 0.5)
+    xgb_by_hand(df_noholz, nrounds = 4, max_depth = 2, learning_rate = 0.5)
   )
   # the fit's own setting, read off its parameters and xgboost's defaults
   expect_equal(
@@ -3794,7 +3826,7 @@ test_that("each XGBoost grid column reaches its xgboost() argument", {
     reg_lambda = 1,
     nrounds = 3
   )
-  base_scores <- do.call(xgb_by_hand, c(list(tuning), base_args))
+  base_scores <- do.call(xgb_by_hand, c(list(df_noholz), base_args))
   changes <- list(
     depth = list(max_depth = 4),
     eta = list(learning_rate = 0.05),
@@ -3810,7 +3842,7 @@ test_that("each XGBoost grid column reaches its xgboost() argument", {
       res <- tune_logo_cv(
         fit,
         row,
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         outcome = "replicate",
         verbose = FALSE
@@ -3818,7 +3850,7 @@ test_that("each XGBoost grid column reaches its xgboost() argument", {
     )
     by_hand <- do.call(
       xgb_by_hand,
-      c(list(tuning), utils::modifyList(base_args, changes[[column]]))
+      c(list(df_noholz), utils::modifyList(base_args, changes[[column]]))
     )
     expect_identical(res$scores$score, by_hand, label = column)
     # so the setting changed the fit
@@ -3838,7 +3870,7 @@ test_that("the XGBoost tuner equals one logo_cv() per setting", {
   res <- tune_logo_cv(
     fit_xgb(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     outcome = "replicate",
     verbose = FALSE
@@ -3853,7 +3885,7 @@ test_that("the XGBoost tuner equals one logo_cv() per setting", {
     )
     one <- logo_cv(
       own,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "replicate",
       verbose = FALSE
@@ -3874,7 +3906,7 @@ test_that("XGBoost rows that differ only in n_iter read one fit's rounds", {
     res <- tune_logo_cv(
       fit,
       data.frame(n_iter = c(2, 6)),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = TRUE,
       outcome = "replicate"
@@ -3884,9 +3916,9 @@ test_that("XGBoost rows that differ only in n_iter read one fit's rounds", {
     read_lines(err)[1],
     paste0(
       "Start the search: 2 settings, ",
-      length(unique(tuning$pid)),
+      length(unique(df_noholz$pid)),
       " folds, ",
-      length(unique(tuning$pid)),
+      length(unique(df_noholz$pid)),
       " fits"
     )
   )
@@ -3896,14 +3928,14 @@ test_that("XGBoost rows that differ only in n_iter read one fit's rounds", {
   alone <- tune_logo_cv(
     fit,
     data.frame(n_iter = 2),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     outcome = "replicate",
     verbose = FALSE
   )
   expect_identical(short, alone$scores$score)
-  expect_identical(short, xgb_by_hand(tuning, nrounds = 2))
-  expect_identical(long, xgb_by_hand(tuning, nrounds = 6))
+  expect_identical(short, xgb_by_hand(df_noholz, nrounds = 2))
+  expect_identical(long, xgb_by_hand(df_noholz, nrounds = 6))
   expect_false(identical(short, long))
 })
 
@@ -3914,7 +3946,7 @@ test_that("an XGBoost grid's missing columns take the fit's own values", {
   res <- tune_logo_cv(
     fit,
     data.frame(lambda = c(1, 5)),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     outcome = "replicate",
     verbose = FALSE
@@ -3933,16 +3965,16 @@ test_that("an XGBoost grid's missing columns take the fit's own values", {
   expect_identical(res$grid$eta, c(0.3, 0.3))
   expect_identical(
     res$scores$score[res$scores$setting == 1],
-    xgb_by_hand(tuning, nrounds = 3, max_depth = 2)
+    xgb_by_hand(df_noholz, nrounds = 3, max_depth = 2)
   )
   expect_identical(
     res$scores$score[res$scores$setting == 2],
-    xgb_by_hand(tuning, nrounds = 3, max_depth = 2, reg_lambda = 5)
+    xgb_by_hand(df_noholz, nrounds = 3, max_depth = 2, reg_lambda = 5)
   )
   # a rate the fit was given is kept as given
   given <- logo_cv(
     fit_xgb(learning_rate = 0.05),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     outcome = "replicate",
     verbose = FALSE
@@ -3954,7 +3986,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
   skip_if_not_installed("xgboost", "3.0.0")
   fit <- fit_xgb()
   expect_error(
-    logo_cv(fit, data = tuning, group = "pid", verbose = FALSE),
+    logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE),
     "`outcome` is missing. An XGBoost fit keeps no formula",
     fixed = TRUE
   )
@@ -3962,7 +3994,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
     tune_logo_cv(
       fit,
       data.frame(n_iter = 2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       verbose = FALSE
     ),
@@ -3972,7 +4004,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = c("replicate", "pid"),
       verbose = FALSE
@@ -3983,7 +4015,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "nope",
       verbose = FALSE
@@ -3998,7 +4030,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "n.o",
       verbose = FALSE
@@ -4006,7 +4038,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
     levels_message,
     fixed = TRUE
   )
-  reversed <- tuning
+  reversed <- df_noholz
   reversed$replicate <- factor(
     reversed$replicate,
     levels = c("success", "failure")
@@ -4026,7 +4058,7 @@ test_that("an XGBoost fit needs `outcome`, naming the fit's two-level factor", {
 
 test_that("each check of an XGBoost fit gives its message", {
   skip_if_not_installed("xgboost", "3.0.0")
-  run <- function(fit, data = tuning) {
+  run <- function(fit, data = df_noholz) {
     logo_cv(
       fit,
       data = data,
@@ -4037,8 +4069,8 @@ test_that("each check of an XGBoost fit gives its message", {
   }
   # three levels: multi:softprob, not a probability of the second level
   three <- xgboost::xgboost(
-    x = tuning[, xgb_predictors],
-    y = factor(rep(c("a", "b", "c"), length.out = nrow(tuning))),
+    x = df_noholz[, xgb_predictors],
+    y = factor(rep(c("a", "b", "c"), length.out = nrow(df_noholz))),
     nrounds = 2,
     nthreads = 1
   )
@@ -4048,20 +4080,20 @@ test_that("each check of an XGBoost fit gives its message", {
     fixed = TRUE
   )
   unnamed <- xgboost::xgboost(
-    x = unname(as.matrix(tuning[, xgb_predictors])),
-    y = tuning$replicate,
+    x = unname(as.matrix(df_noholz[, xgb_predictors])),
+    y = df_noholz$replicate,
     nrounds = 2,
     nthreads = 1
   )
   expect_error(run(unnamed), "`x` has no feature names.", fixed = TRUE)
   expect_error(
-    run(fit_xgb(), data = tuning[setdiff(names(tuning), "n.o")]),
+    run(fit_xgb(), data = df_noholz[setdiff(names(df_noholz), "n.o")]),
     "`data` lacks the fit's predictor column(s): n.o.",
     fixed = TRUE
   )
 
   # arguments a refit from the stored parameters would drop
-  n <- nrow(tuning)
+  n <- nrow(df_noholz)
   expect_error(
     run(fit_xgb(weights = rep(1, n))),
     "`x` was fitted with `weights`, which its stored parameters do not keep",
@@ -4096,7 +4128,7 @@ test_that("an XGBoost fit refuses what it cannot honor", {
     tune_logo_cv(
       fit,
       data.frame(n_iter = 2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       outcome = "replicate",
@@ -4108,7 +4140,7 @@ test_that("an XGBoost fit refuses what it cannot honor", {
     tune_logo_cv(
       fit,
       data.frame(n_iter = 2:3),
-      data = tuning[tuning$pid %in% c("ml1", "ml3"), ],
+      data = df_noholz[df_noholz$pid %in% c("ml1", "ml3"), ],
       group = "pid",
       nested = TRUE,
       outcome = "replicate",
@@ -4120,7 +4152,7 @@ test_that("an XGBoost fit refuses what it cannot honor", {
     tune_logo_cv(
       fit,
       data.frame(mtry = 1),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "replicate",
       verbose = FALSE
@@ -4135,7 +4167,7 @@ test_that("an XGBoost fit refuses what it cannot honor", {
     tune_logo_cv(
       fit,
       data.frame(n_iter = 2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "replicate",
       n_iter = 5,
@@ -4147,7 +4179,7 @@ test_that("an XGBoost fit refuses what it cannot honor", {
   expect_error(
     logo_cv(
       fit,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "replicate",
       grid = 1,
@@ -4161,15 +4193,15 @@ test_that("an XGBoost fit refuses what it cannot honor", {
   booster <- xgboost::xgb.train(
     params = list(objective = "binary:logistic", nthread = 1),
     data = xgboost::xgb.DMatrix(
-      as.matrix(tuning[, xgb_predictors]),
-      label = as.integer(tuning$replicate == "success")
+      as.matrix(df_noholz[, xgb_predictors]),
+      label = as.integer(df_noholz$replicate == "success")
     ),
     nrounds = 2
   )
   expect_error(
     logo_cv(
       booster,
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "replicate",
       verbose = FALSE
@@ -4181,7 +4213,7 @@ test_that("an XGBoost fit refuses what it cannot honor", {
     tune_logo_cv(
       booster,
       data.frame(n_iter = 2),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       outcome = "replicate",
       verbose = FALSE
@@ -4204,7 +4236,7 @@ test_that("an XGBoost fit's `nested` must be TRUE or FALSE", {
   plain <- tune_logo_cv(
     fit,
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = FALSE,
     outcome = "replicate",
@@ -4214,14 +4246,14 @@ test_that("an XGBoost fit's `nested` must be TRUE or FALSE", {
   nested <- tune_logo_cv(
     fit,
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     outcome = "replicate",
     verbose = FALSE
   )
   expect_true(nested$nested)
-  expect_equal(nrow(nested$selected), length(unique(tuning$pid)))
+  expect_equal(nrow(nested$selected), length(unique(df_noholz$pid)))
 })
 
 test_that("bad `metric` and `sort_by` stop an XGBoost search before any fit", {
@@ -4324,13 +4356,13 @@ test_that("the methods work on a nested XGBoost result", {
   res <- tune_logo_cv(
     fit_xgb(),
     xgb_nested_grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     outcome = "replicate",
     verbose = FALSE
   )
-  projects <- unique(as.character(tuning$pid))
+  projects <- unique(as.character(df_noholz$pid))
   # the table: a header line, then one line per project
   n <- length(projects)
   below <- 9L + n
@@ -4419,7 +4451,7 @@ test_that("a nested XGBoost search gives the same at any number of cores", {
     tune_logo_cv(
       fit_xgb(),
       expand.grid(depth = 1:2, n_iter = c(2, 4)),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       nested = TRUE,
       cores = cores,
@@ -4432,7 +4464,7 @@ test_that("a nested XGBoost search gives the same at any number of cores", {
 
 test_that("an XGBoost held-out group of one row keeps a column per setting", {
   skip_if_not_installed("xgboost", "3.0.0")
-  data <- tuning
+  data <- df_noholz
   data$part <- "train"
   data$part[1] <- "solo"
   fit <- fit_xgb()
@@ -4479,7 +4511,7 @@ test_that("the XGBoost tuner gives the same at any number of cores", {
     tune_logo_cv(
       fit_xgb(),
       expand.grid(depth = 1:2, n_iter = c(2, 4)),
-      data = tuning,
+      data = df_noholz,
       group = "pid",
       cores = cores,
       outcome = "replicate",
@@ -4502,7 +4534,7 @@ test_that("the XGBoost tuner hands the lowered cores to run_tasks()", {
       tune_logo_cv(
         fit,
         data.frame(n_iter = c(2, 4)),
-        data = tuning,
+        data = df_noholz,
         group = "pid",
         cores = 8,
         outcome = "replicate",
@@ -4532,7 +4564,7 @@ test_that("print() and summary() show an XGBoost fit's five settings", {
   res <- tune_logo_cv(
     fit_xgb(),
     data.frame(depth = 1:2),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     outcome = "replicate",
     verbose = FALSE
@@ -4608,9 +4640,9 @@ boot_by_project <- function(n_resample = 200) {
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
   out <- list()
-  for (rp in unique(tuning$pid)) {
-    tr <- tuning[tuning$pid != rp, ]
-    te <- tuning[tuning$pid == rp, ]
+  for (rp in unique(df_noholz$pid)) {
+    tr <- df_noholz[df_noholz$pid != rp, ]
+    te <- df_noholz[df_noholz$pid == rp, ]
     fit <- rpart::rpart(
       replicate ~ .,
       data = tr[, voinms],
@@ -4651,7 +4683,7 @@ test_that("bootstrap() keeps the draws so any level can be asked for later", {
 })
 
 test_that("plot.logo_cv() draws with and without intervals", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
 
   pf <- tempfile(fileext = ".png")
   png(pf)
@@ -4683,7 +4715,7 @@ test_that("plot.logo_cv() draws with and without intervals", {
 })
 
 test_that("plot.logo_cv() opens no device for an argument it cannot draw", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   # intervals, so the levels are used
   boot <- res
   boot$ci <- boot_by_project(n_resample = 20)
@@ -4744,7 +4776,7 @@ test_that("plot.logo_cv() opens no device for an argument it cannot draw", {
 })
 
 test_that("plot.logo_cv() returns its input invisibly", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   png(tempfile(fileext = ".png"))
   out <- withVisible(plot(res))
   dev.off()
@@ -4754,7 +4786,7 @@ test_that("plot.logo_cv() returns its input invisibly", {
 
 test_that("plot.logo_cv() keys the intervals only when it has them, starring none", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   boot <- res
   boot$ci <- boot_by_project()
   # pdftotext prints UTF-8 and pdf() draws a hyphen as a minus sign, so match
@@ -4812,14 +4844,14 @@ test_that("the fit's control reaches every refit", {
   # loosening them on the fit has to change the result -- for a plain tree and
   # for adaboost's base learners alike.
   au <- function(fit) {
-    res <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+    res <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
     summary(res, metric = "auroc")$mean
   }
 
-  tree <- rpart::rpart(fml, data = tuning, method = "class", maxdepth = 4)
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class", maxdepth = 4)
   loose_tree <- rpart::rpart(
     fml,
-    data = tuning,
+    data = df_noholz,
     method = "class",
     maxdepth = 4,
     minsplit = 5,
@@ -4832,9 +4864,9 @@ test_that("the fit's control reaches every refit", {
   )))
 
   # and the tree's refit is its own call run again on the training rows
-  train <- tuning[tuning$pid != "eerp", ]
-  test <- tuning[tuning$pid == "eerp", ]
-  res <- logo_cv(loose_tree, data = tuning, group = "pid", verbose = FALSE)
+  train <- df_noholz[df_noholz$pid != "eerp", ]
+  test <- df_noholz[df_noholz$pid == "eerp", ]
+  res <- logo_cv(loose_tree, data = df_noholz, group = "pid", verbose = FALSE)
   by_hand <- rpart::rpart(
     fml,
     data = train,
@@ -4854,8 +4886,8 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
   # the default control is shared, so going through logo_cv() and calling
   # adaboost() by hand must fit the same trees on the same fold
   voi <- c("replicate", "power.o", "effect_size.o", "n.o", "p_value.o")
-  train <- tuning[tuning$pid != "eerp", voi]
-  test <- tuning[tuning$pid == "eerp", voi]
+  train <- df_noholz[df_noholz$pid != "eerp", voi]
+  test <- df_noholz[df_noholz$pid == "eerp", voi]
 
   by_hand <- rpart::rpart(
     fml,
@@ -4877,7 +4909,7 @@ test_that("adaboost's base learners match a direct adaboost() fit", {
 
   res <- logo_cv(
     fit_ada(n_iter = 10),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -4887,7 +4919,7 @@ test_that("the learner's control reaches every boosted tree", {
   # the point of taking a fitted tree: what the caller set is what gets boosted,
   # and only the two speed controls are overridden
   voi <- c("replicate", "power.o", "effect_size.o", "n.o", "p_value.o")
-  d <- tuning[, voi]
+  d <- df_noholz[, voi]
 
   h <- rpart::rpart(
     fml,
@@ -4936,7 +4968,7 @@ test_that("model weights stay finite when a base learner refuses to split", {
   voi <- c("replicate", "power.o", "effect_size.o", "n.o", "p_value.o")
   fit <- rpart::rpart(
     fml,
-    data = tuning[, voi],
+    data = df_noholz[, voi],
     maxdepth = 1,
     model = TRUE
   ) |>
@@ -4954,17 +4986,17 @@ test_that("logo_cv() on an adaboost fit equals tune_logo_cv() with the fit's own
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   h <- rpart::rpart(
     replicate ~ .,
-    data = tuning[, c(prednms, "replicate")],
+    data = df_noholz[, c(prednms, "replicate")],
     maxdepth = 1,
     model = TRUE
   )
   fit <- adaboost(h, n_iter = 5, eta = 0.5, verbose = FALSE)
 
-  from_fit <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
+  from_fit <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
   from_grid <- tune_logo_cv(
     fit,
     grid = data.frame(depth = 1, n_iter = 5, eta = 0.5),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -4979,7 +5011,7 @@ test_that("logo_cv() on an adaboost fit equals tune_logo_cv() with the fit's own
   # the `.` of the learner's formula reads the same columns as the names
   spelled_out <- logo_cv(
     fit_ada(eta = 0.5),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -4991,7 +5023,7 @@ test_that("logo_cv() refits the fit's split rule, not the default", {
   fit_split <- function(rule) {
     rpart::rpart(
       replicate ~ .,
-      data = tuning[, c(prednms, "replicate")],
+      data = df_noholz[, c(prednms, "replicate")],
       maxdepth = 2,
       parms = list(split = rule),
       model = TRUE
@@ -5000,13 +5032,13 @@ test_that("logo_cv() refits the fit's split rule, not the default", {
   }
   info <- logo_cv(
     fit_split("information"),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
   gini <- logo_cv(
     fit_split("gini"),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -5016,14 +5048,14 @@ test_that("logo_cv() refits the fit's split rule, not the default", {
 
 test_that("logo_cv() keeps the held-out scores of every fold", {
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
 
-  expect_equal(nrow(res$scores), nrow(tuning))
+  expect_equal(nrow(res$scores), nrow(df_noholz))
   expect_setequal(unique(res$scores$project), res$projects$project)
 
   # the ssrp scores are what a manual refit on the other projects predicts
-  tr <- tuning[tuning$pid != "ssrp", ]
-  te <- tuning[tuning$pid == "ssrp", ]
+  tr <- df_noholz[df_noholz$pid != "ssrp", ]
+  te <- df_noholz[df_noholz$pid == "ssrp", ]
   manual <- rpart::rpart(
     replicate ~ .,
     data = tr[, c(prednms, "replicate")],
@@ -5039,7 +5071,7 @@ test_that("logo_cv() keeps the held-out scores of every fold", {
 })
 
 test_that("bootstrap() on logo_cv equals the per-project loop", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
 
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 50))
@@ -5061,7 +5093,7 @@ test_that("bootstrap() on logo_cv equals the per-project loop", {
 })
 
 test_that("bootstrap() names the project in its warnings", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   set.seed(3)
   warning_texts <- capture_warnings(
     bootstrap(res, n_resample = 50, stratified = TRUE)
@@ -5074,7 +5106,7 @@ test_that("bootstrap() names the project in its warnings", {
 })
 
 test_that("bootstrap() reports a project's rejected resamples by name", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   set.seed(3)
   warning_texts <- capture_warnings(bootstrap(res, n_resample = 50))
   # it informs and gives no advice
@@ -5092,7 +5124,7 @@ test_that("bootstrap() on logo_cv needs one setting and stored scores", {
   res <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
@@ -5114,7 +5146,7 @@ test_that("bootstrap() on logo_cv needs one setting and stored scores", {
 test_that("bootstrap() keeps the holdout of a logo_cv result", {
   res <- logo_cv(
     fit_ada(),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     holdout = c("rpp", "ssrp"),
     verbose = FALSE
@@ -5130,12 +5162,12 @@ test_that("nested tune_logo_cv keeps the chosen setting's scores and bootstraps"
   res <- tune_logo_cv(
     fit_ada(),
     grid,
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     nested = TRUE,
     verbose = FALSE
   )
-  expect_equal(nrow(res$scores), nrow(tuning))
+  expect_equal(nrow(res$scores), nrow(df_noholz))
   set.seed(3)
   boot <- suppressWarnings(bootstrap(res, n_resample = 20))
   expect_named(boot$ci, res$projects$project)
@@ -5169,7 +5201,7 @@ test_that("every reference line has a key in sentence case", {
 })
 
 test_that("every patk budget gets the base-rate floor, not only the default", {
-  res <- logo_cv(fit_ada(), data = tuning, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit_ada(), data = df_noholz, group = "pid", verbose = FALSE)
   calls <- function(...) {
     pdf(NULL)
     on.exit(dev.off())
@@ -5185,7 +5217,7 @@ test_that("every patk budget gets the base-rate floor, not only the default", {
 test_that("the y-axis keeps its tick at 1 and draws none above", {
   res <- logo_cv(
     fit_ada(n_iter = 50),
-    data = tuning,
+    data = df_noholz,
     group = "pid",
     verbose = FALSE
   )
