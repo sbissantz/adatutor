@@ -294,7 +294,7 @@ For applied work, we recommend `partition()` over the code of Listings 4 to 8. `
 
 #### Figure 1 
 
-Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Reproducibility Project: Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Sciences Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. (HOLZ, 26), is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. Each project keeps its color along its row: the dark box in each column is the test set, and the pale boxes are the training set. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
+Leave-one-group-out cross-validation (LOGO-CV), with the replication projects as the groups. From left to right, the data are first divided into six projects: Many Labs 1 (ML1, 13 study effects), the Reproducibility Project: Psychology (RPP, 90), Many Labs 3 (ML3, 10), the Experimental Economics Replication Project (EERP, 18), the Social Sciences Replication Project (SSRP, 21), and Many Labs 2 (ML2, 24), 176 study effects in all. A seventh project, the decision-market replications of Holzmeister et al. (HOLZ, 26), is held back for the final test and takes no part in the cross-validation. Row heights are proportional to project size, but no row is shorter than 6% of the total height, so ML3 appears slightly larger than its share. Each project keeps its color along its row: the first column shows each project in its full color, and in each iteration column the full-color box is the test set and the pale boxes are the training set. In Iteration 1, ML1 is the test set, and the model is trained on the other five projects. After training, the model is evaluated on the held-out ML1 study effects. The same steps are repeated with each of the other projects as the test set (Iterations 2--6), which yields six performance estimates. It is tempting to summarize them in a single number, but taken together, they give a richer picture of how well the model carries over to a new project.
 
 ```{r figure-1}
 tutplot_logoscheme(
@@ -452,7 +452,7 @@ tutplot_gini(x_seq = seq(0, 1, by = 0.01), lwd = 2)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- Drawn by `tutplot_gini()`: one viridis color and a grid, as in Figures 6 and 7.
+- Drawn by `tutplot_gini()`: one viridis color and a grid, as in Figure 6.
 :::
 
 #### Listing 14
@@ -714,7 +714,7 @@ alpha1 <- 0.5 * log(perf / epsilon) * eta
 
 #### Figure 6
 
-The model weight of a classification stump ($\alpha_t$) as a function of its performance ($1-\epsilon_t$), for three learning rates ($\eta$). The better a stump performs, the larger its weight; equivalently, the lower its error ($\epsilon_t$), the larger its weight. The learning rate scales the weight: $\eta = 1$ leaves it as it is, smaller values shrink it. The dot marks the first stump of Listing 22, with a performance of 0.730 and a model weight of 0.499. Module 7 shows how to choose the learning rate.
+The model weight of a classification stump ($\alpha_t$) as a function of its performance ($1-\epsilon_t$), for three learning rates ($\eta$). The better a stump performs, the larger its weight; equivalently, the lower its error ($\epsilon_t$), the larger its weight. The learning rate scales the weight: $\eta = 1$ leaves it as it is, smaller values shrink it. The three curves differ in color only; the legend above the panel names their learning rates. The dot marks the first stump of Listing 22, with a performance of 0.730 and a model weight of 0.499. Module 7 shows how to choose the learning rate.
 
 <!-- check the module numbers after the module split -->
 
@@ -725,6 +725,7 @@ tutplot_modelweight(eta = c(1, 0.5, 0.1), marked_perf = perf)
 
 ::: {.callout-important title="Changed since submission"}
 - Drawn by `tutplot_modelweight()`; the dot marks the first stump (performance 0.730, model weight 0.499).
+- Three solid curves, told apart by color only (submitted: solid, dashed and dot-dashed lines in black, gray and blue).
 - "Model weight" replaces "importance" on the y-axis and in the caption: Module 4 uses "importance" for predictors.
 :::
 
@@ -752,7 +753,7 @@ D2 <- D2_raw / Z1
 
 #### Figure 7
 
-The update factor ($e^{-\alpha_t\chi_t}$) by classification result, for three model weights. A correctly classified study effect has $\chi_t = 1$, and its weight shrinks for the next round by a factor below 1 (right). A misclassified one has $\chi_t = -1$, and its weight grows by a factor above 1 (left). The heavier the model, the stronger the update in both directions. The middle curve uses the first stump's model weight of 0.499; the other two use 0.7 and 0.3. The dashed line marks a factor of 1, at which a weight stays the same. The dotted curves only join the two factors of each model weight; $\chi_t$ takes only the values $-1$ and $1$.
+The update factor ($e^{-\alpha_t\chi_t}$) by classification result, for three model weights. A correctly classified study effect has $\chi_t = 1$, and its weight shrinks for the next round by a factor below 1 (right). A misclassified one has $\chi_t = -1$, and its weight grows by a factor above 1 (left). The heavier the model, the stronger the update in both directions. The middle curve uses the first stump's model weight of 0.499; the other two use 0.7 and 0.3. The legend names the three curves "Larger $\alpha_t$", "$\alpha_1$" and "Smaller $\alpha_t$". The y-axis marks the six factors and 1; at the first stump's model weight, for example, a weight shrinks by a factor of 0.61 or grows by a factor of 1.65. The dashed line marks a factor of 1, at which a weight stays the same. The dotted curves only join the two factors of each model weight; $\chi_t$ takes only the values $-1$ and $1$.
 
 ```{r figure-7}
 # Three model weights: a heavier one, the first stump's, a lighter one
@@ -763,21 +764,24 @@ tutplot_updatefactor(alpha = alpha_int)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- The curves sit at 0.7, $\alpha_1$ (0.499) and 0.3 (submitted: 0.719, 0.619, 0.519); the legend reads $\alpha_t$.
+- The curves sit at 0.7, $\alpha_1$ (0.499) and 0.3 (submitted: 0.719, 0.619, 0.519); the legend reads "Larger $\alpha_t$", "$\alpha_1$" and "Smaller $\alpha_t$", without numbers (submitted: $a_t$ and the three numbers).
+- One dot shape for all three curves, told apart by color only (submitted: dot, triangle and square).
+- The y-axis marks the six factors and 1, with two decimals, and the grid is gone (submitted: ordinary ticks and a grid).
 :::
 
 #### Figure 8
 
-The weights of the first 25 study effects in the training set before ($D_1$, purple) and after ($D_2$, teal) the first round. The x-axis numbers the study effects by their row in the training set: a tick marks each one, and every fifth is numbered. Every initial weight is 1/141. A study effect the first stump misclassified gains weight and moves up; the others lose weight and move down. Nine of the 25 were misclassified; a dotted line joins the two weights of each study effect. The dots are sized by weight, so heavier study effects are drawn larger.
+The weights of the first 25 study effects in the training set before ($D_1$) and after ($D_2$) the first round. Each study effect has two dots: one at its initial weight and one at its weight after the first round. As in Figure 3, yellow dots are study effects that replicated and purple dots those that failed. The x-axis numbers the study effects by their row in the training set: a tick marks each one, and every fifth is numbered. Every initial weight is 1/141. The y-axis marks 0 and the three weights the dots take: 0.0049, 0.0071 (that is, 1/141) and 0.0132. A study effect the first stump misclassified gains weight and moves up; the others lose weight and move down. Nine of the 25 were misclassified, eight of them study effects that replicated; a dotted line joins the two weights of each study effect. The dots are sized by weight, so heavier study effects are drawn larger.
 
 ```{r figure-8}
 # Weights before and after round 1
-tutplot_weightupdate(d1 = D1, d2 = D2, chi = chi1)
+tutplot_weightupdate(d1 = D1, d2 = D2)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- New drawing by `tutplot_weightupdate()`: dots sized by weight, $D_1$ purple and $D_2$ teal, and no mark for the misclassified study effects, which are the dots that moved up (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified.
+- New drawing by `tutplot_weightupdate()`: dots sized by weight and filled with the observed class, yellow for success and purple for failure, as in Figure 3, and no mark for the misclassified study effects, which are the dots that moved up (submitted: gray weights with a green or red dot in the middle). On `altmext`, 9 of the first 25 are misclassified, 8 of them successes.
 - A tick marks every data point; the numbers stay at 1, 5, 10, and so on.
+- The legend names the two classes, "Success" and "Failure" (submitted: $D_1$ and $D_2$); the y-axis marks 0, 0.0049, 0.0071 and 0.0132.
 :::
 
 #### Listing 24
