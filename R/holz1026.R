@@ -15,7 +15,7 @@
 #'   authors' own indicator.
 #'
 #' @format A data frame with 26 rows (study effects) and the 7 columns of
-#'   [altmejd], `replicate` coded 0/1. `eid` carries the authors' study
+#'   [altmext], `replicate` coded 0/1. `eid` carries the authors' study
 #'   number (`holz.1` to `holz.41`).
 #'
 #' @source Holzmeister F, Johannesson M, Camerer CF, et al. (2024) Examining

@@ -116,8 +116,8 @@ prints no count; the return value holds it.
 }
 
 \examples{
-data(altmejd_splits)
-train <- altmejd_splits$train
+data(altmext_splits)
+train <- altmext_splits$train
 
 # Figure 3: the stump of Figure 2, drawn as the boundary it makes
 h <- rpart::rpart(

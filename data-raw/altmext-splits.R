@@ -2,8 +2,8 @@
 # Stratified 70/15/15 split of 'altmext'     #
 ##############################################
 
-# Needs the package itself, so run `pkgload::load_all()` first. Same call as
-# altmejd-splits.R: Listing 9 with `df <- altmext`.
+# Needs the package itself, so run `pkgload::load_all()` first. The call of
+# the tutorial's Listing 9, with `df <- altmext`.
 
 # Load data set
 data("altmext")

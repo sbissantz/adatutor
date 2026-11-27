@@ -65,16 +65,16 @@ library(adatutor)
 
 ### The Data
 
-We use a short version of the replication database of @altmejd2019, the
-dataset `altmejd`. Each of its `r nrow(altmejd)` rows is a study effect from
-one of `r length(unique(altmejd$pid))` large-scale replication projects and
-says whether that effect replicated. The dataset can be loaded with:
+We use the replication database of @altmejd2019, extended to more projects:
+the dataset `altmext`. Each of its `r nrow(altmext)` rows is a study effect
+from one of `r length(unique(altmext$pid))` large-scale replication projects
+and says whether that effect replicated. The dataset can be loaded with:
 
 ```{r}
 #| label: load-data
 # Load data
-data(altmejd)
-head(altmejd)
+data(altmext)
+head(altmext)
 ```
 
 The column `pid` names the project. The projects differ in size and in their
@@ -84,7 +84,7 @@ below:
 ```{r}
 #| label: projects
 # Replication outcomes per project
-table(altmejd$pid, altmejd$replicate)
+table(altmext$pid, altmext$replicate)
 ```
 
 ### The Names of the Predictors and the Outcome
@@ -104,20 +104,21 @@ out_nme <- "replicate"
 # Variables of interest (names)
 voi_nms <- c(pred_nms, out_nme)
 
-# Shorten 'altmejd'
-df <- altmejd
+# Shorten 'altmext'
+df <- altmext
 ```
 
 ### The Other Datasets
 
-The package ships eleven more datasets of three kinds.
+The package ships nine more datasets of three kinds.
 
-- **Study effects.** `altmext` extends `altmejd` to seven projects and is the
-  dataset of the tutorial. `altmejd723` and `ssrp723` are the two parts that
-  `altmejd` was built from. `ssrp1026`, `holz1026` and `mltwo1026` are the
-  three projects that `altmext` rebuilds or adds.
-- **Splits.** `altmejd_splits` and `altmext_splits` hold stratified
-  training, validation and test sets (see [Splitting the Data]).
+- **Study effects.** `altmext` is built from four parts. `altmejd723` holds
+  the four projects that it takes over unchanged from @altmejd2019.
+  `ssrp1026`, `holz1026` and `mltwo1026` are the three projects that it
+  rebuilds or adds. `ssrp723` is Altmejd et al.'s copy of the SSRP, which
+  `ssrp1026` replaces.
+- **Splits.** `altmext_splits` holds stratified training, validation and
+  test sets of `altmext` (see [Splitting the Data]).
 - **Results.** `hypergrid`, `benchmark` and `nested` hold results that take
   too long to compute here (see [Hyperparameter Search], [Benchmarks] and
   [Nested Leave-One-Group-Out Cross-Validation]).
@@ -128,13 +129,12 @@ The datasets of study effects differ in size and in the projects they hold:
 #| label: datasets
 # Study effects and projects in each dataset of study effects
 fx_sets <- list(
-  altmejd = altmejd,
-  altmejd723 = altmejd723,
-  ssrp723 = ssrp723,
   altmext = altmext,
+  altmejd723 = altmejd723,
   ssrp1026 = ssrp1026,
   holz1026 = holz1026,
-  mltwo1026 = mltwo1026
+  mltwo1026 = mltwo1026,
+  ssrp723 = ssrp723
 )
 data.frame(
   effects = vapply(fx_sets, nrow, integer(1)),
@@ -147,9 +147,11 @@ data.frame(
 ```
 
 The tutorial keeps one project of `altmext`, HOLZ (`holz`), back for its final
-test. So the live examples of this vignette run on `altmejd`, which does not
-hold HOLZ. Each dataset's help page, such as `?altmext`, gives its sources,
-coding and license.
+test. This vignette follows the tutorial. The splits and the models fitted on
+them use all seven projects. From [Leave-One-Group-Out Cross-Validation] on,
+HOLZ is set aside, and the examples run on the six other projects. Each
+dataset's help page, such as `?altmext`, gives its sources, coding and
+license.
 
 ## Splitting the Data
 
@@ -214,13 +216,12 @@ vapply(strat_split, nrow, integer(1))
 ### Shipped Splits
 
 A seed alone does not fix a split across R versions: R changed `sample()` in
-version 3.6.0. So the package ships the stratified 70/15/15 splits of
-`altmejd` and `altmext`, made with `partition()`:
+version 3.6.0. So the package ships the stratified 70/15/15 split of
+`altmext`, made with `partition()`, as `altmext_splits`:
 
 ```{r}
 #| label: shipped-splits
-# Set sizes of the shipped splits
-vapply(altmejd_splits, nrow, integer(1))
+# Set sizes of the shipped split
 vapply(altmext_splits, nrow, integer(1))
 ```
 
@@ -406,8 +407,8 @@ at that threshold. Next comes the precision among the top 3, the top 5 and the
 top k scores, where k is the number of actual successes. The margins of a few
 stumps tie often. When the cut falls inside a group of tied scores, the group
 counts by its share of successes (see `?patk`). So the precision among the top
-3 need not be 0, 1/3, 2/3 or 1. Last are the areas under the ROC and
-precision-recall curves, which use every threshold.
+k need not be a multiple of 1/k; `patk()` below shows a case. Last are the
+areas under the ROC and precision-recall curves, which use every threshold.
 `?assess` gives the formula of each metric and its other names; `sens`, for
 instance, is also known as recall.
 
@@ -429,7 +430,7 @@ The metrics that read the ranking also have functions of their own.
 [@grau2015]. A random ranking scores 0.5 in `auroc()`, but about the base rate
 in `auprc()`, so compare `auprc()` with the share of successes. `patk()` gives
 the precision when only the `k` highest scores count. It treats tied scores as
-above, so even `k = 1` can give a fraction:
+above, so at `k = 10` the precision can fall between 0.9 and 1:
 
 ```{r}
 #| label: ranking-metrics
@@ -511,10 +512,22 @@ with the hyperparameters and the training data.
 
 ## Leave-One-Group-Out Cross-Validation
 
-A single split gives a single estimate. The five replication projects differ
-in design and base rate, so we hold out one project at a time and train on the
-other four: leave-one-group-out cross-validation (LOGO-CV), with the projects
-as the groups.
+A single split gives a single estimate. The replication projects differ in
+design and base rate, so we hold out one project at a time and train on the
+others: leave-one-group-out cross-validation (LOGO-CV), with the projects as
+the groups.
+
+As in the tutorial, we first set HOLZ aside for a final test:
+
+```{r}
+#| label: set-aside-holz
+# Set HOLZ aside: the six tuning projects
+tuning <- df[df$pid != "holz", ]
+table(tuning$pid)
+```
+
+From here on, the examples run on these six projects, the tuning data. Each
+of them is held out once, and the model is trained on the other five.
 
 `logo_cv()` takes the fitted ensemble, reads its settings (the formula, the
 tree settings, `n_iter` and `eta`), and refits them once per project. It does
@@ -524,7 +537,7 @@ fitted model.
 ```{r}
 #| label: logo-cv
 # LOGO-CV: refit the recipe of ada_fit with each project held out
-ada_logo <- logo_cv(ada_fit, data = df, group = "pid", verbose = FALSE)
+ada_logo <- logo_cv(ada_fit, data = tuning, group = "pid", verbose = FALSE)
 
 # Results per project
 ada_logo
@@ -579,8 +592,8 @@ The printout adds each project's 95 percent interval and the number of dropped
 resamples. A resample with one class only has no AUROC, so it is dropped and
 drawn again. Small projects with few cases of one class drop many draws; ML1,
 for example, has
-`r sum(altmejd$pid == "ml1" & altmejd$replicate == "failure")` failures among
-its `r sum(altmejd$pid == "ml1")` study effects. The interval of such
+`r sum(tuning$pid == "ml1" & tuning$replicate == "failure")` failures among
+its `r sum(tuning$pid == "ml1")` study effects. The interval of such
 a project rests only on the resamples that hold both classes, so it is too
 narrow. The warning above reports the share of rejected resamples for each
 such project.
@@ -615,10 +628,10 @@ predictors:
 # LOGO-CV for a logistic regression
 logit_fit <- glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
-  data = df,
+  data = tuning,
   family = binomial
 )
-logit_logo <- logo_cv(logit_fit, data = df, group = "pid", verbose = FALSE)
+logit_logo <- logo_cv(logit_fit, data = tuning, group = "pid", verbose = FALSE)
 logit_logo
 ```
 
@@ -629,11 +642,11 @@ A single classification tree, the weak learner grown deeper:
 # LOGO-CV for a classification tree of depth 2
 tree_fit <- rpart::rpart(
   replicate ~ .,
-  data = df[, voi_nms],
+  data = tuning[, voi_nms],
   method = "class",
   maxdepth = 2
 )
-tree_logo <- logo_cv(tree_fit, data = df, group = "pid", verbose = FALSE)
+tree_logo <- logo_cv(tree_fit, data = tuning, group = "pid", verbose = FALSE)
 tree_logo
 ```
 
@@ -652,8 +665,8 @@ forest's refits, which `logo_cv()` draws from the same random-number stream:
 #| eval: !expr rf_installed
 # LOGO-CV for a random forest at its defaults
 set.seed(112)
-rf_fit <- randomForest::randomForest(replicate ~ ., data = df[, voi_nms])
-rf_logo <- logo_cv(rf_fit, data = df, group = "pid", verbose = FALSE)
+rf_fit <- randomForest::randomForest(replicate ~ ., data = tuning[, voi_nms])
+rf_logo <- logo_cv(rf_fit, data = tuning, group = "pid", verbose = FALSE)
 rf_logo
 ```
 
@@ -666,8 +679,8 @@ it with `nthreads = 1`: each refit runs on as many threads as the fit.
 #| eval: !expr xgb_installed
 # LOGO-CV for gradient boosting with XGBoost
 xgb_fit <- xgboost::xgboost(
-  x = df[, pred_nms],
-  y = df[, out_nme],
+  x = tuning[, pred_nms],
+  y = tuning[, out_nme],
   nrounds = 50,
   max_depth = 2,
   learning_rate = 0.1,
@@ -675,7 +688,7 @@ xgb_fit <- xgboost::xgboost(
 )
 xgb_logo <- logo_cv(
   xgb_fit,
-  data = df,
+  data = tuning,
   group = "pid",
   outcome = out_nme,
   verbose = FALSE
@@ -690,21 +703,21 @@ instead. A formula, for example, is not a fitted model:
 #| label: logo-cv-default
 #| error: true
 # A formula is not a fit: logo_cv() needs the fitted model
-logo_cv(replicate ~ power.o + n.o, data = df, group = "pid")
+logo_cv(replicate ~ power.o + n.o, data = tuning, group = "pid")
 ```
 
 ### One Held-Out Group
 
 `holdout` names the groups to hold out; the other groups are only ever trained
 on. With one name, `logo_cv()` makes a single split into training and test
-data. Here it trains on four projects and scores SSRP once:
+data. Here it trains on the other five tuning projects and scores SSRP once:
 
 ```{r}
 #| label: logo-cv-holdout
 # Hold out SSRP only
 ada_ssrp <- logo_cv(
   ada_fit,
-  data = df,
+  data = tuning,
   group = "pid",
   holdout = "ssrp",
   verbose = FALSE
@@ -748,7 +761,7 @@ ada_hgrid <- expand.grid(
 ada_tune <- tune_logo_cv(
   ada_fit,
   ada_hgrid,
-  data = df,
+  data = tuning,
   group = "pid",
   verbose = FALSE
 )
@@ -805,7 +818,7 @@ ada_hgrid_rnd <- ada_space[rnd_smpl, ]
 logo_rnd <- tune_logo_cv(
   ada_fit,
   ada_hgrid_rnd,
-  data = df,
+  data = tuning,
   group = "pid",
   verbose = FALSE
 )
@@ -827,7 +840,7 @@ runs on one core, the default, so the call below is shown but not run:
 ada_tune <- tune_logo_cv(
   ada_fit,
   ada_hgrid,
-  data = df,
+  data = tuning,
   group = "pid",
   cores = 2
 )
@@ -844,7 +857,7 @@ a tree, `depth` sets its `maxdepth`:
 tree_tune <- tune_logo_cv(
   tree_fit,
   data.frame(depth = 1:4),
-  data = df,
+  data = tuning,
   group = "pid",
   verbose = FALSE
 )
@@ -864,7 +877,7 @@ set.seed(112)
 rf_tune <- tune_logo_cv(
   rf_fit,
   rf_hgrid,
-  data = df,
+  data = tuning,
   group = "pid",
   verbose = FALSE
 )
@@ -882,7 +895,7 @@ for AdaBoost, and two more of its own (see `?tune_logo_cv`). As in
 xgb_tune <- tune_logo_cv(
   xgb_fit,
   expand.grid(depth = 1:2, n_iter = c(20, 50)),
-  data = df,
+  data = tuning,
   group = "pid",
   outcome = out_nme,
   verbose = FALSE
@@ -898,7 +911,7 @@ instead:
 #| label: tune-default
 #| error: true
 # A glm has nothing to tune
-tune_logo_cv(logit_fit, data.frame(depth = 1), data = df, group = "pid")
+tune_logo_cv(logit_fit, data.frame(depth = 1), data = tuning, group = "pid")
 ```
 
 ### The Shipped Grid
@@ -998,7 +1011,7 @@ XGBoost fits. It needs a grid of two or more rows and at least three groups.
 `metric` and `sort_by` set the rule by which each inner search picks; the
 defaults, `"auroc"` and `"lower"`, pick the setting with the highest mean
 AUROC minus its SD. Fix the rule in advance: it decides the choice. Here is a
-tiny grid on `altmejd`:
+tiny grid on the six tuning projects:
 
 ```{r}
 #| label: nested-live
@@ -1009,7 +1022,7 @@ ada_hgrid_nst <- expand.grid(depth = 1:2, n_iter = c(10, 25))
 ada_nested <- tune_logo_cv(
   ada_fit,
   ada_hgrid_nst,
-  data = df,
+  data = tuning,
   group = "pid",
   nested = TRUE,
   metric = "auroc",
@@ -1084,7 +1097,7 @@ xgb_hgrid <- expand.grid(
 xgb_nested <- tune_logo_cv(
   xgb_fit,
   xgb_hgrid,
-  data = df,
+  data = tuning,
   group = "pid",
   outcome = out_nme,
   nested = TRUE,

@@ -104,10 +104,11 @@ denominator is 0.
 }
 
 \examples{
-data(altmejd)
+data(altmext)
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
-train <- altmejd[altmejd$pid != "ssrp", ]
-test <- altmejd[altmejd$pid == "ssrp", ]
+# train on the six tuning projects, test on HOLZ, the project kept back
+train <- altmext[altmext$pid != "holz", ]
+test <- altmext[altmext$pid == "holz", ]
 
 h <- rpart::rpart(
   replicate ~ .,

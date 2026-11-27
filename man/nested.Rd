@@ -85,9 +85,7 @@ nested$selected
 }
 \seealso{
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
 \code{\link{benchmark}},

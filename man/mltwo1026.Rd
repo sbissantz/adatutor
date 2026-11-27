@@ -6,7 +6,7 @@
 \title{Many Labs 2}
 \format{
 A data frame with 24 rows (study effects) and the 7 columns of
-\link{altmejd}, \code{replicate} coded 0/1. \code{ml2.k} is the k-th of Many Labs 2's
+\link{altmext}, \code{replicate} coded 0/1. \code{ml2.k} is the k-th of Many Labs 2's
 analysis labels in alphabetical order (ml2.1 = Alter.1, ml2.24 =
 vanLange.1); the labels are in \code{inst/extdata/mltwo1026.csv}.
 }
@@ -55,9 +55,7 @@ Many Labs 2's data are licensed CC0 1.0
 
 \seealso{
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
 \code{\link{benchmark}},

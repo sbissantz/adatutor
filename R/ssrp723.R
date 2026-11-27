@@ -1,8 +1,7 @@
 #' Replication database, SSRP only
 #'
-#' A subset of the replication database of Altmejd et al. (2019), used only
-#' to build [altmejd]. It holds one project: the Social Sciences Replication
-#' Project (SSRP).
+#' A subset of the replication database of Altmejd et al. (2019). It holds
+#' one project: the Social Sciences Replication Project (SSRP).
 #'
 #' It departs from the SSRP's own results file in a few places: `replicate`
 #' is the first data collection's result (12 of 21) rather than the pooled
@@ -12,7 +11,7 @@
 #' SSRP's file and used in [altmext].
 #'
 #' @format A data frame with 21 rows (study effects) and the 7 columns of
-#'   [altmejd].
+#'   [altmext], `replicate` coded 0/1.
 #'
 #' @source Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
 #'   Predicting the replicability of social science lab experiments. PLOS ONE

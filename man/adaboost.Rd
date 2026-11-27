@@ -58,8 +58,8 @@ fitted with \code{weights}, and one with a \code{prior} or a \code{loss} matrix.
 }
 
 \examples{
-data(altmejd_splits)
-train <- altmejd_splits$train
+data(altmext_splits)
+train <- altmext_splits$train
 
 # fit the weak learner first; model = TRUE keeps its data
 h <- rpart::rpart(

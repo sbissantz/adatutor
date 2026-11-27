@@ -5,8 +5,7 @@
 \alias{altmext}
 \title{Altmejd et al.'s replication database, extended}
 \format{
-A data frame with 202 rows (study effects) and the 7 columns of
-\link{altmejd}:
+A data frame with 202 rows (study effects) and 7 columns:
 \itemize{
 \item \code{eid}: Effect identifier, \verb{<pid>.<number>}.
 \item \code{pid}: Project identifier: Many Labs 1 (\code{ml1}), 2 (\code{ml2}) and 3 (\code{ml3}),
@@ -34,9 +33,9 @@ data were downloaded in October 2026; each project's snapshot is in
 altmext
 }
 \description{
-Altmejd et al.'s (2019) replication database in the format of \link{altmejd},
-extended to seven large-scale replication projects: 202 study effects
-and whether each one replicated. Many Labs 1 and 3, the Replication Project
+Altmejd et al.'s (2019) replication database, extended to seven
+large-scale replication projects: 202 study effects and whether each one
+replicated. Many Labs 1 and 3, the Replication Project
 Psychology and the Experimental Economics Replication Project come from
 \link{altmejd723} unchanged. The Social Sciences Replication Project is rebuilt
 from its own results file (\link{ssrp1026}). Two projects are new: Holzmeister
@@ -55,9 +54,9 @@ in all.
 
 Things to keep in mind:
 \itemize{
-\item The SSRP rows differ from \link{altmejd}'s: the pooled outcome (13 rather than
-12 of 21 replicated), two effect sizes, three p-values and seven sample
-sizes. See \link{ssrp1026}.
+\item The SSRP rows differ from Altmejd et al.'s copy, \link{ssrp723}: the pooled
+outcome (13 rather than 12 of 21 replicated), two effect sizes, three
+p-values and seven sample sizes. See \link{ssrp1026}.
 \item Holzmeister et al.'s 26 studies were selected by a decision market (the
 12 highest-priced, the 12 lowest-priced and 2 at random), not sampled
 from a literature.
@@ -82,9 +81,7 @@ licenses: \link{ssrp1026} (CC0 1.0), \link{holz1026} (CC BY 4.0) and \link{mltwo
 
 \seealso{
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext_splits}},
 \code{\link{benchmark}},
 \code{\link{holz1026}},

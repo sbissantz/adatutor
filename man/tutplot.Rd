@@ -32,7 +32,7 @@ tutplot_gini(
 )
 
 tutplot_updatefactor(
-  alpha = c(0.719, 0.619, 0.519),
+  alpha = NULL,
   pch = c(20, 17, 15),
   lty = 3,
   lwd = 1,
@@ -57,7 +57,7 @@ tutplot_modelweight(
 )
 
 tutplot_weightupdate(
-  data = altmejd_splits$train,
+  data = adatutor::altmext_splits$train,
   d1 = NULL,
   d2 = NULL,
   chi = NULL,
@@ -130,7 +130,10 @@ between 0 and 1.}
 
 \item{lwd}{The line width.}
 
-\item{alpha}{The model weights, one curve each.}
+\item{alpha}{The model weights, one curve each. \code{NULL} (the default) draws
+the three of Figure 7: 0.7, the model weight of the tutorial's first
+stump on the training set of \link{altmext_splits}, rounded to three digits,
+and 0.3.}
 
 \item{pch}{The plotting symbols for the end points, recycled over \code{alpha}.}
 
@@ -142,13 +145,17 @@ between 0 and 1.}
 
 \item{from}{Where performance starts. The default, 0.5, is chance.}
 
-\item{marked_perf}{A performance to mark on the figure, so you can find your
-own stump. \code{NULL} draws no mark. Must be at least \code{from} and below 1.}
+\item{marked_perf}{A performance to mark on the figure, such as that of the
+reader's own stump. Must be at least \code{from} and below 1. \code{NULL} (the
+default) marks the tutorial's first stump, as Figure 6 does: its weighted
+performance on the training set of \link{altmext_splits}. This default mark
+is left out when it lies below \code{from}. \code{NA} draws no mark.}
 
 \item{marked_eta}{The curve the mark belongs to. Defaults to the first.}
 
 \item{data}{The training data for the first boosting round, used when \code{d1}
-and \code{d2} are \code{NULL}.}
+and \code{d2} are \code{NULL}. Defaults to the training set of \link{altmext_splits},
+as in Figure 8.}
 
 \item{d1, d2}{The observation weights before and after one round. \code{NULL}
 computes them from \code{data}.}
@@ -188,8 +195,9 @@ without one is shown as typed.}
 \item{group}{One project label per row, as \code{\link[=logo_cv]{logo_cv()}} takes it.}
 
 \item{proportional}{Whether to size the rows by project. \code{TRUE} (the
-default) shows the imbalance: one project holds 59 percent of the rows.
-\code{FALSE} draws the equal blocks the manuscript prints.}
+default) shows the imbalance: of the six projects the tutorial
+cross-validates, one holds 51 percent of the rows. \code{FALSE} draws the
+equal blocks the manuscript prints.}
 
 \item{levels}{The projects to show, in drawing order, top to bottom. A
 project left out is dropped from the figure, and the rest share its
@@ -247,8 +255,8 @@ weights travel with the fit.
 }
 
 \examples{
-data(altmejd_splits)
-train <- altmejd_splits$train
+data(altmext_splits)
+train <- altmext_splits$train
 
 # the stump behind Figure 2, on two reviewer metrics so Figure 3 can draw
 # its boundary in two dimensions
@@ -266,9 +274,11 @@ facts$leaves
 gini <- tutplot_gini()
 gini$peak
 
-# Figure 1: the LOGO-CV scheme, drawn from the grouping itself
-data(altmejd)
-folds <- tutplot_logoscheme(altmejd$pid)
+# Figure 1: the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
+# kept back for the final test, so six projects take part
+data(altmext)
+tuning <- altmext[altmext$pid != "holz", ]
+folds <- tutplot_logoscheme(tuning$pid)
 folds$n
 
 }

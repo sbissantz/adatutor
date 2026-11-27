@@ -18,7 +18,7 @@
 #'   project.
 #'
 #' @format A data frame with 21 rows (study effects) and the 7 columns of
-#'   [altmejd], `replicate` coded 0/1.
+#'   [altmext], `replicate` coded 0/1.
 #'
 #' @source Camerer CF, Dreber A, Holzmeister F, et al. (2018) Evaluating the
 #'   replicability of social science experiments in Nature and Science

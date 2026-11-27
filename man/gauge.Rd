@@ -43,12 +43,13 @@ hyperparameters and the training data.
 }
 
 \examples{
-data(altmejd)
+data(altmext_splits)
+train <- altmext_splits$train
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
 
 h <- rpart::rpart(
   replicate ~ .,
-  data = altmejd[, c(prednms, "replicate")],
+  data = train[, c(prednms, "replicate")],
   maxdepth = 1,
   model = TRUE
 )

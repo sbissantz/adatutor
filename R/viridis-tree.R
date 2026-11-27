@@ -16,10 +16,10 @@
 #' @family tutorial plots
 #'
 #' @examples
-#' data(altmejd)
+#' data(altmext)
 #' cstump <- rpart::rpart(
 #'   replicate ~ power.o + n.o,
-#'   data = altmejd,
+#'   data = altmext,
 #'   method = "class"
 #' )
 #' sty <- viridis_tree(cstump)

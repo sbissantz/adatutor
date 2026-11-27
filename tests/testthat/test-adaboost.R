@@ -43,13 +43,13 @@ test_that("adaboost() and predict() work", {
 test_that("predict() handles single-row newdata", {
   # vapply() simplifies to a plain vector when the test set has one row, which
   # used to turn the margin computation into a T x T outer product.
-  data(altmejd)
+  data(altmext)
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
 
   fit <- rpart::rpart(
     replicate ~ .,
-    data = altmejd[1:60, voinms],
+    data = altmext[1:60, voinms],
     maxdepth = 1,
     model = TRUE
   ) |>
@@ -58,14 +58,14 @@ test_that("predict() handles single-row newdata", {
   for (ty in c("margin", "class")) {
     many <- predict(
       fit,
-      altmejd[61:70, prednms],
+      altmext[61:70, prednms],
       type = ty,
       verbose = FALSE,
       check_inputs = FALSE
     )
     one <- predict(
       fit,
-      altmejd[61, prednms, drop = FALSE],
+      altmext[61, prednms, drop = FALSE],
       type = ty,
       verbose = FALSE,
       check_inputs = FALSE
@@ -79,13 +79,13 @@ test_that("predict() handles single-row newdata", {
 
 test_that("adaboost() stashes hyperparameters and predict() returns margins", {
   # A genuinely noisy binary problem, so margins are moderate (not separable)
-  data(altmejd)
+  data(altmext)
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
 
   fit <- rpart::rpart(
     replicate ~ .,
-    data = altmejd[, voinms],
+    data = altmext[, voinms],
     maxdepth = 1,
     model = TRUE
   ) |>
@@ -101,14 +101,14 @@ test_that("adaboost() stashes hyperparameters and predict() returns margins", {
 
   margin <- predict(
     fit,
-    altmejd[, prednms],
+    altmext[, prednms],
     type = "margin",
     verbose = FALSE,
     check_inputs = FALSE
   )
   class_lab <- predict(
     fit,
-    altmejd[, prednms],
+    altmext[, prednms],
     type = "class",
     verbose = FALSE,
     check_inputs = FALSE
@@ -122,7 +122,7 @@ test_that("adaboost() stashes hyperparameters and predict() returns margins", {
   # "prob" was removed: probabilities belong to beyondada::calibrateAda()
   expect_error(predict(
     fit,
-    altmejd[, prednms],
+    altmext[, prednms],
     type = "prob",
     verbose = FALSE,
     check_inputs = FALSE
@@ -143,7 +143,7 @@ stderr_of <- function(expr) {
 }
 
 test_that("an error before the loop starts on its own line", {
-  d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  d <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
 
   h <- rpart::rpart(replicate ~ ., data = d, maxdepth = 1, model = TRUE)
   # `eta` is missing, so forcing it inside check_eta() raises R's own
@@ -159,7 +159,7 @@ test_that("an error before the loop starts on its own line", {
 })
 
 test_that("an error inside the loop closes the progress bar", {
-  d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  d <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
 
   # make rpart throw on the third call: the first builds the learner, so the
   # third is the second boosting round -- well inside the loop, after the bar
@@ -199,7 +199,7 @@ test_that("an error inside the loop closes the progress bar", {
 })
 
 test_that("verbose = FALSE prints nothing, even when it fails", {
-  d <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  d <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
 
   quiet <- utils::capture.output(
     fit <- rpart::rpart(
@@ -229,7 +229,7 @@ test_that("a fit leaks nothing beyond the frame it was asked to keep", {
   # contains `data`, `D` and `H` -- so a saved fit was a copy of the training
   # set whether you wanted one or not. object.size() cannot see this: it does
   # not traverse environments, so the assertion has to go through serialize().
-  base <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  base <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   big <- base[rep(seq_len(nrow(base)), 200), ]
   data_bytes <- length(serialize(big, NULL))
 
@@ -268,7 +268,7 @@ test_that("a fit leaks nothing beyond the frame it was asked to keep", {
 })
 
 test_that("scrubbing the terms environment leaves predictions intact", {
-  base <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  base <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   nd <- base[, c("power.o", "n.o")]
 
   plain <- rpart::rpart(
@@ -308,8 +308,8 @@ retro_msg <- function(expr) {
 }
 
 test_that("the retrodiction check compares data, not the variable name", {
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
+  test <- altmext_splits$test[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -332,7 +332,7 @@ test_that("the retrodiction check compares data, not the variable name", {
 })
 
 test_that("it informs rather than warns", {
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -348,7 +348,7 @@ test_that("it informs rather than warns", {
 })
 
 test_that("predict() with no newdata returns retrodictions", {
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -366,7 +366,7 @@ test_that("predict() with no newdata returns retrodictions", {
 })
 
 test_that("keep_data = FALSE drops the frame and falls back to the name", {
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   lean <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -393,7 +393,7 @@ test_that("keep_data = FALSE drops the frame and falls back to the name", {
 })
 
 test_that("only the formula's columns are stored", {
-  train <- altmejd_splits$train
+  train <- altmext_splits$train
   fit <- rpart::rpart(
     replicate ~ power.o + n.o,
     data = train,
@@ -421,8 +421,8 @@ verbose_lines <- function(expr) {
 }
 
 test_that("progress messages name predictions or retrodictions", {
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
+  test <- altmext_splits$test[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -442,8 +442,8 @@ test_that("progress messages name predictions or retrodictions", {
 })
 
 test_that("the slash wording is kept for the case we cannot tell", {
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
+  test <- altmext_splits$test[, c("power.o", "n.o", "replicate")]
   lean <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -458,7 +458,7 @@ test_that("the slash wording is kept for the case we cannot tell", {
 test_that("the wording does not depend on check_inputs", {
   # the state is computed whenever anything will say it, not only when the
   # checks run -- this is what proves it was lifted out of check_train()
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -479,7 +479,7 @@ test_that("the notice comes after the transcript, on its own line", {
   # it was once emitted into the open line left by "Run mild input checks",
   # which waits for mark_done() to close it. It now lands at the very
   # end: a transcript scrolls, and nobody reads upwards.
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -509,11 +509,11 @@ test_that("the notice comes after the transcript, on its own line", {
 })
 
 test_that("a partial overlap is deliberately not reported", {
-  # `altmejd` holds genuinely duplicated rows: two of the 22 shipped test rows
-  # match a training row on all four predictors and the outcome. Reporting
+  # `altmext` holds genuinely duplicated rows: one of the 31 shipped test rows
+  # matches a training row on all four predictors and the outcome. Reporting
   # partial overlap would therefore fire on the canonical test set every time.
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
-  test <- altmejd_splits$test[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
+  test <- altmext_splits$test[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -536,7 +536,7 @@ test_that("a partial overlap is deliberately not reported", {
 test_that("predict() with no newdata names the fall-back, not \"this\"", {
   # newdata_name is NULL when there is no `newdata` argument to deparse, so the
   # message used to name no source at all, reading "this ..."
-  train <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  train <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   fit <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -556,7 +556,7 @@ test_that("predict() with no newdata names the fall-back, not \"this\"", {
 test_that("the splitting rule travels with the learner", {
   # rpart keeps the splitting rule in `parms`, not in `control`, so it used to
   # be dropped: an information-gain stump produced a gini ensemble in silence
-  tr <- altmejd_splits$train[, c(
+  tr <- altmext_splits$train[, c(
     "power.o",
     "n.o",
     "effect_size.o",
@@ -589,7 +589,7 @@ test_that("the splitting rule travels with the learner", {
 test_that("a column named `D` is refused, not boosted on", {
   # rpart looks up `weights = D` in the data first: a column `D` used to
   # replace the weights silently, and every round after the first had a = 0
-  tr <- altmejd_splits$train[, c("power.o", "n.o", "replicate")]
+  tr <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
   names(tr)[1] <- "D"
   h <- rpart::rpart(replicate ~ ., data = tr, maxdepth = 1, model = TRUE)
   expect_error(
@@ -599,7 +599,7 @@ test_that("a column named `D` is refused, not boosted on", {
 })
 
 test_that("a learner adaboost() cannot honor is refused, not ignored", {
-  tr <- altmejd_splits$train[, c(
+  tr <- altmext_splits$train[, c(
     "power.o",
     "n.o",
     "effect_size.o",

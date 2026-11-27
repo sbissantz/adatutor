@@ -244,10 +244,12 @@ forest.
 }
 
 \examples{
-data(altmejd)
+data(altmext)
+# the six tuning projects; HOLZ is kept back for a final test
+tuning <- altmext[altmext$pid != "holz", ]
 fit <- rpart::rpart(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
-  data = altmejd,
+  data = tuning,
   maxdepth = 1,
   model = TRUE
 ) |>
@@ -257,7 +259,7 @@ fit <- rpart::rpart(
 res <- tune_logo_cv(
   fit,
   grid = data.frame(n_iter = c(5, 10)),
-  data = altmejd,
+  data = tuning,
   group = "pid",
   verbose = FALSE
 )
@@ -270,7 +272,7 @@ grid <- expand.grid(depth = 1:2, n_iter = c(5, 10))
 tune_logo_cv(
   fit,
   grid,
-  data = altmejd,
+  data = tuning,
   group = "pid",
   nested = TRUE,
   sort_by = "lower",
@@ -280,13 +282,13 @@ tune_logo_cv(
 # a classification tree: the depth varies
 tree <- rpart::rpart(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
-  data = altmejd,
+  data = tuning,
   method = "class"
 )
 tune_logo_cv(
   tree,
   data.frame(depth = c(1, 3, 5)),
-  data = altmejd,
+  data = tuning,
   group = "pid",
   verbose = FALSE
 )

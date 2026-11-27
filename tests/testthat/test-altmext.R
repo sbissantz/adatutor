@@ -1,10 +1,21 @@
-test_that("altmext has altmejd's columns and types", {
-  expect_identical(names(altmext), names(altmejd))
+test_that("altmext has the documented columns and types", {
+  expect_identical(
+    names(altmext),
+    c("eid", "pid", "effect_size.o", "n.o", "p_value.o", "power.o", "replicate")
+  )
   expect_identical(
     vapply(altmext, class, character(1)),
-    vapply(altmejd, class, character(1))
+    c(
+      eid = "character",
+      pid = "character",
+      effect_size.o = "numeric",
+      n.o = "integer",
+      p_value.o = "numeric",
+      power.o = "numeric",
+      replicate = "factor"
+    )
   )
-  expect_identical(levels(altmext$replicate), levels(altmejd$replicate))
+  expect_identical(levels(altmext$replicate), c("failure", "success"))
   expect_false(anyNA(altmext))
   expect_false(anyDuplicated(altmext$eid) > 0)
 })
@@ -36,7 +47,13 @@ test_that("altmext holds the seven projects with their outcomes", {
 })
 
 test_that("altmejd723's rows are unchanged in altmext", {
-  old <- altmejd[altmejd$pid != "ssrp", ]
+  # altmejd723 codes the outcome 0/1; altmext codes it as a factor
+  old <- altmejd723
+  old$replicate <- factor(
+    old$replicate,
+    levels = 0:1,
+    labels = c("failure", "success")
+  )
   new <- altmext[match(old$eid, altmext$eid), ]
   rownames(old) <- rownames(new) <- NULL
   expect_identical(new, old)

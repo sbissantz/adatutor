@@ -25,10 +25,10 @@ the node's fitted probability, and the text turns white on dark fills so it
 stays readable. The same probability gets the same color in every tree.
 }
 \examples{
-data(altmejd)
+data(altmext)
 cstump <- rpart::rpart(
   replicate ~ power.o + n.o,
-  data = altmejd,
+  data = altmext,
   method = "class"
 )
 sty <- viridis_tree(cstump)

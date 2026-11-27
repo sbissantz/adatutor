@@ -1,8 +1,8 @@
 stump_fit <- function(...) {
-  data(altmejd, envir = environment())
+  data(altmext, envir = environment())
   rpart::rpart(
     replicate ~ power.o + n.o,
-    data = altmejd,
+    data = altmext,
     method = "class",
     control = rpart::rpart.control(...)
   )
@@ -19,16 +19,17 @@ test_that("viridis_tree() returns one color per node", {
 })
 
 test_that("the ends of the scale go to the purest nodes", {
-  fit <- stump_fit(maxdepth = 3, minsplit = 5, minbucket = 2, cp = 1e-3)
+  # minbucket = 1, so the tree grows a node that is all one class
+  fit <- stump_fit(maxdepth = 3, minsplit = 5, minbucket = 1, cp = 1e-3)
   yv <- fit$frame$yval2
   prob <- yv[, ncol(yv) - 1]
   sty <- viridis_tree(fit)
 
   ramp <- viridisLite::viridis(100)
-  # a node that is all one class sits at the corresponding end of the ramp
-  if (any(prob == 1)) {
-    expect_true(all(sty$box[prob == 1] == ramp[100]))
-  }
+  # a node that is all one class sits at the corresponding end of the ramp;
+  # asserted first, so a tree without such a node cannot pass in silence
+  expect_true(any(prob == 1))
+  expect_true(all(sty$box[prob == 1] == ramp[100]))
   expect_equal(sty$box[which.min(prob)], ramp[max(1, ceiling(min(prob) * 100))])
 })
 
@@ -36,11 +37,11 @@ test_that("the scale is absolute, not quantiles of the fitted values", {
   # box.palette partitions by quantile, so the same probability draws a
   # different color in different trees. That is the behavior being replaced,
   # so it is the property worth pinning.
-  data(altmejd)
+  data(altmext)
   a <- stump_fit(maxdepth = 2, minsplit = 5, minbucket = 2, cp = 1e-2)
   b <- rpart::rpart(
     replicate ~ p_value.o + effect_size.o,
-    data = altmejd,
+    data = altmext,
     method = "class",
     control = rpart::rpart.control(maxdepth = 3, minsplit = 5, cp = 1e-3)
   )
@@ -76,9 +77,9 @@ test_that("a palette other than viridis is honored", {
 })
 
 test_that("viridis_tree() rejects what it cannot color", {
-  data(altmejd)
+  data(altmext)
   expect_error(viridis_tree(1), "must be an rpart object")
-  reg <- rpart::rpart(n.o ~ power.o, data = altmejd, method = "anova")
+  reg <- rpart::rpart(n.o ~ power.o, data = altmext, method = "anova")
   expect_error(viridis_tree(reg), "classification tree")
 })
 

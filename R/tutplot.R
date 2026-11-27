@@ -45,17 +45,24 @@
 #' @param x_seq The class proportions at which to evaluate the Gini curve,
 #'   between 0 and 1.
 #' @param lwd The line width.
-#' @param alpha The model weights, one curve each.
+#' @param alpha The model weights, one curve each. `NULL` (the default) draws
+#'   the three of Figure 7: 0.7, the model weight of the tutorial's first
+#'   stump on the training set of [altmext_splits], rounded to three digits,
+#'   and 0.3.
 #' @param pch The plotting symbols for the end points, recycled over `alpha`.
 #' @param lty The line types, recycled over the curves.
 #' @param ylim The vertical range. Defaults to the manuscript's.
 #' @param eta The learning rates, one curve each.
 #' @param from Where performance starts. The default, 0.5, is chance.
-#' @param marked_perf A performance to mark on the figure, so you can find your
-#'   own stump. `NULL` draws no mark. Must be at least `from` and below 1.
+#' @param marked_perf A performance to mark on the figure, such as that of the
+#'   reader's own stump. Must be at least `from` and below 1. `NULL` (the
+#'   default) marks the tutorial's first stump, as Figure 6 does: its weighted
+#'   performance on the training set of [altmext_splits]. This default mark
+#'   is left out when it lies below `from`. `NA` draws no mark.
 #' @param marked_eta The curve the mark belongs to. Defaults to the first.
 #' @param data The training data for the first boosting round, used when `d1`
-#'   and `d2` are `NULL`.
+#'   and `d2` are `NULL`. Defaults to the training set of [altmext_splits],
+#'   as in Figure 8.
 #' @param d1,d2 The observation weights before and after one round. `NULL`
 #'   computes them from `data`.
 #' @param chi `+1` where the learner was right and `-1` where it was wrong,
@@ -67,8 +74,9 @@
 #' @param top_n The largest number of predictors to draw. Defaults to 15.
 #' @param group One project label per row, as [logo_cv()] takes it.
 #' @param proportional Whether to size the rows by project. `TRUE` (the
-#'   default) shows the imbalance: one project holds 59 percent of the rows.
-#'   `FALSE` draws the equal blocks the manuscript prints.
+#'   default) shows the imbalance: of the six projects the tutorial
+#'   cross-validates, one holds 51 percent of the rows. `FALSE` draws the
+#'   equal blocks the manuscript prints.
 #' @param levels The projects to show, in drawing order, top to bottom. A
 #'   project left out is dropped from the figure, and the rest share its
 #'   height. `NULL` shows every project, in a factor's level order or the
@@ -107,8 +115,8 @@
 #' @seealso [tutplot_boundary()] for Figures 3 and 9.
 #'
 #' @examples
-#' data(altmejd_splits)
-#' train <- altmejd_splits$train
+#' data(altmext_splits)
+#' train <- altmext_splits$train
 #'
 #' # the stump behind Figure 2, on two reviewer metrics so Figure 3 can draw
 #' # its boundary in two dimensions
@@ -126,9 +134,11 @@
 #' gini <- tutplot_gini()
 #' gini$peak
 #'
-#' # Figure 1: the LOGO-CV scheme, drawn from the grouping itself
-#' data(altmejd)
-#' folds <- tutplot_logoscheme(altmejd$pid)
+#' # Figure 1: the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
+#' # kept back for the final test, so six projects take part
+#' data(altmext)
+#' tuning <- altmext[altmext$pid != "holz", ]
+#' folds <- tutplot_logoscheme(tuning$pid)
 #' folds$n
 #'
 #' @name tutplot
@@ -295,7 +305,7 @@ tutplot_gini <- function(
 #' @rdname tutplot
 #' @export
 tutplot_updatefactor <- function(
-  alpha = c(0.719, 0.619, 0.519),
+  alpha = NULL,
   pch = c(20, 17, 15),
   lty = 3,
   lwd = 1,
@@ -305,6 +315,9 @@ tutplot_updatefactor <- function(
   height = tutplot_opts$col[["height"]],
   pointsize = tutplot_opts$pointsize
 ) {
+  if (is.null(alpha)) {
+    alpha <- resolve_figure_defaults()$alpha
+  }
   check_numeric(alpha)
 
   if (!is.null(file)) {
@@ -394,7 +407,16 @@ tutplot_modelweight <- function(
   pointsize = tutplot_opts$pointsize
 ) {
   check_numeric(eta)
-  if (!is.null(marked_perf)) {
+  if (is.null(marked_perf)) {
+    marked_perf <- resolve_figure_defaults()$marked_perf
+    # a mark the caller never asked for is left out, not refused
+    if (marked_perf < from) {
+      marked_perf <- NA
+    }
+  }
+  # NA, not NULL, asks for no mark: NULL is the tutorial's stump
+  draw_mark <- !(length(marked_perf) == 1L && is.na(marked_perf))
+  if (draw_mark) {
     check_numeric(marked_perf)
     # refuse an invisible mark: below `from` it is off the panel, at 1 infinite
     if (length(marked_perf) != 1L || marked_perf < from || marked_perf >= 1) {
@@ -446,7 +468,7 @@ tutplot_modelweight <- function(
   # the reader's own learner, drawn first so the curves stay on top; segments
   # stop at the crosshair instead of crossing every curve
   marked_alpha <- NULL
-  if (!is.null(marked_perf)) {
+  if (draw_mark) {
     marked_alpha <- weigh(marked_perf, marked_eta)
     graphics::segments(
       marked_perf,
@@ -504,8 +526,24 @@ tutplot_modelweight <- function(
   ))
 }
 
-# one round of AdaBoost on `data`, repeating Listings 17--22, so
-# tutplot_weightupdate() needs nothing from the reader's session
+#' Resolve what the bare figure calls draw
+#'
+#' Round one of the tutorial on the training set of `altmext_splits`: the
+#' model weights of Figure 7 (`alpha_int`) and the performance Figure 6 marks
+#' (`perf`).
+#' @noRd
+resolve_figure_defaults <- function() {
+  # `adatutor::` finds the data whether or not the package is attached
+  round_one <- run_round_one(adatutor::altmext_splits$train)
+  list(
+    # a heavier weight, the first stump's, a lighter one
+    alpha = c(0.7, round(round_one$alpha, 3), 0.3),
+    marked_perf = round_one$perf
+  )
+}
+
+# one round of AdaBoost on `data`, repeating Listings 17--23, so the figures
+# need nothing from the reader's session
 run_round_one <- function(
   data,
   predictors = c("power.o", "effect_size.o", "n.o", "p_value.o")
@@ -530,9 +568,10 @@ run_round_one <- function(
   )
   y_retro <- stats::predict(h1, newdata = data, type = "class")
 
-  # the learner's weighted error, and the say it earns
-  e1 <- sum(d1 * (y_retro != y))
-  alpha1 <- 0.5 * log((1 - e1) / e1)
+  # the learner's weighted performance, and the say it earns; in the order of
+  # Listings 21 and 22, so the results match the tutorial's to the last bit
+  perf <- sum(d1 * (y_retro == y))
+  alpha1 <- 0.5 * log(perf / (1 - perf))
 
   # +1 where it was right, -1 where it was wrong
   chi1 <- (y_retro == y) * 1 + (y_retro != y) * -1
@@ -543,14 +582,15 @@ run_round_one <- function(
     d2 = d2_raw / sum(d2_raw),
     chi = chi1,
     fit = h1,
-    alpha = alpha1
+    alpha = alpha1,
+    perf = perf
   )
 }
 
 #' @rdname tutplot
 #' @export
 tutplot_weightupdate <- function(
-  data = altmejd_splits$train,
+  data = adatutor::altmext_splits$train,
   d1 = NULL,
   d2 = NULL,
   chi = NULL,

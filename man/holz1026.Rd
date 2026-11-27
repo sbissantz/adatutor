@@ -6,7 +6,7 @@
 \title{Holzmeister et al.'s decision-market replications}
 \format{
 A data frame with 26 rows (study effects) and the 7 columns of
-\link{altmejd}, \code{replicate} coded 0/1. \code{eid} carries the authors' study
+\link{altmext}, \code{replicate} coded 0/1. \code{eid} carries the authors' study
 number (\code{holz.1} to \code{holz.41}).
 }
 \source{
@@ -51,9 +51,7 @@ original study's power. The published file is in
 
 \seealso{
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
 \code{\link{benchmark}},

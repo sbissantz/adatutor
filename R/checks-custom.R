@@ -142,8 +142,9 @@ check_train <- function(
   verbose = FALSE,
   defaulted = FALSE
 ) {
-  # report only "all": `altmejd` has duplicated rows, so 2 of the 23 shipped
-  # test rows match training by chance; "all" still catches renames and subsets
+  # report only "all": `altmext` has duplicated rows, so 1 of the 31 shipped
+  # test rows matches training by chance; "all" still catches renames and
+  # subsets
   if (is.na(overlap) || overlap != "all") {
     return(invisible(NULL))
   }

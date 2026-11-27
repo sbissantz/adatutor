@@ -6,7 +6,7 @@
 \title{Replication database, SSRP only}
 \format{
 A data frame with 21 rows (study effects) and the 7 columns of
-\link{altmejd}.
+\link{altmext}, \code{replicate} coded 0/1.
 }
 \source{
 Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
@@ -20,9 +20,8 @@ The data and more information are in their OSF repository:
 ssrp723
 }
 \description{
-A subset of the replication database of Altmejd et al. (2019), used only
-to build \link{altmejd}. It holds one project: the Social Sciences Replication
-Project (SSRP).
+A subset of the replication database of Altmejd et al. (2019). It holds
+one project: the Social Sciences Replication Project (SSRP).
 }
 \details{
 It departs from the SSRP's own results file in a few places: \code{replicate}
@@ -34,9 +33,7 @@ SSRP's file and used in \link{altmext}.
 }
 \seealso{
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
 \code{\link{benchmark}},

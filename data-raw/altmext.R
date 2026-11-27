@@ -4,9 +4,9 @@
 #
 # Altmejd et al.'s four projects (altmejd723, unchanged) with SSRP rebuilt
 # from its own results file (ssrp1026) and two more projects: Holzmeister et
-# al. 2024 (holz1026) and Many Labs 2 (mltwo1026). Same columns and the same
-# rule as altmejd: one row per original effect, Many Labs' multi-lab claims as
-# the pooled result.
+# al. 2024 (holz1026) and Many Labs 2 (mltwo1026). Same columns as altmejd723
+# and the same rule as Altmejd et al.: one row per original effect, Many Labs'
+# multi-lab claims as the pooled result.
 
 # Load the per-project data sets
 data("altmejd723")
@@ -14,7 +14,7 @@ data("ssrp1026")
 data("holz1026")
 data("mltwo1026")
 
-# Variables of interest, in altmejd's order
+# Variables of interest, in altmejd723's order
 voi <- c(
   "eid",
   "pid",
@@ -30,11 +30,11 @@ projects <- list(altmejd723, ssrp1026, holz1026, mltwo1026)
 stopifnot(all(vapply(projects, function(x) all(voi %in% names(x)), TRUE)))
 altmext <- do.call(rbind.data.frame, lapply(projects, `[`, voi))
 
-# Sample sizes are counts, an integer as in altmejd
+# Sample sizes are counts, an integer as in altmejd723
 stopifnot(all(altmext$n.o == round(altmext$n.o)))
 altmext$n.o <- as.integer(altmext$n.o)
 
-# Make the outcome a factor on the 1/2 scale (rpart consistency), as altmejd
+# Make the outcome a factor on the 1/2 scale (rpart consistency)
 altmext$replicate <- factor(
   altmext$replicate + 1,
   labels = c("failure", "success")

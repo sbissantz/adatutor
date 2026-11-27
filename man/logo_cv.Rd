@@ -128,57 +128,58 @@ examples).
 
 The estimates are returned per project and are not averaged. Describe their
 spread, but do not turn it into a standard error or a confidence interval.
-The folds differ in size (10 to 90 study effects in \code{altmejd}), and they
+The folds differ in size (10 to 90 study effects in \link{altmext}), and they
 share most of their training data, so the usual standard error is too small
 (Bengio & Grandvalet, 2004).
 }
 
 \examples{
-data(altmejd)
+data(altmext)
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+# the six tuning projects; HOLZ is kept back for the final test below
+tuning <- altmext[altmext$pid != "holz", ]
 
 # cross-validate the recipe of a fitted ensemble
 h <- rpart::rpart(
   replicate ~ .,
-  data = altmejd[, c(prednms, "replicate")],
+  data = tuning[, c(prednms, "replicate")],
   maxdepth = 1,
   model = TRUE
 )
 fit <- adaboost(h, n_iter = 10, eta = 1, verbose = FALSE)
-res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
+res <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
 res
 plot(res)
 
 # another learner: pass its fit
 glm(
   replicate ~ power.o + effect_size.o + n.o + p_value.o,
-  data = altmejd,
+  data = tuning,
   family = binomial
 ) |>
-  logo_cv(data = altmejd, group = "pid", verbose = FALSE)
+  logo_cv(data = tuning, group = "pid", verbose = FALSE)
 
 # random five-fold cross-validation: random folds as the groups
 set.seed(1)
-altmejd$fold <- sample(rep(1:5, length.out = nrow(altmejd)))
-logo_cv(fit, data = altmejd, group = "fold", verbose = FALSE)
+tuning$fold <- sample(rep(1:5, length.out = nrow(tuning)))
+logo_cv(fit, data = tuning, group = "fold", verbose = FALSE)
 
 # one Monte Carlo draw: a random split, holding out the test part only
-altmejd$part <- sample(
+tuning$part <- sample(
   c("train", "test"),
-  nrow(altmejd),
+  nrow(tuning),
   replace = TRUE,
   prob = c(0.7, 0.3)
 )
 logo_cv(
   fit,
-  data = altmejd,
+  data = tuning,
   group = "part",
   holdout = "test",
   verbose = FALSE
 )
 
 # the final test on HOLZ, the project kept back from tuning
-data(altmext)
 logo_cv(
   fit,
   data = altmext,

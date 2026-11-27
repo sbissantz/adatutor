@@ -6,7 +6,7 @@
 \title{Social Sciences Replication Project, from its own results}
 \format{
 A data frame with 21 rows (study effects) and the 7 columns of
-\link{altmejd}, \code{replicate} coded 0/1.
+\link{altmext}, \code{replicate} coded 0/1.
 }
 \source{
 Camerer CF, Dreber A, Holzmeister F, et al. (2018) Evaluating the
@@ -50,9 +50,7 @@ The SSRP's data are licensed CC0 1.0
 
 \seealso{
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{altmext_splits}},
 \code{\link{benchmark}},

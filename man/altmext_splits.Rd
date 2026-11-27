@@ -10,8 +10,8 @@ A list of three data frames with the columns of \link{altmext}: \code{train}
 }
 \description{
 The training, validation and test sets of \link{altmext}. Made by
-\code{data-raw/altmext-splits.R} with the same \code{\link[=partition]{partition()}} call as
-\link{altmejd_splits}, run on \code{altmext}.
+\code{data-raw/altmext-splits.R} with the tutorial's \code{\link[=partition]{partition()}} call for the
+stratified 70/15/15 split (seed 112).
 }
 \details{
 The sets are shipped because a seed is not enough: R changed \code{sample()} in
@@ -30,9 +30,7 @@ The same as \link{altmext}.
 \code{\link[=partition]{partition()}} to make your own split.
 
 Other datasets:
-\code{\link{altmejd}},
 \code{\link{altmejd723}},
-\code{\link{altmejd_splits}},
 \code{\link{altmext}},
 \code{\link{benchmark}},
 \code{\link{holz1026}},

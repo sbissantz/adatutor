@@ -21,27 +21,27 @@
 #'   proportion. A proportion of 0 gives a data frame with no rows.
 #'
 #' @family cross-validation
-#' @seealso [altmejd_splits], the split used in the tutorial.
+#' @seealso [altmext_splits], the split used in the tutorial.
 #'
 #' @examples
-#' data(altmejd)
+#' data(altmext)
 #'
 #' # a simple 70/30 split
 #' set.seed(112)
-#' plain <- partition(altmejd, prop = 0.7)
+#' plain <- partition(altmext, prop = 0.7)
 #' nrow(plain$set1)
 #' nrow(plain$set2)
 #'
 #' # the same, keeping the outcome's distribution in both parts
 #' set.seed(112)
-#' strat <- partition(altmejd, prop = 0.7, strata = "replicate")
-#' round(proportions(table(altmejd$replicate)), 3)
+#' strat <- partition(altmext, prop = 0.7, strata = "replicate")
+#' round(proportions(table(altmext$replicate)), 3)
 #' round(proportions(table(strat$set1$replicate)), 3)
 #' round(proportions(table(strat$set2$replicate)), 3)
 #'
 #' # one proportion per set: 70/15/15 in a single call
 #' set.seed(112)
-#' three <- partition(altmejd, prop = c(0.7, 0.15, 0.15), strata = "replicate")
+#' three <- partition(altmext, prop = c(0.7, 0.15, 0.15), strata = "replicate")
 #' vapply(three, nrow, integer(1))
 #'
 #' @export

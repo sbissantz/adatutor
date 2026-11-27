@@ -21,7 +21,7 @@
 #' and Savani et al. (the coded original found no difference, p = .70).
 #'
 #' @format A data frame with 24 rows (study effects) and the 7 columns of
-#'   [altmejd], `replicate` coded 0/1. `ml2.k` is the k-th of Many Labs 2's
+#'   [altmext], `replicate` coded 0/1. `ml2.k` is the k-th of Many Labs 2's
 #'   analysis labels in alphabetical order (ml2.1 = Alter.1, ml2.24 =
 #'   vanLange.1); the labels are in `inst/extdata/mltwo1026.csv`.
 #'

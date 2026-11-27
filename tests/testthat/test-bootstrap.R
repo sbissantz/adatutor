@@ -127,19 +127,19 @@ test_that("bootstrap() rejects malformed input", {
   expect_error(bootstrap(f$y, f$s, conf = 1), "between 0 and 1")
 })
 
-test_that("intervals on the altmejd folds track fold size", {
+test_that("intervals on the folds of the tuning projects track fold size", {
   # notes 4: the interval is wide exactly where the fold is small. This is the
   # point the forest plot has to make, so it is worth pinning.
   skip_on_cran()
-  data(altmejd)
+  tuning <- drop_holz()
   prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
   voinms <- c(prednms, "replicate")
 
   widths <- vapply(
     c("ml3", "rpp"),
     function(rp) {
-      tr <- altmejd[altmejd$pid != rp, ]
-      te <- altmejd[altmejd$pid == rp, ]
+      tr <- tuning[tuning$pid != rp, ]
+      te <- tuning[tuning$pid == rp, ]
       fit <- rpart::rpart(
         replicate ~ .,
         data = tr[, voinms],

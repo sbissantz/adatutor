@@ -1,8 +1,8 @@
 #' Altmejd et al.'s replication database, extended
 #'
-#' Altmejd et al.'s (2019) replication database in the format of [altmejd],
-#' extended to seven large-scale replication projects: 202 study effects
-#' and whether each one replicated. Many Labs 1 and 3, the Replication Project
+#' Altmejd et al.'s (2019) replication database, extended to seven
+#' large-scale replication projects: 202 study effects and whether each one
+#' replicated. Many Labs 1 and 3, the Replication Project
 #' Psychology and the Experimental Economics Replication Project come from
 #' [altmejd723] unchanged. The Social Sciences Replication Project is rebuilt
 #' from its own results file ([ssrp1026]). Two projects are new: Holzmeister
@@ -14,8 +14,7 @@
 #' with its pooled result. A replication succeeded if it is significant
 #' (p <= .05) in the original's direction.
 #'
-#' @format A data frame with 202 rows (study effects) and the 7 columns of
-#'   [altmejd]:
+#' @format A data frame with 202 rows (study effects) and 7 columns:
 #' * `eid`: Effect identifier, `<pid>.<number>`.
 #' * `pid`: Project identifier: Many Labs 1 (`ml1`), 2 (`ml2`) and 3 (`ml3`),
 #'   Reproducibility Project: Psychology (`rpp`), Experimental Economics
@@ -34,9 +33,9 @@
 #' in all.
 #'
 #' Things to keep in mind:
-#' * The SSRP rows differ from [altmejd]'s: the pooled outcome (13 rather than
-#'   12 of 21 replicated), two effect sizes, three p-values and seven sample
-#'   sizes. See [ssrp1026].
+#' * The SSRP rows differ from Altmejd et al.'s copy, [ssrp723]: the pooled
+#'   outcome (13 rather than 12 of 21 replicated), two effect sizes, three
+#'   p-values and seven sample sizes. See [ssrp1026].
 #' * Holzmeister et al.'s 26 studies were selected by a decision market (the
 #'   12 highest-priced, the 12 lowest-priced and 2 at random), not sampled
 #'   from a literature.

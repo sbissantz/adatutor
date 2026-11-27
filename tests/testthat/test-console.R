@@ -1,10 +1,13 @@
 # Three levels, one meaning each: plain text informs, gray marks labels and
 # steps, teal marks "Done" only. Nothing is bold.
 
+# the six tuning projects; the fold and fit counts below follow from them
+tuning <- drop_holz()
+
 console_fit <- function(n_iter = 3) {
   h <- rpart::rpart(
     replicate ~ power.o + n.o,
-    data = altmejd,
+    data = tuning,
     maxdepth = 1,
     model = TRUE
   )
@@ -33,10 +36,9 @@ record_steps <- function(code) {
 # ---- adaboost() and predict() ------------------------------------------------
 
 test_that("adaboost() prints plain start and closing lines, gray steps", {
-  data(altmejd)
   h <- rpart::rpart(
     replicate ~ power.o + n.o,
-    data = altmejd,
+    data = altmext,
     maxdepth = 1,
     model = TRUE
   )
@@ -59,9 +61,8 @@ test_that("adaboost() prints plain start and closing lines, gray steps", {
 })
 
 test_that("predict() prints plain start, closing and conclusion lines", {
-  data(altmejd)
   fit <- console_fit()
-  run <- capture_run(predict(fit, altmejd, type = "margin"))
+  run <- capture_run(predict(fit, tuning, type = "margin"))
   err <- run$err
 
   expect_false(has_bold(err))
@@ -72,7 +73,7 @@ test_that("predict() prints plain start, closing and conclusion lines", {
   expect_true(grepl("\nTest process completed.\n", err, fixed = TRUE))
   # the reason gray, the conclusion plain
   expect_true(grepl(
-    "\033[38;5;244m  `altmejd` was also used for training.\033[0m\n",
+    "\033[38;5;244m  `tuning` was also used for training.\033[0m\n",
     err,
     fixed = TRUE
   ))
@@ -85,7 +86,7 @@ test_that("predict() prints plain start, closing and conclusion lines", {
 test_that("verbose adaboost() and predict() return what quiet ones do", {
   h <- rpart::rpart(
     replicate ~ power.o + n.o,
-    data = altmejd_splits$train,
+    data = altmext_splits$train,
     maxdepth = 1,
     model = TRUE
   )
@@ -94,7 +95,7 @@ test_that("verbose adaboost() and predict() return what quiet ones do", {
   expect_identical(loud, quiet)
 
   # held-out rows, so no retrodiction notice
-  nd <- altmejd_splits$test
+  nd <- altmext_splits$test
   expect_identical(
     capture_run(predict(quiet, nd, type = "margin"))$value,
     predict(quiet, nd, type = "margin", verbose = FALSE)
@@ -104,11 +105,10 @@ test_that("verbose adaboost() and predict() return what quiet ones do", {
 # ---- logo_cv() ---------------------------------------------------------------
 
 test_that("logo_cv(verbose = TRUE) prints a line per fold", {
-  data(altmejd)
   fit <- console_fit()
-  folds <- unique(as.character(altmejd$pid))
+  folds <- unique(as.character(tuning$pid))
   run <- record_steps(
-    logo_cv(fit, data = altmejd, group = "pid", verbose = TRUE)
+    logo_cv(fit, data = tuning, group = "pid", verbose = TRUE)
   )
   err <- run$err
 
@@ -146,7 +146,7 @@ test_that("logo_cv(verbose = TRUE) prints a line per fold", {
   # the inner fits stay silent, and verbose = FALSE prints nothing
   quiet <- capture_run(logo_cv(
     fit,
-    data = altmejd,
+    data = tuning,
     group = "pid",
     verbose = FALSE
   ))
@@ -156,16 +156,15 @@ test_that("logo_cv(verbose = TRUE) prints a line per fold", {
 })
 
 test_that("logo_cv() of any learner reports its folds alike", {
-  data(altmejd)
   glm_fit <- glm(
     replicate ~ power.o + n.o,
-    data = altmejd,
+    data = tuning,
     family = binomial
   )
   run <- capture_run(
     logo_cv(
       glm_fit,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       holdout = "ssrp",
       verbose = TRUE
@@ -181,7 +180,7 @@ test_that("logo_cv() of any learner reports its folds alike", {
   )
   quiet <- logo_cv(
     glm_fit,
-    data = altmejd,
+    data = tuning,
     group = "pid",
     holdout = "ssrp",
     verbose = FALSE
@@ -192,14 +191,13 @@ test_that("logo_cv() of any learner reports its folds alike", {
 # ---- tune_logo_cv() ----------------------------------------------------------
 
 test_that("tune_logo_cv(verbose = TRUE) prints one bar over the fits", {
-  data(altmejd)
   fit <- console_fit()
-  n_folds <- length(unique(altmejd$pid))
+  n_folds <- length(unique(tuning$pid))
   run <- record_steps(
     tune_logo_cv(
       fit,
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       verbose = TRUE
     )
@@ -232,7 +230,7 @@ test_that("tune_logo_cv(verbose = TRUE) prints one bar over the fits", {
     tune_logo_cv(
       fit,
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       verbose = FALSE
     )
@@ -243,18 +241,17 @@ test_that("tune_logo_cv(verbose = TRUE) prints one bar over the fits", {
 })
 
 test_that("a search whose settings each need a fit names no fits", {
-  data(altmejd)
   tree <- rpart::rpart(
     replicate ~ power.o + n.o,
-    data = altmejd,
+    data = tuning,
     method = "class"
   )
-  n_folds <- length(unique(altmejd$pid))
+  n_folds <- length(unique(tuning$pid))
   run <- record_steps(
     tune_logo_cv(
       tree,
       data.frame(depth = 1:3),
-      data = altmejd,
+      data = tuning,
       group = "pid",
       verbose = TRUE
     )
@@ -288,32 +285,45 @@ test_that("the start line names the cores only when there are several", {
 
 test_that("on several cores, the bar moves as each batch of fits comes back", {
   skip_on_os("windows")
-  data(altmejd)
   fit <- console_fit()
+  n_folds <- length(unique(tuning$pid))
+  n_fits <- 2L * n_folds
   real_split <- split_batches
   local_mocked_bindings(
     count_cores = function() 2L,
-    # 2 fits per worker, so the 10 fits come back in batches of 4, 4 and 2
+    # 2 fits per worker, so the fits come back in batches of up to 4
     split_batches = function(n_tasks, n_workers, batched) {
       real_split(n_tasks, n_workers, batched, per_worker = 2L)
     }
   )
   run <- record_steps(
-    tune_logo_cv(fit, console_grid, data = altmejd, group = "pid", cores = 2)
+    tune_logo_cv(fit, console_grid, data = tuning, group = "pid", cores = 2)
   )
   err <- run$err
   lines <- read_lines(err)
 
   expect_identical(
     lines[1],
-    "Start the search: 4 settings, 5 folds, 10 fits, 2 cores"
+    sprintf(
+      "Start the search: 4 settings, %d folds, %d fits, 2 cores",
+      n_folds,
+      n_fits
+    )
   )
   expect_length(lines, 3L)
   expect_identical(lines[3], "Search completed.")
-  expect_identical(run$steps, 10L)
-  # the bar redraws after each batch: 40, 80 and 100 in 100
+  expect_identical(run$steps, n_fits)
+  # the bar redraws after each batch, at the share of fits back so far:
+  # 2 workers take 2 fits each, so the fits come back 4 at a time and the
+  # last batch holds the rest; n_fits is even, so no single fit is left over
+  per_batch <- 2L * 2L
+  back <- unique(c(seq(per_batch, n_fits, by = per_batch), n_fits))
+  expect_gt(length(back), 1L)
   shown <- regmatches(err, gregexpr("[0-9]+%", err))[[1]]
-  expect_identical(unique(shown), c("0%", "40%", "80%", "100%"))
+  expect_identical(
+    unique(shown),
+    paste0(c(0, round(100 * back / n_fits)), "%")
+  )
   expect_true(endsWith(err, "100%\n\033[0mSearch completed.\n"))
   expect_false(has_bold(err))
   expect_true(teal_only_on_done(err))
@@ -337,11 +347,10 @@ test_that("verbose is TRUE by default in every method", {
 
 test_that("verbose = FALSE prints nothing, on one core and on two", {
   skip_on_os("windows")
-  data(altmejd)
   fit <- console_fit()
   local_mocked_bindings(count_cores = function() 2L)
   quiet_runs <- list(
-    capture_run(logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE))
+    capture_run(logo_cv(fit, data = tuning, group = "pid", verbose = FALSE))
   )
   for (cores in 1:2) {
     quiet_runs <- c(
@@ -350,7 +359,7 @@ test_that("verbose = FALSE prints nothing, on one core and on two", {
         capture_run(tune_logo_cv(
           fit,
           console_grid,
-          data = altmejd,
+          data = tuning,
           group = "pid",
           cores = cores,
           verbose = FALSE
@@ -358,7 +367,7 @@ test_that("verbose = FALSE prints nothing, on one core and on two", {
         capture_run(tune_logo_cv(
           fit,
           console_grid,
-          data = altmejd,
+          data = tuning,
           group = "pid",
           holdout = c("ssrp", "ml1"),
           nested = TRUE,
@@ -376,14 +385,13 @@ test_that("verbose = FALSE prints nothing, on one core and on two", {
 
 test_that("on two cores, verbose changes no result", {
   skip_on_os("windows")
-  data(altmejd)
   fit <- console_fit()
   local_mocked_bindings(count_cores = function() 2L)
   search <- function(cores, verbose) {
     capture_run(tune_logo_cv(
       fit,
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       cores = cores,
       verbose = verbose
@@ -393,7 +401,7 @@ test_that("on two cores, verbose changes no result", {
     capture_run(tune_logo_cv(
       fit,
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -452,22 +460,26 @@ test_that("on the socket path, the bar shows and no result changes", {
   skip_if(isTRUE(count_cores() < 2L))
   # the only mock socket workers accept: their code check leaves it out
   local_mocked_bindings(read_os_type = function() "windows")
-  data(altmejd)
   fit <- console_fit()
+  n_folds <- length(unique(tuning$pid))
   loud <- capture_run(
-    tune_logo_cv(fit, console_grid, data = altmejd, group = "pid", cores = 2)
+    tune_logo_cv(fit, console_grid, data = tuning, group = "pid", cores = 2)
   )
   lines <- read_lines(loud$err)
   expect_identical(
     lines[1],
-    "Start the search: 4 settings, 5 folds, 10 fits, 2 cores"
+    sprintf(
+      "Start the search: 4 settings, %d folds, %d fits, 2 cores",
+      n_folds,
+      2L * n_folds
+    )
   )
   expect_identical(lines[length(lines)], "Search completed.")
   expect_true(endsWith(loud$err, "100%\n\033[0mSearch completed.\n"))
   quiet <- tune_logo_cv(
     fit,
     console_grid,
-    data = altmejd,
+    data = tuning,
     group = "pid",
     cores = 2,
     verbose = FALSE
@@ -490,13 +502,12 @@ test_that("on the socket path, a task's error reads the same with progress", {
 # ---- the nested search -------------------------------------------------------
 
 test_that("the nested search prints one line per outer fold, and no bar", {
-  data(altmejd)
   fit <- console_fit()
   run <- record_steps(
     tune_logo_cv(
       fit,
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -537,7 +548,7 @@ test_that("the nested search prints one line per outer fold, and no bar", {
     tune_logo_cv(
       fit,
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -551,13 +562,12 @@ test_that("the nested search prints one line per outer fold, and no bar", {
 
 test_that("on several cores, the nested search names them, same lines", {
   skip_on_os("windows")
-  data(altmejd)
   local_mocked_bindings(count_cores = function() 2L)
   run <- record_steps(
     tune_logo_cv(
       console_fit(),
       console_grid,
-      data = altmejd,
+      data = tuning,
       group = "pid",
       holdout = c("ssrp", "ml1"),
       nested = TRUE,
@@ -597,21 +607,23 @@ fail_refit <- function(n, env = parent.frame()) {
 }
 
 test_that("an error closes the open fold line", {
-  data(altmejd)
   fit <- console_fit()
+  folds <- unique(as.character(tuning$pid))
   fail_refit(2L)
   err <- capture_stderr(
     expect_error(
-      logo_cv(fit, data = altmejd, group = "pid", verbose = TRUE),
+      logo_cv(fit, data = tuning, group = "pid", verbose = TRUE),
       "forced failure"
     )
   )
   expect_true(endsWith(err, "\n"))
-  expect_identical(tail(read_lines(err), 1L), "Fold 2/5, test: ml1")
+  expect_identical(
+    tail(read_lines(err), 1L),
+    sprintf("Fold 2/%d, test: %s", length(folds), folds[2])
+  )
 })
 
 test_that("an error closes the bar and resets its style", {
-  data(altmejd)
   fit <- console_fit()
   fail_refit(3L)
   err <- capture_stderr(
@@ -619,7 +631,7 @@ test_that("an error closes the bar and resets its style", {
       tune_logo_cv(
         fit,
         console_grid,
-        data = altmejd,
+        data = tuning,
         group = "pid",
         verbose = TRUE
       ),
@@ -631,7 +643,6 @@ test_that("an error closes the bar and resets its style", {
 })
 
 test_that("an error in a nested search closes its outer fold's line", {
-  data(altmejd)
   fit <- console_fit()
   nested_err <- function() {
     capture_stderr(
@@ -639,7 +650,7 @@ test_that("an error in a nested search closes its outer fold's line", {
         tune_logo_cv(
           fit,
           console_grid,
-          data = altmejd,
+          data = tuning,
           group = "pid",
           holdout = c("ssrp", "ml1"),
           nested = TRUE,
@@ -649,9 +660,11 @@ test_that("an error in a nested search closes its outer fold's line", {
       )
     )
   }
-  # the inner search of the first outer fold makes 8 fits; the 9th is its
-  # refit, and the 3rd is in its inner search
-  for (n in c(9L, 3L)) {
+  # the inner search of the first outer fold makes 2 fits on each of the
+  # other groups; the next one is its refit, and the 3rd is in its inner
+  # search
+  n_inner <- 2L * (length(unique(tuning$pid)) - 1L)
+  for (n in c(n_inner + 1L, 3L)) {
     local({
       fail_refit(n)
       err <- nested_err()
@@ -666,7 +679,6 @@ test_that("an error in a nested search closes its outer fold's line", {
 
 test_that("a worker's error reads the same with verbose and closes the bar", {
   skip_on_os("windows")
-  data(altmejd)
   fit <- console_fit()
   # each fork counts its own refits from 0, so every fork's first refit fails
   fail_refit(1L)
@@ -679,7 +691,7 @@ test_that("a worker's error reads the same with verbose and closes the bar", {
         suppressWarnings(tune_logo_cv(
           fit,
           console_grid,
-          data = altmejd,
+          data = tuning,
           group = "pid",
           cores = 2,
           verbose = verbose
@@ -746,9 +758,8 @@ test_that("assess() prints a plain title, gray labels and plain values", {
 })
 
 test_that("logo_cv results print gray labels without colons", {
-  data(altmejd)
   fit <- console_fit()
-  res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
+  res <- logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
   both <- print_both(res)
   expect_gray_labels_only(both)
   expect_identical(both$plain[1], "Leave-one-group-out cross-validation")
@@ -773,7 +784,7 @@ test_that("logo_cv results print gray labels without colons", {
   long <- tune_logo_cv(
     fit,
     data.frame(n_iter = 1:21),
-    data = altmejd,
+    data = tuning,
     group = "pid",
     verbose = FALSE
   )

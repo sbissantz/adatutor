@@ -1,20 +1,20 @@
 feat <- c("power.o", "n.o")
 
 fit_ada <- function(T = 20) {
-  data(altmejd)
+  data(altmext)
   rpart::rpart(
     replicate ~ .,
-    data = altmejd[, c("replicate", feat)],
+    data = altmext[, c("replicate", feat)],
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = T, eta = 1, verbose = FALSE, check_inputs = FALSE)
 }
 fit_stump <- function() {
-  data(altmejd)
+  data(altmext)
   rpart::rpart(
     replicate ~ .,
-    data = altmejd[, c("replicate", feat)],
+    data = altmext[, c("replicate", feat)],
     method = "class",
     control = rpart::rpart.control(maxdepth = 1)
   )
@@ -26,9 +26,9 @@ quietly <- function(expr) {
 }
 
 test_that("tutplot_boundary() returns the grid it drew, invisibly", {
-  data(altmejd)
+  data(altmext)
   quietly({
-    out <- withVisible(tutplot_boundary(fit_ada(), altmejd, resolution = 30))
+    out <- withVisible(tutplot_boundary(fit_ada(), altmext, resolution = 30))
   })
   expect_false(out$visible)
   g <- out$value
@@ -44,7 +44,7 @@ test_that("tutplot_boundary() returns the grid it drew, invisibly", {
 
 test_that("the score reproduces the class labels predict() would give", {
   # score_grid() must not change which side of the boundary a point is on
-  data(altmejd)
+  data(altmext)
   fit <- fit_ada(50)
   g <- expand.grid(
     power.o = seq(0.2, 1, length.out = 40),
@@ -55,10 +55,10 @@ test_that("the score reproduces the class labels predict() would give", {
 })
 
 test_that("it works for a single rpart tree as well as an ensemble", {
-  data(altmejd)
+  data(altmext)
   quietly({
-    a <- tutplot_boundary(fit_ada(), altmejd, resolution = 25)
-    s <- tutplot_boundary(fit_stump(), altmejd, resolution = 25)
+    a <- tutplot_boundary(fit_ada(), altmext, resolution = 25)
+    s <- tutplot_boundary(fit_stump(), altmext, resolution = 25)
   })
   expect_equal(a$features, feat)
   expect_equal(s$features, feat)
@@ -70,15 +70,17 @@ test_that("it works for a single rpart tree as well as an ensemble", {
 })
 
 test_that("features are inferred only when the choice is unambiguous", {
-  data(altmejd)
+  data(altmext)
   # two predictors -> inferred
-  quietly(g <- tutplot_boundary(fit_ada(), altmejd, resolution = 20))
+  quietly(g <- tutplot_boundary(fit_ada(), altmext, resolution = 20))
   expect_equal(g$features, feat)
 
-  # four predictors -> refuses to guess, and says what is available
+  # four predictors -> refuses to guess, and says what is available. Ten
+  # rounds, so the two features drawn below carry enough of the vote to show
+  # a boundary: after five, the ensemble assigns one class over the window
   wide <- rpart::rpart(
     replicate ~ .,
-    data = altmejd[, c(
+    data = altmext[, c(
       "replicate",
       "power.o",
       "effect_size.o",
@@ -88,51 +90,51 @@ test_that("features are inferred only when the choice is unambiguous", {
     maxdepth = 1,
     model = TRUE
   ) |>
-    adaboost(n_iter = 5, eta = 1, verbose = FALSE, check_inputs = FALSE)
+    adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
   expect_error(
-    quietly(tutplot_boundary(wide, altmejd)),
+    quietly(tutplot_boundary(wide, altmext)),
     "must name two columns"
   )
-  expect_error(quietly(tutplot_boundary(wide, altmejd)), "effect_size.o")
+  expect_error(quietly(tutplot_boundary(wide, altmext)), "effect_size.o")
 
   # naming them explicitly works, and the others are held fixed
   quietly(
-    g2 <- tutplot_boundary(wide, altmejd, features = feat, resolution = 20)
+    g2 <- tutplot_boundary(wide, altmext, features = feat, resolution = 20)
   )
   expect_equal(g2$features, feat)
 })
 
 test_that("tutplot_boundary() rejects malformed input", {
-  data(altmejd)
+  data(altmext)
   expect_error(
-    quietly(tutplot_boundary(fit_ada(), altmejd, features = "power.o")),
+    quietly(tutplot_boundary(fit_ada(), altmext, features = "power.o")),
     "exactly two"
   )
   expect_error(
     quietly(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       features = c("power.o", "nope")
     )),
     "not found"
   )
   expect_error(
-    quietly(tutplot_boundary(fit_ada(), altmejd, resolution = 1)),
+    quietly(tutplot_boundary(fit_ada(), altmext, resolution = 1)),
     "at least 2"
   )
   expect_error(
-    tutplot_boundary("not a model", altmejd),
+    tutplot_boundary("not a model", altmext),
     "rpart object or the output"
   )
   # an empty list once failed on fit[[1]] before this message could appear
   expect_error(
-    tutplot_boundary(list(), altmejd),
+    tutplot_boundary(list(), altmext),
     "rpart object or the output"
   )
 })
 
 test_that("a rejected argument leaves no device open and no file", {
-  data(altmejd)
+  data(altmext)
   fit <- fit_stump()
   # no device of our own: it would hide one the call leaves open. One open
   # here leaked from an earlier test
@@ -156,31 +158,31 @@ test_that("a rejected argument leaves no device open and no file", {
   }
 
   expect_error(
-    tutplot_boundary(fit, altmejd, resolution = 1, file = f),
+    tutplot_boundary(fit, altmext, resolution = 1, file = f),
     "`resolution` must be at least 2"
   )
   expect_clean("a resolution of 1")
 
   expect_error(
-    tutplot_boundary("not a model", altmejd, file = f),
+    tutplot_boundary("not a model", altmext, file = f),
     "`fit` must be an rpart object or the output of adaboost()",
     fixed = TRUE
   )
   expect_clean("a fit that is no model")
 
   expect_error(
-    tutplot_boundary(fit, altmejd, features = "power.o", file = f),
+    tutplot_boundary(fit, altmext, features = "power.o", file = f),
     "`features` must name exactly two columns"
   )
   expect_clean("one feature")
 
   expect_error(
-    tutplot_boundary(fit, as.list(altmejd), file = f),
+    tutplot_boundary(fit, as.list(altmext), file = f),
     "`data` is not a data frame"
   )
   expect_clean("data that is no data frame")
 
-  three <- altmejd
+  three <- altmext
   three$replicate <- factor(rep_len(c("yes", "no", "maybe"), nrow(three)))
   expect_error(
     tutplot_boundary(fit, three, file = f),
@@ -189,7 +191,7 @@ test_that("a rejected argument leaves no device open and no file", {
   )
   expect_clean("an outcome of three classes")
 
-  words <- altmejd
+  words <- altmext
   words$replicate <- rep_len(c("yes", "no"), nrow(words))
   expect_error(
     tutplot_boundary(fit, words, file = f),
@@ -203,8 +205,8 @@ test_that("a one-class window warns instead of drawing nothing", {
   # A root-only tree assigns the same class everywhere, so there is no boundary.
   # The hand-written code drew a boundary-less plot in silence: its contour ran
   # on a single-level factor and simply produced no line.
-  data(altmejd)
-  sub <- altmejd[, c("replicate", feat)]
+  data(altmext)
+  sub <- altmext[, c("replicate", feat)]
   # the root predicts failure, the first level, so the flat score is negative;
   # reversed levels make it positive. R 4.6.2's contour() warns on a flat
   # surface only when it is positive, R-devel's on either sign
@@ -296,11 +298,11 @@ test_that("class shading tints a one-class window in that class's color", {
 })
 
 test_that("a custom palette is honored", {
-  data(altmejd)
+  data(altmext)
   quietly(
     g <- tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       palette = c("red", "blue"),
       opacity = 0.5
@@ -310,11 +312,11 @@ test_that("a custom palette is honored", {
 })
 
 test_that("shade = 'margin' varies the fill while class shading does not", {
-  data(altmejd)
+  data(altmext)
   fit <- fit_ada(50)
   quietly({
-    a <- tutplot_boundary(fit, altmejd, resolution = 40, shade = "class")
-    b <- tutplot_boundary(fit, altmejd, resolution = 40, shade = "margin")
+    a <- tutplot_boundary(fit, altmext, resolution = 40, shade = "class")
+    b <- tutplot_boundary(fit, altmext, resolution = 40, shade = "margin")
   })
   # both describe the same surface; only the drawing differs
   expect_equal(a$z, b$z)
@@ -322,7 +324,7 @@ test_that("shade = 'margin' varies the fill while class shading does not", {
   quietly(
     s <- tutplot_boundary(
       fit_stump(),
-      altmejd,
+      altmext,
       resolution = 40,
       shade = "margin"
     )
@@ -331,23 +333,23 @@ test_that("shade = 'margin' varies the fill while class shading does not", {
 })
 
 test_that("the legend and color bar can be turned off", {
-  data(altmejd)
+  data(altmext)
   quietly({
     expect_silent(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       legend_pos = NULL
     ))
     expect_silent(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       legend_pos = "bottomleft"
     ))
     expect_silent(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       shade = "margin",
       add_colorbar = FALSE
@@ -358,19 +360,19 @@ test_that("the legend and color bar can be turned off", {
 test_that("the fill defaults to a weight suited to the shading", {
   # a flat tint only hints; a ramp has to be read, so they need different
   # defaults
-  data(altmejd)
+  data(altmext)
   quietly({
-    expect_silent(tutplot_boundary(fit_ada(), altmejd, resolution = 20))
+    expect_silent(tutplot_boundary(fit_ada(), altmext, resolution = 20))
     expect_silent(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       shade = "margin"
     ))
     # an explicit opacity still wins
     expect_silent(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       opacity = 0.4
     ))
@@ -378,14 +380,14 @@ test_that("the fill defaults to a weight suited to the shading", {
 })
 
 test_that("titles are off unless asked for", {
-  data(altmejd)
+  data(altmext)
   # nothing to assert visually, but neither call may error, and both must
   # return the same grid
   quietly({
-    bare <- tutplot_boundary(fit_ada(), altmejd, resolution = 20)
+    bare <- tutplot_boundary(fit_ada(), altmext, resolution = 20)
     titled <- tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       main = "A title",
       subtitle = "and a subtitle"
@@ -397,14 +399,14 @@ test_that("titles are off unless asked for", {
 test_that("the title sits in the top margin under either shade", {
   # one name once held both the top margin and the color-scale reach, so under
   # the default shade a stump's title landed inside the panel, at line -1
-  data(altmejd)
+  data(altmext)
   read_title_line <- function(shade) {
     grDevices::pdf(NULL)
     on.exit(grDevices::dev.off(), add = TRUE)
     grDevices::dev.control("enable")
     tutplot_boundary(
       fit_stump(),
-      altmejd,
+      altmext,
       resolution = 20,
       shade = shade,
       main = "A title"
@@ -423,16 +425,16 @@ test_that("the title sits in the top margin under either shade", {
 })
 
 test_that("region labels come from the outcome's own levels", {
-  data(altmejd)
+  data(altmext)
   expect_equal(
-    read_class_labels(altmejd, "replicate"),
-    levels(altmejd$replicate)
+    read_class_labels(altmext, "replicate"),
+    levels(altmext$replicate)
   )
   # a 0/1 outcome has no levels to borrow
-  d <- altmejd
+  d <- altmext
   d$replicate <- as.integer(d$replicate) - 1L
   expect_equal(read_class_labels(d, "replicate"), c("0", "1"))
-  expect_null(read_class_labels(altmejd, "not_a_column"))
+  expect_null(read_class_labels(altmext, "not_a_column"))
 })
 
 test_that("the marker ring is chosen from the fill's luminance", {
@@ -448,36 +450,36 @@ test_that("the marker ring is chosen from the fill's luminance", {
 })
 
 test_that("the legend sits outside the panel by default", {
-  data(altmejd)
+  data(altmext)
   quietly({
     # "top" is the outside-centered path; a keyword places it inside instead
-    expect_silent(tutplot_boundary(fit_ada(), altmejd, resolution = 20))
+    expect_silent(tutplot_boundary(fit_ada(), altmext, resolution = 20))
     expect_silent(
       tutplot_boundary(
         fit_ada(),
-        altmejd,
+        altmext,
         resolution = 20,
         legend_pos = "bottomleft"
       )
     )
     expect_silent(
-      tutplot_boundary(fit_ada(), altmejd, resolution = 20, legend_pos = NULL)
+      tutplot_boundary(fit_ada(), altmext, resolution = 20, legend_pos = NULL)
     )
   })
 })
 
 test_that("the top margin is paid for by what is actually drawn", {
-  data(altmejd)
+  data(altmext)
   # one device for the calls and for par("mar"), so both read the same one
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
   # no title, no subtitle, no legend -> the smallest top margin; adding each
   # must not error and must restore par() afterward
   before <- par("mar")
-  tutplot_boundary(fit_ada(), altmejd, resolution = 20, legend_pos = NULL)
+  tutplot_boundary(fit_ada(), altmext, resolution = 20, legend_pos = NULL)
   tutplot_boundary(
     fit_ada(),
-    altmejd,
+    altmext,
     resolution = 20,
     main = "t",
     subtitle = "s"
@@ -488,18 +490,18 @@ test_that("the top margin is paid for by what is actually drawn", {
 test_that("margin shading shows the color bar, not the class legend", {
   # the ramp's ends are the classes, so a point legend beside it would repeat
   # the same information -- and the bar used to sit inside the panel
-  data(altmejd)
+  data(altmext)
   quietly({
     expect_silent(tutplot_boundary(
       fit_ada(),
-      altmejd,
+      altmext,
       resolution = 20,
       shade = "margin"
     ))
     expect_silent(
       tutplot_boundary(
         fit_ada(),
-        altmejd,
+        altmext,
         resolution = 20,
         shade = "margin",
         add_colorbar = FALSE
@@ -509,7 +511,7 @@ test_that("margin shading shows the color bar, not the class legend", {
     expect_silent(
       tutplot_boundary(
         fit_ada(),
-        altmejd,
+        altmext,
         resolution = 20,
         shade = "margin",
         legend_pos = NULL
@@ -518,7 +520,7 @@ test_that("margin shading shows the color bar, not the class legend", {
     expect_silent(
       tutplot_boundary(
         fit_ada(),
-        altmejd,
+        altmext,
         resolution = 20,
         shade = "class",
         legend_pos = NULL
@@ -528,8 +530,8 @@ test_that("margin shading shows the color bar, not the class legend", {
 })
 
 test_that("the bar's end labels come from the outcome, including 0/1", {
-  data(altmejd)
-  d <- altmejd
+  data(altmext)
+  d <- altmext
   d$replicate <- as.integer(d$replicate) - 1L
   # a numeric outcome has no levels to borrow, so the bar falls back to 0/1
   expect_equal(read_class_labels(d, "replicate"), c("0", "1"))
@@ -552,8 +554,8 @@ test_that("the bar's end labels come from the outcome, including 0/1", {
 test_that("a tree's color scale is anchored, a boosted margin's is not", {
   # A probability offset cannot leave [-0.5, 0.5], so the same score must draw
   # the same color in every tree. A margin has no such bound.
-  data(altmejd)
-  sub <- altmejd[, c("power.o", "n.o", "replicate")]
+  data(altmext)
+  sub <- altmext[, c("power.o", "n.o", "replicate")]
   stump <- rpart::rpart(
     replicate ~ .,
     data = sub,
@@ -586,8 +588,8 @@ test_that("a tree's color scale is anchored, a boosted margin's is not", {
 test_that("margin shading survives a leaf that is entirely one class", {
   # a pure leaf puts the score exactly on the outer break, which would fall
   # outside the bins unless it is nudged inside
-  data(altmejd)
-  sub <- altmejd[, c("power.o", "n.o", "replicate")]
+  data(altmext)
+  sub <- altmext[, c("power.o", "n.o", "replicate")]
   deep <- rpart::rpart(
     replicate ~ .,
     data = sub,
@@ -608,9 +610,9 @@ test_that("margin shading survives a leaf that is entirely one class", {
 })
 
 test_that("the stump reads as two moderate tones, not two extremes", {
-  # the point of anchoring: .26 / .76 must not be painted like .02 / .98
-  data(altmejd)
-  sub <- altmejd[, c("power.o", "n.o", "replicate")]
+  # the point of anchoring: .29 / .79 must not be painted like .02 / .98
+  data(altmext)
+  sub <- altmext[, c("power.o", "n.o", "replicate")]
   stump <- rpart::rpart(
     replicate ~ .,
     data = sub,

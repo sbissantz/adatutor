@@ -47,10 +47,11 @@
 #' @family cross-validation
 #'
 #' @examples
-#' data(altmejd)
+#' data(altmext)
 #' prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
-#' train <- altmejd[altmejd$pid != "ssrp", ]
-#' test <- altmejd[altmejd$pid == "ssrp", ]
+#' # train on the six tuning projects, test on HOLZ, the project kept back
+#' train <- altmext[altmext$pid != "holz", ]
+#' test <- altmext[altmext$pid == "holz", ]
 #'
 #' h <- rpart::rpart(
 #'   replicate ~ .,
@@ -72,8 +73,9 @@
 #' ci <- bootstrap(test$replicate, margin, n_resample = 200)
 #' ci[ci$metric %in% c("auroc", "auprc", "bacc"), ]
 #'
-#' # every held-out project of a cross-validation, then plotted as bands
-#' res <- logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
+#' # every held-out project of a cross-validation on the six tuning
+#' # projects, then plotted as bands
+#' res <- logo_cv(fit, data = train, group = "pid", verbose = FALSE)
 #' set.seed(1)
 #' res |>
 #'   bootstrap(n_resample = 200) |>

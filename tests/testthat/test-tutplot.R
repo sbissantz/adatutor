@@ -6,7 +6,7 @@
 stump <- function(formula = replicate ~ power.o + n.o, weights = NULL) {
   args <- list(
     formula = formula,
-    data = altmejd_splits$train,
+    data = altmext_splits$train,
     method = "class",
     maxdepth = 1,
     maxsurrogate = 0,
@@ -31,36 +31,36 @@ test_that("tutplot_cstump() returns the numbers Figure 2's caption states", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # the caption: power.o at 0.9305, leaves of 66 and 41, about 62% and 38%
+  # the caption: power.o at 0.927, leaves of 89 and 52, about 63% and 37%
   facts <- tutplot_cstump(stump())
 
   expect_identical(facts$variable, "power.o")
-  expect_equal(round(facts$cutpoint, 4), 0.9305)
-  expect_equal(unname(facts$leaves), c(66, 41))
-  expect_equal(round(100 * facts$leaves / sum(facts$leaves)), c(62, 38))
+  expect_equal(round(facts$cutpoint, 4), 0.927)
+  expect_equal(unname(facts$leaves), c(89, 52))
+  expect_equal(round(100 * facts$leaves / sum(facts$leaves)), c(63, 37))
 })
 
 test_that("the weighted stump is drawn by passing its fit, not its weights", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # fig:cstumpwght is the same function given the weighted fit and extra = 100
+  # fig:cstumpwght is the same function given the weighted fit and extra = 100;
+  # the weights and the two predictors are those of Listing 16
   set.seed(112)
-  d_raw <- stats::runif(nrow(altmejd_splits$train))
+  d_raw <- stats::runif(nrow(altmext_splits$train))
   d <- d_raw / sum(d_raw)
-  fit <- stump(
-    replicate ~ power.o + effect_size.o + n.o + p_value.o,
-    weights = d
-  )
+  fit <- stump(weights = d)
 
   facts <- tutplot_cstump(fit, extra = 100)
 
-  # reweighting moves the split to power.o; the caption's 63.48 / 36.52 are
-  # weighted shares, not row counts, which is why they differ from 62 / 38
+  # reweighting moves the cut from 0.927 to 0.9206; the caption's 59.85 /
+  # 40.15 are weighted shares, not row counts, which is why they differ from
+  # the leaves' 86 / 55
   expect_identical(facts$variable, "power.o")
-  expect_equal(round(facts$cutpoint, 4), 0.9305)
-  lo <- altmejd_splits$train$power.o < 0.9305
-  expect_equal(round(100 * c(sum(d[lo]), sum(d[!lo])), 2), c(63.48, 36.52))
+  expect_equal(round(facts$cutpoint, 4), 0.9206)
+  expect_equal(unname(facts$leaves), c(86, 55))
+  lo <- altmext_splits$train$power.o < facts$cutpoint
+  expect_equal(round(100 * c(sum(d[lo]), sum(d[!lo])), 2), c(59.85, 40.15))
 })
 
 test_that("file = NULL draws on the current device and writes nothing", {
@@ -89,15 +89,16 @@ test_that("a path writes one PDF and leaves the open devices as they were", {
   # a stray device
   expect_null(grDevices::dev.list(), label = "the devices open at the start")
   grDevices::graphics.off()
+  tuning <- drop_holz()
   boosted <- rpart::rpart(
     replicate ~ power.o + n.o + effect_size.o + p_value.o,
-    data = altmejd,
+    data = tuning,
     method = "class",
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  res <- logo_cv(boosted, data = altmejd, group = "pid", verbose = FALSE)
+  res <- logo_cv(boosted, data = tuning, group = "pid", verbose = FALSE)
   # every figure that takes `file`
   figures <- list(
     tutplot_cstump = \(file) tutplot_cstump(stump(), file = file),
@@ -108,7 +109,7 @@ test_that("a path writes one PDF and leaves the open devices as they were", {
     tutplot_boundary = function(file) {
       tutplot_boundary(
         stump(),
-        data = altmejd_splits$train,
+        data = altmext_splits$train,
         resolution = 20,
         file = file
       )
@@ -116,7 +117,7 @@ test_that("a path writes one PDF and leaves the open devices as they were", {
     tutplot_importance = \(file) {
       tutplot_importance(gauge(boosted), file = file)
     },
-    tutplot_logoscheme = \(file) tutplot_logoscheme(altmejd$pid, file = file),
+    tutplot_logoscheme = \(file) tutplot_logoscheme(tuning$pid, file = file),
     tutplot_logocv = \(file) tutplot_logocv(res, bootstrap = FALSE, file = file)
   )
 
@@ -153,12 +154,12 @@ test_that("`extra` reaches rpart.plot()", {
   txt <- function(p) system2("pdftotext", c(p, "-"), stdout = TRUE)
   # 102 prints the counts behind each node, 100 prints percentages only
   expect_false(identical(txt(f102), txt(f100)))
-  expect_true(any(grepl("49 / 66", txt(f102), fixed = TRUE)))
-  expect_false(any(grepl("49 / 66", txt(f100), fixed = TRUE)))
+  expect_true(any(grepl("62 / 89", txt(f102), fixed = TRUE)))
+  expect_false(any(grepl("62 / 89", txt(f100), fixed = TRUE)))
 })
 
 test_that("tutplot_cstump() refuses something that is not an rpart fit", {
-  expect_error(tutplot_cstump(altmejd_splits$train), "rpart object")
+  expect_error(tutplot_cstump(altmext_splits$train), "rpart object")
 })
 
 test_that("tutplot_cstump() draws labels and title-case classes", {
@@ -183,8 +184,8 @@ test_that("tutplot_cstump() draws labels and title-case classes", {
   # the facts describe the fit as given, not the drawn copy
   expect_identical(facts$fit, fit)
   expect_identical(facts$variable, "power.o")
-  expect_equal(round(facts$cutpoint, 4), 0.9305)
-  expect_equal(unname(facts$leaves), c(66, 41))
+  expect_equal(round(facts$cutpoint, 4), 0.927)
+  expect_equal(unname(facts$leaves), c(89, 52))
 
   # without labels the names stay as typed; the classes are title case anyway
   tutplot_cstump(fit, file = g)
@@ -319,10 +320,11 @@ test_that("tutplot_updatefactor() evaluates both points from the curve's own alp
 
   uf <- tutplot_updatefactor()
 
-  # the defect this replaced drew the left points at 0.7 / 0.6 / 0.51, giving
-  # 2.0138 / 1.8221 / 1.6653 -- markers that missed their own curves
+  # the defect this replaced drew the left points at fixed heights, whatever
+  # the curve's alpha -- markers that missed their own curves. The pins are
+  # the default curves at 0.7, 0.499 and 0.3
   expect_equal(uf$wrong, exp(uf$alpha))
-  expect_equal(round(uf$wrong, 4), c(2.0524, 1.8571, 1.6803))
+  expect_equal(round(uf$wrong, 4), c(2.0138, 1.6471, 1.3499))
   expect_equal(uf$correct, exp(-uf$alpha))
 })
 
@@ -439,7 +441,7 @@ test_that("tutplot_weightupdate() derives the misclassified set from the weights
   # the reviewer metrics only -- on the full frame `eid` identifies every row,
   # so the learner would be perfect and nothing would ever be reweighted
   voinms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
-  train <- altmejd_splits$train[, voinms]
+  train <- altmext_splits$train[, voinms]
   y <- train$replicate
   d1 <- rep(1, nrow(train)) / nrow(train)
   h1 <- rpart::rpart(
@@ -454,8 +456,8 @@ test_that("tutplot_weightupdate() derives the misclassified set from the weights
 
   expect_identical(w$wrong, which((w$d2 > w$d1)[seq_len(w$n)]))
   expect_identical(w$wrong, which((y_retro != y)[seq_len(w$n)]))
-  # what the chunk drew
-  expect_length(w$wrong, 7)
+  # what the caption states: 9 of the first 25 were misclassified
+  expect_length(w$wrong, 9)
 })
 
 test_that("tutplot_weightupdate() shows the mechanism its caption describes", {
@@ -495,7 +497,7 @@ test_that("tutplot_weightupdate() takes its own weights and honors n", {
 })
 
 test_that("run_round_one() reproduces the tutorial's D1 and D2", {
-  train <- altmejd_splits$train
+  train <- altmext_splits$train
   r <- run_round_one(train)
 
   expect_equal(r$d1, rep(1, nrow(train)) / nrow(train))
@@ -510,7 +512,7 @@ test_that("tutplot_modelweight() marks the reader's own learner exactly", {
 
   # the tutorial's own numbers, Listings 21-22 recomputed independently
   voinms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
-  train <- altmejd_splits$train[, voinms]
+  train <- altmext_splits$train[, voinms]
   y <- train$replicate
   d1 <- rep(1, nrow(train)) / nrow(train)
   h1 <- rpart::rpart(
@@ -527,7 +529,9 @@ test_that("tutplot_modelweight() marks the reader's own learner exactly", {
   marked <- tutplot_modelweight(marked_perf = perf)
 
   expect_equal(marked$alpha, alpha1)
-  expect_equal(round(marked$alpha, 4), 0.5431)
+  # the caption's model weight, and four decimals as a regression check
+  expect_equal(round(marked$alpha, 3), 0.499)
+  expect_equal(round(marked$alpha, 4), 0.4986)
 })
 
 test_that("the mark sits on the curve it belongs to", {
@@ -550,7 +554,8 @@ test_that("no mark leaves the figure exactly as it was", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  plain <- tutplot_modelweight()
+  # NA asks for no mark; NULL, the default, marks the tutorial's stump
+  plain <- tutplot_modelweight(marked_perf = NA)
   marked <- tutplot_modelweight(marked_perf = 0.75)
 
   expect_null(plain$alpha)
@@ -681,10 +686,10 @@ test_that("supplied weights must come with chi, because it cannot be inferred", 
 })
 
 test_that("run_round_one() hands back a real chi, so nothing is derived", {
-  r <- run_round_one(altmejd_splits$train)
+  r <- run_round_one(altmext_splits$train)
 
   voinms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
-  train <- altmejd_splits$train[, voinms]
+  train <- altmext_splits$train[, voinms]
   h1 <- rpart::rpart(
     replicate ~ .,
     data = train,
@@ -741,7 +746,7 @@ test_that("the mark follows marked_eta, whatever the reader sets", {
   on.exit(grDevices::dev.off(), add = TRUE)
 
   voinms <- c("power.o", "effect_size.o", "n.o", "p_value.o", "replicate")
-  train <- altmejd_splits$train[, voinms]
+  train <- altmext_splits$train[, voinms]
   y <- train$replicate
   d1 <- rep(1, nrow(train)) / nrow(train)
   h1 <- rpart::rpart(
@@ -770,6 +775,127 @@ test_that("the mark follows marked_eta, whatever the reader sets", {
     pinned,
     1 / 2 * log(perf / epsilon) * 0.5
   )))
+})
+
+# ---- the bare calls draw the tutorial's Figures 6 to 8 ----------------------
+
+# Listings 17 to 23 and Figure 7's `alpha_int`, as the tutorial script runs
+# them on the shipped training set
+reproduce_round_one <- function() {
+  train <- altmext_splits$train
+  pred_nms <- c("power.o", "effect_size.o", "n.o", "p_value.o")
+  out_nme <- "replicate"
+  voi_nms <- c(pred_nms, out_nme)
+  y_train <- train[, out_nme]
+  m <- nrow(train)
+  D1 <- rep(1, m) / m
+  h1 <- rpart::rpart(
+    replicate ~ .,
+    data = train[, voi_nms],
+    method = "class",
+    maxdepth = 1,
+    parms = list(split = "gini"),
+    weights = D1
+  )
+  y_retro <- predict(h1, newdata = train[, pred_nms], type = "class")
+  perf <- sum(D1 * (y_retro == y_train))
+  epsilon <- 1 - perf
+  eta <- 1
+  alpha1 <- 0.5 * log(perf / epsilon) * eta
+  chi1 <- (y_retro == y_train) * 1 + (y_retro != y_train) * -1
+  D2_raw <- D1 * exp(-alpha1 * chi1)
+  Z1 <- sum(D2_raw)
+  D2 <- D2_raw / Z1
+  alpha_int <- c(0.7, round(alpha1, 3), 0.3)
+  list(
+    D1 = D1,
+    D2 = D2,
+    chi1 = chi1,
+    perf = perf,
+    alpha1 = alpha1,
+    alpha_int = alpha_int
+  )
+}
+
+test_that("the figure defaults resolve to the tutorial's round one", {
+  script <- reproduce_round_one()
+  defaults <- resolve_figure_defaults()
+
+  expect_identical(defaults$alpha, script$alpha_int)
+  expect_identical(defaults$marked_perf, script$perf)
+  # what the captions state: performance 0.730, model weight 0.499, and 9 of
+  # the first 25 misclassified
+  expect_equal(round(script$perf, 3), 0.730)
+  expect_equal(round(script$alpha1, 3), 0.499)
+  expect_identical(sum(script$chi1[1:25] == -1), 9L)
+})
+
+test_that("run_round_one() is the tutorial's round one, to the last bit", {
+  script <- reproduce_round_one()
+  r <- run_round_one(altmext_splits$train)
+
+  expect_identical(r$d1, script$D1)
+  expect_identical(r$d2, script$D2)
+  expect_identical(r$chi, script$chi1)
+  expect_identical(r$alpha, script$alpha1)
+  expect_identical(r$perf, script$perf)
+})
+
+test_that("each bare call draws what the tutorial's call draws", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  script <- reproduce_round_one()
+
+  # Figure 6: the dot is the first stump
+  bare <- tutplot_modelweight()
+  expect_identical(
+    bare,
+    tutplot_modelweight(eta = c(1, 0.5, 0.1), marked_perf = script$perf)
+  )
+  expect_identical(bare$alpha, script$alpha1)
+  # Figure 7
+  expect_identical(
+    tutplot_updatefactor(),
+    tutplot_updatefactor(alpha = script$alpha_int)
+  )
+  # Figure 8
+  expect_identical(
+    tutplot_weightupdate(),
+    tutplot_weightupdate(d1 = script$D1, d2 = script$D2, chi = script$chi1)
+  )
+})
+
+test_that("the figure defaults need the package loaded, not attached", {
+  # evaluated where the search path is out of reach, as in a session that
+  # loaded the package without attaching it
+  base_only <- new.env(parent = baseenv())
+  expect_identical(
+    eval(formals(tutplot_weightupdate)$data, base_only),
+    altmext_splits$train
+  )
+  resolve <- resolve_figure_defaults
+  environment(resolve) <- list2env(
+    list(run_round_one = run_round_one),
+    parent = baseenv()
+  )
+  expect_identical(resolve(), resolve_figure_defaults())
+})
+
+test_that("the default mark gives way to `from`, an asked-for one does not", {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  perf <- resolve_figure_defaults()$marked_perf
+
+  # a panel that starts above the tutorial's stump drops the default mark
+  above <- perf + 0.05
+  expect_null(expect_silent(tutplot_modelweight(from = above))$alpha)
+  # but the same mark, asked for, is refused rather than hidden
+  expect_error(
+    tutplot_modelweight(from = above, marked_perf = perf),
+    "must be one value"
+  )
+  # a numeric NA asks for no mark as well
+  expect_null(tutplot_modelweight(marked_perf = NA_real_)$alpha)
 })
 
 test_that("tutplot_opts holds the numbers its documentation states", {
@@ -884,7 +1010,7 @@ test_that("tutplot_boundary() draws at the manuscript's full text width", {
     as.numeric(regmatches(v, gregexpr("[0-9.]+", v))[[1]])[1:2]
   }
 
-  tutplot_boundary(stump(), data = altmejd_splits$train, file = f)
+  tutplot_boundary(stump(), data = altmext_splits$train, file = f)
   # derived from the object rather than hardcoded, so the two cannot disagree
   expect_equal(
     round(pts(f)),
@@ -902,7 +1028,7 @@ test_that("tutplot_boundary() takes either learner, and writes no file", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  train <- altmejd_splits$train
+  train <- altmext_splits$train
   before <- list.files(".", pattern = "\\.pdf$")
 
   # a single stump: two leaves, so the score takes exactly two values
@@ -944,7 +1070,7 @@ test_that("tutplot_boundary() names the classes in title case", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   paths <- replicate(4, tempfile(fileext = ".pdf"))
   on.exit(unlink(paths), add = TRUE)
-  train <- altmejd_splits$train
+  train <- altmext_splits$train
 
   # the color bar's ends, then the class legend
   tutplot_boundary(stump(), data = train, resolution = 20, file = paths[1])
@@ -1004,7 +1130,7 @@ test_that("tutplot_boundary() draws no key for misclassified points", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   paths <- replicate(2, tempfile(fileext = ".pdf"))
   on.exit(unlink(paths), add = TRUE)
-  train <- altmejd_splits$train
+  train <- altmext_splits$train
 
   flawed <- tutplot_boundary(
     stump(),
@@ -1039,7 +1165,7 @@ test_that("only the color bar marks the boundary", {
   skip_if_not(nzchar(Sys.which("pdftotext")), "pdftotext not available")
   paths <- replicate(3, tempfile(fileext = ".pdf"))
   on.exit(unlink(paths), add = TRUE)
-  train <- altmejd_splits$train
+  train <- altmext_splits$train
 
   tutplot_boundary(stump(), data = train, resolution = 20, file = paths[1])
   tutplot_boundary(
@@ -1076,7 +1202,7 @@ test_that("tutplot_logoscheme() builds one fold per project, test on the diagona
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  g <- altmejd$pid
+  g <- drop_holz()$pid
   f <- tutplot_logoscheme(g)
 
   # one iteration per project, and every row accounted for
@@ -1084,30 +1210,38 @@ test_that("tutplot_logoscheme() builds one fold per project, test on the diagona
   expect_identical(sum(f$n), length(g))
   expect_identical(as.integer(f$n[["rpp"]]), sum(g == "rpp"))
 
-  # heights are the project shares, so they carry the imbalance
+  # heights are the project shares, so they carry the imbalance; ML3 falls
+  # under the default minimum height, so the exact shares need it off
+  exact <- tutplot_logoscheme(g, min_height = 0)
+  expect_equal(sum(exact$heights), 1)
+  expect_equal(exact$heights, as.numeric(exact$n) / sum(exact$n))
+  expect_equal(max(exact$heights), sum(g == "rpp") / length(g))
+  # with the minimum, the heights still fill the figure and the largest
+  # project still draws the tallest row
   expect_equal(sum(f$heights), 1)
-  expect_equal(f$heights, as.numeric(f$n) / sum(f$n))
-  expect_equal(round(max(f$heights), 3), 0.592)
+  expect_identical(f$levels[which.max(f$heights)], "rpp")
 })
 
 test_that("tutplot_logoscheme() draws the order it is given, not table()'s", {
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  # `table()` sorts, which would silently rearrange the manuscript's figure
-  paper <- c("ml1", "rpp", "ml3", "eerp", "ssrp")
-  f <- tutplot_logoscheme(altmejd$pid, levels = paper)
-  expect_identical(f$levels, paper)
-  expect_identical(names(f$n), paper)
-  expect_false(identical(names(f$n), sort(paper)))
+  # `table()` sorts, which would silently rearrange the manuscript's figure;
+  # every project, in an order that is not the sorted one
+  pid <- drop_holz()$pid
+  given <- rev(sort(unique(pid)))
+  f <- tutplot_logoscheme(pid, levels = given)
+  expect_identical(f$levels, given)
+  expect_identical(names(f$n), given)
+  expect_false(identical(names(f$n), sort(given)))
 
   # a factor brings its own order
-  g <- factor(altmejd$pid, levels = paper)
-  expect_identical(tutplot_logoscheme(g)$levels, paper)
+  g <- factor(pid, levels = given)
+  expect_identical(tutplot_logoscheme(g)$levels, given)
 
   # and a level that is not in the data is refused rather than drawn empty
   expect_error(
-    tutplot_logoscheme(altmejd$pid, levels = c(paper, "nope")),
+    tutplot_logoscheme(pid, levels = c(given, "nope")),
     "nope"
   )
 })
@@ -1116,8 +1250,8 @@ test_that("tutplot_logoscheme() equal blocks hide what proportional ones show", 
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)
 
-  prop <- tutplot_logoscheme(altmejd$pid, proportional = TRUE)
-  flat <- tutplot_logoscheme(altmejd$pid, proportional = FALSE)
+  prop <- tutplot_logoscheme(drop_holz()$pid, proportional = TRUE)
+  flat <- tutplot_logoscheme(drop_holz()$pid, proportional = FALSE)
 
   expect_equal(flat$heights, rep(1 / flat$k, flat$k))
   expect_false(isTRUE(all.equal(prop$heights, flat$heights)))
@@ -1243,7 +1377,7 @@ test_that("tutplot_logoscheme() leaves the figure's title to the caption", {
   f <- tempfile(fileext = ".pdf")
   on.exit(unlink(f), add = TRUE)
 
-  tutplot_logoscheme(altmejd$pid, file = f)
+  tutplot_logoscheme(drop_holz()$pid, file = f)
   out <- paste(system2("pdftotext", c(f, "-"), stdout = TRUE), collapse = " ")
 
   # the axis label and the column headers stay
@@ -1256,16 +1390,16 @@ test_that("tutplot_logoscheme() leaves the figure's title to the caption", {
 # ---- tutplot_logocv ---------------------------------------------------------
 
 logocv_res <- function() {
-  data(altmejd)
+  tuning <- drop_holz()
   fit <- rpart::rpart(
     replicate ~ power.o + effect_size.o + n.o + p_value.o,
-    data = altmejd,
+    data = tuning,
     method = "class",
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = 5, eta = 1, verbose = FALSE)
-  logo_cv(fit, data = altmejd, group = "pid", verbose = FALSE)
+  logo_cv(fit, data = tuning, group = "pid", verbose = FALSE)
 }
 
 test_that("tutplot_logocv(bootstrap = FALSE) draws estimates without resampling", {
@@ -1472,7 +1606,7 @@ test_that("tutplot_logocv() draws no keys, capitals and an italic n", {
 })
 
 test_that("Figure 1 and the estimates figure give a project one color", {
-  # the script's six projects: altmejd lacks ML2
+  # the script's six projects
   data(altmext)
   six <- altmext[altmext$pid != "holz", ]
   fit <- rpart::rpart(
@@ -1551,7 +1685,7 @@ test_that("label_metric() names every metric assess() returns", {
 boosted_stumps <- function(n_iter = 20) {
   rpart::rpart(
     replicate ~ power.o + n.o + effect_size.o + p_value.o,
-    data = altmejd_splits$train,
+    data = altmext_splits$train,
     method = "class",
     maxdepth = 1,
     model = TRUE
@@ -1613,7 +1747,7 @@ test_that("tutplot_importance() refuses what gauge() did not make, or an empty g
     fixed = TRUE
   )
 
-  bare <- rpart::rpart(replicate ~ power.o, data = altmejd_splits$train, cp = 1)
+  bare <- rpart::rpart(replicate ~ power.o, data = altmext_splits$train, cp = 1)
   empty <- gauge(list(t1 = list(h = bare, alpha = 0.5)))
   expect_error(tutplot_importance(empty), "no variable was split on")
 })

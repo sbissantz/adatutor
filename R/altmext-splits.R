@@ -1,8 +1,8 @@
 #' Stratified 70/15/15 split of the extended Altmejd data
 #'
 #' The training, validation and test sets of [altmext]. Made by
-#' `data-raw/altmext-splits.R` with the same [partition()] call as
-#' [altmejd_splits], run on `altmext`.
+#' `data-raw/altmext-splits.R` with the tutorial's [partition()] call for the
+#' stratified 70/15/15 split (seed 112).
 #'
 #' The sets are shipped because a seed is not enough: R changed `sample()` in
 #' version 3.6.0, which moved every seeded split.
