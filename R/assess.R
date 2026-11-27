@@ -59,7 +59,7 @@
 #' @param threshold The cutoff for `score`. Use 0 for margins (the default)
 #'   and 0.5 for probabilities.
 #' @param k The budgets for `patk`. By default 3, 5 and the number of
-#'   positives. Budgets you pass are named by their value, e.g. `patk_10`.
+#'   positives. Budgets passed are named by their value, e.g. `patk_10`.
 #' @param digits The number of decimals `print()` shows.
 #' @param ... Ignored.
 #'
@@ -473,7 +473,7 @@ auprc <- function(actual, score) {
 #' Precision among the top-ranked cases
 #'
 #' Computes the share of positives among the `k` highest scores: precision
-#' under a budget, when you can act on only the top of the ranking.
+#' under a budget, when only the top of the ranking is acted on.
 #'
 #' By default `k` is the number of positives (R-precision), which scales with
 #' each data set. A fixed `k` means something different in a set of 10 than in

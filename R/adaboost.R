@@ -19,8 +19,8 @@
 #'
 #' @section What is refused:
 #' `adaboost()` stops with an error rather than boost a different model than
-#' the one you passed. It refuses a tree that is not `method = "class"`, one
-#' fitted with `weights`, and one with a `prior` or a `loss` matrix.
+#' `h`. It refuses a tree that is not `method = "class"`, one fitted with
+#' `weights`, and one with a `prior` or a `loss` matrix.
 #'
 #' @param h A classification tree from [rpart::rpart()], fitted with
 #'   `model = TRUE`. Without it, rpart drops the predictors and the tree
@@ -30,7 +30,7 @@
 #' @param keep_data Whether to store the training data on the fit. Defaults to
 #'   `TRUE`. This lets `predict()` run without `newdata` and makes the
 #'   retrodiction check exact. It costs no memory, but a saved file grows by
-#'   the size of the data; set `FALSE` when you save many fits.
+#'   the size of the data; set `FALSE` when saving many fits.
 #' @param check_inputs Whether to check the inputs. Defaults to `TRUE`.
 #' @param verbose Whether to show progress. Defaults to `TRUE`.
 #'
@@ -297,7 +297,7 @@ strip_tree <- function(tree, learner_terms) {
 #' Scoring the data the model was trained on is a *retrodiction*: it shows how
 #' well the model fits data it has already seen, not how well it predicts.
 #' Scoring held-out data is a prediction. The call looks the same either way,
-#' so `predict()` tells you when the data were also used for training. With no
+#' so `predict()` notes when the data were also used for training. With no
 #' `newdata`, it scores the training data on purpose, like `predict()` for
 #' [stats::lm()].
 #'

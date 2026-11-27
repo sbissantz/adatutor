@@ -7,11 +7,16 @@
 #'   case and its branches tagged "Yes" and "No" in upright type.
 #' * `tutplot_gini()`: Gini impurity by class proportion.
 #' * `tutplot_updatefactor()`: the factor by which one round multiplies an
-#'   observation's weight.
+#'   observation's weight. The y-axis names each factor drawn, unless more
+#'   than three curves are drawn or two labels would collide.
 #' * `tutplot_modelweight()`: the model weight a stump earns, by its
 #'   performance.
 #' * `tutplot_weightupdate()`: observation weights before and after one round,
 #'   with a short tick under every data point and a number at every fifth.
+#'   Both dots of a point are filled with the color of its observed class, as
+#'   in [tutplot_boundary()]. The y-axis names zero and each weight drawn,
+#'   unless the weights take more than four values or two labels would
+#'   collide.
 #' * `tutplot_importance()`: the relative importance of each predictor, as a
 #'   lollipop chart. Its axis title is in title case; `plot()` on a [gauge()]
 #'   draws the same chart with the title in sentence case.
@@ -22,8 +27,8 @@
 #' @section Output:
 #' With `file = NULL` (the default), the figure is drawn on the current
 #' device. With a path, a PDF is written at the manuscript's size. `width`,
-#' `height` and `pointsize` apply only then; raise `pointsize` when you
-#' enlarge `width`. A session without a device, such as `Rscript`, writes
+#' `height` and `pointsize` apply only then; raise `pointsize` when
+#' enlarging `width`. A session without a device, such as `Rscript`, writes
 #' `Rplots.pdf`, which is ordinary R behavior.
 #'
 #' To draw a weighted stump, pass the fit that was grown with the weights; the
@@ -48,9 +53,14 @@
 #' @param alpha The model weights, one curve each. `NULL` (the default) draws
 #'   the three of Figure 7: 0.7, the model weight of the tutorial's first
 #'   stump on the training set of [altmext_splits], rounded to three digits,
-#'   and 0.3.
+#'   and 0.3. For three decreasing weights whose middle one is that first
+#'   stump's, the legend reads `Larger alpha_t`, `alpha_1` and
+#'   `Smaller alpha_t`, drawn with Greek letters and without numbers. For any
+#'   other `alpha`, it shows the numbers.
 #' @param pch The plotting symbols for the end points, recycled over `alpha`.
-#' @param lty The line types, recycled over the curves.
+#'   Defaults to one filled dot for every curve, so color tells them apart.
+#' @param lty The line types, recycled over the curves. `tutplot_modelweight()`
+#'   draws every curve solid by default, so color tells them apart.
 #' @param ylim The vertical range. Defaults to the manuscript's.
 #' @param eta The learning rates, one curve each.
 #' @param from Where performance starts. The default, 0.5, is chance.
@@ -60,14 +70,13 @@
 #'   performance on the training set of [altmext_splits]. This default mark
 #'   is left out when it lies below `from`. `NA` draws no mark.
 #' @param marked_eta The curve the mark belongs to. Defaults to the first.
-#' @param data The training data for the first boosting round, used when `d1`
-#'   and `d2` are `NULL`. Defaults to the training set of [altmext_splits],
-#'   as in Figure 8.
-#' @param d1,d2 The observation weights before and after one round. `NULL`
+#' @param data The training data. Each point's observed class is read from
+#'   its `replicate` column, and the first boosting round runs on it when `d1`
+#'   or `d2` is `NULL`. Defaults to the training set of [altmext_splits], as
+#'   in Figure 8.
+#' @param d1,d2 The observation weights before and after one round, one per
+#'   row of `data` and in its row order; other lengths are an error. `NULL`
 #'   computes them from `data`.
-#' @param chi `+1` where the learner was right and `-1` where it was wrong,
-#'   like the tutorial's `chi1`. Required when you pass `d1` or `d2`, because
-#'   the weights alone cannot show which points were missed.
 #' @param n The number of data points to draw. 25 fits a column.
 #' @param scaling The bubble size multiplier.
 #' @param importance A `gauge` object from [gauge()].
@@ -104,7 +113,11 @@
 #' @return Invisibly, the facts the figure's caption states, so tests can
 #'   check them. `tutplot_cstump()` returns the fit, the split variable, the
 #'   cutpoint and the leaf sizes; `tutplot_gini()` the curve and its peak;
-#'   `tutplot_importance()` the rows it drew, most important first;
+#'   `tutplot_updatefactor()` the factors, the legend labels and the named
+#'   ticks; `tutplot_weightupdate()` the weights, the class and colors of each
+#'   point drawn, the legend labels and the named ticks. The ticks are `NULL`
+#'   when ordinary ticks were drawn instead. `tutplot_importance()` returns
+#'   the rows it drew, most important first;
 #'   `tutplot_logoscheme()` the project sizes, their count, the order and the
 #'   row heights; `tutplot_logocv()` one row per project with its estimate,
 #'   the widest interval, and the share of resamples its bootstrap rejected.
@@ -137,8 +150,8 @@
 #' # Figure 1: the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
 #' # kept back for the final test, so six projects take part
 #' data(altmext)
-#' tuning <- altmext[altmext$pid != "holz", ]
-#' folds <- tutplot_logoscheme(tuning$pid)
+#' df_noholz <- altmext[altmext$pid != "holz", ]
+#' folds <- tutplot_logoscheme(df_noholz$pid)
 #' folds$n
 #'
 #' @name tutplot
@@ -306,7 +319,7 @@ tutplot_gini <- function(
 #' @export
 tutplot_updatefactor <- function(
   alpha = NULL,
-  pch = c(20, 17, 15),
+  pch = 20,
   lty = 3,
   lwd = 1,
   ylim = c(0.3, 2.2),
@@ -319,6 +332,8 @@ tutplot_updatefactor <- function(
     alpha <- resolve_figure_defaults()$alpha
   }
   check_numeric(alpha)
+  # before pdf(), so a failing round one writes no file
+  legend_labels <- label_alpha(alpha)
 
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
@@ -336,16 +351,49 @@ tutplot_updatefactor <- function(
   # chi is +1 where the learner was right, -1 where wrong
   rescale_weight <- function(alpha, chi) exp(-alpha * chi)
 
+  # a step under the family's 0.9, so the three lower factors fit, and no
+  # smaller than tutplot_boundary()'s tick labels, 0.85
+  cex_ticks <- 0.85
+  # every factor drawn, named; more than three curves would crowd the axis
+  ticks <- NULL
+  if (length(alpha) <= 3L) {
+    factors <- c(rescale_weight(alpha, 1), rescale_weight(alpha, -1))
+    ticks <- plan_named_ticks(
+      at = c(factors, 1),
+      labels = c(sprintf("%.2f", factors), "1"),
+      ylim = ylim,
+      cex = cex_ticks
+    )
+  }
+  shift <- if (is.null(ticks)) 0 else ticks$shift
+  graphics::par(mar = graphics::par("mar") + c(0, shift, 0, 0))
+
   # empty frame first, so the grid lies under every curve
   plot(
     NULL,
     xlim = c(-1, 1),
     ylim = ylim,
     xlab = "Classification",
-    ylab = "Weight Update Factor",
-    xaxt = "n"
+    ylab = "",
+    xaxt = "n",
+    yaxt = if (is.null(ticks)) "s" else "n"
   )
-  graphics::grid()
+  graphics::title(
+    ylab = "Weight Update Factor",
+    line = tutplot_opts$mgp[1] + shift
+  )
+  # named ticks carry the values, so a grid would only add lines
+  if (is.null(ticks)) {
+    graphics::grid()
+  } else {
+    graphics::axis(
+      2,
+      at = ticks$at,
+      labels = ticks$labels,
+      las = 1,
+      cex.axis = cex_ticks
+    )
+  }
 
   # one alpha per curve, and its two end points read from that same alpha
   for (i in seq_along(alpha)) {
@@ -371,32 +419,101 @@ tutplot_updatefactor <- function(
   # a factor of one is break-even: below it a weight shrinks, above it grows
   graphics::abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
 
-  # built from `alpha`, so a label cannot outlive the curve it names
+  # built from `alpha`, so a label cannot outlive the curve it names. Line and
+  # dot merge into one key, and legend() then leaves 0.3 character widths
+  # after a label but 0.7 (`x.intersp`) before it; 0.4 more evens the two
   draw_legend(
-    as.expression(lapply(
-      alpha,
-      \(value) bquote(alpha[t] * " = " * .(format(value)))
-    )),
+    legend_labels,
     cex = 1,
     col = colors,
     lty = lty,
     lwd = lwd,
-    pch = pch
+    pch = pch,
+    pad = 0.4
   )
   graphics::axis(1, at = c(-1, 1))
 
   invisible(list(
     alpha = alpha,
     correct = rescale_weight(alpha, 1),
-    wrong = rescale_weight(alpha, -1)
+    wrong = rescale_weight(alpha, -1),
+    legend = legend_labels,
+    ticks = ticks
   ))
+}
+
+#' Label the curves of the update-factor figure
+#'
+#' Words for the tutorial's three curves, numbers for any other `alpha`.
+#' Returns an expression vector, one entry per curve.
+#' @noRd
+label_alpha <- function(alpha) {
+  decreasing <- length(alpha) == 3L && isTRUE(all(diff(alpha) < 0))
+  # the first stump's weight, compared at the three digits the default keeps
+  if (
+    decreasing &&
+      isTRUE(round(alpha[2], 3) == resolve_figure_defaults()$alpha[2])
+  ) {
+    return(expression("Larger" ~ alpha[t], alpha[1], "Smaller" ~ alpha[t]))
+  }
+  as.expression(lapply(
+    alpha,
+    \(value) bquote(alpha[t] * " = " * .(format(value)))
+  ))
+}
+
+#' Plan named y ticks, or give way to ordinary ones
+#'
+#' Reads the current device, so call it after set_figure_par() and before
+#' plot(). Returns `NULL` when two labels would collide or no tick lies on
+#' the panel, or a list with the ticks on the panel, their labels, and
+#' `shift`: the lines by which the left margin and the axis title move out to
+#' make room for the labels.
+#' @noRd
+plan_named_ticks <- function(at, labels, ylim, cex) {
+  # plot() widens `ylim` by 4 percent at each end (yaxs = "r"), so a point
+  # just past `ylim` is still drawn and still gets its tick
+  panel <- range(ylim) + c(-1, 1) * 0.04 * diff(range(ylim))
+  inside <- at >= panel[1] & at <= panel[2]
+  at <- at[inside]
+  labels <- labels[inside]
+  drawn <- order(at)
+  at <- at[drawn]
+  labels <- labels[drawn]
+  # a panel that holds no tick leaves nothing to name
+  if (!length(at)) {
+    return(NULL)
+  }
+
+  label_height <- max(graphics::strheight(labels, units = "inches", cex = cex))
+  # `mar[2]` does not change the panel's height, so it can be read before the
+  # margin moves
+  units_per_inch <- diff(panel) / graphics::par("pin")[2]
+  if (has_collision(at, label_height * units_per_inch)) {
+    return(NULL)
+  }
+
+  # horizontal labels reach out by their width, rotated ones by their height;
+  # the difference keeps the title as far from the labels as plot() puts it
+  label_width <- max(graphics::strwidth(labels, units = "inches", cex = cex))
+  shift <- (label_width - label_height) / graphics::par("csi")
+  list(at = at, labels = labels, shift = max(shift, 0))
+}
+
+#' Tell whether two tick labels would overlap
+#'
+#' A horizontal label reaches half its height above and below its tick, so
+#' two labels collide when their ticks sit less than one label height apart.
+#' @noRd
+has_collision <- function(at, min_gap) {
+  length(at) > 1L && any(diff(sort(at)) < min_gap)
 }
 
 #' @rdname tutplot
 #' @export
 tutplot_modelweight <- function(
   eta = c(1, 0.5, 0.1),
-  lty = c(1, 2, 4, 5),
+  lty = 1,
   lwd = 2,
   from = 0.5,
   marked_perf = NULL,
@@ -440,7 +557,8 @@ tutplot_modelweight <- function(
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
-  # ordered learning rates, so the palette runs with them
+  # ordered learning rates, so the palette runs with them; solid lines by
+  # default, so color alone tells the curves apart
   colors <- viridisLite::viridis(length(eta), end = tutplot_opts$viridis_end)
   lty <- rep_len(lty, length(eta))
 
@@ -593,7 +711,6 @@ tutplot_weightupdate <- function(
   data = adatutor::altmext_splits$train,
   d1 = NULL,
   d2 = NULL,
-  chi = NULL,
   n = 25,
   scaling = 2,
   ylim = NULL,
@@ -602,7 +719,16 @@ tutplot_weightupdate <- function(
   height = tutplot_opts$col[["height"]],
   pointsize = tutplot_opts$pointsize
 ) {
-  if (is.null(d1) || is.null(d2) || is.null(chi)) {
+  check_df(data)
+  if (!"replicate" %in% names(data)) {
+    stop(
+      "`data` must have a `replicate` column: it gives each point's class.",
+      call. = FALSE
+    )
+  }
+  # stops for an outcome that is not two classes, as tutplot_boundary() does
+  observed <- as_binary(data[["replicate"]])
+  if (is.null(d1) || is.null(d2)) {
     round_one <- run_round_one(data)
     if (is.null(d1)) {
       d1 <- round_one$d1
@@ -610,46 +736,40 @@ tutplot_weightupdate <- function(
     if (is.null(d2)) {
       d2 <- round_one$d2
     }
-    # only without caller weights: this round's `chi` would not describe theirs
-    if (
-      is.null(chi) && identical(d1, round_one$d1) && identical(d2, round_one$d2)
-    ) {
-      chi <- round_one$chi
-    }
   }
   check_numeric(d1)
   check_numeric(d2)
   if (length(d1) != length(d2)) {
     stop("`d1` and `d2` must be the same length.", call. = FALSE)
   }
-  # weights alone cannot say which points were missed (the grown set is the
-  # minority either way), so weights need a `chi`
-  if (is.null(chi)) {
+  # the class is read row by row, so each weight must sit on its own row
+  if (length(d1) != nrow(data)) {
     stop(
-      "`chi` is required when `d1` or `d2` is supplied. Weights cannot say ",
-      "which points were missed: a round grows the misclassified ones only ",
-      "while the learner beats chance.",
-      call. = FALSE
-    )
-  }
-  check_numeric(chi)
-  if (length(chi) != length(d1) || !all(chi %in% c(-1, 1))) {
-    stop(
-      "`chi` must be +1 or -1, one per weight. Got ",
-      length(chi),
-      " value(s) for ",
+      "`d1` and `d2` must have one value per row of `data`, in row order. ",
+      "Got ",
       length(d1),
-      " weights.",
+      " weights for ",
+      nrow(data),
+      " rows.",
       call. = FALSE
     )
   }
   n <- min(n, length(d1))
-
-  missed <- which(chi[seq_len(n)] == -1)
+  shown <- seq_len(n)
 
   if (is.null(ylim)) {
     ylim <- c(0, max(c(d1, d2)) * 1.15)
   }
+
+  # the classes as tutplot_boundary() names and fills them. Every point in full
+  # color: after a round that beats chance, the dots that moved up are the
+  # misclassified ones
+  palette <- viridisLite::viridis(2)
+  labels <- tools::toTitleCase(read_class_labels(data, "replicate"))
+  look <- style_points(observed[shown], rep(FALSE, n), palette)
+  # one dark ring: on this white panel a white ring vanishes and shrinks the dot
+  ring <- choose_ink("white")
+  look$ring <- rep(ring, n)
 
   if (!is.null(file)) {
     grDevices::pdf(file, width = width, height = height, pointsize = pointsize)
@@ -660,8 +780,25 @@ tutplot_weightupdate <- function(
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
-  # `end = 0.5` keeps d2 teal: yellow-green dots are faint on white
-  colors <- viridisLite::viridis(2, end = 0.5)
+  # zero and every weight drawn, named; more than four weights crowd the axis.
+  # Distinct as stored, so weights that differ in the last bit count as two
+  weights_drawn <- sort(unique(c(d1[shown], d2[shown])))
+  ticks <- NULL
+  if (length(weights_drawn) <= 4L) {
+    nonzero <- weights_drawn[weights_drawn != 0]
+    # two significant digits for the smallest, the same decimals for all
+    ticks <- plan_named_ticks(
+      at = c(0, nonzero),
+      labels = c(
+        "0",
+        format(nonzero, digits = 2, scientific = FALSE, trim = TRUE)
+      ),
+      ylim = ylim,
+      cex = graphics::par("cex.axis")
+    )
+  }
+  shift <- if (is.null(ticks)) 0 else ticks$shift
+  graphics::par(mar = graphics::par("mar") + c(0, shift, 0, 0))
 
   # scale by area, not diameter: sqrt keeps a doubled weight at double the ink
   size_bubble <- function(weights) sqrt(weights / mean(d1)) * scaling
@@ -671,10 +808,15 @@ tutplot_weightupdate <- function(
     ylim,
     type = "n",
     xaxt = "n",
+    yaxt = if (is.null(ticks)) "s" else "n",
     xlab = "Data Point",
-    ylab = "Weight"
+    ylab = ""
   )
+  graphics::title(ylab = "Weight", line = tutplot_opts$mgp[1] + shift)
   graphics::box()
+  if (!is.null(ticks)) {
+    graphics::axis(2, at = ticks$at, labels = ticks$labels, las = 1)
+  }
 
   # every fifth point: 25 labels do not fit the width of a column
   graphics::axis(1, at = c(1, seq(5, n, 5)))
@@ -689,31 +831,40 @@ tutplot_weightupdate <- function(
     col = "grey45"
   )
 
-  for (i in seq_len(2)) {
-    weights <- list(d1, d2)[[i]]
+  # both dots of a point in its class's color; only the size shows the weight
+  for (weights in list(d1, d2)) {
     graphics::points(
-      seq_len(n),
-      weights[seq_len(n)],
+      shown,
+      weights[shown],
       pch = 21,
-      bg = colors[i],
-      col = "white",
-      cex = size_bubble(weights[seq_len(n)]),
-      lwd = 1.3
+      bg = look$fill,
+      col = look$ring,
+      cex = size_bubble(weights[shown]),
+      lwd = look$lwd
     )
   }
 
-  # no mark for the missed points: after a round that beats chance they are
-  # the dots that moved up, and the caption says so
+  # the boundary figure's key: the second class first, ringed like the dots
   draw_legend(
-    c(expression(D[1]), expression(D[2])),
+    rev(labels),
     cex = 0.9,
-    pt.bg = colors,
-    col = c("white", "white"),
-    pch = c(21, 21),
-    pt.cex = 1.3
+    pt.bg = rev(palette),
+    col = ring,
+    pch = 21,
+    pt.cex = 1.3,
+    pt.lwd = 1.1
   )
 
-  invisible(list(d1 = d1, d2 = d2, chi = chi, wrong = missed, n = n))
+  invisible(list(
+    d1 = d1,
+    d2 = d2,
+    n = n,
+    class = observed[shown],
+    fill = look$fill,
+    ring = look$ring,
+    legend = rev(labels),
+    ticks = ticks
+  ))
 }
 
 #' @rdname tutplot
@@ -1050,13 +1201,14 @@ tutplot_logoscheme <- function(
   fits <- function(i) (tops[i] - bottoms[i]) > 0.055
 
   graphics::mtext("Dataset", side = 2, line = 0.7, cex = 0.72, col = "grey25")
+  # each project in its full color and ink, as its test box draws it
   for (i in seq_len(n_projects)) {
     draw_roundrect(
       -0.58,
       bottoms[i] + inset_y,
       0.44,
       tops[i] - inset_y,
-      col = grDevices::adjustcolor(colors[i], alpha.f = 0.32)
+      col = colors[i]
     )
     if (fits(i)) {
       graphics::text(
@@ -1064,7 +1216,7 @@ tutplot_logoscheme <- function(
         (bottoms[i] + tops[i]) / 2,
         labels[i],
         cex = 0.7,
-        col = "grey15"
+        col = choose_ink(colors[i])
       )
     }
   }

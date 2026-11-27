@@ -2,7 +2,7 @@
 #'
 #' Altmejd et al.'s (2019) replication database, extended to seven
 #' large-scale replication projects: 202 study effects and whether each one
-#' replicated. Many Labs 1 and 3, the Replication Project
+#' replicated. Many Labs 1 and 3, the Reproducibility Project:
 #' Psychology and the Experimental Economics Replication Project come from
 #' [altmejd723] unchanged. The Social Sciences Replication Project is rebuilt
 #' from its own results file ([ssrp1026]). Two projects are new: Holzmeister
@@ -34,8 +34,8 @@
 #'
 #' Things to keep in mind:
 #' * The SSRP rows differ from Altmejd et al.'s copy, [ssrp723]: the pooled
-#'   outcome (13 rather than 12 of 21 replicated), two effect sizes, three
-#'   p-values and seven sample sizes. See [ssrp1026].
+#'   outcome (13 rather than 12 of 21 replicated), two effect sizes with their
+#'   p-values, one further p-value, and seven sample sizes. See [ssrp1026].
 #' * Holzmeister et al.'s 26 studies were selected by a decision market (the
 #'   12 highest-priced, the 12 lowest-priced and 2 at random), not sampled
 #'   from a literature.
@@ -53,15 +53,15 @@
 #'   `inst/extdata` and built by `data-raw/`.
 #'
 #' @section License:
-#' The rows from Altmejd et al.'s database (Many Labs 1 and 3, the Replication
-#' Project Psychology and the Experimental Economics Replication Project) may
-#' be shared under PLOS ONE's data policy, as A. Altmejd confirmed (personal
-#' communication). The database is available from <https://osf.io/4fn73/>
-#' (\doi{10.17605/OSF.IO/4FN73}). Of the projects behind it, the
-#' Reproducibility Project: Psychology and Many Labs 1 are licensed CC0 1.0 and
-#' Many Labs 3 is licensed CC BY 4.0. The other three projects carry their own
-#' licenses: [ssrp1026] (CC0 1.0), [holz1026] (CC BY 4.0) and [mltwo1026]
-#' (CC0 1.0).
+#' The rows from Altmejd et al.'s database (Many Labs 1 and 3, the
+#' Reproducibility Project: Psychology and the Experimental Economics
+#' Replication Project) may be shared under PLOS ONE's data policy, as
+#' A. Altmejd confirmed (personal communication). The database is available
+#' from <https://osf.io/4fn73/> (\doi{10.17605/OSF.IO/4FN73}). Of the projects
+#' behind it, the Reproducibility Project: Psychology and Many Labs 1 are
+#' licensed CC0 1.0 and Many Labs 3 is licensed CC BY 4.0. The other three
+#' projects carry their own licenses: [ssrp1026] (CC0 1.0), [holz1026]
+#' (CC BY 4.0) and [mltwo1026] (CC0 1.0).
 #'
 #' @family datasets
 #'

@@ -13,7 +13,8 @@
 #' * `n.o`: the n of the focal test, which SSRP's r and p rest on (e.g. 51
 #'   groups rather than 366 participants for ssrp.1); seven study effects
 #'   differ.
-#' * `p_value.o`: two-sided; ssrp.6, ssrp.7 and ssrp.21 differ.
+#' * `p_value.o`: two-sided; the p-values of ssrp.7 and ssrp.21 differ with
+#'   their effect sizes, and the p-value of ssrp.6 differs as well.
 #' * `power.o`: computed from `effect_size.o` and `n.o`, as for every other
 #'   project.
 #'

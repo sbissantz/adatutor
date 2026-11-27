@@ -18,7 +18,7 @@
 #' The same as [altmext].
 #'
 #' @family datasets
-#' @seealso [partition()] to make your own split.
+#' @seealso [partition()] to make a new split.
 #'
 #' @name altmext_splits
 #'

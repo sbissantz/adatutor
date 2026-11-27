@@ -4,8 +4,8 @@
 #' with, kept in one place so the figures match.
 #'
 #' This list is for reference only. Changing a copy has no effect, because a
-#' function's defaults are looked up inside the package. Pass the value you
-#' want instead:
+#' function's defaults are looked up inside the package. Pass the new value
+#' instead:
 #'
 #' ```
 #' tutplot_gini(pointsize = 12)
@@ -14,7 +14,7 @@
 #' @format A list of nine settings:
 #' * `col`: 4.30 x 3.06 inches, one column of the paper's two-column layout.
 #' * `full`: 5.55 x 3.95 inches, the full text width. Not used yet.
-#' * `pointsize`: 9. Raise it when you enlarge a figure, or the text stays
+#' * `pointsize`: 9. Raise it when enlarging a figure, or the text stays
 #'   small.
 #' * `mar_plain`, `mar_legend`: Margins. The legend version has more room on
 #'   top.
@@ -53,9 +53,20 @@ set_figure_par <- function(reserve_legend = TRUE) {
 }
 
 # legend centered in the top margin (`xpd = NA`), so it never covers a
-# curve; `text.width = NA` stops `horiz` padding entries to the widest
-draw_legend <- function(labels, cex = 1, ...) {
+# curve; `text.width = NA` stops `horiz` padding entries to the widest.
+# `pad` widens each label by that many character widths, which moves the
+# next key away from it
+draw_legend <- function(labels, cex = 1, ..., pad = 0) {
   usr <- graphics::par("usr")
+  text_width <- NA
+  if (pad != 0) {
+    # legend()'s own character width and label widths, in user units
+    char_width <- cex *
+      graphics::par("cex") *
+      graphics::xyinch(graphics::par("cin"))[1]
+    text_width <- graphics::strwidth(labels, units = "user", cex = cex) +
+      pad * char_width
+  }
   graphics::legend(
     x = (usr[1] + usr[2]) / 2,
     y = usr[4] + 0.055 * (usr[4] - usr[3]),
@@ -64,7 +75,7 @@ draw_legend <- function(labels, cex = 1, ...) {
     horiz = TRUE,
     xpd = NA,
     bty = "n",
-    text.width = NA,
+    text.width = text_width,
     x.intersp = 0.7,
     seg.len = 1.2,
     cex = cex,
