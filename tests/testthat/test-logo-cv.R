@@ -258,6 +258,60 @@ test_that("a grid column that sets nothing is an error that names it", {
   )
 })
 
+test_that("a factor grid column is an error, not its integer codes", {
+  # a factor cp of "0" and "0.05" ran as cp = 1 and 2, which split nothing:
+  # every AUROC came out 0.5, without an error
+  factor_cp <- data.frame(cp = factor(c("0", "0.05")))
+  refusal <- paste0(
+    "grid column(s) cp are factors, which would be read as their integer ",
+    "codes, not their labels. Convert them to numbers first"
+  )
+  expect_error(
+    tune_logo_cv(
+      fit_ada(),
+      factor_cp,
+      data = df_noholz,
+      group = "pid",
+      verbose = FALSE
+    ),
+    refusal,
+    fixed = TRUE
+  )
+  tree <- rpart::rpart(fml, data = df_noholz, method = "class", maxdepth = 3)
+  expect_error(
+    tune_logo_cv(
+      tree,
+      factor_cp,
+      data = df_noholz,
+      group = "pid",
+      verbose = FALSE
+    ),
+    refusal,
+    fixed = TRUE
+  )
+  # expand.grid() makes factors of strings unless told otherwise
+  expect_error(
+    tune_logo_cv(
+      fit_ada(),
+      expand.grid(depth = c("1", "2"), minbucket = c("4", "8")),
+      data = df_noholz,
+      group = "pid",
+      verbose = FALSE
+    ),
+    "grid column(s) depth, minbucket are factors",
+    fixed = TRUE
+  )
+
+  # a character column is left as it is
+  strings <- normalize_grid(
+    data.frame(cp = c("0", "0.05")),
+    own = read_setting(fit_ada()),
+    settings = c("depth", "n_iter", "eta"),
+    controls = list_tree_controls()
+  )
+  expect_identical(strings$cp, c("0", "0.05"))
+})
+
 test_that("the other learners run and report NA for settings they lack", {
   # a learner records NA in the grid for a setting it has no use for
   logit <- glm(fml, data = df_noholz, family = binomial) |>
@@ -317,6 +371,111 @@ test_that("the other learners refit their own call on each fold", {
     verbose = FALSE
   )
   expect_identical(dotted$scores, logit$scores)
+})
+
+test_that("a response expression is scored as the refit models it", {
+  # I(replicate == "failure") models a failure, but the raw column, whose
+  # second level is a success, was scored: every metric came out mirrored
+  event <- I(replicate == "failure") ~
+    power.o + effect_size.o + n.o + p_value.o
+  failed <- df_noholz$replicate == "failure"
+  folds <- unique(df_noholz$pid)
+  # each fold's AUROC by its rank form and its accuracy at `threshold`
+  score_by_hand <- function(refit, threshold) {
+    by_fold <- vapply(
+      folds,
+      function(fold) {
+        in_fold <- df_noholz$pid == fold
+        score <- refit(df_noholz[!in_fold, ], df_noholz[in_fold, ])
+        actual <- failed[in_fold]
+        pos <- score[actual]
+        neg <- score[!actual]
+        c(
+          auroc = mean(outer(pos, neg, ">") + 0.5 * outer(pos, neg, "==")),
+          acc = mean((score > threshold) == actual)
+        )
+      },
+      numeric(2)
+    )
+    unname(t(by_fold))
+  }
+  read_estimates <- function(fit) {
+    res <- logo_cv(fit, data = df_noholz, group = "pid", verbose = FALSE)
+    unname(res$estimates[1, folds, c("auroc", "acc")])
+  }
+
+  logit <- glm(event, data = df_noholz, family = binomial)
+  expect_equal(
+    read_estimates(logit),
+    score_by_hand(
+      \(train, test) {
+        glm(event, data = train, family = binomial) |>
+          predict(test, type = "response")
+      },
+      threshold = 0.5
+    )
+  )
+  # bootstrap() resamples the stored scores, so they carry the response too
+  stored <- logo_cv(logit, data = df_noholz, group = "pid", verbose = FALSE)
+  in_order <- unlist(lapply(folds, \(fold) which(df_noholz$pid == fold)))
+  expect_identical(as.logical(stored$scores$actual), failed[in_order])
+
+  tree <- rpart::rpart(event, data = df_noholz, method = "class", maxdepth = 3)
+  expect_equal(
+    read_estimates(tree),
+    score_by_hand(
+      \(train, test) {
+        refit <- rpart::rpart(
+          event,
+          data = train,
+          method = "class",
+          maxdepth = 3
+        )
+        predict(refit, test, type = "prob")[, "TRUE"]
+      },
+      threshold = 0.5
+    )
+  )
+
+  boosted <- rpart::rpart(
+    event,
+    data = df_noholz,
+    method = "class",
+    maxdepth = 1,
+    model = TRUE
+  ) |>
+    adaboost(n_iter = 5, eta = 1, verbose = FALSE)
+  expect_equal(
+    read_estimates(boosted),
+    score_by_hand(
+      \(train, test) {
+        rpart::rpart(
+          event,
+          data = train,
+          method = "class",
+          maxdepth = 1,
+          model = TRUE
+        ) |>
+          adaboost(n_iter = 5, eta = 1, verbose = FALSE) |>
+          predict(test, type = "margin", verbose = FALSE)
+      },
+      threshold = 0
+    )
+  )
+})
+
+test_that("a glm's cbind() response is scored on its first column", {
+  # one event or non-event per row: cbind(y, 1 - y) models what y models
+  coded <- df_noholz
+  coded$y <- as.integer(coded$replicate == "success")
+  run <- function(formula) {
+    glm(formula, data = coded, family = binomial) |>
+      logo_cv(data = coded, group = "pid", verbose = FALSE)
+  }
+  expect_equal(
+    run(cbind(y, 1 - y) ~ power.o + n.o)$estimates,
+    run(y ~ power.o + n.o)$estimates
+  )
 })
 
 test_that("random forest runs when the suggested package is available", {
@@ -394,6 +553,57 @@ test_that("logo_cv() rejects malformed input", {
       verbose = FALSE
     ),
     "classification tree"
+  )
+})
+
+test_that("a group column with NA is an error, not a fold of NA rows", {
+  # the NA rows joined every fold as all-NA rows, and the run stopped with
+  # an error from deep inside, such as "result would be too long a vector"
+  gaps <- df_noholz
+  gaps$pid[c(1, 50, 100)] <- NA
+  refusal <- paste0(
+    "`group` column `pid` is NA in 3 rows. Rows with NA belong to no fold: ",
+    "remove or fill them first."
+  )
+  fit <- fit_ada()
+  expect_error(
+    logo_cv(fit, data = gaps, group = "pid", verbose = FALSE),
+    refusal,
+    fixed = TRUE
+  )
+  expect_error(
+    logo_cv(fit, data = gaps, group = "pid", holdout = "ml3", verbose = FALSE),
+    refusal,
+    fixed = TRUE
+  )
+  expect_error(
+    tune_logo_cv(
+      fit,
+      data.frame(n_iter = c(2, 5)),
+      data = gaps,
+      group = "pid",
+      verbose = FALSE
+    ),
+    refusal,
+    fixed = TRUE
+  )
+
+  # NA as a level, as addNA() makes it, hides from is.na(), but it still
+  # made an NA fold
+  as_level <- gaps
+  as_level$pid <- addNA(factor(as_level$pid))
+  expect_false(anyNA(as_level$pid))
+  expect_error(
+    logo_cv(fit, data = as_level, group = "pid", verbose = FALSE),
+    refusal,
+    fixed = TRUE
+  )
+  one_gap <- df_noholz
+  one_gap$pid[50] <- NA
+  expect_error(
+    logo_cv(fit, data = one_gap, group = "pid", verbose = FALSE),
+    "`group` column `pid` is NA in 1 row. Rows with NA belong to no fold",
+    fixed = TRUE
   )
 })
 
@@ -1995,6 +2205,37 @@ test_that("a nested search with a holdout selects on the other groups", {
   )
   s <- summary(inner, metric = "auroc", sort_by = "lower")
   expect_equal(res$selected$setting, as.integer(rownames(s)[1]))
+})
+
+test_that("a nested search scores a response expression as the fit models it", {
+  # the same outcome stored as a column, a plain name, is the reference: the
+  # expression's raw column had success second and mirrored every metric
+  coded <- df_noholz
+  coded$failed <- coded$replicate == "failure"
+  search <- function(formula) {
+    rpart::rpart(
+      formula,
+      data = coded,
+      method = "class",
+      maxdepth = 1,
+      model = TRUE
+    ) |>
+      adaboost(n_iter = 6, eta = 1, verbose = FALSE) |>
+      tune_logo_cv(
+        data.frame(n_iter = c(3, 6)),
+        data = coded,
+        group = "pid",
+        nested = TRUE,
+        verbose = FALSE
+      )
+  }
+  by_expression <- search(
+    I(replicate == "failure") ~ power.o + effect_size.o + n.o + p_value.o
+  )
+  by_column <- search(failed ~ power.o + effect_size.o + n.o + p_value.o)
+  expect_equal(by_expression$estimates, by_column$estimates)
+  expect_equal(by_expression$selected, by_column$selected)
+  expect_equal(by_expression$projects, by_column$projects)
 })
 
 test_that("nesting removes the optimism of scoring the winner on its own folds", {
@@ -3633,6 +3874,46 @@ test_that("logo_cv() on a forest still draws from the session's stream", {
     unname(logo_rf$estimates[1, , "auroc"]),
     unname(unlist(rf_row[projects]))
   )
+})
+
+test_that("a forest's response expression is scored as the refit models it", {
+  # relevel() puts failure second, so each refit predicts a failure, which
+  # the raw column, with success second, scored as mirrored
+  skip_if_not_installed("randomForest")
+  event <- relevel(replicate, "success") ~
+    power.o + effect_size.o + n.o + p_value.o
+  set.seed(1)
+  forest <- muffle_partial_matching(
+    randomForest::randomForest(event, data = df_noholz, ntree = 25)
+  )
+  set.seed(3)
+  res <- muffle_partial_matching(logo_cv(
+    forest,
+    data = df_noholz,
+    group = "pid",
+    verbose = FALSE
+  ))
+
+  set.seed(3)
+  folds <- unique(df_noholz$pid)
+  by_hand <- vapply(
+    folds,
+    function(fold) {
+      in_fold <- df_noholz$pid == fold
+      refit <- muffle_partial_matching(randomForest::randomForest(
+        event,
+        data = df_noholz[!in_fold, ],
+        ntree = 25
+      ))
+      score <- predict(refit, df_noholz[in_fold, ], type = "prob")[, "failure"]
+      failed <- df_noholz$replicate[in_fold] == "failure"
+      pos <- score[failed]
+      neg <- score[!failed]
+      mean(outer(pos, neg, ">") + 0.5 * outer(pos, neg, "=="))
+    },
+    numeric(1)
+  )
+  expect_equal(unname(res$estimates[1, folds, "auroc"]), unname(by_hand))
 })
 
 test_that("a forest's refits mute randomForest's own partial match", {

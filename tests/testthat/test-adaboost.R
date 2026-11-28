@@ -1,42 +1,45 @@
 test_that("adaboost() and predict() work", {
+  # two of the three species: adaboost() refuses a third class
+  iris2 <- droplevels(iris[iris$Species != "setosa", ])
+
   # Test 1: Silent and no input checks
   # Notice: the tree's own control travels with it; no extra settings needed
   fit <- rpart::rpart(
     Species ~ .,
-    data = iris,
+    data = iris2,
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = 10, eta = 1, verbose = FALSE, check_inputs = FALSE)
 
   expect_length(fit, 10)
-  expect_equal(round(fit$t1$alpha, 1), 0.3)
+  expect_equal(round(fit$t1$alpha, 1), 1.4)
   expect_equal(round(fit$t10$alpha, 1), 0.5)
   expect_match(class(fit$t1$h), "rpart")
-  expect_equal(attr(fit, "train"), as.name("iris"))
+  expect_equal(attr(fit, "train"), as.name("iris2"))
 
-  ypred <- predict(fit, iris, check_inputs = FALSE, verbose = FALSE)
+  ypred <- predict(fit, iris2, check_inputs = FALSE, verbose = FALSE)
   expect_equal(ypred[1:6], rep(-1, 6))
 
   # Test 2: Verbose and with input checks
   fit2 <- rpart::rpart(
     Species ~ .,
-    data = iris,
+    data = iris2,
     maxdepth = 1,
     model = TRUE
   ) |>
     adaboost(n_iter = 10, eta = 1, verbose = TRUE, check_inputs = TRUE)
 
   expect_length(fit2, 10)
-  expect_equal(round(fit2$t1$alpha, 1), 0.3)
+  expect_equal(round(fit2$t1$alpha, 1), 1.4)
   expect_equal(round(fit2$t10$alpha, 1), 0.5)
   expect_match(class(fit2$t1$h), "rpart")
-  expect_equal(attr(fit2, "train"), as.name("iris"))
+  expect_equal(attr(fit2, "train"), as.name("iris2"))
 
-  ypred2 <- predict(fit2, iris, check_inputs = FALSE, verbose = FALSE)
+  ypred2 <- predict(fit2, iris2, check_inputs = FALSE, verbose = FALSE)
   expect_equal(ypred2[1:6], rep(-1, 6))
 
-  ypred3 <- predict(fit2, iris, check_inputs = TRUE, verbose = TRUE)
+  ypred3 <- predict(fit2, iris2, check_inputs = TRUE, verbose = TRUE)
   expect_equal(ypred3[1:6], rep(-1, 6))
 })
 
@@ -683,5 +686,85 @@ test_that("a learner adaboost() cannot honor is refused, not ignored", {
       verbose = FALSE
     ),
     "loss"
+  )
+
+  # nor is a cost per predictor: round 1, at equal weights, split elsewhere
+  expect_error(
+    adaboost(
+      rpart::rpart(
+        replicate ~ .,
+        data = tr,
+        method = "class",
+        maxdepth = 1,
+        cost = c(1, 1, 5),
+        model = TRUE
+      ),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "`h` was fitted with `cost`"
+  )
+
+  # logo_cv() refits with rpart's default na.action, so its folds would
+  # train on rows that the fit dropped
+  expect_error(
+    adaboost(
+      rpart::rpart(
+        replicate ~ .,
+        data = tr,
+        method = "class",
+        maxdepth = 1,
+        na.action = na.omit,
+        model = TRUE
+      ),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "`h` was fitted with `na.action`"
+  )
+})
+
+test_that("an outcome without exactly two levels is refused, unused ones too", {
+  # the vote codes rpart's classes 1 and 2 as -1 and 1: an unused level left
+  # by subsetting shifted the codes, so a success voted 3, and a third class
+  # that occurs voted 3 as well
+  tr <- altmext_splits$train[, c("power.o", "n.o", "replicate")]
+  fit_levels <- function(levels) {
+    tr$replicate <- factor(as.character(tr$replicate), levels = levels)
+    h <- rpart::rpart(replicate ~ ., data = tr, maxdepth = 1, model = TRUE)
+    adaboost(h, n_iter = 3, eta = 1, verbose = FALSE)
+  }
+  expect_error(
+    fit_levels(c("unclear", "failure", "success")),
+    "`h` has an outcome with 3 levels (unclear, failure, success)",
+    fixed = TRUE
+  )
+  expect_error(
+    fit_levels(c("failure", "mixed", "success")),
+    "`h` has an outcome with 3 levels (failure, mixed, success)",
+    fixed = TRUE
+  )
+
+  # an empty last level was refused as a `prior` that nobody set
+  last <- tryCatch(
+    fit_levels(c("failure", "success", "unclear")),
+    error = conditionMessage
+  )
+  expect_match(last, "3 levels (failure, success, unclear)", fixed = TRUE)
+  expect_match(last, "Drop unused levels with droplevels()", fixed = TRUE)
+  expect_no_match(last, "prior")
+
+  # three classes that all occur
+  expect_error(
+    adaboost(
+      rpart::rpart(Species ~ ., data = iris, maxdepth = 1, model = TRUE),
+      n_iter = 3,
+      eta = 1,
+      verbose = FALSE
+    ),
+    "`h` has an outcome with 3 levels (setosa, versicolor, virginica)",
+    fixed = TRUE
   )
 })

@@ -11,7 +11,7 @@
 #'   boosted tree, the number of rounds and the learning rate. A column named
 #'   after an [rpart::rpart.control()] setting, such as `cp` or `minbucket`,
 #'   sets that control for its row, except `xval` and `maxsurrogate`, which
-#'   stay 0.
+#'   stay 0. `maxdepth` is not a grid column, because `depth` sets it.
 #' * A classification tree from [rpart::rpart()]: `depth` sets the tree's
 #'   `maxdepth`, and the same rpart controls set theirs, including `xval` and
 #'   `maxsurrogate`.
@@ -523,6 +523,9 @@ cross_validate_nested <- function(
   )
   selected <- vector("list", length(folds))
   scores <- vector("list", length(folds))
+  # on all rows, so an expression such as factor(...) keeps the levels a
+  # one-class fold lacks
+  actual_all <- read_actual(fit, data, outcome)
 
   # one line per outer fold, printed here: only the inner fits go to the
   # cores. On exit, an error closes the open line.
@@ -582,7 +585,7 @@ cross_validate_nested <- function(
       outcome = outcome
     )[, 1L]
 
-    actual <- test[[outcome]]
+    actual <- actual_all[held_out]
     metrics <- assess(actual, score, threshold = choose_threshold(model))
     if (verbose) {
       mark_done()
@@ -727,6 +730,19 @@ normalize_grid <- function(grid, own, settings, controls = character()) {
       " and ",
       allowed[length(allowed)],
       ".",
+      call. = FALSE
+    )
+  }
+  # a factor would run as its integer codes: a cp column of "0" and "0.05"
+  # would set cp to 1 and 2
+  factors <- names(grid)[vapply(grid, is.factor, logical(1))]
+  if (length(factors)) {
+    stop(
+      "grid column(s) ",
+      paste(factors, collapse = ", "),
+      " are factors, which would be read as their integer codes, not their ",
+      "labels. Convert them to numbers first, such as with ",
+      "as.numeric(as.character(x)).",
       call. = FALSE
     )
   }

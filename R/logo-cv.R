@@ -344,6 +344,18 @@ read_folds <- function(data, group, holdout = NULL) {
   if (!group %in% names(data)) {
     stop("`group` column `", group, "` not found in `data`.", call. = FALSE)
   }
+  # NA is no level to hold out, and its rows would join every fold as NA rows
+  missing_rows <- count_missing(data[[group]])
+  if (missing_rows > 0L) {
+    stop(
+      "`group` column `",
+      group,
+      "` is NA in ",
+      count_noun(missing_rows, "row"),
+      ". Rows with NA belong to no fold: remove or fill them first.",
+      call. = FALSE
+    )
+  }
   folds <- unique(as.character(data[[group]]))
   if (length(folds) < 2L) {
     stop(
@@ -386,6 +398,25 @@ read_formula <- function(fit) {
   # through terms(), which strips the attributes a refit must not inherit,
   # such as `predvars` computed on the fit's own data
   stats::formula(stats::terms(fit))
+}
+
+#' Read the actual values of `data`: the response the refits model
+#' @noRd
+read_actual <- function(fit, data, outcome) {
+  # an XGBoost fit has no formula; `outcome` names its column
+  if (inherits(fit, "xgboost")) {
+    return(data[[outcome]])
+  }
+  formula <- read_formula(fit)
+  response <- formula[[2L]]
+  if (is.name(response)) {
+    return(data[[outcome]])
+  }
+  # an expression such as I(y == "a") is evaluated, as the refit's model
+  # frame evaluates it: the refit models its value, not the column `y`
+  actual <- eval(response, data, environment(formula))
+  # a glm's cbind(events, non-events) counts the events in its first column
+  if (is.matrix(actual)) actual[, 1L] else actual
 }
 
 #' Score every setting on every fold, keeping the held-out scores
@@ -508,7 +539,8 @@ cross_validate <- function(
       metric = metric_names
     )
   )
-  actuals <- lapply(held_out, \(in_fold) data[[outcome]][in_fold])
+  actual <- read_actual(fit, data, outcome)
+  actuals <- lapply(held_out, \(in_fold) actual[in_fold])
   # n and base_rate describe a project, so store them once per project
   projects <- data.frame(
     project = folds,
@@ -536,7 +568,7 @@ cross_validate <- function(
   scores <- data.frame(
     setting = rep(seq_len(n_settings), each = sum(projects$n)),
     project = rep(rep(folds, projects$n), times = n_settings),
-    actual = data[[outcome]][rep(
+    actual = actual[rep(
       unlist(lapply(held_out, which)),
       times = n_settings
     )],

@@ -101,6 +101,42 @@ test_that("partition() validates its arguments", {
   expect_error(partition(altmext, prop = 3))
 })
 
+test_that("a strata column with NA is an error, not lost rows", {
+  # split() leaves NA out of every stratum, so those rows reached no set:
+  # 198 of 202 rows came back
+  gaps <- altmext
+  gaps$replicate[c(3, 40, 77, 150)] <- NA
+  expect_error(
+    partition(gaps, prop = 0.7, strata = "replicate"),
+    paste0(
+      "`strata` column `replicate` is NA in 4 rows. Rows with NA belong to ",
+      "no stratum: remove or fill them first."
+    ),
+    fixed = TRUE
+  )
+  one_gap <- altmext
+  one_gap$replicate[3] <- NA
+  expect_error(
+    partition(one_gap, prop = 0.7, strata = "replicate"),
+    "`strata` column `replicate` is NA in 1 row. Rows with NA belong to",
+    fixed = TRUE
+  )
+  # NA as a level, as addNA() makes it, hides from is.na(), but split()
+  # still dropped those rows
+  as_level <- gaps
+  as_level$replicate <- addNA(as_level$replicate)
+  expect_false(anyNA(as_level$replicate))
+  expect_error(
+    partition(as_level, prop = 0.7, strata = "replicate"),
+    "`strata` column `replicate` is NA in 4 rows.",
+    fixed = TRUE
+  )
+  # without strata, the NA rows are drawn like any other
+  set.seed(112)
+  plain <- partition(gaps, prop = 0.7)
+  expect_equal(nrow(plain$set1) + nrow(plain$set2), nrow(gaps))
+})
+
 # ---- prop as a vector -------------------------------------------------------
 
 test_that("one proportion is shorthand for two", {

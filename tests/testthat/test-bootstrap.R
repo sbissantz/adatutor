@@ -74,6 +74,44 @@ test_that("stratified resampling never rejects and warns about what it costs", {
   expect_true(attr(ci, "stratified"))
 })
 
+test_that("stratified resampling keeps a class of one case in any row", {
+  # sample() reads a single row number n as 1:n, so a lone case in the last
+  # row drew rows of the other class, and those draws were rejected
+  lone_negative <- make_fold(11, 1, seed = 5)
+  set.seed(5)
+  lone_positive <- list(y = c(rep(0L, 9), 1L), s = rnorm(10))
+  for (f in list(lone_negative, lone_positive)) {
+    set.seed(6)
+    ci <- suppressWarnings(
+      bootstrap(f$y, f$s, n_resample = 200, stratified = TRUE)
+    )
+    expect_equal(unique(ci$drop), 0)
+    # every draw keeps the class counts
+    draws <- attr(ci, "draws")
+    expect_true(all(draws[, "tp"] + draws[, "fn"] == sum(f$y)))
+  }
+})
+
+test_that("stratified draws of classes with two or more cases are unchanged", {
+  # what sample() drew before sample.int() replaced it, seed by seed
+  f <- make_fold(6, 5, seed = 10)
+  set.seed(11)
+  ci <- suppressWarnings(
+    bootstrap(f$y, f$s, n_resample = 50, stratified = TRUE)
+  )
+  set.seed(11)
+  positives <- which(f$y == 1L)
+  negatives <- which(f$y == 0L)
+  by_hand <- t(replicate(50, {
+    rows <- c(
+      sample(positives, length(positives), replace = TRUE),
+      sample(negatives, length(negatives), replace = TRUE)
+    )
+    c(assess(f$y[rows], f$s[rows]))
+  }))
+  expect_identical(attr(ci, "draws"), by_hand)
+})
+
 test_that("stratified intervals are narrower for prevalence-dependent metrics", {
   # auroc ignores the base rate, so fixing it changes little; auprc depends on
   # it, so fixing it removes a genuine source of variation.

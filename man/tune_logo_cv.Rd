@@ -163,7 +163,7 @@ for the fit is an error.
 boosted tree, the number of rounds and the learning rate. A column named
 after an \code{\link[rpart:rpart.control]{rpart::rpart.control()}} setting, such as \code{cp} or \code{minbucket},
 sets that control for its row, except \code{xval} and \code{maxsurrogate}, which
-stay 0.
+stay 0. \code{maxdepth} is not a grid column, because \code{depth} sets it.
 \item A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}: \code{depth} sets the tree's
 \code{maxdepth}, and the same rpart controls set theirs, including \code{xval} and
 \code{maxsurrogate}.

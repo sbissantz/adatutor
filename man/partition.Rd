@@ -18,8 +18,9 @@ gives two sets, \code{prop} and the rest. Several must sum to 1, such as
 }
 \value{
 A list of data frames named \code{set1}, \code{set2}, and so on, one per
-proportion. Rows keep their original order. A proportion of 0 gives a
-data frame with no rows.
+proportion. Rows keep their original order. The last set takes the rows
+that rounding leaves over, even at a proportion of 0; any other set with
+a proportion of 0 has no rows.
 }
 \description{
 Draws the given proportions of the rows at random into one set each; the

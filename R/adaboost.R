@@ -6,12 +6,16 @@
 #'
 #' @section What is refused:
 #' `adaboost()` stops with an error for a tree that is not
-#' `method = "class"`, one fitted with `weights`, one with a `prior` or a
-#' `loss` matrix, and one fitted on a column named `D`.
+#' `method = "class"`, one whose outcome does not have exactly two levels
+#' (unused levels count), one fitted with `weights`, `cost` or `na.action`,
+#' one with a `prior` or a `loss` matrix, and one fitted on a column named
+#' `D`.
 #'
 #' @param h A classification tree from [rpart::rpart()], fitted with
 #'   `model = TRUE`. Every round uses its control settings and splitting rule,
-#'   except that `xval` and `maxsurrogate` are set to 0.
+#'   except that `xval` and `maxsurrogate` are set to 0. Its formula may
+#'   transform columns of the data, as in `log(n.o)`, but must not name other
+#'   objects.
 #' @param n_iter The number of boosting rounds.
 #' @param eta The learning rate.
 #' @param keep_data Whether to store the training data on the fit, so that
@@ -194,12 +198,44 @@ validate_learner <- function(h) {
       call. = FALSE
     )
   }
+  if ("cost" %in% names(h$call)) {
+    stop(
+      "`h` was fitted with `cost`, which adaboost() does not pass on to the ",
+      "boosted trees. Refit `h` without `cost`.",
+      call. = FALSE
+    )
+  }
+  if ("na.action" %in% names(h$call)) {
+    stop(
+      "`h` was fitted with `na.action`, which the refits of logo_cv() and ",
+      "tune_logo_cv() would not apply: they use rpart's default. Remove the ",
+      "rows with missing values from the data before fitting, and refit `h` ",
+      "without `na.action`.",
+      call. = FALSE
+    )
+  }
   # rpart looks up `weights = D` in the data first, so a column `D` would
   # silently replace the observation weights
   if ("D" %in% names(h$model)) {
     stop(
       "`h` was fitted on a column named `D`, which adaboost() reserves for ",
       "its observation weights. Rename the column and refit `h`.",
+      call. = FALSE
+    )
+  }
+
+  # the vote turns rpart's class codes 1 and 2 into -1 and 1, and an unused
+  # level still holds a code, so the outcome needs exactly two levels
+  outcome_levels <- attr(h, "ylevels")
+  if (length(outcome_levels) != 2L) {
+    stop(
+      "`h` has an outcome with ",
+      count_noun(length(outcome_levels), "level"),
+      " (",
+      paste(outcome_levels, collapse = ", "),
+      "), but adaboost() boosts exactly two classes, coded -1 and 1. Drop ",
+      "unused levels with droplevels(), or reduce the outcome to two ",
+      "classes, and refit `h`.",
       call. = FALSE
     )
   }
@@ -283,8 +319,9 @@ strip_tree <- function(tree, learner_terms) {
 #'   does for [stats::lm()]. A fit made with `keep_data = FALSE` then gives an
 #'   error.
 #' @param type `"class"` for class labels, 1 for the outcome's second level
-#'   and -1 for its first, or `"margin"` for the continuous score. Use
-#'   `"margin"` for ranking metrics such as [auroc()].
+#'   and -1 for its first, or `"margin"` for the continuous score. The label
+#'   is 0 where the margin is exactly 0. Use `"margin"` for ranking metrics
+#'   such as [auroc()].
 #' @param check_inputs Whether to check the inputs, and to note when `newdata`
 #'   is the training data.
 #' @param verbose Whether to report progress on the console.

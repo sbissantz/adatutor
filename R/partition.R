@@ -13,8 +13,9 @@
 #'   `NULL` draws from the whole data set.
 #'
 #' @return A list of data frames named `set1`, `set2`, and so on, one per
-#'   proportion. Rows keep their original order. A proportion of 0 gives a
-#'   data frame with no rows.
+#'   proportion. Rows keep their original order. The last set takes the rows
+#'   that rounding leaves over, even at a proportion of 0; any other set with
+#'   a proportion of 0 has no rows.
 #'
 #' @family cross-validation
 #' @seealso [altmext_splits], a split made with this function.
@@ -70,6 +71,18 @@ partition <- function(data, prop = 0.7, strata = NULL) {
         "; `data` has ",
         paste0("`", paste(names(data), collapse = "`, `"), "`"),
         ".",
+        call. = FALSE
+      )
+    }
+    # split() leaves NA out of every stratum, so those rows would reach no set
+    missing_rows <- count_missing(data[[strata]])
+    if (missing_rows > 0L) {
+      stop(
+        "`strata` column `",
+        strata,
+        "` is NA in ",
+        count_noun(missing_rows, "row"),
+        ". Rows with NA belong to no stratum: remove or fill them first.",
         call. = FALSE
       )
     }

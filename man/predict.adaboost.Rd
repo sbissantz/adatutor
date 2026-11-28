@@ -22,8 +22,9 @@ does for \code{\link[stats:lm]{stats::lm()}}. A fit made with \code{keep_data = 
 error.}
 
 \item{type}{\code{"class"} for class labels, 1 for the outcome's second level
-and -1 for its first, or \code{"margin"} for the continuous score. Use
-\code{"margin"} for ranking metrics such as \code{\link[=auroc]{auroc()}}.}
+and -1 for its first, or \code{"margin"} for the continuous score. The label
+is 0 where the margin is exactly 0. Use \code{"margin"} for ranking metrics
+such as \code{\link[=auroc]{auroc()}}.}
 
 \item{check_inputs}{Whether to check the inputs, and to note when \code{newdata}
 is the training data.}

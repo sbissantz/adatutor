@@ -9,7 +9,9 @@ adaboost(h, n_iter, eta, keep_data = TRUE, check_inputs = TRUE, verbose = TRUE)
 \arguments{
 \item{h}{A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}, fitted with
 \code{model = TRUE}. Every round uses its control settings and splitting rule,
-except that \code{xval} and \code{maxsurrogate} are set to 0.}
+except that \code{xval} and \code{maxsurrogate} are set to 0. Its formula may
+transform columns of the data, as in \code{log(n.o)}, but must not name other
+objects.}
 
 \item{n_iter}{The number of boosting rounds.}
 
@@ -36,8 +38,10 @@ other \code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings come fr
 \section{What is refused}{
 
 \code{adaboost()} stops with an error for a tree that is not
-\code{method = "class"}, one fitted with \code{weights}, one with a \code{prior} or a
-\code{loss} matrix, and one fitted on a column named \code{D}.
+\code{method = "class"}, one whose outcome does not have exactly two levels
+(unused levels count), one fitted with \code{weights}, \code{cost} or \code{na.action},
+one with a \code{prior} or a \code{loss} matrix, and one fitted on a column named
+\code{D}.
 }
 
 \examples{

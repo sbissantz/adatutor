@@ -13,7 +13,8 @@
 #' @return `gauge()` returns a data frame of class `gauge` with the columns
 #'   `variable` and `importance` (in percent), one row per predictor of the
 #'   formula, from most to least important. A predictor that no tree splits on
-#'   gets 0. `plot()` draws a lollipop chart and returns `NULL` invisibly.
+#'   gets 0. When no tree splits, the data frame has no rows. `plot()` draws a
+#'   lollipop chart and returns `NULL` invisibly.
 #'
 #' @family tutorial plots
 #' @seealso [tutplot_importance()] to draw the chart with custom labels.

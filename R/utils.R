@@ -29,6 +29,14 @@ as_binary <- function(actual) {
   )
 }
 
+#' Count the missing values of `x`, a factor's NA level included
+#' @noRd
+count_missing <- function(x) {
+  # is.na() misses an NA level, such as addNA() makes, which as.character()
+  # turns into NA; as.character() alone would miss NaN
+  sum(is.na(x) | is.na(as.character(x)))
+}
+
 #' Report progress on the console
 #' @noRd
 NULL

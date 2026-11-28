@@ -129,10 +129,13 @@ bootstrap.default <- function(
   while (kept < n_resample && attempts < max_attempts) {
     attempts <- attempts + 1L
     rows <- if (stratified) {
-      # resample within class, so the class counts never change
+      # resample within class, so the class counts never change; sample.int,
+      # then index: sample() reads a one-case class's single row n as 1:n
+      n_pos <- length(positives)
+      n_neg <- length(negatives)
       c(
-        sample(positives, length(positives), replace = TRUE),
-        sample(negatives, length(negatives), replace = TRUE)
+        positives[sample.int(n_pos, n_pos, replace = TRUE)],
+        negatives[sample.int(n_neg, n_neg, replace = TRUE)]
       )
     } else {
       sample.int(n, n, replace = TRUE)
