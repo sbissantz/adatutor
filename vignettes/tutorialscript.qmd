@@ -452,7 +452,7 @@ tutplot_gini(x_seq = seq(0, 1, by = 0.01), lwd = 2)
 ```
 
 ::: {.callout-important title="Changed since submission"}
-- Drawn by `tutplot_gini()`: one viridis color and a grid, as in Figure 6.
+- Drawn by `tutplot_gini()`: one viridis color and a grid.
 :::
 
 #### Listing 14
@@ -1718,7 +1718,7 @@ all.equal(
 ## Random Search
 
 ::: {.callout-note title="Add to tutorial"}
-A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 1,320. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings. The listing after it scores them: readers can rerun the loop of Listing 34 on the drawn rows or hand them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The seed makes the draw reproducible. The run time is the budget: on four cores, the eight settings took about 20 seconds against about half a minute for the full grid. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (`lower` 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
+A grid grows fast. Three depths, three round counts and two rates make 18 settings, and the grid of the next section has 1,320. A random search draws a sample of settings instead of visiting all of them. For a fixed budget of fits it often finds a setting as good as the grid's best, because a grid spends its budget evenly, including on hyperparameters that matter little. Listing [NEW] draws eight of the 18 settings. The listing after it scores them: readers can rerun the loop of Listing 34 on the drawn rows or hand them to `tune_logo_cv()`, which scores them as the package listing scored the full grid. The seed makes the draw reproducible. The run time is the budget: on four cores, the eight settings took roughly half as long as the full grid, which runs for about half a minute. The draw found the grid's second-best setting, the stump with 100 rounds at a rate of 0.1 (`lower` 0.64), and missed the best (0.66). On a grid this small, the random search is a demonstration. It becomes the tool of choice when a full grid would run for hours, and it combines with refinement: draw first, then refine the grid around the best draws.
 :::
 
 #### Listing [NEW]
