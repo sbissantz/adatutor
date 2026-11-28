@@ -2,35 +2,27 @@
 % Please edit documentation in R/tutplot-opts.R
 \name{tutplot_opts}
 \alias{tutplot_opts}
-\title{Shared settings for the tutorial's figures}
+\title{Shared figure settings}
 \format{
 A list of nine settings:
 \itemize{
-\item \code{col}: 4.30 x 3.06 inches, one column of the paper's two-column layout.
-\item \code{full}: 5.55 x 3.95 inches, the full text width. Not used yet.
-\item \code{pointsize}: 9. Raise it when enlarging a figure, or the text stays
-small.
+\item \code{col}, \code{full}: Figure sizes in inches, 4.30 by 3.06 and 5.55 by 3.95.
+\code{full} is the default size of \code{\link[=tutplot_logoscheme]{tutplot_logoscheme()}} and
+\code{\link[=tutplot_boundary]{tutplot_boundary()}}, \code{col} of the other figures.
+\item \code{pointsize}: 9.
 \item \code{mar_plain}, \code{mar_legend}: Margins. The legend version has more room on
 top.
 \item \code{mgp}, \code{tcl}, \code{cex_axis}: Axis placement, tick length and label size.
-\item \code{viridis_end}: 0.85. Stops before viridis's yellow, which vanishes as a
-line on white.
+\item \code{viridis_end}: 0.85, which stops the viridis palette before its yellow.
 }
 }
 \usage{
 tutplot_opts
 }
 \description{
-The size, margins and palette end that every \verb{tutplot_*()} function draws
-with, kept in one place so the figures match.
-}
-\details{
-This list is for reference only. Changing a copy has no effect, because a
-function's defaults are looked up inside the package. Pass the new value
-instead:
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{tutplot_gini(pointsize = 12)
-}\if{html}{\out{</div>}}
+The sizes, margins and palette end that the \verb{tutplot_*()} functions draw
+with. Changing a copy of this list has no effect. To change a figure's size
+or text size, pass \code{width}, \code{height} or \code{pointsize} together with \code{file}.
 }
 \seealso{
 Other tutorial plots:

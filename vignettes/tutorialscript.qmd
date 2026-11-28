@@ -1297,7 +1297,7 @@ assess(y_test, score = y_pred_mgn)
 ```
 
 ::: {.callout-note title="Add to tutorial"}
-`assess()` computes all of these, and a few more, from the labels and the margins. The printout groups them: the metrics at the threshold of zero first, then the precision among the top k, then the two areas, which use every threshold. The values match those of Listing 31. `?assess` lists the formulas and the other names each metric goes by; sensitivity, for example, is also called recall.
+`assess()` computes all of these, and a few more, from the labels and the margins. The printout groups them: the metrics at the threshold of zero first, then the precision among the top k, then the two areas, which use every threshold. The values match those of Listing 31. `?assess` lists the formulas.
 :::
 
 ::: {.callout-important title="Changed since submission"}
@@ -1584,7 +1584,7 @@ The two designs answer different questions. Random folds hold out study effects 
 - Exercise 4.2 is dropped: the random search is in the main text, and its runtime question is in the Random Search box. Exercise 3.3 goes with Module 6 or 7 at the exercises pass.
 - The Module 3 handoff box lists "Module 7 (`hypergrid`, the grid loop)" as a handoff place and says the by-hand reader pastes Listing 24 into the loops of Modules 6 and 7. With `logo_cv()` inside Listing 34, the Module 7 handoff sits after the package listing (`tune_logo_cv()`), and the by-hand versions are in Appendix D.
 - The letter names the code changes latexdiff cannot show: the inner loop of Listing 34 replaced by the pipeline into `logo_cv()`, the grid column `n_iter` (was `T`), the summary columns `mean`, `sd` and `lower`, the package listing with `tune_logo_cv()`, the by-hand listings of Appendix D, the random-search listing, and the `hypergrid` listing.
-- `hypergrid` is package data, covered by the install line of Module 1; `?hypergrid` names the build script, one `tune_logo_cv()` call with `cores = 4` (about 22 minutes).
+- `hypergrid` is package data, covered by the install line of Module 1; it was built with one `tune_logo_cv()` call with `cores = 4` (about 22 minutes).
 - The by-hand versions of Listing 34 (Listings 24, 28, 31 and 32 pasted into the grid loop) go to Appendix D at the port (author, 19 Nov): the paper has no space for them in the module. The manuscript's existing appendix, "Additional Exercises", becomes Appendix A.
 - The Module 7 handoff sentence is in the package listing's box, in the template wording of the Module 3 box.
 - Module 8's Listing 35 reads `ada_best` (`depth`, `n_iter`, `eta`) from the `hypergrid` listing.

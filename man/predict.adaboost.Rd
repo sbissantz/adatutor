@@ -16,14 +16,19 @@
 \arguments{
 \item{object}{A fit from \code{\link[=adaboost]{adaboost()}}.}
 
-\item{newdata}{A data frame with the predictors the model was trained on.}
+\item{newdata}{A data frame with the predictors the model was trained on.
+If missing, the training data kept on the fit are scored, as \code{predict()}
+does for \code{\link[stats:lm]{stats::lm()}}. A fit made with \code{keep_data = FALSE} then gives an
+error.}
 
-\item{type}{\code{"class"} for class labels (-1 or 1), or \code{"margin"} for the
-continuous score. Use \code{"margin"} for ranking metrics such as \code{\link[=auroc]{auroc()}}.}
+\item{type}{\code{"class"} for class labels, 1 for the outcome's second level
+and -1 for its first, or \code{"margin"} for the continuous score. Use
+\code{"margin"} for ranking metrics such as \code{\link[=auroc]{auroc()}}.}
 
-\item{check_inputs}{Whether to check the inputs. Defaults to \code{TRUE}.}
+\item{check_inputs}{Whether to check the inputs, and to note when \code{newdata}
+is the training data.}
 
-\item{verbose}{Whether to show progress. Defaults to \code{TRUE}.}
+\item{verbose}{Whether to report progress on the console.}
 
 \item{...}{Ignored.}
 }
@@ -32,19 +37,10 @@ A numeric vector of class labels or margins, depending on \code{type}.
 }
 \description{
 Combines the boosted trees into the weighted vote
-\deqn{H(x) = \sum_{t=1}^T \alpha_t h_t(x)}{H(x) = sum over t of alpha_t h_t(x)}
+\deqn{H(x) = \sum_{t=1}^T
+  \alpha_t h_t(x)}{H(x) = sum over t of alpha_t h_t(x)}
 and returns class labels or the vote itself, the margin.
 }
-\section{Prediction or retrodiction}{
-
-Scoring the data the model was trained on is a \emph{retrodiction}: it shows how
-well the model fits data it has already seen, not how well it predicts.
-Scoring held-out data is a prediction. The call looks the same either way,
-so \code{predict()} notes when the data were also used for training. With no
-\code{newdata}, it scores the training data on purpose, like \code{predict()} for
-\code{\link[stats:lm]{stats::lm()}}.
-}
-
 \seealso{
 \code{\link[=adaboost]{adaboost()}} to fit the ensemble.
 }

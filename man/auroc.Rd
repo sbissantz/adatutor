@@ -10,19 +10,16 @@ auroc(actual, score)
 \item{actual}{The true labels: a two-level factor (the second level is the
 positive class), 0/1, -1/1, or logical.}
 
-\item{score}{Continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation, such as an AdaBoost
+margin or a predicted probability.}
 }
 \value{
 A number, or \code{NA} if \code{actual} has only one class.
 }
 \description{
-Computes the area under the receiver operating characteristic curve with
-the PRROC package. It measures the ranking only, so it ignores the base
-rate and any monotone transformation of \code{score}.
-}
-\details{
-Use continuous scores. Class labels turn this into balanced accuracy,
-(\code{sens} + \code{spec}) / 2. With \code{\link[=predict.adaboost]{predict.adaboost()}}, use \code{type = "margin"}.
+Computes the area under the receiver operating characteristic (ROC) curve
+with the PRROC package (Grau et al., 2015). Class labels turn it into
+balanced accuracy; with \code{\link[=predict.adaboost]{predict.adaboost()}}, use \code{type = "margin"}.
 }
 \examples{
 auroc(c(1, 1, 0, 0), c(2, 1, -1, -2))

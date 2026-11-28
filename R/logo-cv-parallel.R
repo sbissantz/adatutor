@@ -43,17 +43,13 @@ read_os_type <- function() {
   .Platform$OS.type
 }
 
-#' Run tasks over `cores`, forked on Unix-like systems and on a socket
-#' cluster on Windows; keep their order
+#' Run tasks over `cores`, forked or on a socket cluster; keep their order
 #'
-#' `globals` holds the plain values of this session the tasks read. Only
-#' socket workers need it, so it is evaluated only there, and it is where
-#' list_globals() stops a fit the workers may not refit as this session does.
-#'
-#' `report`, if given, runs in this session with the number of tasks done:
-#' after each task on one core, and after each batch on several, since a
-#' worker cannot report to this session while it runs. Without `report`, the
-#' tasks go out in one batch.
+#' @param globals The plain values of this session the tasks read. Only
+#'   socket workers need it, so it is evaluated only there.
+#' @param report A function of the number of tasks done, run in this session
+#'   after each task on one core and after each batch on several. Without it,
+#'   the tasks go out in one batch.
 #' @noRd
 run_tasks <- function(
   n_tasks,
@@ -88,8 +84,7 @@ run_tasks <- function(
   }
 
   # each mclapply() call restarts the L'Ecuyer-CMRG streams at the session's
-  # seed, so shift each batch's start to where one call would be; task k
-  # draws from stream k either way
+  # seed, so start each batch where one call would be: task k draws stream k
   shifted <- length(batches) > 1L && RNGkind()[1L] == "L'Ecuyer-CMRG"
   if (shifted) {
     # as mclapply() does when the session has no seed yet
@@ -129,7 +124,7 @@ run_tasks <- function(
       stop(conditionMessage(attr(result, "condition")), call. = FALSE)
     }
   }
-  # a worker that was killed, e.g. for lack of memory, returns NULL
+  # a worker that was killed, as for lack of memory, returns NULL
   if (any(vapply(results, is.null, logical(1)))) {
     stop(
       "A parallel worker returned no result. Rerun with fewer `cores`.",
@@ -140,16 +135,14 @@ run_tasks <- function(
 }
 
 #' Split the task numbers into batches, one for each report of progress
-#'
-#' Each batch ends in a wait for its slowest task, which leaves the other
-#' workers idle. 16 tasks per worker keep that cost to a few seconds in 100;
-#' smaller batches move the bar more often but cost more.
 #' @noRd
 split_batches <- function(n_tasks, n_workers, batched, per_worker = 16L) {
   tasks <- seq_len(n_tasks)
   if (!batched) {
     return(list(tasks))
   }
+  # a batch waits for its slowest task; 16 per worker keep that idle time to a
+  # few seconds in 100, and smaller batches move the bar more often
   size <- n_workers * per_worker
   batches <- unname(split(tasks, (tasks - 1L) %/% size))
   # mclapply() runs a batch of one task in this session, not on a fork
@@ -163,9 +156,7 @@ split_batches <- function(n_tasks, n_workers, batched, per_worker = 16L) {
 
 #' Run tasks on a socket cluster of new R processes; keep their order
 #'
-#' The workers start empty. Each first loads what this session runs, then
-#' gets `globals` and the task closure once, and takes the next task as it
-#' frees up. `batches` and `report` work as in run_tasks().
+#' @param batches,report As in run_tasks().
 #' @noRd
 run_socket_tasks <- function(
   n_tasks,
@@ -179,9 +170,8 @@ run_socket_tasks <- function(
   cl <- parallel::makePSOCKcluster(n_workers, rscript_args = "--no-init-file")
   on.exit(stop_workers(cl), add = TRUE)
 
-  # their enclosures, and the source references of an install that keeps them,
-  # point into this package: they would make the worker load the installed
-  # adatutor on arrival, before prepare_worker() can choose which one
+  # their enclosures and source references point into this package and would
+  # load the installed adatutor on a worker before prepare_worker() chooses
   prepare <- utils::removeSource(prepare_worker)
   environment(prepare) <- baseenv()
   read <- utils::removeSource(read_code)
@@ -216,7 +206,7 @@ run_socket_tasks <- function(
         }
         parallel::clusterApplyLB(cl, batches[[b]], call_task)
       },
-      # a worker that died, e.g. for lack of memory, breaks its connection
+      # a worker that died, as for lack of memory, breaks its connection
       error = function(e) NULL
     )
     if (is.null(part)) {
@@ -242,17 +232,14 @@ run_socket_tasks <- function(
 }
 
 #' Read what a socket worker needs to match this session
-#'
-#' The library paths; the random number kinds a task's `set.seed()` runs
-#' under; the collation that orders factor levels; the options a refit reads;
-#' where this session loaded adatutor and the learners' packages from; and the
-#' adatutor code it runs.
 #' @noRd
 read_session <- function() {
   path <- getNamespaceInfo("adatutor", "path")
   learners <- intersect(list_learners(), loadedNamespaces())
   list(
     lib_paths = .libPaths(),
+    # the kinds a task's set.seed() runs under, and the collation that orders
+    # factor levels
     rng_kind = RNGkind(),
     collate = Sys.getlocale("LC_COLLATE"),
     # missing values and factor coding in a refit, and which of its warnings
@@ -282,28 +269,26 @@ read_session <- function() {
   )
 }
 
-#' List the packages of the learners, which socket workers load as this
-#' session did
+#' List the learners' packages, which socket workers load as this session did
 #' @noRd
 list_learners <- function() {
   c("randomForest", "rpart", "xgboost")
 }
 
-#' Deparse the objects of the adatutor namespace, to compare the code two R
-#' processes run
-#'
-#' Runs with the base environment as its enclosure on a socket worker. Leaves
-#' out environments, whose contents change as the package runs, and
-#' `read_os_type()`, which tests replace to reach the socket path.
+#' Deparse the adatutor namespace, to compare the code two R processes run
 #' @noRd
 read_code <- function() {
+  # runs on a socket worker with the base environment as its enclosure
+
   # deparse() writes numbers by `scipen`, which the workers do not share
   old <- options(scipen = 0)
   on.exit(options(old), add = TRUE)
   namespace <- asNamespace("adatutor")
+  # tests replace read_os_type() to reach the socket path
   names <- setdiff(ls(namespace, all.names = TRUE), "read_os_type")
   # sorted the same in any locale
   objects <- mget(sort(names, method = "radix"), envir = namespace)
+  # environments change as the package runs
   objects <- objects[!vapply(objects, is.environment, logical(1))]
   # deparse() leaves out source references and byte code
   lapply(objects, deparse)
@@ -311,12 +296,12 @@ read_code <- function() {
 
 #' Load this session's adatutor, learners and settings on a socket worker
 #'
-#' Runs with the base environment as its enclosure, as does `read_code`, the
-#' session's `read_code()`. Returns where the worker loaded each package from
-#' and the adatutor code it loaded, or the message of the error that stopped
-#' it.
+#' @param read_code The session's read_code().
+#' @return Where the worker loaded each package from and the adatutor code it
+#'   loaded, or the message of the error that stopped it.
 #' @noRd
 prepare_worker <- function(session, read_code) {
+  # both run with the base environment as their enclosure
   tryCatch(
     {
       .libPaths(session$lib_paths)
@@ -355,8 +340,7 @@ prepare_worker <- function(session, read_code) {
   )
 }
 
-#' Stop unless every socket worker loaded each package from where this
-#' session did, and the same adatutor code
+#' Stop unless every socket worker loaded what this session loaded
 #' @noRd
 check_workers <- function(results, session) {
   expected <- normalizePath(session$paths, winslash = "/", mustWork = FALSE)
@@ -415,8 +399,7 @@ call_task <- function(k) {
   )
 }
 
-#' Stop each worker of a cluster on its own, so a dead one leaves no other
-#' running, and close each connection
+#' Stop each worker on its own, so a dead one leaves no other running
 #' @noRd
 stop_workers <- function(cl) {
   for (i in seq_along(cl)) {
@@ -435,20 +418,9 @@ stop_workers <- function(cl) {
   }
 }
 
-#' List the plain values of this session a refit on socket workers reads,
-#' and stop at anything else it uses from the session
+#' List the plain values a refit on socket workers reads; stop at other code
 #'
-#' Reads what a refit evaluates where the fit's formula was made: the
-#' formula, and the fit's call but for the parts the refit replaces. A name
-#' resolves on a worker as it does here when this session finds it in base,
-#' in a default package attached as in a new R process, or in a namespace the
-#' workers load and check. A string the formula or call holds counts as a
-#' name too, looked up as a function and as any object. A name found in a
-#' frame that travels with the formula needs nothing if it holds a plain
-#' value or no value at all; one found on the search path, in the global
-#' environment or an attached one, is listed, to be sent. Code found
-#' anywhere else stops the run, as does code the formula or call holds
-#' itself.
+#' @return A named list of the values to send to the workers.
 #' @noRd
 list_globals <- function(fit, data) {
   # an XGBoost refit runs from stored parameters, with no formula or call
@@ -464,6 +436,8 @@ list_globals <- function(fit, data) {
   if (!inherits(fit, "adaboost")) {
     places$call <- read_names(read_refit_call(fit))
   }
+  # a name found in a safe home resolves alike on a worker; a plain value on
+  # the search path is sent, and code anywhere else stops the run
   safe <- list_safe_homes()
   # a worker has a global environment and search path of its own, without
   # what this session's hold
@@ -477,9 +451,8 @@ list_globals <- function(fit, data) {
         stop_for_workers(NULL, place)
       }
     }
-    # a call skips objects that are not functions, so `sd(x) * sd` calls
-    # stats' sd() and reads a number `sd` of the session. A string may name
-    # either, as in do.call("f") or get("x"), so it is looked up both ways.
+    # a call skips non-functions, so `sd(x) * sd` calls stats' sd() and reads a
+    # number `sd`; a string may name either, so it is looked up both ways
     strings <- unique(unlist(lapply(found$values, read_strings)))
     lookups <- list(
       list(names = found$called, kind = "function", quoted = FALSE),
@@ -520,14 +493,11 @@ list_globals <- function(fit, data) {
   globals
 }
 
-#' Stop when the frames that travel with a formula lead into an attached
-#' environment, which a socket worker gets by name only
-#'
-#' A worker gets the frames by value up to the global environment, base or a
-#' namespace, which it has of its own. The sys.source() idiom, a function
-#' sourced into `attach(NULL, name = ...)`, makes such frames.
+#' Stop when a formula's frames lead into an attached environment
 #' @noRd
 check_enclosures <- function(env, search_path) {
+  # a worker gets the frames by value up to these, which it has of its own,
+  # but an attached one, as sys.source() into attach() makes, by name only
   while (
     !identical(env, globalenv()) &&
       !identical(env, baseenv()) &&
@@ -554,8 +524,7 @@ check_enclosures <- function(env, search_path) {
   }
 }
 
-#' Read a fit's call as a refit evaluates it: without the formula and the
-#' data, which refit_call() replaces, and with what the method replaces
+#' Read a fit's call as a refit evaluates it
 #' @noRd
 read_refit_call <- function(fit) {
   fit_call <- stats::getCall(fit)
@@ -575,9 +544,9 @@ read_refit_call <- function(fit) {
 
 #' Read the names an expression evaluates, by how R looks them up
 #'
-#' `called` holds the names it calls, which R looks up among functions only,
-#' and `used` the others. `values` holds what the expression holds itself,
-#' not by name, such as the function do.call() puts in a call.
+#' @return A list: `called`, the names it calls, which R looks up among
+#'   functions only; `used`, the other names; and `values`, what it holds
+#'   itself, not by name, such as the function do.call() puts in a call.
 #' @noRd
 read_names <- function(expr) {
   found <- list(called = character(), used = character(), values = list())
@@ -642,8 +611,9 @@ read_strings <- function(value) {
   ]
 }
 
-#' Find the environment that holds `name` as `kind`, a mode of exists(), as
-#' a lookup from `env` would
+#' Find the environment where a lookup from `env` finds `name`
+#'
+#' @param kind A mode of exists().
 #' @noRd
 find_binding <- function(name, env, kind = "any") {
   while (!identical(env, emptyenv())) {
@@ -655,11 +625,7 @@ find_binding <- function(name, env, kind = "any") {
   NULL
 }
 
-#' Tell whether `name` in `env` is an argument left out with no default, so
-#' it holds no value
-#'
-#' An argument left out with a default holds that default, which get() reads.
-#' One handed on, left out, from another frame holds no value either.
+#' Tell whether `name` in `env` is an argument left out with no default
 #' @noRd
 is_empty_argument <- function(name, env) {
   left_out <- tryCatch(
@@ -667,6 +633,8 @@ is_empty_argument <- function(name, env) {
     # missing() refuses a name that is no argument
     error = \(e) FALSE
   )
+  # also TRUE for one left out with a default, which get() reads; get() fails
+  # without one, also for one handed on, left out, from another frame
   if (!isTRUE(left_out)) {
     return(FALSE)
   }
@@ -688,10 +656,6 @@ is_empty_argument <- function(name, env) {
 }
 
 #' List the environments where a lookup ends alike on a socket worker
-#'
-#' Base; the default packages, if attached as in a new R process; and the
-#' namespaces, with their imports, of the packages that come with R and of
-#' those the workers load and check.
 #' @noRd
 list_safe_homes <- function() {
   packages <- c(list_default_packages(), "adatutor", list_learners())
@@ -710,8 +674,7 @@ list_default_packages <- function() {
   c("stats", "graphics", "grDevices", "utils", "datasets", "methods")
 }
 
-#' Read the environments of the default packages, if this session attached
-#' them as a new R process does: in the same order, and each once
+#' Read the default packages' environments, if attached as in a new R process
 #' @noRd
 read_default_homes <- function() {
   packages <- list_default_packages()
@@ -737,9 +700,8 @@ read_default_homes <- function() {
 
 #' Read the package an environment belongs to, or NULL
 #'
-#' With `attached = FALSE`, a namespace or its imports; with `TRUE`, a
-#' package attached from its namespace. A list attached under a package's
-#' name has no package.
+#' @param attached Whether `env` is on the search path: `FALSE` reads a
+#'   namespace or its imports, `TRUE` a package attached from its namespace.
 #' @noRd
 read_package <- function(env, attached) {
   if (!attached && isNamespace(env)) {
@@ -767,9 +729,7 @@ read_package <- function(env, attached) {
   package
 }
 
-#' Tell whether a value holds data only: NULL, an atomic vector such as a
-#' factor, a date or a matrix, or a list of such values, and attributes of
-#' such values
+#' Tell whether a value holds data only, in its attributes too
 #' @noRd
 is_plain_value <- function(value) {
   if (is.null(value)) {
@@ -783,8 +743,7 @@ is_plain_value <- function(value) {
   all(vapply(parts, is_plain_value, logical(1)))
 }
 
-#' Tell whether a function is base's or comes from a namespace in `safe`,
-#' so a socket worker that gets it runs the same code
+#' Tell whether a function is base's or from a namespace in `safe`
 #' @noRd
 is_safe_function <- function(value, safe) {
   is.primitive(value) ||
@@ -793,13 +752,14 @@ is_safe_function <- function(value, safe) {
       any(vapply(safe, identical, logical(1), environment(value)))
 }
 
-#' Stop a run on socket workers at what a refit uses from this session, with
-#' the two ways out
+#' Stop a socket run at what a refit uses from this session
 #'
-#' `name` is NULL for code the formula or call holds itself, and `place` is
-#' `"formula"` or `"call"`. `package` is the package the object comes from:
-#' attached here, or with `attached = FALSE`, a namespace the workers do not
-#' check. `quoted` is TRUE when a string names the object.
+#' @param name The object's name, or `NULL` for code the formula or call
+#'   holds itself.
+#' @param place `"formula"` or `"call"`.
+#' @param package The package the object comes from: attached here, or with
+#'   `attached = FALSE`, a namespace the workers do not check.
+#' @param quoted Whether a string names the object.
 #' @noRd
 stop_for_workers <- function(
   name,

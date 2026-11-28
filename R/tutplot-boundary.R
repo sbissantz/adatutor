@@ -2,71 +2,50 @@
 #'
 #' Draws the region each class is assigned to over a grid of two features,
 #' with the boundary between them and the data on top. Takes a single rpart
-#' tree or an [adaboost()] ensemble. This is the manuscript's Figures 3 and 9:
-#' the same call, with a stump in one and a 1000-round ensemble in the other.
+#' tree or an [adaboost()] ensemble. The boundary is the zero line of a
+#' continuous score: the margin for an ensemble, and the fitted probability of
+#' the second class minus 0.5 for a tree.
 #'
-#' @section Shading:
-#' The boundary is the zero line of a continuous score: the margin for an
-#' ensemble, and the fitted probability minus 0.5 for a tree. That gives a
-#' smooth line at a modest `resolution`.
-#'
-#' `shade = "class"` tints each side in a flat color. `shade = "margin"` (the
-#' default) lays the viridis scale over the score, centered on zero, so the
-#' classes sit at its ends and uncertainty sits in the middle. For a tree, the
-#' scale is fixed at -0.5 to 0.5, so a color always means the same
-#' probability. For an ensemble, it runs to the largest margin, so colors
-#' compare within a plot but not across plots. A short line marks the middle
-#' of the color bar, a score of zero, as the boundary; the label "Boundary"
-#' sits under the bar.
-#'
-#' A stump has one split, so it shows two flat blocks; an ensemble shows a
-#' surface. That contrast is what boosting buys.
-#'
-#' @section Points:
-#' Each point is filled with the color of its observed class. A point is
-#' misclassified when the sign of its score names the other class, the same
-#' score the surface is drawn from. Misclassified points are drawn paler and
-#' smaller, under the correct ones. The figure has no key for them, and it
-#' prints no count; the return value holds it.
-#'
-#' @param fit An rpart tree or an [adaboost()] fit.
-#' @param data A data frame with the two features and the outcome. It sets the
-#'   plotting range and supplies the points.
-#' @param features The names of the two features. The default, `NULL`, works
-#'   when the model has exactly two predictors and stops otherwise.
-#' @param shade `"margin"` (the default) or `"class"`. See the section on
-#'   shading.
-#' @param resolution Grid points per axis. Defaults to 150. The cost grows
-#'   with its square.
+#' @param fit An rpart tree or a fit from [adaboost()].
+#' @param data A data frame with the model's predictors and the outcome. It
+#'   sets the plotting range and supplies the points. Predictors other than
+#'   `features` are held at their median in `data`.
+#' @param features The names of the two features. `NULL` works when the model
+#'   has exactly two predictors and stops otherwise.
+#' @param shade `"margin"` or `"class"`. `"margin"` lays the viridis scale
+#'   over the score, centered on zero, so the classes sit at its ends. For a
+#'   tree, the scale runs from -0.5 to 0.5; for an ensemble, it runs to the
+#'   largest margin, so its colors do not compare across plots. `"class"`
+#'   tints each side in a flat color.
+#' @param resolution The number of grid points per axis.
 #' @param palette Two colors, for the negative and the positive class.
 #'   Defaults to `viridisLite::viridis(2)`.
 #' @param opacity The opacity of the fill. Defaults to 0.18 for `"class"` and
 #'   0.65 for `"margin"`.
-#' @param show_points Whether to draw the data. Defaults to `TRUE`. See the
-#'   section on points.
-#' @param legend_pos Where to put the legend. The default, `"top"`, puts it
-#'   above the panel; any other [graphics::legend()] keyword puts it inside.
-#'   `NULL` leaves it out, along with the color bar. The legend and the color
-#'   bar name the classes by the outcome's levels, in title case. The top
-#'   margin makes room only for a legend or color bar drawn above the panel.
-#' @param add_colorbar Whether `shade = "margin"` draws a color bar in place of
-#'   the legend. Defaults to `TRUE`. A panel too narrow for the bar and its end
-#'   labels gets no bar.
+#' @param show_points Whether to draw the data. Each point is filled with the
+#'   color of its observed class; misclassified points are paler and smaller.
+#' @param legend_pos Where to put the legend of `shade = "class"`: `"top"`
+#'   puts it above the panel, and any other [graphics::legend()] keyword puts
+#'   it inside. `shade = "margin"` draws no legend, only the color bar. `NULL`
+#'   leaves out both. The legend and the color bar name the classes by the
+#'   outcome's levels.
+#' @param add_colorbar Whether `shade = "margin"` draws a color bar above the
+#'   panel. Without it, the figure has no key. A panel too narrow for the bar
+#'   and its end labels gets no bar.
 #' @param main,subtitle An optional title and gray subtitle above the panel.
-#' @param xlab,ylab Axis labels. `NULL` (the default) uses the feature names.
+#' @param xlab,ylab Axis labels. `NULL` uses the feature names.
 #' @param file A path to write a PDF to, or `NULL` to draw on the current
 #'   device.
 #' @param width,height,pointsize Passed to [grDevices::pdf()]; ignored when
-#'   `file` is `NULL`. They default to the full text width.
+#'   `file` is `NULL`.
 #' @param ... Passed to [graphics::plot()].
 #'
-#' @return Invisibly, a list with the grid and the error count: the two axis
-#'   sequences `x1` and `x2`, the matrix of scores `z`, the feature names
-#'   `features`, the number of misclassified points `n_misclassified`, and
-#'   the number of points with an observed class `n_points`. The counts are
-#'   taken even with `show_points = FALSE`. They are `NA` when `data` has no
-#'   outcome column, or when its outcome is not a two-level factor, 0/1, -1/1,
-#'   or logical.
+#' @return Invisibly, a list with the axis sequences `x1` and `x2`, the matrix
+#'   of scores `z`, the feature names `features`, the number of misclassified
+#'   points `n_misclassified`, and the number of points with an observed class
+#'   `n_points`. The counts are `NA` when `data` has no outcome column. An
+#'   outcome that is not a two-level factor, 0/1, -1/1, or logical gives `NA`
+#'   counts with `show_points = FALSE` and an error with `show_points = TRUE`.
 #'
 #' @family tutorial plots
 #' @seealso [tutplot] for the other figures.
@@ -75,7 +54,7 @@
 #' data(altmext_splits)
 #' train <- altmext_splits$train
 #'
-#' # Figure 3: the stump of Figure 2, drawn as the boundary it makes
+#' # a stump, drawn as the boundary it makes
 #' h <- rpart::rpart(
 #'   replicate ~ power.o + n.o,
 #'   data = train,
@@ -161,7 +140,6 @@ tutplot_boundary <- function(
   # expand.grid varies x1 fastest, so nrow = length(x1) gives the layout
   # image() and contour() expect
   grid <- expand.grid(stats::setNames(list(x1, x2), features))
-  # other predictors, if `features` was given, sit at their median
   for (predictor in setdiff(predictors, features)) {
     grid[[predictor]] <- stats::median(data[[predictor]], na.rm = TRUE)
   }
@@ -182,7 +160,6 @@ tutplot_boundary <- function(
     labels <- tools::toTitleCase(labels)
   }
 
-  # counted whenever the outcome is two classes, drawn or not, for the caption
   n_misclassified <- NA_integer_
   n_points <- NA_integer_
   misclassified <- NULL
@@ -194,7 +171,7 @@ tutplot_boundary <- function(
     n_points <- sum(!is.na(misclassified))
   }
   if (show_points && !is.null(labels)) {
-    # stops for an outcome that is not two classes, as it did before the count
+    # stops for an outcome that is not two classes
     y <- as_binary(data[[roles$outcome]])
   }
 
@@ -331,7 +308,6 @@ tutplot_boundary <- function(
     )
   }
   if (!is.null(subtitle)) {
-    # above the strip that holds the legend or the color bar, if one is drawn
     graphics::mtext(
       subtitle,
       3,
@@ -434,7 +410,6 @@ read_variables <- function(fit) {
 score_grid <- function(fit, newdata) {
   if (inherits(fit, "rpart")) {
     prob <- stats::predict(fit, newdata = newdata, type = "prob")
-    # distance from the 0.5 cut, so zero is the boundary
     return(prob[, ncol(prob)] - 0.5)
   }
   stats::predict(
@@ -448,9 +423,8 @@ score_grid <- function(fit, newdata) {
 
 #' Flag the points the model assigns to the other class
 #'
-#' Reads the sign of the score the surface is drawn from; a positive score is
-#' the second class. Returns one logical per row of `data`, `NA` where the
-#' outcome is missing, or `NULL` when the outcome is not two classes.
+#' @return One logical per row of `data`, `NA` where the outcome is missing,
+#'   or `NULL` when the outcome is not two classes.
 #' @noRd
 find_misclassified <- function(fit, data, outcome) {
   # only the outcome may fail quietly; a failing predict() still stops
@@ -464,10 +438,8 @@ find_misclassified <- function(fit, data, outcome) {
 
 #' Style each point by its class and by whether the model got it right
 #'
-#' Correct points get the full class color and a ring that contrasts with
-#' it; misclassified ones are paler and smaller. Returns a data frame with one
-#' row per point, in the order given, and the columns `fill`, `ring`, `cex`
-#' and `lwd`.
+#' @return A data frame with one row per point, in the order given, and the
+#'   columns `fill`, `ring`, `cex` and `lwd`.
 #' @noRd
 style_points <- function(class, misclassified, palette) {
   fill <- palette[class + 1]
@@ -481,20 +453,17 @@ style_points <- function(class, misclassified, palette) {
   )
 }
 
-#' Lay out the strip above the panel
-#'
-#' Margin lines up from the panel's top edge. A line follows the text size,
-#' not the device, so the strip looks the same at any figure size.
+#' Lay out the strip above the panel, in margin lines up from its top edge
 #' @noRd
 strip_layout <- list(
-  # "Boundary", halfway between the panel and the bar's bottom edge
+  # lines follow the text size, not the device, so the strip looks the same
+  # at any figure size; "Boundary" sits halfway between panel and bar
   label = 0.65,
-  # the color bar's bottom and top edges
   bar = c(1.3, 1.83),
   # the class legend's row, level with the bar's top edge
   legend = 1.83,
   # at least 4 pt above the strip's highest ink, the class legend's dots, at
-  # pointsize 9; 2.4 left 3.9 pt
+  # pointsize 9; 2.4 gives only 3.9 pt
   subtitle = 2.41
 )
 
@@ -502,7 +471,6 @@ strip_layout <- list(
 #' @noRd
 find_strip_y <- function(lines) {
   usr <- graphics::par("usr")
-  # inches per line, then user units per inch
   line_height <- graphics::par("mai")[3] / graphics::par("mar")[3]
   usr[4] + lines * line_height * (usr[4] - usr[3]) / graphics::par("pin")[2]
 }
@@ -531,8 +499,7 @@ read_class_labels <- function(data, outcome) {
 #' Draw the margin color bar above the panel
 #' @noRd
 draw_colorbar <- function(opacity, labels) {
-  # centered in the margin above the panel like the class legend; its ends
-  # carry the class names, so no caption
+  # its ends carry the class names, so no caption
   usr <- graphics::par("usr")
   width <- usr[2] - usr[1]
   # 7 pt at pointsize 9, the class legend's size
@@ -589,7 +556,6 @@ draw_colorbar <- function(opacity, labels) {
     col = "grey15",
     xpd = NA
   )
-  # under the tick, halfway between the bar and the panel
   graphics::text(
     middle,
     find_strip_y(strip_layout$label),

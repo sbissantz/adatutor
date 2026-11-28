@@ -1,41 +1,29 @@
-#' Methods for logo_cv objects
+#' Methods for `logo_cv` objects
 #'
-#' `print()` shows the per-project estimates of one metric. `summary()`
-#' returns one row per setting: the `mean`, `sd`, `min` and `max` of the
-#' setting's estimates across the projects, and right after `sd` the column
-#' `lower`, the mean minus the SD, which is the lower end of the band of one
-#' SD around the mean. These columns rank settings; they are not estimates of
-#' performance on a new project. `as.data.frame()` flattens all estimates
-#' into one long table.
-#' `plot()` draws the estimates per project, with bands when `x` carries
-#' intervals from [bootstrap()].
+#' `print()` shows the estimates of one metric per project. `summary()`
+#' summarizes each setting across the projects. `as.data.frame()` gives all
+#' estimates as one long table. `plot()` draws the estimates per project,
+#' with bands when `x` carries intervals from [bootstrap()].
 #'
-#' `print()` lists each project's size and base rate once, then one row per
-#' setting: the setting's hyperparameters and its estimate on each project.
-#' Above 20 settings, it shows the first 10. A nested result shows one row
-#' per outer fold instead, with the setting that fold selected. Its header
-#' adds what the inner searches selected by, the `sort_by` statistics and the
-#' `metric` of [tune_logo_cv()], and a last line counts the distinct settings
-#' they selected. A result from [bootstrap()] also shows each project's
-#' interval and its number of dropped draws.
-#'
-#' `summary()` keeps the grid order unless `sort_by` sorts the rows, and puts
-#' the hyperparameters first. `sd` is not a standard error. A statistic is
-#' `NA` if a project is `NA`. The row names are the settings' row numbers in
-#' the grid. A nested result gives one row, over the outer folds.
-#'
-#' @param x,object An object of class `logo_cv`.
-#' @param metric The performance metric to show. Defaults to `"auroc"`.
-#' @param sort_by The columns of the summary to sort by, as a character vector,
-#'   or `NULL`, the default, to keep the grid order. Rows go highest first on
-#'   every column, and later columns break ties in earlier ones. Rows that tie
-#'   on all of them keep their grid order, and rows with `NA` go last. For
-#'   example, `"lower"` puts first the setting with the highest mean minus
-#'   SD.
+#' @param x,object A result of [logo_cv()] or [tune_logo_cv()].
+#' @param metric The metric to show, one of the names [assess()] returns.
+#' @param sort_by The columns of the summary to sort by, or `NULL` to keep the
+#'   grid order. Rows go highest first on every column, and later columns
+#'   break ties in earlier ones. Rows that tie on all of them keep their grid
+#'   order, and rows with `NA` go last.
 #' @param ... Ignored.
 #'
-#' @return `print()` and `plot()` return `x` invisibly; `summary()` and
-#'   `as.data.frame()` return data frames.
+#' @return `print()` and `plot()` return `x` invisibly.
+#'
+#'   `summary()` returns a data frame with one row per setting: the
+#'   setting's hyperparameters, then the `mean`, `sd`, `lower`, `min` and
+#'   `max` of its estimates across the projects, where `lower` is
+#'   \eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd}. A statistic is `NA` if a
+#'   project is `NA`. The row names are the settings' row numbers in the
+#'   grid. For a nested result, `summary()` gives one row over the outer
+#'   folds, without the hyperparameters.
+#'
+#'   `as.data.frame()` returns a data frame with one row per estimate.
 #'
 #' @family cross-validation
 #'
@@ -147,21 +135,18 @@ summary.logo_cv <- function(object, metric = "auroc", sort_by = NULL, ...) {
 }
 
 #' Add `lower`, the mean minus the SD, right after `sd`
-#'
-#' Shared by summary.logo_cv() and summary.hypergrid(), so both have the same
-#' columns in the same order.
 #' @noRd
 add_lower <- function(out) {
+  # shared by both summary() methods, so their columns match
   out$lower <- out$mean - out$sd
   columns <- setdiff(names(out), "lower")
   out[append(columns, "lower", after = match("sd", columns))]
 }
 
 #' Sort a summary's rows highest first by the columns in `sort_by`
-#'
-#' Shared by summary.logo_cv() and summary.hypergrid(), so both rank alike.
 #' @noRd
 sort_summary <- function(out, sort_by) {
+  # shared by both summary() methods, so they rank alike
   if (
     !is.character(sort_by) ||
       length(sort_by) == 0L ||
@@ -255,10 +240,9 @@ print_by_setting <- function(x, metric) {
 }
 
 #' Print a character matrix with its row labels gray
-#'
-#' Styles the lines print() gives, so the columns never shift.
 #' @noRd
 print_labeled <- function(block, use = use_ansi()) {
+  # style the lines print() gives, so the columns never shift
   lines <- utils::capture.output(print(noquote(block), right = TRUE))
   # print() pads the row labels to one width; a wrapped table repeats them,
   # and its header lines leave that width blank
@@ -300,8 +284,7 @@ print_by_fold <- function(x, metric) {
   }
 }
 
-#' Format each project's bootstrap interval of one metric, with a line that
-#' names the level and the number of resamples
+#' Format each project's bootstrap interval of one metric, with its label
 #' @noRd
 format_intervals <- function(x, metric, projects) {
   # by name, so the columns follow the estimates whatever the order of `ci`
@@ -406,12 +389,12 @@ as.data.frame.logo_cv <- function(x, ...) {
 
 #' @rdname logo_cv_methods
 #'
-#' @param levels The band widths, widest last. Defaults to 0.50, 0.80 and
-#'   0.95.
+#' @param levels The levels of the bootstrap bands, such as 0.95.
 #' @param baseline The reference line. `"auto"` draws it where a useless model
 #'   would score: 0.5 for `auroc` and `bacc`, 0 for `mcc`, the majority-class
-#'   rate for `acc`, and each project's base rate for the others. A number
-#'   sets it; `NA` leaves it out.
+#'   rate for `acc`, and each project's base rate for `auprc`, `ppv`, `f1` and
+#'   the `patk` metrics. Other metrics get no line. A number sets it; `NA`
+#'   leaves it out.
 #'
 #' @export
 plot.logo_cv <- function(

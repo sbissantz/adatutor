@@ -1,127 +1,74 @@
 #' Tune a model's settings by leave-one-group-out cross-validation
 #'
 #' Cross-validates a fitted model at every row of a grid of settings, with
-#' the folds of [logo_cv()]: each level of `group` is held out in turn, or
-#' only the levels in `holdout`. Each row changes the recipe read off the
-#' fit, so the result has one estimate per setting and group.
+#' the folds of [logo_cv()]. The result has one estimate per setting and
+#' group.
 #'
 #' @section Grid columns:
-#' The columns a grid may hold depend on the fit. A column the grid lacks
-#' takes the fit's own value, and a column not listed for the fit is an
-#' error.
-#' * An [adaboost()] fit: `depth`, `n_iter` and `eta` set the depth of the
+#' A column the grid lacks takes the fit's own value, and a column not listed
+#' for the fit is an error.
+#' * A fit from [adaboost()]: `depth`, `n_iter` and `eta` set the depth of the
 #'   boosted tree, the number of rounds and the learning rate. A column named
 #'   after an [rpart::rpart.control()] setting, such as `cp` or `minbucket`,
-#'   sets that control for its row. So `data.frame(n_iter = c(10, 100))`
-#'   varies the rounds and keeps the fit's depth and rate.
+#'   sets that control for its row, except `xval` and `maxsurrogate`, which
+#'   stay 0.
 #' * A classification tree from [rpart::rpart()]: `depth` sets the tree's
-#'   `maxdepth`, and the same rpart controls set theirs.
+#'   `maxdepth`, and the same rpart controls set theirs, including `xval` and
+#'   `maxsurrogate`.
 #' * A classification forest from [randomForest::randomForest()]: `mtry`,
-#'   `nodesize`, `ntree` and `maxnodes` set those arguments. A forest stores
-#'   only its `mtry` and `ntree`, so a grid without `nodesize` or `maxnodes`
-#'   leaves them as the fit's call set them.
+#'   `nodesize`, `ntree` and `maxnodes` set those arguments. Without
+#'   `nodesize` or `maxnodes`, the grid leaves them as the fit's call set
+#'   them.
 #' * An XGBoost fit from [xgboost::xgboost()]: `depth`, `eta` and `n_iter` set
 #'   `max_depth`, `learning_rate` and `nrounds`, and `min_child_weight` and
-#'   `lambda` set `min_child_weight` and `reg_lambda`. Where the fit left a
-#'   setting at its default, the grid takes xgboost's default. Fit it with
-#'   `nthreads = 1`: each refit runs on as many threads as the fit, and
-#'   `cores` above 1 runs several refits at once.
+#'   `lambda` set `min_child_weight` and `reg_lambda`. With `cores` above 1,
+#'   fit it with `nthreads = 1`: each refit runs on as many threads as the
+#'   fit.
 #'
 #' @section Nested cross-validation:
-#' Picking the best row of a grid and reporting its score is optimistic,
-#' because the same folds chose the winner and graded it. With
-#' `nested = TRUE`, each held-out group takes no part in the choice: a search
-#' on the other groups picks the row that
-#' `summary(inner, metric = metric, sort_by = sort_by)` puts first, and only
-#' that row is scored on the held-out group. By default, that is the row with
-#' the highest mean AUROC minus its SD. The result estimates the procedure
-#' "search the grid, then fit the winner", not any one setting. It is slightly
-#' pessimistic, because each model trains on one group fewer. Expect the outer
-#' folds to choose different settings. Nesting is currently only supported
-#' with fits from [adaboost()] and [xgboost::xgboost()].
-#'
-#' A row whose statistics are `NA`, because `metric` is undefined on one of
-#' the inner projects, cannot be picked; if no row has a value, the search
-#' stops with an error.
-#'
-#' @section Random forests:
-#' A forest draws at random. Before it refits, the tuner draws one seed per
-#' fold from the session's random-number stream, and it sets a fold's seed
-#' before each refit on that fold. So the result repeats after [set.seed()],
-#' and it is the same at any number of cores. Since [logo_cv()] draws a
-#' forest's refits from the session's stream itself, a forest's result from
-#' the tuner differs from its result from `logo_cv()` after the same seed,
-#' even for the fit's own setting.
-#'
-#' @section Speed:
-#' Rows of `grid` that differ only in `n_iter` share one fit per fold. The
-#' model is boosted once, to the largest `n_iter` among them, and each row is
-#' scored after its own number of rounds: AdaBoost on the margin, XGBoost on
-#' the probability. The first rounds of a longer run are the shorter run, so
-#' the result equals refitting each row. A grid of many round counts therefore
-#' costs about as much as its largest one. Each distinct combination of the
-#' other columns costs one fit per fold, and so does every row of a tree or a
-#' forest.
+#' With `nested = TRUE`, each held-out group takes no part in the choice of
+#' setting. A search on the other groups ranks the rows as `summary()` does
+#' with `metric` and `sort_by`, and only the first row is scored on the
+#' held-out group. A row whose statistics are `NA` cannot be chosen; if no
+#' row has a value, the search stops with an error.
 #'
 #' @param x A fitted model: a fit from [adaboost()], a classification tree
 #'   from [rpart::rpart()], a classification forest from
 #'   [randomForest::randomForest()] fitted with a formula, or an XGBoost fit
-#'   from [xgboost::xgboost()]. The grid varies its settings; everything else
-#'   the fit was made with stays.
-#' @param grid A data frame of settings, one row per setting. See the section
-#'   on grid columns.
+#'   from [xgboost::xgboost()].
+#' @param grid A data frame of settings, one row per setting. See the Grid
+#'   columns section.
 #' @inheritParams logo_cv
-#' @param nested Whether to nest the search, which is currently only supported
-#'   with fits from [adaboost()] and [xgboost::xgboost()]. The default,
-#'   `FALSE`, scores every row of `grid` on every fold. `TRUE` needs two or
-#'   more rows and at least three groups.
-#' @param metric The performance metric the inner search ranks the settings
-#'   by when `nested = TRUE`, one of the metrics [assess()] returns. Defaults
-#'   to `"auroc"`. Fix it in advance: it decides which setting is chosen. It is
-#'   not used when `nested = FALSE`.
-#' @param sort_by The statistics of the summary the inner search ranks the
-#'   settings by when `nested = TRUE`: one or more of `"mean"`, `"sd"`,
-#'   `"lower"`, `"min"` and `"max"`, each once. Each outer fold picks the
-#'   setting that `summary()` of its inner search puts first when sorted by
-#'   `sort_by`: highest first, later statistics break ties, and settings that
-#'   tie on all of them go in grid order. Defaults to `"lower"`, the mean
-#'   minus the SD; `"mean"` picks the highest mean. It is not used when
-#'   `nested = FALSE`.
-#' @param cores The number of cores to use. Defaults to 1. A number above
-#'   what the computer has is lowered to that, with a message. On macOS and
-#'   Linux, the work is spread over that many forked R processes with
-#'   [parallel::mclapply()]. Windows cannot fork, so there it goes to that
-#'   many new R processes from [parallel::makePSOCKcluster()], which first
-#'   load adatutor and the packages the fit needs. The results are the same
-#'   at any number of cores. On Windows, these processes are new R sessions:
-#'   they get the plain values the fit reads, such as numbers and data
-#'   frames, but not the functions defined in the session. So a fit whose
-#'   formula or call uses such a function, even by its name in a string, or
-#'   an object that holds code, such as a fitted model, stops with a
-#'   message; then set `cores = 1`, or compute the column first and use it
-#'   in the formula.
-#' @param verbose Whether to report progress on the console. Defaults to
-#'   `TRUE`, which prints a start line that counts the settings, the folds
-#'   and the cores in use if more than one, then a progress bar over the fits
-#'   and a closing line. On several cores, the workers hand back their fits
-#'   in batches of 16 per core, and the bar moves after each batch; a search
-#'   that fits in one batch jumps from start to end. A nested search prints a
-#'   line per outer fold instead of the bar, which ends in "Done" when that
-#'   fold's search and refit have finished. `FALSE` prints nothing, for
-#'   loops, reports and scripts.
-#' @param ... Must be empty. An argument the method does not take is an
-#'   error, not ignored.
+#' @param nested Whether to nest the search. Supported only for fits from
+#'   [adaboost()] and [xgboost::xgboost()]. `TRUE` needs two or more rows in
+#'   `grid` and at least three groups.
+#' @param metric The metric the inner search ranks the settings by when
+#'   `nested = TRUE`, one of the names [assess()] returns.
+#' @param sort_by The statistics the inner search ranks the settings by when
+#'   `nested = TRUE`: one or more of `"mean"`, `"sd"`, `"lower"`, `"min"` and
+#'   `"max"`, each once, where `lower` is
+#'   \eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd}. Settings go highest first,
+#'   later statistics break ties, and settings that tie on all of them go in
+#'   grid order.
+#' @param cores The number of cores to use. A number above what the computer
+#'   has is lowered to that, with a message. The work runs through
+#'   [parallel::mclapply()], or on Windows [parallel::makePSOCKcluster()]. The
+#'   results are the same at any number of cores. On Windows with `cores`
+#'   above 1, a fit whose formula or call uses code from the session, such as
+#'   a function defined there, stops with a message; then set `cores = 1`.
 #'
 #' @return An object of class `logo_cv`, as from [logo_cv()], with one
-#'   setting per row of `grid`. When nested, `estimates` is project x metric,
-#'   and `selected` gives the setting each outer fold chose. Its column
-#'   `inner_value` is the chosen setting's value of the first `sort_by`
-#'   statistic in the inner search.
+#'   setting per row of `grid`. When nested, `estimates` is a matrix with one
+#'   row per project and one column per metric, and `selected` gives the
+#'   setting each outer fold chose. Its column `inner_value` is the chosen
+#'   setting's value of the first `sort_by` statistic in the inner search.
 #'
 #' @family cross-validation
-#' @seealso [hypergrid], a grid of 1,320 settings already scored on the six
-#'   tuning projects of [altmext]. [nested], the nested search of the same grid
-#'   on all seven projects.
+#' @seealso
+#' * [hypergrid], an AdaBoost grid of 1,320 settings scored on six projects
+#'   of [altmext].
+#' * [nested], the nested search of that grid.
+#' * [set.seed()], to repeat a forest's result.
 #'
 #' @examples
 #' data(altmext)
@@ -458,8 +405,7 @@ check_not_nested <- function(nested) {
   }
 }
 
-#' Stop unless a nested search has the grid, groups, `metric` and `sort_by`
-#' it needs; called before any fit
+#' Stop unless a nested search has what it needs, before any fit
 #' @noRd
 check_nested_search <- function(grid, data, group, metric, sort_by) {
   if (nrow(grid) < 2L) {
@@ -537,9 +483,10 @@ read_xgb_setting <- function(fit) {
 
 #' Run the outer loop of nested LOGO-CV, with one inner search per outer fold
 #'
-#' `outcome` names the outcome column; a fit with a formula gives it.
-#' `globals` is evaluated only if an inner search starts a socket cluster,
-#' and then once for all of them.
+#' @param outcome The name of the outcome column; a fit with a formula gives
+#'   it.
+#' @param globals Evaluated only if an inner search starts a socket cluster,
+#'   and then once for all of them.
 #' @noRd
 cross_validate_nested <- function(
   fit,
@@ -577,9 +524,8 @@ cross_validate_nested <- function(
   selected <- vector("list", length(folds))
   scores <- vector("list", length(folds))
 
-  # one line per outer fold, printed here: the outer folds run one after
-  # another, and only the inner fits go to the cores. On exit, an error
-  # closes the open line.
+  # one line per outer fold, printed here: only the inner fits go to the
+  # cores. On exit, an error closes the open line.
   finished <- TRUE
   if (verbose) {
     on.exit(close_progress(NULL, finished), add = TRUE)
@@ -612,9 +558,8 @@ cross_validate_nested <- function(
     train <- data[!held_out, , drop = FALSE]
     test <- data[held_out, , drop = FALSE]
 
-    # what tune_logo_cv() runs on `train`; the checks and `cores` are done.
-    # Quiet: the outer fold's line stands for it, and a quiet search sends
-    # its fits to the cores in one batch.
+    # what tune_logo_cv() runs on `train`, checks done; quiet, since the outer
+    # fold's line stands for it and a quiet search sends its fits in one batch
     inner_cv <- cross_validate(
       fit,
       data = train,
@@ -694,11 +639,12 @@ cross_validate_nested <- function(
 
 #' Pick the setting an inner search puts first, as summary() sorts it
 #'
-#' Returns the setting's row number in the grid and its value of the first
-#' `sort_by` statistic. `fold` names the outer fold for the error message.
+#' @param fold The outer fold, named in the error message.
+#' @return A list of `setting`, its row number in the grid, and `value`, its
+#'   value of the first `sort_by` statistic.
 #' @noRd
 pick_setting <- function(inner, metric, sort_by, fold) {
-  # these statistics rank settings; they are not estimates (see ?tune_logo_cv)
+  # these statistics rank settings; they are not estimates of performance
   ranked <- summary(inner, metric = metric, sort_by = sort_by)
   value <- ranked[[sort_by[1L]]][1L]
   # summary() sorts NA last, so an NA on top means no setting has a value
@@ -739,8 +685,7 @@ list_forest_settings <- function() {
   c("mtry", "nodesize", "ntree", "maxnodes")
 }
 
-#' List the grid columns of an XGBoost fit, each named by its xgboost()
-#' argument
+#' List the xgboost() argument of each grid column of an XGBoost fit
 #' @noRd
 list_xgb_settings <- function() {
   c(
@@ -754,8 +699,9 @@ list_xgb_settings <- function() {
 
 #' Check the grid's columns and fill in missing ones from the fit
 #'
-#' `own` is the fit's own setting as a one-row grid, `settings` the columns a
-#' grid may hold for the model, and `controls` the rpart controls it may set.
+#' @param own The fit's own setting as a one-row grid.
+#' @param settings The columns a grid may hold for the model.
+#' @param controls The rpart controls a grid may set.
 #' @noRd
 normalize_grid <- function(grid, own, settings, controls = character()) {
   grid <- as.data.frame(grid)

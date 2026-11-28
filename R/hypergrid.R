@@ -1,86 +1,48 @@
 #' AdaBoost hyperparameter grid by leave-one-group-out cross-validation
 #'
 #' Every setting of an AdaBoost grid, scored by leave-one-group-out
-#' cross-validation on the six tuning projects of [altmext]: each project is
-#' held out in turn and scored by the model trained on the other five. HOLZ,
-#' the newest project, takes no part; the tutorial keeps it for the final
-#' test. The grid is one [tune_logo_cv()] call with `cores = 4`, which takes
-#' about 22 minutes on four cores; the script is `data-raw/hypergrid.R`.
+#' cross-validation on the six projects of [altmext] other than HOLZ. Each
+#' project is held out in turn and scored by the model trained on the other
+#' five. `summary()` ranks the settings of one metric.
 #'
-#' Each row also holds the mean, SD, minimum and maximum of its six project
-#' scores. These four columns rank settings; they are not estimates of
-#' performance on a new project. The rows are in grid order, and which column
-#' to rank by is the modeler's choice (see the examples).
-#'
-#' @format A list of 17 data frames, one per metric of [assess()], from `tp`
-#'   to `patk`. Each has one row per setting, 1,320 in all, and these columns:
+#' @format A list of class `hypergrid` with 17 data frames, one per metric of
+#'   [assess()], from `tp` to `patk`. Each has one row per setting, 1,320 in
+#'   all, and these columns:
 #' * `depth`: The depth of the tree that is boosted, 1 to 4.
 #' * `n_iter`: The number of boosting rounds, 10 to 3,000.
 #' * `eta`: The learning rate, 0.0025 to 1.
 #' * `eerp`, `ml1`, `ml2`, `ml3`, `rpp`, `ssrp`: The metric on that project,
-#'   held out.
+#'   held out. `NA` marks an undefined metric, such as `patk_5` on ML3 (see
+#'   [patk()]).
 #' * `mean`, `sd`, `min`, `max`: The mean, standard deviation, minimum and
 #'   maximum of the six project columns. They are `NA` if a project is `NA`.
 #'
-#' @details
 #' `attr(hypergrid, "projects")` gives each project's `n` and `base_rate`.
 #'
-#' The trees are `rpart()` trees with its defaults apart from `maxdepth`, so
-#' `cp = 0.01` and `minbucket = 7`.
-#'
-#' `patk_5` is `NA` for ML3: it has only three successes, fewer than the five
-#' places, and [patk()] returns `NA` when `k` exceeds the number of positives.
-#'
-#' @section Ranking the settings:
-#' The list has class `hypergrid`, so `summary()` ranks the settings of one
-#' metric's table and returns at most `n`, best first. It adds the column
-#' `lower` right after `sd`: the mean across the projects minus their SD,
-#' which is the lower end of the band of one SD around the mean. Like `mean`,
-#' `sd`, `min` and `max`, `lower` ranks settings; it is not an estimate of
-#' performance on a new project. The row names stay the settings' row numbers
-#' in the table.
-#'
-#' By default, `summary()` ranks every setting by `lower`, highest first, so
-#' the first row is the tutorial's choice: the setting with the highest
-#' `lower`. It sorts as the `summary()` of a [tune_logo_cv()] result does with
-#' the same `sort_by`.
-#'
-#' Two arguments narrow the ranking. They act in this order, `by` on the
-#' settings that `depth` kept:
-#' * `depth` keeps the settings of those tree depths.
-#' * `by` keeps the best setting of each value of one hyperparameter, so
-#'   `by = "depth"` gives one row per depth. The best is the first in the
-#'   `sort_by` order; of settings that tie on every column of `sort_by`, it
-#'   is the first in grid order.
-#'
-#' `summary()` then sorts the settings that are left by `sort_by` and returns
-#' the first `n`.
-#'
 #' @param object The grid, `hypergrid`, or another list of class `hypergrid`.
-#' @param metric The metric whose table to rank. Defaults to `"auroc"`.
-#' @param sort_by The columns of the table to sort by, as a character vector,
-#'   or `NULL` to keep the grid order. Rows go highest first on every column,
-#'   and later columns break ties in earlier ones. Rows that tie on all of
-#'   them keep their grid order, and rows with `NA` go last. Defaults to
-#'   `"lower"`, which puts first the setting with the highest mean minus SD.
-#' @param n The most settings to return, one whole number of 1 or more.
-#'   Defaults to 5, or with `by` to `Inf`, which returns the best setting of
-#'   every value. There are fewer when `depth` or `by` leaves fewer. A number
-#'   larger than the grid, or `Inf`, returns every setting that is left.
-#' @param depth The tree depths whose settings to keep, as a numeric vector of
-#'   values in the table's `depth` column, or `NULL` to keep every depth.
-#'   Defaults to `NULL`.
-#' @param by The hyperparameter to group by, `"depth"`, `"n_iter"` or `"eta"`:
-#'   each of its values keeps only its best setting. `NULL`, the default,
-#'   keeps every setting. It needs a `sort_by`, which decides the best.
-#' @param ... Must be empty. A misspelled argument stops with an error
-#'   instead of being ignored.
+#' @param metric The metric whose table to rank, one of the names of
+#'   `object`.
+#' @param sort_by The columns of the summary to sort by, or `NULL` to keep the
+#'   grid order. Rows go highest first on every column, and later columns
+#'   break ties in earlier ones. Rows that tie on all of them keep their grid
+#'   order, and rows with `NA` go last.
+#' @param n The most settings to return, one whole number of 1 or more, or
+#'   `Inf` for all. Defaults to 5, or to `Inf` with `by`.
+#' @param depth The tree depths whose settings to keep, or `NULL` to keep
+#'   every depth.
+#' @param by The hyperparameter to group by, `"depth"`, `"n_iter"` or `"eta"`,
+#'   or `NULL` to keep every setting. Each of its values keeps only its best
+#'   setting: the first in `sort_by` order, or in grid order on a tie. It acts
+#'   on the settings `depth` kept and needs a `sort_by`.
+#' @param ... Must be empty; any argument is an error.
 #'
 #' @return `summary()` returns a data frame: at most `n` rows of the table of
-#'   `metric`, best first, with the column `lower` added right after `sd`.
-#'   With `depth` or `by`, the rows are only those they keep.
+#'   `metric`, sorted by `sort_by`, with the column `lower`,
+#'   \eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd}, added after `sd`. The row
+#'   names are the settings' row numbers in the table.
 #'
 #' @family datasets
+#' @seealso [tune_logo_cv()] to score a grid of settings.
 #'
 #' @examples
 #' data(hypergrid)
@@ -93,7 +55,7 @@
 #' auc$lower <- auc$mean - auc$sd
 #' head(auc[order(-auc$lower), ], 3)
 #'
-#' # the same ranking from summary(): the first is the tutorial's choice
+#' # the same ranking from summary()
 #' summary(hypergrid, n = 3)
 #'
 #' # the five best settings of depth 1, the stumps
@@ -106,7 +68,7 @@
 #' @docType data
 #'
 # @name, not a trailing "hypergrid": the string form looks the object up,
-# which fails until data-raw/hypergrid.R has written the .rda
+# which fails until the .rda exists
 NULL
 
 #' @rdname hypergrid

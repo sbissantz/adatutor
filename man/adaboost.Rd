@@ -8,53 +8,36 @@ adaboost(h, n_iter, eta, keep_data = TRUE, check_inputs = TRUE, verbose = TRUE)
 }
 \arguments{
 \item{h}{A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}, fitted with
-\code{model = TRUE}. Without it, rpart drops the predictors and the tree
-cannot be refit.}
+\code{model = TRUE}. Every round uses its control settings and splitting rule,
+except that \code{xval} and \code{maxsurrogate} are set to 0.}
 
 \item{n_iter}{The number of boosting rounds.}
 
 \item{eta}{The learning rate.}
 
-\item{keep_data}{Whether to store the training data on the fit. Defaults to
-\code{TRUE}. This lets \code{predict()} run without \code{newdata} and makes the
-retrodiction check exact. It costs no memory, but a saved file grows by
-the size of the data; set \code{FALSE} when saving many fits.}
+\item{keep_data}{Whether to store the training data on the fit, so that
+\code{predict()} can run without \code{newdata}.}
 
-\item{check_inputs}{Whether to check the inputs. Defaults to \code{TRUE}.}
+\item{check_inputs}{Whether to check the inputs.}
 
-\item{verbose}{Whether to show progress. Defaults to \code{TRUE}.}
+\item{verbose}{Whether to report progress on the console.}
 }
 \value{
 An object of class \code{adaboost}: a list with one element per round,
-each holding the tree (\code{h}) and its model weight (\code{alpha}). Attributes store
-the training data, the formula, \code{n_iter}, \code{eta}, the tree control and the
-splitting rule, so \code{\link[=logo_cv]{logo_cv()}} can refit the same recipe.
+each holding the tree (\code{h}) and its model weight (\code{alpha}). Attributes
+store the training data, the formula, \code{n_iter}, \code{eta}, the tree control
+and the splitting rule; \code{\link[=logo_cv]{logo_cv()}} refits from them.
 }
 \description{
-Boosts a fitted classification tree. The tree is the weak learner: it is
-refit \code{n_iter} times on reweighted data, and the ensemble is the weighted
-vote of those fits. The tree's depth, \code{cp} and other
-\code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings come from \code{h}, not from this function.
+Boosts a fitted classification tree: refits it \code{n_iter} times on reweighted
+data and combines the fits into a weighted vote. The tree's depth, \code{cp} and
+other \code{\link[rpart:rpart.control]{rpart::rpart.control()}} settings come from \code{h}.
 }
-\section{What comes from \code{h}}{
-
-All of \code{h$control} is kept (\code{maxdepth}, \code{cp}, \code{minsplit}, \code{minbucket}),
-except \code{xval} and \code{maxsurrogate}. These are set to 0 to save time; neither
-changes the tree's splits. Without surrogates, a case whose split variable
-is missing goes with the majority of its node, rpart's fallback, so on data
-with missing values the trees route such cases differently from \code{h}. The
-splitting rule is kept too.
-
-\code{cp} is whatever \code{h} was fitted with: 0.01 for a plain \code{rpart()} call. The
-textbook advice is unpruned trees, \code{cp = 0} (Hastie, Tibshirani & Friedman,
-2009).
-}
-
 \section{What is refused}{
 
-\code{adaboost()} stops with an error rather than boost a different model than
-\code{h}. It refuses a tree that is not \code{method = "class"}, one fitted with
-\code{weights}, and one with a \code{prior} or a \code{loss} matrix.
+\code{adaboost()} stops with an error for a tree that is not
+\code{method = "class"}, one fitted with \code{weights}, one with a \code{prior} or a
+\code{loss} matrix, and one fitted on a column named \code{D}.
 }
 
 \examples{

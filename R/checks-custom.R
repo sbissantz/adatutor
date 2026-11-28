@@ -1,10 +1,7 @@
-#' Input checks
-#'
-#' Internal checks that stop with a message saying what is wrong and how to
-#' fix it.
-#'
+#' Check inputs
 #' @noRd
 NULL
+# each check stops with what is wrong and how to fix it
 
 #' Stop unless `x` is a data frame
 #' @noRd
@@ -95,9 +92,8 @@ check_numeric <- function(x) {
   }
 }
 
-#' How much of `newdata` was also used for training
-#'
-#' Returns "all", "some", "none", or `NA` when it cannot tell.
+#' Detect how much of `newdata` was also used for training
+#' @return `"all"`, `"some"`, `"none"`, or `NA` when it cannot tell.
 #' @noRd
 detect_overlap <- function(
   train_name,
@@ -133,8 +129,6 @@ detect_overlap <- function(
 }
 
 #' Report retrodictions when the scored data were used for training
-#'
-#' A message, not a warning: retrodicting on purpose is normal.
 #' @noRd
 check_train <- function(
   overlap,
@@ -142,14 +136,12 @@ check_train <- function(
   verbose = FALSE,
   defaulted = FALSE
 ) {
-  # report only "all": `altmext` has duplicated rows, so 1 of the 31 shipped
-  # test rows matches training by chance; "all" still catches renames and
-  # subsets
+  # report only "all": `altmext` has duplicated rows, so a test row can match
+  # training by chance; "all" still catches renames and subsets
   if (is.na(overlap) || overlap != "all") {
     return(invisible(NULL))
   }
 
-  # two routes here: the training frame was passed, or predict() fell back to it
   reason <- if (defaulted) {
     "  No `newdata` specified. The model scored its training data."
   } else {
@@ -165,6 +157,7 @@ check_train <- function(
   # gets skimmed
   conclusion <- "! Outputs are retrodictions, not predictions."
 
+  # a message, not a warning: retrodicting on purpose is normal
   if (verbose) {
     # gray reason, plain conclusion; unstyled, RStudio would paint the
     # reason red
@@ -199,10 +192,9 @@ check_prop <- function(x) {
 }
 
 #' Stop unless `cm` names the four counts
-#'
-#' Checks names, not class, so a hand-built named vector passes.
 #' @noRd
 check_confusion <- function(cm) {
+  # names, not class, so a hand-built named vector passes
   needed <- c("tp", "tn", "fp", "fn")
   if (is.null(names(cm)) || !all(needed %in% names(cm))) {
     stop(
@@ -238,7 +230,8 @@ check_ada_fit <- function(fit) {
   }
 }
 
-#' Stop unless `x` is a classification tree; `fn` names the caller
+#' Stop unless `x` is a classification tree
+#' @param fn The name of the caller, for the message.
 #' @noRd
 check_tree_fit <- function(x, fn) {
   if (!identical(x$method, "class")) {
@@ -251,8 +244,8 @@ check_tree_fit <- function(x, fn) {
   }
 }
 
-#' Stop unless `x` is a classification forest fitted with a formula and
-#' randomForest is installed; `fn` names the caller
+#' Stop unless `x` is a classification forest that can be refit
+#' @param fn The name of the caller, for the message.
 #' @noRd
 check_forest_fit <- function(x, fn) {
   if (!requireNamespace("randomForest", quietly = TRUE)) {
@@ -281,8 +274,8 @@ check_forest_fit <- function(x, fn) {
   }
 }
 
-#' Stop unless `x` is an XGBoost fit that a refit from its stored parameters
-#' can repeat and xgboost is installed; `fn` names the caller
+#' Stop unless `x` is an XGBoost fit that can be refit from its parameters
+#' @param fn The name of the caller, for the message.
 #' @noRd
 check_xgb_fit <- function(x, fn) {
   if (!requireNamespace("xgboost", quietly = TRUE)) {
@@ -334,8 +327,7 @@ check_xgb_fit <- function(x, fn) {
   }
 }
 
-#' Stop unless `outcome` names a factor column of `data` with the levels of
-#' the XGBoost fit `x`, and `data` holds the fit's predictors
+#' Stop unless `data` holds the outcome and predictors of the XGBoost fit `x`
 #' @noRd
 check_xgb_data <- function(x, data, outcome) {
   if (missing(outcome)) {
@@ -395,11 +387,9 @@ check_not_booster <- function(x) {
 }
 
 #' Stop when a method gets arguments it does not take
-#'
-#' A setting passed here would otherwise be dropped without a word, and the
-#' fit's own setting used instead.
 #' @noRd
 check_dots_empty <- function(...) {
+  # else a setting passed here is dropped silently for the fit's own
   if (...length() == 0L) {
     return(invisible(NULL))
   }

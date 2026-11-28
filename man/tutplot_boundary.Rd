@@ -27,19 +27,22 @@ tutplot_boundary(
 )
 }
 \arguments{
-\item{fit}{An rpart tree or an \code{\link[=adaboost]{adaboost()}} fit.}
+\item{fit}{An rpart tree or a fit from \code{\link[=adaboost]{adaboost()}}.}
 
-\item{data}{A data frame with the two features and the outcome. It sets the
-plotting range and supplies the points.}
+\item{data}{A data frame with the model's predictors and the outcome. It
+sets the plotting range and supplies the points. Predictors other than
+\code{features} are held at their median in \code{data}.}
 
-\item{features}{The names of the two features. The default, \code{NULL}, works
-when the model has exactly two predictors and stops otherwise.}
+\item{features}{The names of the two features. \code{NULL} works when the model
+has exactly two predictors and stops otherwise.}
 
-\item{shade}{\code{"margin"} (the default) or \code{"class"}. See the section on
-shading.}
+\item{shade}{\code{"margin"} or \code{"class"}. \code{"margin"} lays the viridis scale
+over the score, centered on zero, so the classes sit at its ends. For a
+tree, the scale runs from -0.5 to 0.5; for an ensemble, it runs to the
+largest margin, so its colors do not compare across plots. \code{"class"}
+tints each side in a flat color.}
 
-\item{resolution}{Grid points per axis. Defaults to 150. The cost grows
-with its square.}
+\item{resolution}{The number of grid points per axis.}
 
 \item{palette}{Two colors, for the negative and the positive class.
 Defaults to \code{viridisLite::viridis(2)}.}
@@ -47,79 +50,51 @@ Defaults to \code{viridisLite::viridis(2)}.}
 \item{opacity}{The opacity of the fill. Defaults to 0.18 for \code{"class"} and
 0.65 for \code{"margin"}.}
 
-\item{show_points}{Whether to draw the data. Defaults to \code{TRUE}. See the
-section on points.}
+\item{show_points}{Whether to draw the data. Each point is filled with the
+color of its observed class; misclassified points are paler and smaller.}
 
-\item{legend_pos}{Where to put the legend. The default, \code{"top"}, puts it
-above the panel; any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts it inside.
-\code{NULL} leaves it out, along with the color bar. The legend and the color
-bar name the classes by the outcome's levels, in title case. The top
-margin makes room only for a legend or color bar drawn above the panel.}
+\item{legend_pos}{Where to put the legend of \code{shade = "class"}: \code{"top"}
+puts it above the panel, and any other \code{\link[graphics:legend]{graphics::legend()}} keyword puts
+it inside. \code{shade = "margin"} draws no legend, only the color bar. \code{NULL}
+leaves out both. The legend and the color bar name the classes by the
+outcome's levels.}
 
-\item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar in place of
-the legend. Defaults to \code{TRUE}. A panel too narrow for the bar and its end
-labels gets no bar.}
+\item{add_colorbar}{Whether \code{shade = "margin"} draws a color bar above the
+panel. Without it, the figure has no key. A panel too narrow for the bar
+and its end labels gets no bar.}
 
 \item{main, subtitle}{An optional title and gray subtitle above the panel.}
 
-\item{xlab, ylab}{Axis labels. \code{NULL} (the default) uses the feature names.}
+\item{xlab, ylab}{Axis labels. \code{NULL} uses the feature names.}
 
 \item{file}{A path to write a PDF to, or \code{NULL} to draw on the current
 device.}
 
 \item{width, height, pointsize}{Passed to \code{\link[grDevices:pdf]{grDevices::pdf()}}; ignored when
-\code{file} is \code{NULL}. They default to the full text width.}
+\code{file} is \code{NULL}.}
 
 \item{...}{Passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
 \value{
-Invisibly, a list with the grid and the error count: the two axis
-sequences \code{x1} and \code{x2}, the matrix of scores \code{z}, the feature names
-\code{features}, the number of misclassified points \code{n_misclassified}, and
-the number of points with an observed class \code{n_points}. The counts are
-taken even with \code{show_points = FALSE}. They are \code{NA} when \code{data} has no
-outcome column, or when its outcome is not a two-level factor, 0/1, -1/1,
-or logical.
+Invisibly, a list with the axis sequences \code{x1} and \code{x2}, the matrix
+of scores \code{z}, the feature names \code{features}, the number of misclassified
+points \code{n_misclassified}, and the number of points with an observed class
+\code{n_points}. The counts are \code{NA} when \code{data} has no outcome column. An
+outcome that is not a two-level factor, 0/1, -1/1, or logical gives \code{NA}
+counts with \code{show_points = FALSE} and an error with \code{show_points = TRUE}.
 }
 \description{
 Draws the region each class is assigned to over a grid of two features,
 with the boundary between them and the data on top. Takes a single rpart
-tree or an \code{\link[=adaboost]{adaboost()}} ensemble. This is the manuscript's Figures 3 and 9:
-the same call, with a stump in one and a 1000-round ensemble in the other.
+tree or an \code{\link[=adaboost]{adaboost()}} ensemble. The boundary is the zero line of a
+continuous score: the margin for an ensemble, and the fitted probability of
+the second class minus 0.5 for a tree.
 }
-\section{Shading}{
-
-The boundary is the zero line of a continuous score: the margin for an
-ensemble, and the fitted probability minus 0.5 for a tree. That gives a
-smooth line at a modest \code{resolution}.
-
-\code{shade = "class"} tints each side in a flat color. \code{shade = "margin"} (the
-default) lays the viridis scale over the score, centered on zero, so the
-classes sit at its ends and uncertainty sits in the middle. For a tree, the
-scale is fixed at -0.5 to 0.5, so a color always means the same
-probability. For an ensemble, it runs to the largest margin, so colors
-compare within a plot but not across plots. A short line marks the middle
-of the color bar, a score of zero, as the boundary; the label "Boundary"
-sits under the bar.
-
-A stump has one split, so it shows two flat blocks; an ensemble shows a
-surface. That contrast is what boosting buys.
-}
-
-\section{Points}{
-
-Each point is filled with the color of its observed class. A point is
-misclassified when the sign of its score names the other class, the same
-score the surface is drawn from. Misclassified points are drawn paler and
-smaller, under the correct ones. The figure has no key for them, and it
-prints no count; the return value holds it.
-}
-
 \examples{
 data(altmext_splits)
 train <- altmext_splits$train
 
-# Figure 3: the stump of Figure 2, drawn as the boundary it makes
+# a stump, drawn as the boundary it makes
 h <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train,

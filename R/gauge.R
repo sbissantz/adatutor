@@ -1,31 +1,22 @@
 #' Gauge the importance of each predictor
 #'
-#' Sums, for each predictor, the model weights of the trees that split on it,
-#' and scales the sums to 100. A stump gives its whole weight alpha_t to its one
-#' variable. A deeper tree splits its weight across its variables by the gain
-#' of its primary splits, rpart's improvement measure; surrogate splits earn
-#' nothing. A tree that never split adds nothing.
-#'
-#' @section What it does not show:
-#' The numbers are relative: they show how the ensemble divided its weight,
-#' not what a variable is worth on its own. They have no sign, correlated
-#' predictors share their weight, and the ranking changes with the
-#' hyperparameters and the training data.
+#' Sums, for each predictor, the model weights \eqn{\alpha_t}{alpha_t} of the
+#' trees that split on it, and scales the sums to 100. A tree that splits on
+#' several predictors divides its weight among them by the gain of its primary
+#' splits.
 #'
 #' @param fit A fit from [adaboost()].
-#' @param x A `gauge` object from `gauge()`.
-#' @param top_n The largest number of predictors to plot. Defaults to 15.
+#' @param x A result of `gauge()`.
+#' @param top_n The largest number of predictors to draw.
 #' @param ... Ignored.
 #'
 #' @return `gauge()` returns a data frame of class `gauge` with the columns
-#'   `variable` and `importance` (a percentage), one row per predictor of the
-#'   formula, sorted from most to least important; a predictor no tree split
-#'   on has 0. `plot()` draws a lollipop chart, a line and a dot per
-#'   predictor, and returns `NULL` invisibly. It is the chart
-#'   [tutplot_importance()] draws, with the variable names as typed and the
-#'   axis title in sentence case.
+#'   `variable` and `importance` (in percent), one row per predictor of the
+#'   formula, from most to least important. A predictor that no tree splits on
+#'   gets 0. `plot()` draws a lollipop chart and returns `NULL` invisibly.
 #'
 #' @family tutorial plots
+#' @seealso [tutplot_importance()] to draw the chart with custom labels.
 #'
 #' @examples
 #' data(altmext_splits)
@@ -50,9 +41,8 @@
 gauge <- function(fit) {
   check_ada_fit(fit)
 
-  # every predictor of the formula, in its order: a predictor no tree split on
-  # keeps a zero, and the sums run in the order a by-hand loop uses, so the
-  # two agree to the last digit
+  # every predictor in formula order: an unused one keeps 0, and the sums run
+  # in the order of a by-hand loop, so the two agree to the last digit
   predictors <- attr(fit[[1]]$h$terms, "term.labels")
   totals <- stats::setNames(numeric(length(predictors)), predictors)
 
@@ -60,24 +50,20 @@ gauge <- function(fit) {
     tree <- fit[[t]]$h
     weight <- fit[[t]]$alpha
 
-    # the gain of the tree's splits: NULL for a bare root, one entry for a stump
     gain <- sum_primary_gain(tree)
 
     if (is.null(gain) || sum(gain) == 0) {
       next
     }
 
-    # split the tree's model weight across its variables; a stump gets it all,
-    # exactly: gain / sum(gain) is 1 before the product
+    # divide first, so a stump gets its whole weight exactly
     share <- weight * (gain / sum(gain))
 
-    # a variable the formula did not label still gets a slot
     unlabeled <- setdiff(names(share), names(totals))
     totals[unlabeled] <- 0
     totals[names(share)] <- totals[names(share)] + share
   }
 
-  # no tree in the ensemble split on anything
   if (sum(totals) == 0) {
     return(structure(
       data.frame(
@@ -107,16 +93,13 @@ gauge <- function(fit) {
 }
 
 #' Sum the gain of a tree's primary splits, per variable
-#'
-#' Returns a named vector, or NULL for a tree that never split.
+#' @return A named vector, or `NULL` for a tree that never split.
 #' @noRd
 sum_primary_gain <- function(tree) {
   frame <- tree$frame
 
-  # not rpart's variable.importance: that also credits surrogate splits, which
-  # only stand in for missing values, so it depends on maxsurrogate. The measure
-  # credits the splits a tree makes, so it reads the primary rows of `splits`,
-  # as rpart's importance() does before it adds the surrogates
+  # not rpart's variable.importance, which also credits surrogates and so
+  # depends on maxsurrogate: read only the primary rows of `splits`
   split_nodes <- which(frame$var != "<leaf>")
   if (length(split_nodes) == 0L) {
     return(NULL)
@@ -136,8 +119,7 @@ sum_primary_gain <- function(tree) {
 #' @export
 plot.gauge <- function(x, top_n = 15, ...) {
   check_gauge(x)
-  # the manuscript figure's own drawing, so the listing's plot() and the
-  # printed figure are one picture; a plot() method titles in sentence case
+  # a plot() method titles in sentence case
   draw_importance(x, top_n, labels = NULL, xlab = "Relative importance (%)")
   invisible(NULL)
 }

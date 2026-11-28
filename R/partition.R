@@ -1,27 +1,23 @@
 #' Split a data set into parts, optionally within strata
 #'
-#' Draws the given proportions of the rows into one set each and leaves the
-#' rest in the last set. With `strata`, the draw happens separately within
-#' each level of that column, so its distribution is kept in every part.
-#' Stratify on the outcome to keep each class's share close to that of the
-#' whole data; this matters most for small data sets.
-#'
-#' Rows keep their original order. Proportions are of the whole data, counts
-#' are rounded, and the last set takes whatever was not drawn.
+#' Draws the given proportions of the rows at random into one set each; the
+#' last set takes the rest. With `strata`, the draw runs separately within
+#' each level of that column, so every part keeps its distribution. Counts are
+#' rounded.
 #'
 #' @param data A data frame to split.
 #' @param prop One proportion per set, each between 0 and 1. A single number
-#'   gives two sets, `prop` and the rest. Several must sum to 1, e.g.
-#'   `c(0.7, 0.15, 0.15)`. Defaults to 0.7.
+#'   gives two sets, `prop` and the rest. Several must sum to 1, such as
+#'   `c(0.7, 0.15, 0.15)`.
 #' @param strata The name of a column to stratify on, usually the outcome.
-#'   The default, `NULL`, draws from the whole data set. The name matches
-#'   `strata` in `rsample::initial_split()`.
+#'   `NULL` draws from the whole data set.
 #'
 #' @return A list of data frames named `set1`, `set2`, and so on, one per
-#'   proportion. A proportion of 0 gives a data frame with no rows.
+#'   proportion. Rows keep their original order. A proportion of 0 gives a
+#'   data frame with no rows.
 #'
 #' @family cross-validation
-#' @seealso [altmext_splits], the split used in the tutorial.
+#' @seealso [altmext_splits], a split made with this function.
 #'
 #' @examples
 #' data(altmext)
@@ -51,7 +47,6 @@ partition <- function(data, prop = 0.7, strata = NULL) {
   check_df(data)
   data <- as.data.frame(data)
 
-  # one proportion is shorthand for two: `prop` and the rest
   if (length(prop) == 1L) {
     prop <- c(prop, 1 - prop)
   } else if (!isTRUE(all.equal(sum(prop), 1))) {
@@ -80,7 +75,6 @@ partition <- function(data, prop = 0.7, strata = NULL) {
     }
   }
 
-  # no strata means one stratum holding everything
   stratum <- if (is.null(strata)) rep(1L, nrow(data)) else data[[strata]]
   stratum_rows <- split(seq_len(nrow(data)), stratum, drop = TRUE)
   sizes <- vapply(stratum_rows, length, integer(1))

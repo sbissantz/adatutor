@@ -1,11 +1,10 @@
 #' Prepare the per-project figure, checking the arguments on the way
 #'
-#' Does all the work of draw_logo_cv() that draws nothing, in the order the
-#' drawing needs it. Its callers run it before par() or pdf(), so an argument
-#' it rejects stops before a device or a file is opened. Returns the pieces
-#' draw_logo_cv() takes, and in `facts`, what it returns.
+#' @return The pieces draw_logo_cv() takes, and in `facts`, what it returns.
 #' @noRd
 prepare_logo_cv <- function(x, metric, levels, baseline, ylab, add_keys) {
+  # callers run it before par() or pdf(), so a bad argument opens no device
+
   # a factor would pick the bands' column by its code
   metric <- as.character(metric)
   estimates <- read_metric_rows(x, metric)
@@ -65,9 +64,7 @@ prepare_logo_cv <- function(x, metric, levels, baseline, ylab, add_keys) {
 
 #' Draw the per-project estimates and bands; return what was drawn
 #'
-#' Shared by plot.logo_cv() and tutplot_logocv(), which differ in margins,
-#' title, keys and how they label the projects and their sizes. Takes the
-#' output of prepare_logo_cv().
+#' @param figure The output of prepare_logo_cv().
 #' @noRd
 draw_logo_cv <- function(
   figure,
@@ -203,8 +200,7 @@ draw_logo_cv <- function(
   figure$facts
 }
 
-#' Take one metric's rows of the long table, projects in name order; stop if
-#' it has none
+#' Take one metric's rows of the long table, sorted by project
 #' @noRd
 read_metric_rows <- function(x, metric) {
   long <- as.data.frame(x)
@@ -217,7 +213,8 @@ read_metric_rows <- function(x, metric) {
 
 #' Compute each project's bands from its bootstrap draws
 #'
-#' Also returns the share of resamples each bootstrap rejected.
+#' @return A list of `bands` and `rejection_rate`, the share of resamples
+#'   each bootstrap rejected.
 #' @noRd
 compute_bands <- function(ci, projects, metric, levels) {
   bands <- vector("list", length(projects))
@@ -261,9 +258,8 @@ find_reference <- function(metric, baseline, base_rate) {
       label = paste0("Dashed line: ", signif(baseline, 3))
     ))
   }
-  # what a useless model scores: 0.5 for auroc and bacc, 0 for mcc, always
-  # predicting the larger class for acc, the base rate for the precision
-  # metrics (auprc, ppv, patk) and f1
+  # where a useless model scores; for acc, one that always predicts the larger
+  # class, and for the precision metrics, the base rate
   if (metric %in% c("auroc", "bacc")) {
     list(values = rep(0.5, n_projects), label = "Dashed line: chance (0.5)")
   } else if (metric == "mcc") {

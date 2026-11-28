@@ -98,149 +98,94 @@ tune_logo_cv(
 \item{x}{A fitted model: a fit from \code{\link[=adaboost]{adaboost()}}, a classification tree
 from \code{\link[rpart:rpart]{rpart::rpart()}}, a classification forest from
 \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted with a formula, or an XGBoost fit
-from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}. The grid varies its settings; everything else
-the fit was made with stays.}
+from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}.}
 
-\item{grid}{A data frame of settings, one row per setting. See the section
-on grid columns.}
+\item{grid}{A data frame of settings, one row per setting. See the Grid
+columns section.}
 
 \item{data}{A data frame with the model's variables and the \code{group}
-column, holding every group.}
+column.}
 
-\item{group}{The name of the column that defines the folds, e.g. \code{"pid"}.}
+\item{group}{The name of the column that defines the folds, such as
+\code{"pid"}.}
 
-\item{holdout}{The levels of \code{group} to hold out, one fold each. Defaults
-to \code{NULL}, which holds out every level once.}
+\item{holdout}{The levels of \code{group} to hold out, one fold each, in that
+order. The other levels are only trained on. \code{NULL} holds out every
+level once.}
 
-\item{nested}{Whether to nest the search, which is currently only supported
-with fits from \code{\link[=adaboost]{adaboost()}} and \code{\link[xgboost:xgboost]{xgboost::xgboost()}}. The default,
-\code{FALSE}, scores every row of \code{grid} on every fold. \code{TRUE} needs two or
-more rows and at least three groups.}
+\item{nested}{Whether to nest the search. Supported only for fits from
+\code{\link[=adaboost]{adaboost()}} and \code{\link[xgboost:xgboost]{xgboost::xgboost()}}. \code{TRUE} needs two or more rows in
+\code{grid} and at least three groups.}
 
-\item{metric}{The performance metric the inner search ranks the settings
-by when \code{nested = TRUE}, one of the metrics \code{\link[=assess]{assess()}} returns. Defaults
-to \code{"auroc"}. Fix it in advance: it decides which setting is chosen. It is
-not used when \code{nested = FALSE}.}
+\item{metric}{The metric the inner search ranks the settings by when
+\code{nested = TRUE}, one of the names \code{\link[=assess]{assess()}} returns.}
 
-\item{sort_by}{The statistics of the summary the inner search ranks the
-settings by when \code{nested = TRUE}: one or more of \code{"mean"}, \code{"sd"},
-\code{"lower"}, \code{"min"} and \code{"max"}, each once. Each outer fold picks the
-setting that \code{summary()} of its inner search puts first when sorted by
-\code{sort_by}: highest first, later statistics break ties, and settings that
-tie on all of them go in grid order. Defaults to \code{"lower"}, the mean
-minus the SD; \code{"mean"} picks the highest mean. It is not used when
-\code{nested = FALSE}.}
+\item{sort_by}{The statistics the inner search ranks the settings by when
+\code{nested = TRUE}: one or more of \code{"mean"}, \code{"sd"}, \code{"lower"}, \code{"min"} and
+\code{"max"}, each once, where \code{lower} is
+\eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd}. Settings go highest first,
+later statistics break ties, and settings that tie on all of them go in
+grid order.}
 
-\item{cores}{The number of cores to use. Defaults to 1. A number above
-what the computer has is lowered to that, with a message. On macOS and
-Linux, the work is spread over that many forked R processes with
-\code{\link[parallel:mclapply]{parallel::mclapply()}}. Windows cannot fork, so there it goes to that
-many new R processes from \code{\link[parallel:makePSOCKcluster]{parallel::makePSOCKcluster()}}, which first
-load adatutor and the packages the fit needs. The results are the same
-at any number of cores. On Windows, these processes are new R sessions:
-they get the plain values the fit reads, such as numbers and data
-frames, but not the functions defined in the session. So a fit whose
-formula or call uses such a function, even by its name in a string, or
-an object that holds code, such as a fitted model, stops with a
-message; then set \code{cores = 1}, or compute the column first and use it
-in the formula.}
+\item{cores}{The number of cores to use. A number above what the computer
+has is lowered to that, with a message. The work runs through
+\code{\link[parallel:mclapply]{parallel::mclapply()}}, or on Windows \code{\link[parallel:makePSOCKcluster]{parallel::makePSOCKcluster()}}. The
+results are the same at any number of cores. On Windows with \code{cores}
+above 1, a fit whose formula or call uses code from the session, such as
+a function defined there, stops with a message; then set \code{cores = 1}.}
 
-\item{verbose}{Whether to report progress on the console. Defaults to
-\code{TRUE}, which prints a start line that counts the settings, the folds
-and the cores in use if more than one, then a progress bar over the fits
-and a closing line. On several cores, the workers hand back their fits
-in batches of 16 per core, and the bar moves after each batch; a search
-that fits in one batch jumps from start to end. A nested search prints a
-line per outer fold instead of the bar, which ends in "Done" when that
-fold's search and refit have finished. \code{FALSE} prints nothing, for
-loops, reports and scripts.}
+\item{verbose}{Whether to report progress on the console.}
 
-\item{...}{Must be empty. An argument the method does not take is an
-error, not ignored.}
+\item{...}{Must be empty; any argument is an error.}
 
-\item{outcome}{The name of the outcome column in \code{data}, e.g.
-\code{"replicate"}, for an XGBoost fit, which needs it. Such a fit keeps no
-formula, so its predictors are the columns named by its feature names.}
+\item{outcome}{The name of the outcome column in \code{data}, such as
+\code{"replicate"}. An XGBoost fit needs it; its predictors are the columns
+named by its feature names.}
 }
 \value{
 An object of class \code{logo_cv}, as from \code{\link[=logo_cv]{logo_cv()}}, with one
-setting per row of \code{grid}. When nested, \code{estimates} is project x metric,
-and \code{selected} gives the setting each outer fold chose. Its column
-\code{inner_value} is the chosen setting's value of the first \code{sort_by}
-statistic in the inner search.
+setting per row of \code{grid}. When nested, \code{estimates} is a matrix with one
+row per project and one column per metric, and \code{selected} gives the
+setting each outer fold chose. Its column \code{inner_value} is the chosen
+setting's value of the first \code{sort_by} statistic in the inner search.
 }
 \description{
 Cross-validates a fitted model at every row of a grid of settings, with
-the folds of \code{\link[=logo_cv]{logo_cv()}}: each level of \code{group} is held out in turn, or
-only the levels in \code{holdout}. Each row changes the recipe read off the
-fit, so the result has one estimate per setting and group.
+the folds of \code{\link[=logo_cv]{logo_cv()}}. The result has one estimate per setting and
+group.
 }
 \section{Grid columns}{
 
-The columns a grid may hold depend on the fit. A column the grid lacks
-takes the fit's own value, and a column not listed for the fit is an
-error.
+A column the grid lacks takes the fit's own value, and a column not listed
+for the fit is an error.
 \itemize{
-\item An \code{\link[=adaboost]{adaboost()}} fit: \code{depth}, \code{n_iter} and \code{eta} set the depth of the
+\item A fit from \code{\link[=adaboost]{adaboost()}}: \code{depth}, \code{n_iter} and \code{eta} set the depth of the
 boosted tree, the number of rounds and the learning rate. A column named
 after an \code{\link[rpart:rpart.control]{rpart::rpart.control()}} setting, such as \code{cp} or \code{minbucket},
-sets that control for its row. So \code{data.frame(n_iter = c(10, 100))}
-varies the rounds and keeps the fit's depth and rate.
+sets that control for its row, except \code{xval} and \code{maxsurrogate}, which
+stay 0.
 \item A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}: \code{depth} sets the tree's
-\code{maxdepth}, and the same rpart controls set theirs.
+\code{maxdepth}, and the same rpart controls set theirs, including \code{xval} and
+\code{maxsurrogate}.
 \item A classification forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}}: \code{mtry},
-\code{nodesize}, \code{ntree} and \code{maxnodes} set those arguments. A forest stores
-only its \code{mtry} and \code{ntree}, so a grid without \code{nodesize} or \code{maxnodes}
-leaves them as the fit's call set them.
+\code{nodesize}, \code{ntree} and \code{maxnodes} set those arguments. Without
+\code{nodesize} or \code{maxnodes}, the grid leaves them as the fit's call set
+them.
 \item An XGBoost fit from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}: \code{depth}, \code{eta} and \code{n_iter} set
 \code{max_depth}, \code{learning_rate} and \code{nrounds}, and \code{min_child_weight} and
-\code{lambda} set \code{min_child_weight} and \code{reg_lambda}. Where the fit left a
-setting at its default, the grid takes xgboost's default. Fit it with
-\code{nthreads = 1}: each refit runs on as many threads as the fit, and
-\code{cores} above 1 runs several refits at once.
+\code{lambda} set \code{min_child_weight} and \code{reg_lambda}. With \code{cores} above 1,
+fit it with \code{nthreads = 1}: each refit runs on as many threads as the
+fit.
 }
 }
 
 \section{Nested cross-validation}{
 
-Picking the best row of a grid and reporting its score is optimistic,
-because the same folds chose the winner and graded it. With
-\code{nested = TRUE}, each held-out group takes no part in the choice: a search
-on the other groups picks the row that
-\code{summary(inner, metric = metric, sort_by = sort_by)} puts first, and only
-that row is scored on the held-out group. By default, that is the row with
-the highest mean AUROC minus its SD. The result estimates the procedure
-"search the grid, then fit the winner", not any one setting. It is slightly
-pessimistic, because each model trains on one group fewer. Expect the outer
-folds to choose different settings. Nesting is currently only supported
-with fits from \code{\link[=adaboost]{adaboost()}} and \code{\link[xgboost:xgboost]{xgboost::xgboost()}}.
-
-A row whose statistics are \code{NA}, because \code{metric} is undefined on one of
-the inner projects, cannot be picked; if no row has a value, the search
-stops with an error.
-}
-
-\section{Random forests}{
-
-A forest draws at random. Before it refits, the tuner draws one seed per
-fold from the session's random-number stream, and it sets a fold's seed
-before each refit on that fold. So the result repeats after \code{\link[=set.seed]{set.seed()}},
-and it is the same at any number of cores. Since \code{\link[=logo_cv]{logo_cv()}} draws a
-forest's refits from the session's stream itself, a forest's result from
-the tuner differs from its result from \code{logo_cv()} after the same seed,
-even for the fit's own setting.
-}
-
-\section{Speed}{
-
-Rows of \code{grid} that differ only in \code{n_iter} share one fit per fold. The
-model is boosted once, to the largest \code{n_iter} among them, and each row is
-scored after its own number of rounds: AdaBoost on the margin, XGBoost on
-the probability. The first rounds of a longer run are the shorter run, so
-the result equals refitting each row. A grid of many round counts therefore
-costs about as much as its largest one. Each distinct combination of the
-other columns costs one fit per fold, and so does every row of a tree or a
-forest.
+With \code{nested = TRUE}, each held-out group takes no part in the choice of
+setting. A search on the other groups ranks the rows as \code{summary()} does
+with \code{metric} and \code{sort_by}, and only the first row is scored on the
+held-out group. A row whose statistics are \code{NA} cannot be chosen; if no
+row has a value, the search stops with an error.
 }
 
 \examples{
@@ -295,9 +240,12 @@ tune_logo_cv(
 
 }
 \seealso{
-\link{hypergrid}, a grid of 1,320 settings already scored on the six
-tuning projects of \link{altmext}. \link{nested}, the nested search of the same grid
-on all seven projects.
+\itemize{
+\item \link{hypergrid}, an AdaBoost grid of 1,320 settings scored on six projects
+of \link{altmext}.
+\item \link{nested}, the nested search of that grid.
+\item \code{\link[=set.seed]{set.seed()}}, to repeat a forest's result.
+}
 
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},

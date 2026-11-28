@@ -3,67 +3,36 @@
 \docType{data}
 \name{benchmark}
 \alias{benchmark}
-\title{Benchmark models by leave-one-group-out cross-validation and on HOLZ}
+\title{Five models benchmarked by leave-one-group-out cross-validation and on HOLZ}
 \format{
 A list of 17 data frames, one per metric of \code{\link[=assess]{assess()}}, from \code{tp}
 to \code{patk}. Each has one row per model and these columns:
 \itemize{
-\item \code{model}: The model: \code{"logit"}, \code{"tree"}, \code{"rf"}, \code{"adaboost"} or
-\code{"xgboost"}.
+\item \code{model}: The model: \code{"logit"}, a logistic regression from
+\code{\link[stats:glm]{stats::glm()}}; \code{"tree"}, a classification tree from \code{\link[rpart:rpart]{rpart::rpart()}};
+\code{"rf"}, a random forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}};
+\code{"adaboost"}, an ensemble from \code{\link[=adaboost]{adaboost()}}; or \code{"xgboost"}, gradient
+boosting from \code{xgboost::xgboost()}.
 \item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The metric on that project,
-held out and scored by the model trained on the other five.
-\item \code{holz}: The metric on HOLZ, scored by the model trained on all six
-tuning projects.
-}
-}
-\description{
-The AdaBoost ensemble of the tutorial next to four other models, all
-trained on the four predictors of \link{altmext} and scored the same way. Each
-model is scored by leave-one-group-out cross-validation on the six tuning
-projects: each project is held out in turn and scored by the model trained
-on the other five. Each model is then trained on all six and scored once on
-HOLZ, the project the tutorial keeps back for the final test. The script is
-\code{data-raw/benchmark.R}; it runs in about a minute.
-}
-\details{
-The models and how each was set:
-\itemize{
-\item \code{logit}: A logistic regression from \code{\link[stats:glm]{stats::glm()}} with the main effects
-of the four predictors. It has nothing to tune.
-\item \code{tree}: A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}. Its depth, 4, was
-chosen from depths 1 to 4 by the rule below.
-\item \code{rf}: A random forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} at its
-defaults, 500 trees with two predictors tried per split. It is not tuned,
-because its choice of setting moved with the random seed. The seed is set
-to 112 before each call that fits it.
-\item \code{adaboost}: The tutorial's ensemble, trees of depth 2 boosted for 2,000
-rounds at a learning rate of 0.02, chosen from \link{hypergrid} by the rule
-below.
-\item \code{xgboost}: Gradient boosting from \code{xgboost::xgboost()} with the
-logistic loss, tuned over 180 settings: depths 1, 2 and 4; learning
-rates 0.1, 0.05 and 0.01; \code{min_child_weight} 1 and 5; \code{lambda} 1 and 10;
-and 50, 100, 200, 500 and 1,000 rounds. The choice is depth 4, 200 rounds,
-a rate of 0.05, \code{min_child_weight} 5 and \code{lambda} 10.
+held out and scored by the model trained on the other five. \code{NA} marks
+an undefined metric, such as \code{patk_5} on ML3 (see \code{\link[=patk]{patk()}}).
+\item \code{holz}: The metric on HOLZ, scored by the model trained on the six other
+projects.
 }
 
-The rule for the tree and AdaBoost is the tutorial's: among the settings
-scored on the six tuning projects, take the one with the highest \code{lower},
-the mean across the projects minus their SD, which is the lower end of the
-band of one SD around the mean. Neither rule reads HOLZ.
-
-Every model is scored on a continuous score: AdaBoost on its margin, the
-others on the predicted probability of success. The metrics that need a
-threshold cut the margin at 0 and the probabilities at 0.5.
+AdaBoost is scored on its margin and the other models on the predicted
+probability of success. The metrics that need a threshold cut the margin
+at 0 and probabilities at 0.5.
 
 \code{attr(benchmark, "projects")} gives each project's \code{n} and \code{base_rate}.
-\code{attr(benchmark, "settings")} has one row per model and hyperparameter, with
-the columns \code{model}, \code{hyperparameter} and \code{value}. The values are text. The
-logistic regression has no hyperparameters, so it has no rows. \code{depth},
-\code{n_iter} and \code{eta} are named as in the tutorial; the others carry their
-package's argument name.
-
-\code{patk_5} is \code{NA} for ML3: it has only three successes, fewer than the five
-places, and \code{\link[=patk]{patk()}} returns \code{NA} when \code{k} exceeds the number of positives.
+\code{attr(benchmark, "settings")} gives each model's hyperparameters as text,
+with the columns \code{model}, \code{hyperparameter} and \code{value}.
+}
+\description{
+The metrics of five models trained on the four predictors of \link{altmext}.
+Each model is scored by leave-one-group-out cross-validation on the six
+projects other than HOLZ (\code{pid == "holz"} in \link{altmext}), then trained on
+those six and scored on HOLZ.
 }
 \examples{
 data(benchmark)

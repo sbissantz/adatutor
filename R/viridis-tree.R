@@ -2,13 +2,13 @@
 #'
 #' Builds the node fill and text colors that [rpart.plot::rpart.plot()] needs
 #' to draw a classification tree on the viridis scale. Each fill comes from
-#' the node's fitted probability, and the text turns white on dark fills so it
-#' stays readable. The same probability gets the same color in every tree.
+#' the node's fitted probability of the last class, and the text turns white
+#' on dark fills. The same probability gets the same color in every tree.
 #'
 #' @param fit A classification tree from [rpart::rpart()].
-#' @param palette A function that takes a count and returns that many colors.
-#'   Defaults to [viridisLite::viridis()].
-#' @param n The number of steps in the color scale. Defaults to 100.
+#' @param palette A function that takes a count and returns that many colors,
+#'   such as [viridisLite::viridis()].
+#' @param n The number of steps in the color scale.
 #'
 #' @return A list with `box` and `text`, each with one color per node of
 #'   `fit`, in rpart's node order.
@@ -55,10 +55,9 @@ viridis_tree <- function(fit, palette = viridisLite::viridis, n = 100) {
 }
 
 #' Choose black or white ink to draw on a fill color
-#'
-#' Uses Rec. 709 luminance with a cut at 0.55, so any palette works.
 #' @noRd
 choose_ink <- function(colors) {
+  # Rec. 709 luminance with a cut at 0.55, so any palette works
   channels <- grDevices::col2rgb(colors) / 255
   # unname(): a single color would carry the channel's rowname along
   luminance <- unname(

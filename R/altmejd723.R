@@ -1,8 +1,7 @@
 #' Replication database without the SSRP
 #'
-#' A subset of the replication database of Altmejd et al. (2019), used to
-#' build [altmext]. Their database has five projects; this subset holds four
-#' of them: Many Labs 1 and 3, the Reproducibility Project: Psychology and the
+#' Four of the five projects in the replication database of Altmejd et al.
+#' (2019): Many Labs 1 and 3, the Reproducibility Project: Psychology and the
 #' Experimental Economics Replication Project. The fifth, the Social Sciences
 #' Replication Project, is in [ssrp723].
 #'
@@ -13,8 +12,7 @@
 #'   Predicting the replicability of social science lab experiments. PLOS ONE
 #'   14(12): e0225826. \doi{10.1371/journal.pone.0225826}
 #'
-#'   The data and more information are in their OSF repository:
-#'   <https://osf.io/4fn73/>.
+#'   Data: <https://osf.io/4fn73/>.
 #'
 #' @family datasets
 #'

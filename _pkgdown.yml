@@ -1,6 +1,7 @@
 url: https://sbissantz.github.io/adatutor/
 template:
   bootstrap: 5
+  math-rendering: katex
   params:
     bootswatch: flatly
 

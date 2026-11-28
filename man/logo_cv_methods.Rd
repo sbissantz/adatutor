@@ -6,7 +6,7 @@
 \alias{summary.logo_cv}
 \alias{as.data.frame.logo_cv}
 \alias{plot.logo_cv}
-\title{Methods for logo_cv objects}
+\title{Methods for \code{logo_cv} objects}
 \usage{
 \method{print}{logo_cv}(x, metric = "auroc", ...)
 
@@ -17,56 +17,43 @@
 \method{plot}{logo_cv}(x, metric = "auroc", levels = c(0.5, 0.8, 0.95), baseline = "auto", ...)
 }
 \arguments{
-\item{x, object}{An object of class \code{logo_cv}.}
+\item{x, object}{A result of \code{\link[=logo_cv]{logo_cv()}} or \code{\link[=tune_logo_cv]{tune_logo_cv()}}.}
 
-\item{metric}{The performance metric to show. Defaults to \code{"auroc"}.}
+\item{metric}{The metric to show, one of the names \code{\link[=assess]{assess()}} returns.}
 
 \item{...}{Ignored.}
 
-\item{sort_by}{The columns of the summary to sort by, as a character vector,
-or \code{NULL}, the default, to keep the grid order. Rows go highest first on
-every column, and later columns break ties in earlier ones. Rows that tie
-on all of them keep their grid order, and rows with \code{NA} go last. For
-example, \code{"lower"} puts first the setting with the highest mean minus
-SD.}
+\item{sort_by}{The columns of the summary to sort by, or \code{NULL} to keep the
+grid order. Rows go highest first on every column, and later columns
+break ties in earlier ones. Rows that tie on all of them keep their grid
+order, and rows with \code{NA} go last.}
 
-\item{levels}{The band widths, widest last. Defaults to 0.50, 0.80 and
-0.95.}
+\item{levels}{The levels of the bootstrap bands, such as 0.95.}
 
 \item{baseline}{The reference line. \code{"auto"} draws it where a useless model
 would score: 0.5 for \code{auroc} and \code{bacc}, 0 for \code{mcc}, the majority-class
-rate for \code{acc}, and each project's base rate for the others. A number
-sets it; \code{NA} leaves it out.}
+rate for \code{acc}, and each project's base rate for \code{auprc}, \code{ppv}, \code{f1} and
+the \code{patk} metrics. Other metrics get no line. A number sets it; \code{NA}
+leaves it out.}
 }
 \value{
-\code{print()} and \code{plot()} return \code{x} invisibly; \code{summary()} and
-\code{as.data.frame()} return data frames.
+\code{print()} and \code{plot()} return \code{x} invisibly.
+
+\code{summary()} returns a data frame with one row per setting: the
+setting's hyperparameters, then the \code{mean}, \code{sd}, \code{lower}, \code{min} and
+\code{max} of its estimates across the projects, where \code{lower} is
+\eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd}. A statistic is \code{NA} if a
+project is \code{NA}. The row names are the settings' row numbers in the
+grid. For a nested result, \code{summary()} gives one row over the outer
+folds, without the hyperparameters.
+
+\code{as.data.frame()} returns a data frame with one row per estimate.
 }
 \description{
-\code{print()} shows the per-project estimates of one metric. \code{summary()}
-returns one row per setting: the \code{mean}, \code{sd}, \code{min} and \code{max} of the
-setting's estimates across the projects, and right after \code{sd} the column
-\code{lower}, the mean minus the SD, which is the lower end of the band of one
-SD around the mean. These columns rank settings; they are not estimates of
-performance on a new project. \code{as.data.frame()} flattens all estimates
-into one long table.
-\code{plot()} draws the estimates per project, with bands when \code{x} carries
-intervals from \code{\link[=bootstrap]{bootstrap()}}.
-}
-\details{
-\code{print()} lists each project's size and base rate once, then one row per
-setting: the setting's hyperparameters and its estimate on each project.
-Above 20 settings, it shows the first 10. A nested result shows one row
-per outer fold instead, with the setting that fold selected. Its header
-adds what the inner searches selected by, the \code{sort_by} statistics and the
-\code{metric} of \code{\link[=tune_logo_cv]{tune_logo_cv()}}, and a last line counts the distinct settings
-they selected. A result from \code{\link[=bootstrap]{bootstrap()}} also shows each project's
-interval and its number of dropped draws.
-
-\code{summary()} keeps the grid order unless \code{sort_by} sorts the rows, and puts
-the hyperparameters first. \code{sd} is not a standard error. A statistic is
-\code{NA} if a project is \code{NA}. The row names are the settings' row numbers in
-the grid. A nested result gives one row, over the outer folds.
+\code{print()} shows the estimates of one metric per project. \code{summary()}
+summarizes each setting across the projects. \code{as.data.frame()} gives all
+estimates as one long table. \code{plot()} draws the estimates per project,
+with bands when \code{x} carries intervals from \code{\link[=bootstrap]{bootstrap()}}.
 }
 \seealso{
 Other cross-validation:

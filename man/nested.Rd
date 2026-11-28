@@ -6,22 +6,22 @@
 \title{Nested leave-one-group-out cross-validation of the AdaBoost grid}
 \format{
 An object of class \code{logo_cv}, as \code{\link[=tune_logo_cv]{tune_logo_cv()}} returns it with
-\code{nested = TRUE}. \code{print()}, \code{summary()}, \code{as.data.frame()} and \code{plot()}
-work on it as on any result of \code{\link[=logo_cv]{logo_cv()}} (see \link{logo_cv_methods}), and
-so does \code{\link[=bootstrap]{bootstrap()}}. It is a list with these elements:
+\code{nested = TRUE}. The methods in \link{logo_cv_methods} and \code{\link[=bootstrap]{bootstrap()}} work
+on it as on any result of \code{\link[=logo_cv]{logo_cv()}}. It is a list with these elements:
 \itemize{
-\item \code{estimates}: A matrix of project x metric, one row per project and one
-column per metric of \code{\link[=assess]{assess()}}. Each row is the project's score from
-the setting its own inner search picked.
-\item \code{grid}: The 1,320 settings, in the row order of \link{hypergrid}: \code{n_iter}
-fastest, then \code{eta}, then \code{depth}.
+\item \code{estimates}: A matrix with one row per project and one column per
+metric of \code{\link[=assess]{assess()}}. Each row is the project's score from the setting
+its own inner search picked. \code{NA} marks an undefined metric, such as
+\code{patk_5} on ML3 (see \code{\link[=patk]{patk()}}).
+\item \code{grid}: The 1,320 settings, in the row order of \link{hypergrid}.
 \item \code{projects}: Each project's \code{n} and \code{base_rate}.
 \item \code{scores}: The held-out margins, one row per study effect, with the
 columns \code{project}, \code{actual} and \code{score}. \code{\link[=bootstrap]{bootstrap()}} resamples them.
 \item \code{model}: \code{"adaboost"}.
 \item \code{nested}: \code{TRUE}.
 \item \code{metric} and \code{sort_by}: The rule of the inner searches, \code{"auroc"} and
-\code{"lower"}.
+\code{"lower"}: the highest \eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd} of
+the AUROC across the inner projects.
 \item \code{selected}: One row per project: the \code{setting} its inner search picked,
 as a row number of \code{grid}; that setting's \code{depth}, \code{n_iter} and \code{eta};
 and \code{inner_value}, the setting's \code{lower} in that inner search.
@@ -29,46 +29,10 @@ and \code{inner_value}, the setting's \code{lower} in that inner search.
 }
 \description{
 The procedure "search the grid of \link{hypergrid}, then fit the winner", scored
-by nested leave-one-group-out cross-validation on all seven projects of
-\link{altmext}. Each project is held out in turn. On the other six, a
-leave-one-group-out search of the 1,320 settings of \link{hypergrid} picks the
-setting with the highest \code{lower}. That setting is trained on the six and
-scored once on the held-out project. The result is one estimate per project
-for the procedure, not for any one setting. It is one \code{\link[=tune_logo_cv]{tune_logo_cv()}} call
-with \code{nested = TRUE} and \code{cores = 4}, which took 140 minutes on four cores;
-the script is \code{data-raw/nested.R}.
+by nested leave-one-group-out cross-validation on the seven projects of
+\link{altmext}. Each project is held out in turn and scored by the setting with
+the highest \code{lower} in a search of the grid on the other six.
 }
-\details{
-The rule is the tutorial's: among the settings scored on the six inner
-projects, take the one with the highest \code{lower}, the mean AUROC across the
-projects minus their SD. Like \code{lower}, \code{inner_value} ranks settings; it is
-not an estimate of performance on a new project. Each of the seven inner
-searches picked a different setting.
-
-The recipe is that of \link{hypergrid}: \code{rpart()} trees with its defaults apart
-from \code{maxdepth}, so \code{cp = 0.01} and \code{minbucket = 7}.
-
-Read the estimates as those of \code{\link[=logo_cv]{logo_cv()}}: one per project, with their
-spread, and not as a mean with a standard error.
-
-\code{patk_5} is \code{NA} for ML3: it has only three successes, fewer than the five
-places, and \code{\link[=patk]{patk()}} returns \code{NA} when \code{k} exceeds the number of positives.
-}
-\section{HOLZ among the projects}{
-
-The tutorial keeps HOLZ back for the final test, which \link{benchmark}
-records. This dataset comes after that test, which is why HOLZ can be one
-of its projects: HOLZ's fold repeats the final test rather than adding a
-new one. Its inner search is the search of \link{hypergrid} on the six tuning
-projects, so it picks the same setting, trees of depth 2 boosted for 2,000
-rounds at a learning rate of 0.02. Its estimates on HOLZ equal the
-AdaBoost cells of \link{benchmark} on every metric, among them an AUROC of
-0.768. In the other six folds, HOLZ is one of the inner projects, so it
-helps choose their settings. The tutorial's choice comes from \link{hypergrid},
-which never sees HOLZ, and this dataset changes neither that choice nor
-its final test.
-}
-
 \examples{
 data(nested)
 

@@ -9,17 +9,8 @@ A list of three data frames with the columns of \link{altmext}: \code{train}
 (141 rows), \code{valid} (30 rows) and \code{test} (31 rows).
 }
 \description{
-The training, validation and test sets of \link{altmext}. Made by
-\code{data-raw/altmext-splits.R} with the tutorial's \code{\link[=partition]{partition()}} call for the
-stratified 70/15/15 split (seed 112).
-}
-\details{
-The sets are shipped because a seed is not enough: R changed \code{sample()} in
-version 3.6.0, which moved every seeded split.
-
-The split is stratified on \code{replicate}, so each set stays close to the
-whole data's share of successes (.475): .475, .467 and .484. It is not
-stratified on \code{pid}, so the project mix varies between the sets.
+The training, validation and test sets of \link{altmext}, stratified on
+\code{replicate}.
 }
 \section{License}{
 

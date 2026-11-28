@@ -1,26 +1,18 @@
-#' Shared settings for the tutorial's figures
+#' Shared figure settings
 #'
-#' The size, margins and palette end that every `tutplot_*()` function draws
-#' with, kept in one place so the figures match.
-#'
-#' This list is for reference only. Changing a copy has no effect, because a
-#' function's defaults are looked up inside the package. Pass the new value
-#' instead:
-#'
-#' ```
-#' tutplot_gini(pointsize = 12)
-#' ```
+#' The sizes, margins and palette end that the `tutplot_*()` functions draw
+#' with. Changing a copy of this list has no effect. To change a figure's size
+#' or text size, pass `width`, `height` or `pointsize` together with `file`.
 #'
 #' @format A list of nine settings:
-#' * `col`: 4.30 x 3.06 inches, one column of the paper's two-column layout.
-#' * `full`: 5.55 x 3.95 inches, the full text width. Not used yet.
-#' * `pointsize`: 9. Raise it when enlarging a figure, or the text stays
-#'   small.
+#' * `col`, `full`: Figure sizes in inches, 4.30 by 3.06 and 5.55 by 3.95.
+#'   `full` is the default size of [tutplot_logoscheme()] and
+#'   [tutplot_boundary()], `col` of the other figures.
+#' * `pointsize`: 9.
 #' * `mar_plain`, `mar_legend`: Margins. The legend version has more room on
 #'   top.
 #' * `mgp`, `tcl`, `cex_axis`: Axis placement, tick length and label size.
-#' * `viridis_end`: 0.85. Stops before viridis's yellow, which vanishes as a
-#'   line on white.
+#' * `viridis_end`: 0.85, which stops the viridis palette before its yellow.
 #'
 #' @family tutorial plots
 #' @export
@@ -37,8 +29,7 @@ tutplot_opts <- list(
 )
 
 
-# shared par() block; returns the old settings for on.exit(), since one
-# session renders every figure; `reserve_legend` makes room in the top margin
+# returns the old settings for on.exit(): one session renders every figure
 set_figure_par <- function(reserve_legend = TRUE) {
   graphics::par(
     mar = if (reserve_legend) {
@@ -53,22 +44,25 @@ set_figure_par <- function(reserve_legend = TRUE) {
 }
 
 # legend centered in the top margin (`xpd = NA`), so it never covers a
-# curve; `text.width = NA` stops `horiz` padding entries to the widest.
-# `pad` widens each label by that many character widths, which moves the
-# next key away from it
+# curve; `text.width = NA` stops `horiz` padding entries to the widest
 draw_legend <- function(labels, cex = 1, ..., pad = 0) {
   usr <- graphics::par("usr")
+  middle <- (usr[1] + usr[2]) / 2
   text_width <- NA
   if (pad != 0) {
-    # legend()'s own character width and label widths, in user units
     char_width <- cex *
       graphics::par("cex") *
       graphics::xyinch(graphics::par("cin"))[1]
+    # no key follows the last label, so a pad there would only be blank
+    pads <- c(rep(pad, length(labels) - 1L), 0)
     text_width <- graphics::strwidth(labels, units = "user", cex = cex) +
-      pad * char_width
+      pads * char_width
+    # legend() centers its box, which starts 0.3 character widths before a
+    # key of line and dot but ends 0.5 after the last label
+    middle <- middle + 0.1 * char_width
   }
   graphics::legend(
-    x = (usr[1] + usr[2]) / 2,
+    x = middle,
     y = usr[4] + 0.055 * (usr[4] - usr[3]),
     xjust = 0.5,
     yjust = 0,
@@ -84,8 +78,8 @@ draw_legend <- function(labels, cex = 1, ..., pad = 0) {
   )
 }
 
-# rounded rectangle; `radius` is in inches, converted per axis so corners stay
-# circular, and clamped to half the box so thin blocks become stadiums
+# `radius` is in inches, converted per axis so corners stay circular, and
+# clamped to half the box so thin blocks become stadiums
 draw_roundrect <- function(
   left,
   bottom,
@@ -120,9 +114,8 @@ draw_roundrect <- function(
 
 #' Give each project its color, the same in every figure
 #'
-#' Viridis up to `tutplot_opts$viridis_end`, dealt out in alphabetical order
-#' of the names, compared without case. Returns one color per distinct
-#' project, in the order given, named by project.
+#' @return One color per distinct project, in the order given, named by
+#'   project.
 #' @noRd
 color_projects <- function(projects) {
   projects <- unique(as.character(projects))

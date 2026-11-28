@@ -10,7 +10,7 @@
 \alias{tutplot_importance}
 \alias{tutplot_logocv}
 \alias{tutplot_logoscheme}
-\title{Redraw the tutorial's manuscript figures}
+\title{Draw figures for AdaBoost and cross-validation}
 \usage{
 tutplot_cstump(
   fit,
@@ -106,17 +106,15 @@ tutplot_logoscheme(
 \arguments{
 \item{fit}{A classification stump from \code{\link[rpart:rpart]{rpart::rpart()}}.}
 
-\item{extra}{Node labels, passed to \code{rpart.plot::rpart.plot()}. The
-manuscript uses 102, and 100 for the weighted stump.}
+\item{extra}{Node labels, passed to \code{rpart.plot::rpart.plot()}.}
 
 \item{labels}{Readable names to draw in place of variable names, named by
 the variables as they appear in the data, such as
 \code{c(n.o = "Sample Size")}. A variable without an entry keeps its name. A
 name that is not a predictor of \code{fit}, or not a variable in \code{importance},
-is an error. \code{NULL} (the default) draws the variable names.
-\code{tutplot_importance()} also takes plotmath in a named list, such as
-\code{list(p_value.o = quote(italic(p) ~ Value))}. \code{tutplot_cstump()} takes
-plain text only, because \code{rpart.plot::rpart.plot()} draws strings.}
+is an error. \code{tutplot_importance()} also takes plotmath in a named list,
+such as \code{list(p_value.o = quote(italic(p) ~ Value))}; \code{tutplot_cstump()}
+takes plain text only.}
 
 \item{file}{A path to write a PDF to, or \code{NULL} to draw on the current
 device.}
@@ -129,148 +127,120 @@ between 0 and 1.}
 
 \item{lwd}{The line width.}
 
-\item{alpha}{The model weights, one curve each. \code{NULL} (the default) draws
-the three of Figure 7: 0.7, the model weight of the tutorial's first
-stump on the training set of \link{altmext_splits}, rounded to three digits,
-and 0.3. For three decreasing weights whose middle one is that first
-stump's, the legend reads \verb{Larger alpha_t}, \code{alpha_1} and
-\verb{Smaller alpha_t}, drawn with Greek letters and without numbers. For any
-other \code{alpha}, it shows the numbers.}
+\item{alpha}{The model weights, one curve each. \code{NULL} draws three: 0.7,
+the model weight of a first boosting round on the training set of
+\link{altmext_splits} (rounded to three digits), and 0.3.}
 
-\item{pch}{The plotting symbols for the end points, recycled over \code{alpha}.
-Defaults to one filled dot for every curve, so color tells them apart.}
+\item{pch}{The plotting symbols for the end points, recycled over \code{alpha}.}
 
-\item{lty}{The line types, recycled over the curves. \code{tutplot_modelweight()}
-draws every curve solid by default, so color tells them apart.}
+\item{lty}{The line types. \code{tutplot_modelweight()} recycles them over the
+curves.}
 
-\item{ylim}{The vertical range. Defaults to the manuscript's.}
+\item{ylim}{The vertical range. For \code{tutplot_weightupdate()}, \code{NULL} runs
+from 0 to 15 percent above the largest weight.}
 
 \item{eta}{The learning rates, one curve each.}
 
-\item{from}{Where performance starts. The default, 0.5, is chance.}
+\item{from}{Where performance starts. 0.5 is chance.}
 
-\item{marked_perf}{A performance to mark on the figure, such as that of the
-reader's own stump. Must be at least \code{from} and below 1. \code{NULL} (the
-default) marks the tutorial's first stump, as Figure 6 does: its weighted
-performance on the training set of \link{altmext_splits}. This default mark
-is left out when it lies below \code{from}. \code{NA} draws no mark.}
+\item{marked_perf}{A performance to mark on the figure. Must be at least
+\code{from} and below 1. \code{NULL} marks the weighted performance of a first
+boosting round on the training set of \link{altmext_splits}, or nothing when
+that lies below \code{from}. \code{NA} draws no mark.}
 
-\item{marked_eta}{The curve the mark belongs to. Defaults to the first.}
+\item{marked_eta}{The learning rate of the curve the mark belongs to.}
 
 \item{data}{The training data. Each point's observed class is read from
-its \code{replicate} column, and the first boosting round runs on it when \code{d1}
-or \code{d2} is \code{NULL}. Defaults to the training set of \link{altmext_splits}, as
-in Figure 8.}
+its \code{replicate} column. When \code{d1} or \code{d2} is \code{NULL}, the first boosting
+round runs on its columns \code{power.o}, \code{effect_size.o}, \code{n.o} and
+\code{p_value.o}.}
 
 \item{d1, d2}{The observation weights before and after one round, one per
-row of \code{data} and in its row order; other lengths are an error. \code{NULL}
-computes them from \code{data}.}
+row of \code{data} and in its row order. \code{NULL} computes them from \code{data}.}
 
-\item{n}{The number of data points to draw. 25 fits a column.}
+\item{n}{The number of data points to draw.}
 
 \item{scaling}{The bubble size multiplier.}
 
 \item{importance}{A \code{gauge} object from \code{\link[=gauge]{gauge()}}.}
 
-\item{top_n}{The largest number of predictors to draw. Defaults to 15.}
+\item{top_n}{The largest number of predictors to draw.}
 
 \item{res}{A result of \code{\link[=logo_cv]{logo_cv()}}.}
 
-\item{bootstrap}{Whether to draw bootstrap intervals. \code{FALSE} draws the
-estimates only, without resampling. \code{TRUE} (the default) uses the
+\item{bootstrap}{Whether to draw bootstrap intervals. \code{TRUE} uses the
 intervals attached by \code{\link[=bootstrap]{bootstrap()}}, or resamples when there are none;
-set the seed first. These are percentile intervals within each project,
-not standard errors.}
+set the seed first. These are percentile intervals within each project.}
 
 \item{n_resample}{The number of resamples per project, when \code{bootstrap}
-has to resample. Defaults to 1000.}
+has to resample.}
 
-\item{metric}{The performance metric to draw. Defaults to \code{"auroc"}.}
+\item{metric}{The metric to show, one of the names \code{\link[=assess]{assess()}} returns.}
 
-\item{bands}{The interval widths, widest last. Defaults to 0.50, 0.80 and
-0.95.}
+\item{bands}{The levels of the bootstrap bands, such as 0.95.}
 
 \item{ylab}{The axis label. Defaults to a readable name for \code{metric}, such
-as "AUROC" for \code{"auroc"} or "Balanced Accuracy" for \code{"bacc"}. A metric
-without one is shown as typed.}
+as "AUROC" for \code{"auroc"}. A metric without one is shown as typed.}
 
-\item{group}{One project label per row, as \code{\link[=logo_cv]{logo_cv()}} takes it.}
+\item{group}{One project label per row, such as the values of the \code{group}
+column in \code{\link[=logo_cv]{logo_cv()}}.}
 
-\item{proportional}{Whether to size the rows by project. \code{TRUE} (the
-default) shows the imbalance: of the six projects the tutorial
-cross-validates, one holds 51 percent of the rows. \code{FALSE} draws the
-equal blocks the manuscript prints.}
+\item{proportional}{Whether to size the rows by project. \code{FALSE} draws
+equal blocks.}
 
 \item{levels}{The projects to show, in drawing order, top to bottom. A
-project left out is dropped from the figure, and the rest share its
-height. \code{NULL} shows every project, in a factor's level order or the
-order of first appearance.}
+project left out is dropped from the figure. \code{NULL} shows every project,
+in a factor's level order or the order of first appearance.}
 
 \item{min_height}{The smallest share of the height a project gets when
-\code{proportional = TRUE}, so that a small project keeps its label. The rest
-is shared by size. Defaults to 0.06; 0 gives exact proportions.}
+\code{proportional = TRUE}. 0 gives exact proportions.}
 }
 \value{
-Invisibly, the facts the figure's caption states, so tests can
-check them. \code{tutplot_cstump()} returns the fit, the split variable, the
-cutpoint and the leaf sizes; \code{tutplot_gini()} the curve and its peak;
-\code{tutplot_updatefactor()} the factors, the legend labels and the named
-ticks; \code{tutplot_weightupdate()} the weights, the class and colors of each
-point drawn, the legend labels and the named ticks. The ticks are \code{NULL}
-when ordinary ticks were drawn instead. \code{tutplot_importance()} returns
-the rows it drew, most important first;
-\code{tutplot_logoscheme()} the project sizes, their count, the order and the
-row heights; \code{tutplot_logocv()} one row per project with its estimate,
-the widest interval, and the share of resamples its bootstrap rejected.
-The variable and project names in these facts are the names in the data,
-not the labels drawn.
+Invisibly, the values behind the figure. Variables and projects
+keep their names in the data, not the labels drawn.
+\itemize{
+\item \code{tutplot_cstump()}: The fit, the split variable, the cutpoint and the
+leaf sizes.
+\item \code{tutplot_gini()}: The curve and its peak.
+\item \code{tutplot_updatefactor()}: The factors, the legend labels and the named
+ticks, \code{NULL} when ordinary ticks were drawn.
+\item \code{tutplot_modelweight()}: The learning rates, the performance grid, the
+model weights and the marked weight, \code{NULL} without a mark.
+\item \code{tutplot_weightupdate()}: The weights, the class and colors of each
+point drawn, the legend labels and the named ticks, \code{NULL} when ordinary
+ticks were drawn.
+\item \code{tutplot_importance()}: The rows it drew, most important first.
+\item \code{tutplot_logoscheme()}: The project sizes, their count, the order and
+the row heights.
+\item \code{tutplot_logocv()}: One row per project with its estimate, the widest
+interval, and the share of resamples its bootstrap rejected.
+}
 }
 \description{
-Draws a figure from the AMPPS tutorial. The code lives in the package, not
-in a vignette, so every printed figure is documented and tested.
+Each function draws one figure, on the current device or into a PDF file.
 }
 \details{
 \itemize{
-\item \code{tutplot_cstump()}: a classification stump, with its class names in title
-case and its branches tagged "Yes" and "No" in upright type.
+\item \code{tutplot_cstump()}: a classification stump.
 \item \code{tutplot_gini()}: Gini impurity by class proportion.
 \item \code{tutplot_updatefactor()}: the factor by which one round multiplies an
-observation's weight. The y-axis names each factor drawn, unless more
-than three curves are drawn or two labels would collide.
+observation's weight.
 \item \code{tutplot_modelweight()}: the model weight a stump earns, by its
 performance.
-\item \code{tutplot_weightupdate()}: observation weights before and after one round,
-with a short tick under every data point and a number at every fifth.
-Both dots of a point are filled with the color of its observed class, as
-in \code{\link[=tutplot_boundary]{tutplot_boundary()}}. The y-axis names zero and each weight drawn,
-unless the weights take more than four values or two labels would
-collide.
+\item \code{tutplot_weightupdate()}: observation weights before and after one round.
+Both dots of a point are filled with the color of its observed class.
 \item \code{tutplot_importance()}: the relative importance of each predictor, as a
-lollipop chart. Its axis title is in title case; \code{plot()} on a \code{\link[=gauge]{gauge()}}
-draws the same chart with the title in sentence case.
+lollipop chart.
 \item \code{tutplot_logoscheme()}: the leave-one-group-out cross-validation scheme.
 \item \code{tutplot_logocv()}: the leave-one-group-out estimates per project, with
-or without bootstrap intervals. The project names are drawn in capitals.
+or without bootstrap intervals.
 }
 }
-\section{Output}{
-
-With \code{file = NULL} (the default), the figure is drawn on the current
-device. With a path, a PDF is written at the manuscript's size. \code{width},
-\code{height} and \code{pointsize} apply only then; raise \code{pointsize} when
-enlarging \code{width}. A session without a device, such as \code{Rscript}, writes
-\code{Rplots.pdf}, which is ordinary R behavior.
-
-To draw a weighted stump, pass the fit that was grown with the weights; the
-weights travel with the fit.
-}
-
 \examples{
 data(altmext_splits)
 train <- altmext_splits$train
 
-# the stump behind Figure 2, on two reviewer metrics so Figure 3 can draw
-# its boundary in two dimensions
+# a stump on two predictors
 h <- rpart::rpart(
   replicate ~ power.o + n.o,
   data = train,
@@ -281,11 +251,11 @@ facts <- tutplot_cstump(h)
 facts$variable
 facts$leaves
 
-# Figure 4 needs no model: it is arithmetic
+# the Gini curve needs no model: it is arithmetic
 gini <- tutplot_gini()
 gini$peak
 
-# Figure 1: the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
+# the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
 # kept back for the final test, so six projects take part
 data(altmext)
 df_noholz <- altmext[altmext$pid != "holz", ]
@@ -294,7 +264,7 @@ folds$n
 
 }
 \seealso{
-\code{\link[=tutplot_boundary]{tutplot_boundary()}} for Figures 3 and 9.
+\code{\link[=tutplot_boundary]{tutplot_boundary()}} to draw a decision boundary.
 
 Other tutorial plots:
 \code{\link[=gauge]{gauge()}},

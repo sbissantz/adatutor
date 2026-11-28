@@ -1,16 +1,15 @@
 #' Refit a model on one fold and score the held-out rows
 #'
-#' The adaboost and xgboost methods score a group of grid rows and return one
-#' column per row; the other methods score one row and return a vector.
-#' `...` carries `outcome`, the name of the outcome column, for a fit without
-#' a formula.
+#' @param ... `outcome`, the name of the outcome column, for a fit without a
+#'   formula.
+#' @return For the adaboost and xgboost methods, a matrix with one column per
+#'   row of `setting`; for the others, which score one row, a vector.
 #' @noRd
 refit_score <- function(fit, train, test, setting, ...) {
   UseMethod("refit_score")
 }
 
-#' Boost the fit's recipe once for grid rows that differ only in `n_iter`,
-#' and score the margin after each row's `n_iter`
+#' Boost the fit's recipe once and score the margin at each row's `n_iter`
 #' @exportS3Method NULL
 #' @noRd
 refit_score.adaboost <- function(fit, train, test, setting, ...) {
@@ -39,7 +38,7 @@ refit_score.adaboost <- function(fit, train, test, setting, ...) {
     data = train[, variables, drop = FALSE],
     method = "class",
     control = control,
-    # fits made before the split attribute existed used gini
+    # rpart's default rule, for a fit that stores none
     parms = list(split = attr(fit, "split") %||% "gini"),
     model = TRUE
   )
@@ -71,10 +70,8 @@ refit_score.adaboost <- function(fit, train, test, setting, ...) {
   votes <- 2 * codes - 3
   alpha <- vapply(refit, `[[`, numeric(1), "alpha")
 
-  # the margin, not labels: labels collapse auroc onto balanced accuracy.
-  # The product predict.adaboost() takes, not a running sum, so each column
-  # is identical to a refit's margin: cumsum() accumulates in extended
-  # precision on some platforms and differs in the last digits.
+  # margins, not labels: labels turn auroc into balanced accuracy. A product as
+  # in predict.adaboost(), since cumsum() can differ in the last digits
   margins <- vapply(
     n_iter,
     \(n) {
@@ -86,8 +83,7 @@ refit_score.adaboost <- function(fit, train, test, setting, ...) {
   matrix(margins, nrow = n_rows)
 }
 
-#' Refit a tree's call with the row's depth and controls, and score the
-#' probability of the second class
+#' Refit a tree's call at the row's depth and controls; score its probability
 #' @exportS3Method NULL
 #' @noRd
 refit_score.rpart <- function(fit, train, test, setting, ...) {
@@ -125,8 +121,7 @@ refit_score.glm <- function(fit, train, test, setting, ...) {
   stats::predict(refit, newdata = test, type = "response")
 }
 
-#' Refit a forest's call with the row's arguments, and score the probability
-#' of the second class
+#' Refit a forest's call with the row's arguments; score its probability
 #' @exportS3Method NULL
 #' @noRd
 refit_score.randomForest <- function(fit, train, test, setting, ...) {
@@ -162,9 +157,7 @@ refit_score.randomForest <- function(fit, train, test, setting, ...) {
   prob[, ncol(prob)]
 }
 
-#' Fit XGBoost once from the fit's stored parameters for grid rows that
-#' differ only in `n_iter`, and score the probability of the second level
-#' after each row's `n_iter`
+#' Refit XGBoost from the stored parameters; score at each row's `n_iter`
 #' @exportS3Method NULL
 #' @noRd
 refit_score.xgboost <- function(fit, train, test, setting, outcome, ...) {
@@ -198,8 +191,7 @@ refit_score.xgboost <- function(fit, train, test, setting, outcome, ...) {
   matrix(probs, nrow = n_rows)
 }
 
-#' Run a fit's own call again on other rows, with `args` replacing its
-#' arguments of those names
+#' Run a fit's own call on other rows, with `args` replacing its arguments
 #' @noRd
 refit_call <- function(fit, rows, fun = NULL, args = list()) {
   formula <- read_formula(fit)

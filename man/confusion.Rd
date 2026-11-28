@@ -13,13 +13,14 @@ confusion(actual, score, threshold = 0)
 \item{actual}{The true labels: a two-level factor (the second level is the
 positive class), 0/1, -1/1, or logical.}
 
-\item{score}{Continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation, such as an AdaBoost
+margin or a predicted probability.}
 
 \item{threshold}{The cutoff for \code{score}. Use 0 for margins (the default)
-and 0.5 for probabilities. Probabilities cut at 0 would all count as
-positive, so this case gives a warning.}
+and 0.5 for probabilities. With \code{threshold = 0}, scores that look like
+probabilities give a warning.}
 
-\item{x}{An object of class \code{confusion}.}
+\item{x}{A result of \code{confusion()}.}
 
 \item{...}{Ignored.}
 }
@@ -28,9 +29,9 @@ A named integer vector of class \code{confusion} with \code{tp}, \code{tn}, \cod
 and \code{fn}. The threshold is stored as an attribute.
 }
 \description{
-Cuts \code{score} at \code{threshold} and counts the four cells of the 2x2 table:
-true positives, true negatives, false positives and false negatives.
-\code{\link[=assess]{assess()}} computes every threshold metric from these counts.
+Cuts \code{score} at \code{threshold} and counts true positives \code{tp}, true negatives
+\code{tn}, false positives \code{fp} and false negatives \code{fn}. \code{\link[=assess]{assess()}} computes
+the metrics from these counts.
 }
 \examples{
 confusion(c(1, 1, 0, 0), c(2, -1, 1, -2))

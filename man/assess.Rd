@@ -18,89 +18,81 @@ assess(x, ...)
 \arguments{
 \item{x}{For the default method, the true labels: a two-level factor (the
 second level is the positive class), 0/1, -1/1, or logical. For the
-\code{confusion} method, the result of \code{\link[=confusion]{confusion()}}.}
+\code{confusion} method, a result of \code{\link[=confusion]{confusion()}}. For \code{print()}, a result
+of \code{assess()}.}
 
 \item{...}{Ignored.}
 
 \item{score}{Continuous scores, one per observation, such as an AdaBoost
-margin or a predicted probability.}
+margin or a predicted probability. Class labels turn \code{auroc} into
+balanced accuracy; with \code{\link[=predict.adaboost]{predict.adaboost()}}, use \code{type = "margin"}.}
 
 \item{threshold}{The cutoff for \code{score}. Use 0 for margins (the default)
 and 0.5 for probabilities.}
 
-\item{k}{The budgets for \code{patk}. By default 3, 5 and the number of
-positives. Budgets passed are named by their value, e.g. \code{patk_10}.}
+\item{k}{The budgets for the \code{patk} metrics. Defaults to 3, 5 and the
+number of positives. A budget given names its metric, such as \code{patk_10}.}
 
 \item{digits}{The number of decimals \code{print()} shows.}
 }
 \value{
-A named numeric vector of class \code{assessment}. By default it has 17
-metrics, in the order listed above; the \code{confusion} method returns the
-first 12. \code{print()} shows them grouped by cut and rounds only the
-display.
+A named numeric vector of class \code{assessment}: the counts \code{tp},
+\code{tn}, \code{fp} and \code{fn}, then the metrics in the order of the Metrics
+section, 17 values by default. The \code{confusion} method returns the first
+12. \code{print()} rounds only what it shows.
 }
 \description{
 Computes performance metrics from true labels and continuous scores. Most
-metrics come from one confusion matrix, made by cutting the scores at
-\code{threshold}. The rest (\code{auroc}, \code{auprc} and the \code{patk} family) use the
-whole ranking of the scores, so a confusion matrix cannot give them.
+metrics come from one confusion matrix at \code{threshold}; \code{auroc}, \code{auprc} and
+the \code{patk} metrics use the ranking of the scores.
 }
-\section{Use scores, not class labels}{
-
-\code{score} must be continuous. Class labels have only two values, so the ROC
-curve shrinks to a single point and \code{auroc} quietly becomes balanced
-accuracy. With \code{\link[=predict.adaboost]{predict.adaboost()}}, use \code{type = "margin"}.
-}
-
 \section{Metrics}{
 
-At the threshold, from the counts \code{tp}, \code{tn}, \code{fp} and \code{fn}:
+From the counts at \code{threshold}: true positives \code{tp}, true negatives \code{tn},
+false positives \code{fp} and false negatives \code{fn}.
 \itemize{
-\item \code{sens}: TP / (TP + FN). Also called true positive rate, recall or hit
-rate.
-\item \code{spec}: TN / (TN + FP). Also called true negative rate. 1 - \code{spec} is the
-false positive rate, or false-alarm rate.
-\item \code{ppv}: TP / (TP + FP). Also called precision.
-\item \code{npv}: TN / (TN + FN).
-\item \code{acc}: (TP + TN) / (TP + TN + FP + FN).
-\item \code{bacc}: (\code{sens} + \code{spec}) / 2, the same as (J + 1) / 2 with Youden's J.
-\item \code{f1}: 2TP / (2TP + FP + FN), the harmonic mean of \code{ppv} and \code{sens}. The
-same formula as the Dice coefficient.
-\item \code{mcc}: \eqn{(TP \cdot TN - FP \cdot FN) /
-  \sqrt{(TP + FP)(TP + FN)(TN + FP)(TN + FN)}}{(TP x TN - FP x FN) /
-  sqrt((TP + FP)(TP + FN)(TN + FP)(TN + FN))}. This is the phi coefficient,
-the correlation between true and predicted labels (Chicco & Jurman, 2020).
+\item \code{sens} (sensitivity):
+\eqn{\frac{\mathrm{tp}}{\mathrm{tp} + \mathrm{fn}}}{tp / (tp + fn)}.
+\item \code{spec} (specificity):
+\eqn{\frac{\mathrm{tn}}{\mathrm{tn} + \mathrm{fp}}}{tn / (tn + fp)}.
+\item \code{ppv} (positive predictive value):
+\eqn{\frac{\mathrm{tp}}{\mathrm{tp} + \mathrm{fp}}}{tp / (tp + fp)}.
+\item \code{npv} (negative predictive value):
+\eqn{\frac{\mathrm{tn}}{\mathrm{tn} + \mathrm{fn}}}{tn / (tn + fn)}.
+\item \code{acc} (accuracy): \eqn{\frac{\mathrm{tp} + \mathrm{tn}}{\mathrm{tp} +
+  \mathrm{tn} + \mathrm{fp} + \mathrm{fn}}}{(tp + tn) / (tp + tn + fp +
+  fn)}.
+\item \code{bacc} (balanced accuracy):
+\eqn{\frac{\mathrm{sens} + \mathrm{spec}}{2}}{(sens + spec) / 2}.
+\item \code{f1} (F1 score): \eqn{\frac{2 \cdot \mathrm{tp}}{2 \cdot \mathrm{tp} +
+  \mathrm{fp} + \mathrm{fn}}}{2 * tp / (2 * tp + fp + fn)}, the harmonic
+mean of \code{ppv} and \code{sens}.
+\item \code{mcc} (Matthews correlation coefficient; Chicco & Jurman, 2020):
+\eqn{\frac{\mathrm{tp} \cdot \mathrm{tn} - \mathrm{fp} \cdot \mathrm{fn}}
+  {\sqrt{(\mathrm{tp} + \mathrm{fp})(\mathrm{tp} + \mathrm{fn})
+  (\mathrm{tn} + \mathrm{fp})(\mathrm{tn} + \mathrm{fn})}}}{(tp * tn -
+  fp * fn) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))}.
 }
 
-Over the ranking:
+From the ranking of \code{score}:
 \itemize{
-\item \code{auroc}: the chance that a random positive scores higher than a random
-negative, with ties counting half. Also called the c statistic, or
-Vargha and Delaney's (2000) A.
-\item \code{auprc}: the area under the precision-recall curve, estimated as in Davis
-and Goadrich (2006). This is not the same as average precision.
-\item \code{patk_3}, \code{patk_5}, \code{patk}: the share of positives among the top 3, the
-top 5 and the top n+ scores, where n+ is the number of positives. See
+\item \code{auroc} (area under the ROC curve): the chance that a random positive
+scores higher than a random negative, with ties counting half.
+\item \code{auprc} (area under the precision-recall curve): estimated as in Davis
+and Goadrich (2006).
+\item \code{patk_3}, \code{patk_5}, \code{patk} (precision at \code{k}): the share of positives among
+the \code{k} highest scores, for \code{k} of 3, 5 and the number of positives. See
 \code{\link[=patk]{patk()}}.
 }
-
-The synonyms follow Fawcett (2006).
-}
-
-\section{Baselines}{
-
-A random score gets an \code{auroc} of 0.5, but an \code{auprc} near the base rate,
-not 0.5. \code{auroc} and \code{bacc} ignore the base rate; \code{ppv} and \code{mcc} do not.
 }
 
 \section{Missing values}{
 
-A metric is \code{NA} when the data cannot support it. That happens to \code{auroc}
-and \code{auprc} when only one class is present, to \code{ppv} when nothing is
-predicted positive, to \code{npv} when nothing is predicted negative, and to
-\code{patk} when \code{k} is larger than the number of positives. \code{f1} is 0 when
-nothing is predicted positive but positives exist. \code{mcc} is 0 when its
-denominator is 0.
+A metric is \code{NA} when the data cannot support it, such as \code{ppv} when
+nothing is predicted positive, \code{auroc} and \code{auprc} when only one class is
+present, and \code{patk} when \code{k} is larger than the number of positives. \code{mcc}
+is 0 when its denominator is 0, and \code{f1} is 0 when nothing is predicted
+positive but positives exist.
 }
 
 \examples{
@@ -143,17 +135,6 @@ evaluation. \emph{BMC Genomics}, 21, 6.
 Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
 and ROC curves. \emph{Proceedings of the 23rd International Conference on
 Machine Learning}, 233-240.
-
-Fawcett, T. (2006). An introduction to ROC analysis. \emph{Pattern Recognition
-Letters}, 27(8), 861-874.
-
-Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
-visualizing precision-recall and receiver operating characteristic curves in
-R. \emph{Bioinformatics}, 31(15), 2595-2597.
-
-Vargha, A., & Delaney, H. D. (2000). A critique and improvement of the CL
-common language effect size statistics of McGraw and Wong. \emph{Journal of
-Educational and Behavioral Statistics}, 25(2), 101-132.
 }
 \seealso{
 Other performance metrics:

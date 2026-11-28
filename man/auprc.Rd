@@ -10,18 +10,16 @@ auprc(actual, score)
 \item{actual}{The true labels: a two-level factor (the second level is the
 positive class), 0/1, -1/1, or logical.}
 
-\item{score}{Continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation, such as an AdaBoost
+margin or a predicted probability.}
 }
 \value{
-A number, or \code{NA} if \code{actual} has only one class.
+A number, or \code{NA} if \code{actual} has only one class. A random score
+gets about the base rate, not 0.5.
 }
 \description{
-Computes the area under the precision-recall curve with the PRROC package,
-using the Davis and Goadrich (2006) estimator.
-}
-\details{
-A useless model scores about the base rate here, not 0.5 as for \code{\link[=auroc]{auroc()}}.
-Compare each value with the base rate of its own data set.
+Computes the area under the precision-recall curve with the PRROC package
+(Grau et al., 2015), using the estimator of Davis and Goadrich (2006).
 }
 \examples{
 auprc(c(1, 1, 0, 0), c(2, 1, -1, -2))

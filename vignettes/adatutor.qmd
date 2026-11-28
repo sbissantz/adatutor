@@ -254,15 +254,14 @@ into every boosting round: depth, the complexity parameter, the minimum split
 and bucket sizes, and the splitting rule. It sets only `xval` and
 `maxsurrogate` to 0, to save time; neither changes the tree's splits.
 
-`adaboost()` stops with an error rather than boost a different model than the
-one you passed. It refuses a tree that is not a classification tree, one
-fitted with `weights`, and one with a `prior` or a `loss` matrix. Boosting
-sets its own observation weights in every round, and the prior follows from
-them.
+`adaboost()` stops with an error rather than boost a different model than `h`.
+It refuses a tree that is not a classification tree, one fitted with `weights`,
+and one with a `prior` or a `loss` matrix. Boosting sets its own observation
+weights in every round, and the prior follows from them.
 
 `model = TRUE` is the one requirement. `rpart()` keeps the outcome but discards
-the predictors unless you ask for them, and `adaboost()` has to refit this tree
-on reweighted data, so it needs the data the tree was grown on.
+the predictors unless asked to keep them, and `adaboost()` has to refit this
+tree on reweighted data, so it needs the data the tree was grown on.
 
 ```{r}
 #| label: weak-learner
@@ -409,8 +408,7 @@ stumps tie often. When the cut falls inside a group of tied scores, the group
 counts by its share of successes (see `?patk`). So the precision among the top
 k need not be a multiple of 1/k; `patk()` below shows a case. Last are the
 areas under the ROC and precision-recall curves, which use every threshold.
-`?assess` gives the formula of each metric and its other names; `sens`, for
-instance, is also known as recall.
+`?assess` gives the formula of each metric.
 
 `print()` rounds only the display; the stored values stay exact. Given a
 confusion matrix, `assess()` returns only the metrics at the threshold,
@@ -1000,7 +998,7 @@ summary(hypergrid, n = 1)[, c("depth", "n_iter", "eta")]
 ```
 
 Compare the models project by project: no model leads on every project.
-`?benchmark` describes how each model was tuned.
+`attr(benchmark, "settings")` holds each model's hyperparameters.
 
 ## Nested Leave-One-Group-Out Cross-Validation
 
@@ -1061,7 +1059,7 @@ winner" on all seven projects of `altmext`. For each project, a search of the
 other six picks one, which is then scored once on that project. It is one
 `tune_logo_cv()` call with `nested = TRUE` and `cores = 4`, which ran for 140
 minutes. HOLZ is among the seven: the search came after the tutorial's final
-test, and its HOLZ fold repeats that test (see `?nested`). Like any result of
+test, and its HOLZ fold repeats that test. Like any result of
 `tune_logo_cv()`, it works with `print()`, `summary()`, `as.data.frame()` and
 `plot()`:
 

@@ -456,15 +456,17 @@ test_that("Figure 7's legend shows the numbers for any other alpha", {
   }
 })
 
-test_that("Figure 7's legend gives each key the same room on both sides", {
-  # the label widths and the panel's scale, read while the legend draws
+test_that("Figure 7's legend spaces its keys evenly, centered on the panel", {
+  # the label widths, the panel's scale and its middle, read while the legend
+  # draws
   real_legend <- draw_legend
   seen <- NULL
   local_mocked_bindings(
     draw_legend = function(labels, cex = 1, ...) {
       seen <<- list(
         widths = graphics::strwidth(labels, units = "user", cex = cex),
-        pt = 72 * graphics::par("pin")[1] / diff(graphics::par("usr")[1:2])
+        pt = 72 * graphics::par("pin")[1] / diff(graphics::par("usr")[1:2]),
+        middle = mean(graphics::par("usr")[1:2])
       )
       real_legend(labels, cex = cex, ...)
     }
@@ -484,6 +486,10 @@ test_that("Figure 7's legend gives each key the same room on both sides", {
 
   expect_true(all(own_label > 0))
   expect_equal(label_before, own_label[-1])
+  # what it draws, from the first key's left end to the last label's right
+  # end, is centered on the panel, to a hundredth of a point
+  drawn_middle <- (min(key_left) + max(label_right)) / 2
+  expect_lt(abs(drawn_middle - seen$middle) * seen$pt, 0.01)
 })
 
 test_that("Figure 7 names its six factors and 1 on the y-axis, with no grid", {
@@ -1731,17 +1737,17 @@ test_that("Figure 1's first column draws each project as its test box does", {
     pointsize = tutplot_opts$pointsize
   )
   colors <- unname(color_projects(paper))
-  fill_of <- \(calls) vapply(calls, \(call) call[[4]], character(1))
+  read_fill <- function(calls) vapply(calls, \(call) call[[4]], character(1))
   boxes <- find_calls(drawn$calls, "C_polygon")
 
   # the first column ends left of x = 0.5, where Iteration 1 begins
   first <- Filter(\(call) max(call[[2]]) < 0.5, boxes)
   expect_length(first, length(paper))
-  expect_identical(fill_of(first), colors)
+  expect_identical(read_fill(first), colors)
   # project j's test box: column j, row j, above the performance boxes
-  test_boxes <- lapply(seq_along(paper), \(j) {
+  test_boxes <- lapply(seq_along(paper), function(j) {
     column <- Filter(
-      \(call) {
+      function(call) {
         min(call[[2]]) > j - 0.5 &&
           max(call[[2]]) < j + 0.5 &&
           min(call[[3]]) >= 0
@@ -1750,10 +1756,10 @@ test_that("Figure 1's first column draws each project as its test box does", {
     )
     column[[j]]
   })
-  expect_identical(fill_of(first), fill_of(test_boxes))
+  expect_identical(read_fill(first), read_fill(test_boxes))
 
   # each name in its test box's ink, so a dark fill gets white letters
-  ink_of <- \(calls) vapply(calls, \(call) call[[9]], character(1))
+  read_ink <- function(calls) vapply(calls, \(call) call[[9]], character(1))
   texts <- find_calls(drawn$calls, "C_text")
   names_drawn <- Filter(\(call) identical(call[[2]]$x, -0.07), texts)
   expect_identical(
@@ -1761,10 +1767,10 @@ test_that("Figure 1's first column draws each project as its test box does", {
     toupper(paper)
   )
   test_labels <- Filter(\(call) identical(call[[3]], "Test"), texts)
-  expect_identical(ink_of(names_drawn), ink_of(test_labels))
-  expect_identical(ink_of(names_drawn), choose_ink(colors))
+  expect_identical(read_ink(names_drawn), read_ink(test_labels))
+  expect_identical(read_ink(names_drawn), choose_ink(colors))
   # the paper's six colors need both inks
-  expect_setequal(ink_of(names_drawn), c("white", "grey15"))
+  expect_setequal(read_ink(names_drawn), c("white", "grey15"))
 })
 
 test_that("draw_roundrect() keeps its corners circular on any panel", {

@@ -10,37 +10,20 @@ patk(actual, score, k = NULL)
 \item{actual}{The true labels: a two-level factor (the second level is the
 positive class), 0/1, -1/1, or logical.}
 
-\item{score}{Continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation, such as an AdaBoost
+margin or a predicted probability.}
 
 \item{k}{One or more budgets. Defaults to the number of positives in
 \code{actual}.}
 }
 \value{
-A number for a single \code{k}. For several, a vector named by \code{k}.
+A number for a single \code{k}; for several, a vector named by \code{k}.
+\code{NA} where \code{k} is larger than the number of positives.
 }
 \description{
-Computes the share of positives among the \code{k} highest scores: precision
-under a budget, when only the top of the ranking is acted on.
+Computes the share of positives among the \code{k} highest scores. Scores tied
+at the cut count by their share of positives.
 }
-\details{
-By default \code{k} is the number of positives (R-precision), which scales with
-each data set. A fixed \code{k} means something different in a set of 10 than in
-a set of 90.
-}
-\section{Rules}{
-
-\itemize{
-\item \code{k} larger than the number of positives gives \code{NA}. There are fewer
-positives than places, so even a perfect ranking could not reach 1.
-\item When the cut falls inside a group of tied scores, the group counts by its
-share of positives. The result is the expected precision under random
-tie-breaking, so row order cannot change it.
-\item Recall and F1 at \code{k} are not reported. With TP_k positives among the top
-\code{k}, they are TP_k / n+ and 2 TP_k / (k + n+): rescalings of precision at
-\code{k}. At the default \code{k} all three are equal.
-}
-}
-
 \examples{
 # three positives, so the default budget is the top three
 patk(c(1, 1, 1, 0, 0), c(5, 4, 1, 3, 2))

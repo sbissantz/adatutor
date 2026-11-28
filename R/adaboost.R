@@ -1,43 +1,28 @@
 #' Boost a classification tree with AdaBoost
 #'
-#' Boosts a fitted classification tree. The tree is the weak learner: it is
-#' refit `n_iter` times on reweighted data, and the ensemble is the weighted
-#' vote of those fits. The tree's depth, `cp` and other
-#' [rpart::rpart.control()] settings come from `h`, not from this function.
-#'
-#' @section What comes from `h`:
-#' All of `h$control` is kept (`maxdepth`, `cp`, `minsplit`, `minbucket`),
-#' except `xval` and `maxsurrogate`. These are set to 0 to save time; neither
-#' changes the tree's splits. Without surrogates, a case whose split variable
-#' is missing goes with the majority of its node, rpart's fallback, so on data
-#' with missing values the trees route such cases differently from `h`. The
-#' splitting rule is kept too.
-#'
-#' `cp` is whatever `h` was fitted with: 0.01 for a plain `rpart()` call. The
-#' textbook advice is unpruned trees, `cp = 0` (Hastie, Tibshirani & Friedman,
-#' 2009).
+#' Boosts a fitted classification tree: refits it `n_iter` times on reweighted
+#' data and combines the fits into a weighted vote. The tree's depth, `cp` and
+#' other [rpart::rpart.control()] settings come from `h`.
 #'
 #' @section What is refused:
-#' `adaboost()` stops with an error rather than boost a different model than
-#' `h`. It refuses a tree that is not `method = "class"`, one fitted with
-#' `weights`, and one with a `prior` or a `loss` matrix.
+#' `adaboost()` stops with an error for a tree that is not
+#' `method = "class"`, one fitted with `weights`, one with a `prior` or a
+#' `loss` matrix, and one fitted on a column named `D`.
 #'
 #' @param h A classification tree from [rpart::rpart()], fitted with
-#'   `model = TRUE`. Without it, rpart drops the predictors and the tree
-#'   cannot be refit.
+#'   `model = TRUE`. Every round uses its control settings and splitting rule,
+#'   except that `xval` and `maxsurrogate` are set to 0.
 #' @param n_iter The number of boosting rounds.
 #' @param eta The learning rate.
-#' @param keep_data Whether to store the training data on the fit. Defaults to
-#'   `TRUE`. This lets `predict()` run without `newdata` and makes the
-#'   retrodiction check exact. It costs no memory, but a saved file grows by
-#'   the size of the data; set `FALSE` when saving many fits.
-#' @param check_inputs Whether to check the inputs. Defaults to `TRUE`.
-#' @param verbose Whether to show progress. Defaults to `TRUE`.
+#' @param keep_data Whether to store the training data on the fit, so that
+#'   `predict()` can run without `newdata`.
+#' @param check_inputs Whether to check the inputs.
+#' @param verbose Whether to report progress on the console.
 #'
 #' @return An object of class `adaboost`: a list with one element per round,
-#'   each holding the tree (`h`) and its model weight (`alpha`). Attributes store
-#'   the training data, the formula, `n_iter`, `eta`, the tree control and the
-#'   splitting rule, so [logo_cv()] can refit the same recipe.
+#'   each holding the tree (`h`) and its model weight (`alpha`). Attributes
+#'   store the training data, the formula, `n_iter`, `eta`, the tree control
+#'   and the splitting rule; [logo_cv()] refits from them.
 #'
 #' @seealso [predict.adaboost()] to score new data.
 #'
@@ -73,6 +58,7 @@ adaboost <- function(
   check_inputs = TRUE,
   verbose = TRUE
 ) {
+  # whatever `check_inputs` says: a different model would go unnoticed
   validate_learner(h)
 
   model_frame <- h$model
@@ -180,9 +166,6 @@ adaboost <- function(
 }
 
 #' Stop unless adaboost() can refit `h` as it was fitted
-#'
-#' Always runs, whatever `check_inputs` says: boosting a different model than
-#' the one handed in would go unnoticed.
 #' @noRd
 validate_learner <- function(h) {
   if (!inherits(h, "rpart")) {
@@ -290,23 +273,21 @@ strip_tree <- function(tree, learner_terms) {
 #' Predict from a boosted ensemble
 #'
 #' Combines the boosted trees into the weighted vote
-#' \deqn{H(x) = \sum_{t=1}^T \alpha_t h_t(x)}{H(x) = sum over t of alpha_t h_t(x)}
+#' \deqn{H(x) = \sum_{t=1}^T
+#'   \alpha_t h_t(x)}{H(x) = sum over t of alpha_t h_t(x)}
 #' and returns class labels or the vote itself, the margin.
-#'
-#' @section Prediction or retrodiction:
-#' Scoring the data the model was trained on is a *retrodiction*: it shows how
-#' well the model fits data it has already seen, not how well it predicts.
-#' Scoring held-out data is a prediction. The call looks the same either way,
-#' so `predict()` notes when the data were also used for training. With no
-#' `newdata`, it scores the training data on purpose, like `predict()` for
-#' [stats::lm()].
 #'
 #' @param object A fit from [adaboost()].
 #' @param newdata A data frame with the predictors the model was trained on.
-#' @param type `"class"` for class labels (-1 or 1), or `"margin"` for the
-#'   continuous score. Use `"margin"` for ranking metrics such as [auroc()].
-#' @param check_inputs Whether to check the inputs. Defaults to `TRUE`.
-#' @param verbose Whether to show progress. Defaults to `TRUE`.
+#'   If missing, the training data kept on the fit are scored, as `predict()`
+#'   does for [stats::lm()]. A fit made with `keep_data = FALSE` then gives an
+#'   error.
+#' @param type `"class"` for class labels, 1 for the outcome's second level
+#'   and -1 for its first, or `"margin"` for the continuous score. Use
+#'   `"margin"` for ranking metrics such as [auroc()].
+#' @param check_inputs Whether to check the inputs, and to note when `newdata`
+#'   is the training data.
+#' @param verbose Whether to report progress on the console.
 #' @param ... Ignored.
 #'
 #' @return A numeric vector of class labels or margins, depending on `type`.

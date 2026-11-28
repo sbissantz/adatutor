@@ -31,63 +31,45 @@ bootstrap(x, ...)
 \arguments{
 \item{x}{For the default method, the true labels: a two-level factor (the
 second level is the positive class), 0/1, -1/1, or logical. For the
-\code{logo_cv} method, a result of \code{\link[=logo_cv]{logo_cv()}}.}
+\code{logo_cv} method, a result of \code{\link[=logo_cv]{logo_cv()}} or \code{\link[=tune_logo_cv]{tune_logo_cv()}}.}
 
 \item{...}{Ignored.}
 
-\item{score}{Continuous scores, one per observation.}
+\item{score}{Continuous scores, one per observation, such as an AdaBoost
+margin or a predicted probability.}
 
-\item{n_resample}{The number of usable resamples. Defaults to 1000.}
+\item{n_resample}{The number of usable resamples. A resample with only one
+class is rejected and drawn again.}
 
-\item{stratified}{Whether to resample each class separately. Defaults to
-\code{FALSE}.}
+\item{stratified}{Whether to resample each class separately. This keeps
+the base rate fixed, so the intervals of \code{auprc}, \code{ppv}, \code{npv}, \code{f1},
+\code{acc} and \code{mcc} come out too narrow.}
 
-\item{conf}{The confidence level. Defaults to 0.95.}
+\item{conf}{The confidence level.}
 
 \item{threshold}{The cutoff for \code{score}. Use 0 for margins (the default)
 and 0.5 for probabilities. The \code{logo_cv} method picks it from the model.}
 
 \item{k}{Passed to \code{\link[=assess]{assess()}}.}
 
-\item{setting}{For an \code{logo_cv} result with several settings, the row of its
+\item{setting}{For a \code{logo_cv} result with several settings, the row of its
 \code{grid} to bootstrap.}
 }
 \value{
 The default method returns a data frame with one row per metric
 and the columns \code{metric}, \code{estimate} (from the observed data), \code{lower},
-\code{upper} and \code{drop}. Attributes record the settings and keep the draws.
+\code{upper} and \code{drop} (the number of rejected resamples). Attributes record
+the settings and keep the draws.
 
-The \code{logo_cv} method returns \code{x}, reduced to one setting, with one such data
-frame per project in \code{x$ci}.
+The \code{logo_cv} method returns \code{x}, reduced to \code{setting} unless it is
+nested, with one such data frame per project in \code{x$ci}.
 }
 \description{
 Resamples the test cases and scores each resample with \code{\link[=assess]{assess()}}, so
-every metric gets an interval from the same draws. The model stays fixed:
-the interval shows how much an estimate would move if the project had
-drawn different study effects.
+every metric gets an interval from the same draws. For a \code{\link[=logo_cv]{logo_cv()}}
+result, it bootstraps each held-out project, and
+\link[=logo_cv_methods]{plot()} draws the intervals as bands.
 }
-\details{
-The default method bootstraps one set of labels and scores. The \code{logo_cv}
-method bootstraps each held-out project of an \code{\link[=logo_cv]{logo_cv()}} result and attaches
-the intervals, so \link[=logo_cv_methods]{plot()} draws them as bands.
-}
-\section{Rejected resamples}{
-
-A resample with only one class makes \code{auroc} and \code{auprc} undefined, so it
-is drawn again. \code{n_resample} counts the usable resamples, and \code{drop} counts
-the rejected ones. A high \code{drop} means the interval is too narrow: on a fold
-of 13 study effects with 2 failures, about 11 percent of draws contain no
-failure.
-}
-
-\section{Stratified resampling}{
-
-With \code{stratified = TRUE}, each class is resampled separately, so no draw is
-rejected. The base rate then never varies, which suits \code{auroc} and \code{bacc}
-but understates the uncertainty of \code{auprc}, \code{ppv}, \code{npv}, \code{f1}, \code{acc} and
-\code{mcc}.
-}
-
 \examples{
 data(altmext)
 prednms <- c("power.o", "effect_size.o", "n.o", "p_value.o")

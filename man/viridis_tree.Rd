@@ -9,10 +9,10 @@ viridis_tree(fit, palette = viridisLite::viridis, n = 100)
 \arguments{
 \item{fit}{A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}.}
 
-\item{palette}{A function that takes a count and returns that many colors.
-Defaults to \code{\link[viridisLite:viridis]{viridisLite::viridis()}}.}
+\item{palette}{A function that takes a count and returns that many colors,
+such as \code{\link[viridisLite:viridis]{viridisLite::viridis()}}.}
 
-\item{n}{The number of steps in the color scale. Defaults to 100.}
+\item{n}{The number of steps in the color scale.}
 }
 \value{
 A list with \code{box} and \code{text}, each with one color per node of
@@ -21,8 +21,8 @@ A list with \code{box} and \code{text}, each with one color per node of
 \description{
 Builds the node fill and text colors that \code{\link[rpart.plot:rpart.plot]{rpart.plot::rpart.plot()}} needs
 to draw a classification tree on the viridis scale. Each fill comes from
-the node's fitted probability, and the text turns white on dark fills so it
-stays readable. The same probability gets the same color in every tree.
+the node's fitted probability of the last class, and the text turns white
+on dark fills. The same probability gets the same color in every tree.
 }
 \examples{
 data(altmext)

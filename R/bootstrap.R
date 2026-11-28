@@ -1,48 +1,35 @@
 #' Bootstrap confidence intervals for performance metrics
 #'
 #' Resamples the test cases and scores each resample with [assess()], so
-#' every metric gets an interval from the same draws. The model stays fixed:
-#' the interval shows how much an estimate would move if the project had
-#' drawn different study effects.
-#'
-#' The default method bootstraps one set of labels and scores. The `logo_cv`
-#' method bootstraps each held-out project of an [logo_cv()] result and attaches
-#' the intervals, so [plot()][logo_cv_methods] draws them as bands.
-#'
-#' @section Rejected resamples:
-#' A resample with only one class makes `auroc` and `auprc` undefined, so it
-#' is drawn again. `n_resample` counts the usable resamples, and `drop` counts
-#' the rejected ones. A high `drop` means the interval is too narrow: on a fold
-#' of 13 study effects with 2 failures, about 11 percent of draws contain no
-#' failure.
-#'
-#' @section Stratified resampling:
-#' With `stratified = TRUE`, each class is resampled separately, so no draw is
-#' rejected. The base rate then never varies, which suits `auroc` and `bacc`
-#' but understates the uncertainty of `auprc`, `ppv`, `npv`, `f1`, `acc` and
-#' `mcc`.
+#' every metric gets an interval from the same draws. For a [logo_cv()]
+#' result, it bootstraps each held-out project, and
+#' [plot()][logo_cv_methods] draws the intervals as bands.
 #'
 #' @param x For the default method, the true labels: a two-level factor (the
 #'   second level is the positive class), 0/1, -1/1, or logical. For the
-#'   `logo_cv` method, a result of [logo_cv()].
-#' @param score Continuous scores, one per observation.
+#'   `logo_cv` method, a result of [logo_cv()] or [tune_logo_cv()].
+#' @param score Continuous scores, one per observation, such as an AdaBoost
+#'   margin or a predicted probability.
 #' @param threshold The cutoff for `score`. Use 0 for margins (the default)
 #'   and 0.5 for probabilities. The `logo_cv` method picks it from the model.
-#' @param n_resample The number of usable resamples. Defaults to 1000.
-#' @param stratified Whether to resample each class separately. Defaults to
-#'   `FALSE`.
-#' @param conf The confidence level. Defaults to 0.95.
+#' @param n_resample The number of usable resamples. A resample with only one
+#'   class is rejected and drawn again.
+#' @param stratified Whether to resample each class separately. This keeps
+#'   the base rate fixed, so the intervals of `auprc`, `ppv`, `npv`, `f1`,
+#'   `acc` and `mcc` come out too narrow.
+#' @param conf The confidence level.
 #' @param k Passed to [assess()].
-#' @param setting For an `logo_cv` result with several settings, the row of its
+#' @param setting For a `logo_cv` result with several settings, the row of its
 #'   `grid` to bootstrap.
 #' @param ... Ignored.
 #'
 #' @return The default method returns a data frame with one row per metric
 #'   and the columns `metric`, `estimate` (from the observed data), `lower`,
-#'   `upper` and `drop`. Attributes record the settings and keep the draws.
+#'   `upper` and `drop` (the number of rejected resamples). Attributes record
+#'   the settings and keep the draws.
 #'
-#'   The `logo_cv` method returns `x`, reduced to one setting, with one such data
-#'   frame per project in `x$ci`.
+#'   The `logo_cv` method returns `x`, reduced to `setting` unless it is
+#'   nested, with one such data frame per project in `x$ci`.
 #'
 #' @family cross-validation
 #'

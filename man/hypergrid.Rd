@@ -6,17 +6,21 @@
 \alias{summary.hypergrid}
 \title{AdaBoost hyperparameter grid by leave-one-group-out cross-validation}
 \format{
-A list of 17 data frames, one per metric of \code{\link[=assess]{assess()}}, from \code{tp}
-to \code{patk}. Each has one row per setting, 1,320 in all, and these columns:
+A list of class \code{hypergrid} with 17 data frames, one per metric of
+\code{\link[=assess]{assess()}}, from \code{tp} to \code{patk}. Each has one row per setting, 1,320 in
+all, and these columns:
 \itemize{
 \item \code{depth}: The depth of the tree that is boosted, 1 to 4.
 \item \code{n_iter}: The number of boosting rounds, 10 to 3,000.
 \item \code{eta}: The learning rate, 0.0025 to 1.
 \item \code{eerp}, \code{ml1}, \code{ml2}, \code{ml3}, \code{rpp}, \code{ssrp}: The metric on that project,
-held out.
+held out. \code{NA} marks an undefined metric, such as \code{patk_5} on ML3 (see
+\code{\link[=patk]{patk()}}).
 \item \code{mean}, \code{sd}, \code{min}, \code{max}: The mean, standard deviation, minimum and
 maximum of the six project columns. They are \code{NA} if a project is \code{NA}.
 }
+
+\code{attr(hypergrid, "projects")} gives each project's \code{n} and \code{base_rate}.
 }
 \usage{
 \method{summary}{hypergrid}(
@@ -32,86 +36,39 @@ maximum of the six project columns. They are \code{NA} if a project is \code{NA}
 \arguments{
 \item{object}{The grid, \code{hypergrid}, or another list of class \code{hypergrid}.}
 
-\item{metric}{The metric whose table to rank. Defaults to \code{"auroc"}.}
+\item{metric}{The metric whose table to rank, one of the names of
+\code{object}.}
 
-\item{sort_by}{The columns of the table to sort by, as a character vector,
-or \code{NULL} to keep the grid order. Rows go highest first on every column,
-and later columns break ties in earlier ones. Rows that tie on all of
-them keep their grid order, and rows with \code{NA} go last. Defaults to
-\code{"lower"}, which puts first the setting with the highest mean minus SD.}
+\item{sort_by}{The columns of the summary to sort by, or \code{NULL} to keep the
+grid order. Rows go highest first on every column, and later columns
+break ties in earlier ones. Rows that tie on all of them keep their grid
+order, and rows with \code{NA} go last.}
 
-\item{n}{The most settings to return, one whole number of 1 or more.
-Defaults to 5, or with \code{by} to \code{Inf}, which returns the best setting of
-every value. There are fewer when \code{depth} or \code{by} leaves fewer. A number
-larger than the grid, or \code{Inf}, returns every setting that is left.}
+\item{n}{The most settings to return, one whole number of 1 or more, or
+\code{Inf} for all. Defaults to 5, or to \code{Inf} with \code{by}.}
 
-\item{depth}{The tree depths whose settings to keep, as a numeric vector of
-values in the table's \code{depth} column, or \code{NULL} to keep every depth.
-Defaults to \code{NULL}.}
+\item{depth}{The tree depths whose settings to keep, or \code{NULL} to keep
+every depth.}
 
-\item{by}{The hyperparameter to group by, \code{"depth"}, \code{"n_iter"} or \code{"eta"}:
-each of its values keeps only its best setting. \code{NULL}, the default,
-keeps every setting. It needs a \code{sort_by}, which decides the best.}
+\item{by}{The hyperparameter to group by, \code{"depth"}, \code{"n_iter"} or \code{"eta"},
+or \code{NULL} to keep every setting. Each of its values keeps only its best
+setting: the first in \code{sort_by} order, or in grid order on a tie. It acts
+on the settings \code{depth} kept and needs a \code{sort_by}.}
 
-\item{...}{Must be empty. A misspelled argument stops with an error
-instead of being ignored.}
+\item{...}{Must be empty; any argument is an error.}
 }
 \value{
 \code{summary()} returns a data frame: at most \code{n} rows of the table of
-\code{metric}, best first, with the column \code{lower} added right after \code{sd}.
-With \code{depth} or \code{by}, the rows are only those they keep.
+\code{metric}, sorted by \code{sort_by}, with the column \code{lower},
+\eqn{\mathrm{mean} - \mathrm{sd}}{mean - sd}, added after \code{sd}. The row
+names are the settings' row numbers in the table.
 }
 \description{
 Every setting of an AdaBoost grid, scored by leave-one-group-out
-cross-validation on the six tuning projects of \link{altmext}: each project is
-held out in turn and scored by the model trained on the other five. HOLZ,
-the newest project, takes no part; the tutorial keeps it for the final
-test. The grid is one \code{\link[=tune_logo_cv]{tune_logo_cv()}} call with \code{cores = 4}, which takes
-about 22 minutes on four cores; the script is \code{data-raw/hypergrid.R}.
+cross-validation on the six projects of \link{altmext} other than HOLZ. Each
+project is held out in turn and scored by the model trained on the other
+five. \code{summary()} ranks the settings of one metric.
 }
-\details{
-Each row also holds the mean, SD, minimum and maximum of its six project
-scores. These four columns rank settings; they are not estimates of
-performance on a new project. The rows are in grid order, and which column
-to rank by is the modeler's choice (see the examples).
-
-\code{attr(hypergrid, "projects")} gives each project's \code{n} and \code{base_rate}.
-
-The trees are \code{rpart()} trees with its defaults apart from \code{maxdepth}, so
-\code{cp = 0.01} and \code{minbucket = 7}.
-
-\code{patk_5} is \code{NA} for ML3: it has only three successes, fewer than the five
-places, and \code{\link[=patk]{patk()}} returns \code{NA} when \code{k} exceeds the number of positives.
-}
-\section{Ranking the settings}{
-
-The list has class \code{hypergrid}, so \code{summary()} ranks the settings of one
-metric's table and returns at most \code{n}, best first. It adds the column
-\code{lower} right after \code{sd}: the mean across the projects minus their SD,
-which is the lower end of the band of one SD around the mean. Like \code{mean},
-\code{sd}, \code{min} and \code{max}, \code{lower} ranks settings; it is not an estimate of
-performance on a new project. The row names stay the settings' row numbers
-in the table.
-
-By default, \code{summary()} ranks every setting by \code{lower}, highest first, so
-the first row is the tutorial's choice: the setting with the highest
-\code{lower}. It sorts as the \code{summary()} of a \code{\link[=tune_logo_cv]{tune_logo_cv()}} result does with
-the same \code{sort_by}.
-
-Two arguments narrow the ranking. They act in this order, \code{by} on the
-settings that \code{depth} kept:
-\itemize{
-\item \code{depth} keeps the settings of those tree depths.
-\item \code{by} keeps the best setting of each value of one hyperparameter, so
-\code{by = "depth"} gives one row per depth. The best is the first in the
-\code{sort_by} order; of settings that tie on every column of \code{sort_by}, it
-is the first in grid order.
-}
-
-\code{summary()} then sorts the settings that are left by \code{sort_by} and returns
-the first \code{n}.
-}
-
 \examples{
 data(hypergrid)
 auc <- hypergrid$auroc
@@ -123,7 +80,7 @@ auc[auc$depth == 1 & auc$n_iter == 1000 & auc$eta == 0.1, ]
 auc$lower <- auc$mean - auc$sd
 head(auc[order(-auc$lower), ], 3)
 
-# the same ranking from summary(): the first is the tutorial's choice
+# the same ranking from summary()
 summary(hypergrid, n = 3)
 
 # the five best settings of depth 1, the stumps
@@ -134,6 +91,8 @@ summary(hypergrid, by = "depth")
 
 }
 \seealso{
+\code{\link[=tune_logo_cv]{tune_logo_cv()}} to score a grid of settings.
+
 Other datasets:
 \code{\link{altmejd723}},
 \code{\link{altmext}},

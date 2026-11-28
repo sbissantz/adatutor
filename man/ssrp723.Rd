@@ -6,30 +6,24 @@
 \title{Replication database, SSRP only}
 \format{
 A data frame with 21 rows (study effects) and the 7 columns of
-\link{altmext}, \code{replicate} coded 0/1.
+\link{altmext}. \code{replicate} is coded 0/1 and holds the result of the first
+data collection. For some study effects, \code{power.o} uses an n other than
+\code{n.o}.
 }
 \source{
 Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
 Predicting the replicability of social science lab experiments. PLOS ONE
 14(12): e0225826. \doi{10.1371/journal.pone.0225826}
 
-The data and more information are in their OSF repository:
-\url{https://osf.io/4fn73/}.
+Data: \url{https://osf.io/4fn73/}.
 }
 \usage{
 ssrp723
 }
 \description{
-A subset of the replication database of Altmejd et al. (2019). It holds
-one project: the Social Sciences Replication Project (SSRP).
-}
-\details{
-It departs from the SSRP's own results file in a few places: \code{replicate}
-is the first data collection's result (12 of 21) rather than the pooled
-headline (13 of 21); two effect sizes (ssrp.7, ssrp.21) differ, and with
-them their p-values; the p-value of ssrp.6 differs as well; and for seven
-study effects \code{n.o} counts participants while \code{power.o} uses the n of the
-focal test. \link{ssrp1026} is rebuilt from the SSRP's file and used in \link{altmext}.
+One of the five projects in the replication database of Altmejd et al.
+(2019): the Social Sciences Replication Project (SSRP). The other four are
+in \link{altmejd723}.
 }
 \seealso{
 Other datasets:

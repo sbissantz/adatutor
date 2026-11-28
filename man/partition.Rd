@@ -10,27 +10,22 @@ partition(data, prop = 0.7, strata = NULL)
 \item{data}{A data frame to split.}
 
 \item{prop}{One proportion per set, each between 0 and 1. A single number
-gives two sets, \code{prop} and the rest. Several must sum to 1, e.g.
-\code{c(0.7, 0.15, 0.15)}. Defaults to 0.7.}
+gives two sets, \code{prop} and the rest. Several must sum to 1, such as
+\code{c(0.7, 0.15, 0.15)}.}
 
 \item{strata}{The name of a column to stratify on, usually the outcome.
-The default, \code{NULL}, draws from the whole data set. The name matches
-\code{strata} in \code{rsample::initial_split()}.}
+\code{NULL} draws from the whole data set.}
 }
 \value{
 A list of data frames named \code{set1}, \code{set2}, and so on, one per
-proportion. A proportion of 0 gives a data frame with no rows.
+proportion. Rows keep their original order. A proportion of 0 gives a
+data frame with no rows.
 }
 \description{
-Draws the given proportions of the rows into one set each and leaves the
-rest in the last set. With \code{strata}, the draw happens separately within
-each level of that column, so its distribution is kept in every part.
-Stratify on the outcome to keep each class's share close to that of the
-whole data; this matters most for small data sets.
-}
-\details{
-Rows keep their original order. Proportions are of the whole data, counts
-are rounded, and the last set takes whatever was not drawn.
+Draws the given proportions of the rows at random into one set each; the
+last set takes the rest. With \code{strata}, the draw runs separately within
+each level of that column, so every part keeps its distribution. Counts are
+rounded.
 }
 \examples{
 data(altmext)
@@ -55,7 +50,7 @@ vapply(three, nrow, integer(1))
 
 }
 \seealso{
-\link{altmext_splits}, the split used in the tutorial.
+\link{altmext_splits}, a split made with this function.
 
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},

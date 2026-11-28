@@ -2,17 +2,8 @@
 #'
 #' Altmejd et al.'s (2019) replication database, extended to seven
 #' large-scale replication projects: 202 study effects and whether each one
-#' replicated. Many Labs 1 and 3, the Reproducibility Project:
-#' Psychology and the Experimental Economics Replication Project come from
-#' [altmejd723] unchanged. The Social Sciences Replication Project is rebuilt
-#' from its own results file ([ssrp1026]). Two projects are new: Holzmeister
-#' et al.'s decision-market replications ([holz1026]) and Many Labs 2
-#' ([mltwo1026]).
-#'
-#' Every row follows Altmejd et al.'s rule: one row per original effect, the
-#' predictors describe the original study, and a multi-site replication counts
-#' with its pooled result. A replication succeeded if it is significant
-#' (p <= .05) in the original's direction.
+#' replicated. Each row is one original effect, and the predictors describe
+#' the original study.
 #'
 #' @format A data frame with 202 rows (study effects) and 7 columns:
 #' * `eid`: Effect identifier, `<pid>.<number>`.
@@ -24,33 +15,17 @@
 #' * `n.o`: Sample size of the original study.
 #' * `p_value.o`: P-value of the original study.
 #' * `power.o`: Power of the original study: a two-sided test of r at
-#'   alpha = .05 with sample size `n.o`.
-#' * `replicate`: Whether the replication succeeded.
-#'
-#' @details
-#' Projects and replication rates: rpp 90 (31 replicated), eerp 18 (11), ml1
-#' 13 (11), ml3 10 (3), ssrp 21 (13), holz 26 (14), ml2 24 (13); 96 of 202
-#' in all.
-#'
-#' Things to keep in mind:
-#' * The SSRP rows differ from Altmejd et al.'s copy, [ssrp723]: the pooled
-#'   outcome (13 rather than 12 of 21 replicated), two effect sizes with their
-#'   p-values, one further p-value, and seven sample sizes. See [ssrp1026].
-#' * Holzmeister et al.'s 26 studies were selected by a decision market (the
-#'   12 highest-priced, the 12 lowest-priced and 2 at random), not sampled
-#'   from a literature.
-#' * ml2.9's p is below double precision, so `p_value.o` reads 0.
-#' * Two pairs of effects come from the same original paper: ml2.21 and ml1.2
-#'   (Tversky & Kahneman 1981, two different problems), ml2.16 and rpp.68
-#'   (Risen & Gilovich 2008, Studies 2 and 6).
+#'   \eqn{\alpha = .05}{alpha = .05} with sample size `n.o`.
+#' * `replicate`: Whether the replication succeeded: significant
+#'   (\eqn{p \le .05}{p <= .05}) in the original's direction. A factor with
+#'   the levels `failure` and `success`. A multi-site replication counts with
+#'   its pooled result.
 #'
 #' @source Altmejd A, Dreber A, Forsell E, Huber J, Imai T, et al. (2019)
 #'   Predicting the replicability of social science lab experiments. PLOS ONE
 #'   14(12): e0225826. \doi{10.1371/journal.pone.0225826}
 #'
-#'   For the other sources, see [ssrp1026], [holz1026] and [mltwo1026]. The
-#'   data were downloaded in October 2026; each project's snapshot is in
-#'   `inst/extdata` and built by `data-raw/`.
+#'   For the other sources, see [ssrp1026], [holz1026] and [mltwo1026].
 #'
 #' @section License:
 #' The rows from Altmejd et al.'s database (Many Labs 1 and 3, the

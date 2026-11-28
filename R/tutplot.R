@@ -1,138 +1,108 @@
-#' Redraw the tutorial's manuscript figures
+#' Draw figures for AdaBoost and cross-validation
 #'
-#' Draws a figure from the AMPPS tutorial. The code lives in the package, not
-#' in a vignette, so every printed figure is documented and tested.
+#' Each function draws one figure, on the current device or into a PDF file.
 #'
-#' * `tutplot_cstump()`: a classification stump, with its class names in title
-#'   case and its branches tagged "Yes" and "No" in upright type.
+#' * `tutplot_cstump()`: a classification stump.
 #' * `tutplot_gini()`: Gini impurity by class proportion.
 #' * `tutplot_updatefactor()`: the factor by which one round multiplies an
-#'   observation's weight. The y-axis names each factor drawn, unless more
-#'   than three curves are drawn or two labels would collide.
+#'   observation's weight.
 #' * `tutplot_modelweight()`: the model weight a stump earns, by its
 #'   performance.
-#' * `tutplot_weightupdate()`: observation weights before and after one round,
-#'   with a short tick under every data point and a number at every fifth.
-#'   Both dots of a point are filled with the color of its observed class, as
-#'   in [tutplot_boundary()]. The y-axis names zero and each weight drawn,
-#'   unless the weights take more than four values or two labels would
-#'   collide.
+#' * `tutplot_weightupdate()`: observation weights before and after one round.
+#'   Both dots of a point are filled with the color of its observed class.
 #' * `tutplot_importance()`: the relative importance of each predictor, as a
-#'   lollipop chart. Its axis title is in title case; `plot()` on a [gauge()]
-#'   draws the same chart with the title in sentence case.
+#'   lollipop chart.
 #' * `tutplot_logoscheme()`: the leave-one-group-out cross-validation scheme.
 #' * `tutplot_logocv()`: the leave-one-group-out estimates per project, with
-#'   or without bootstrap intervals. The project names are drawn in capitals.
-#'
-#' @section Output:
-#' With `file = NULL` (the default), the figure is drawn on the current
-#' device. With a path, a PDF is written at the manuscript's size. `width`,
-#' `height` and `pointsize` apply only then; raise `pointsize` when
-#' enlarging `width`. A session without a device, such as `Rscript`, writes
-#' `Rplots.pdf`, which is ordinary R behavior.
-#'
-#' To draw a weighted stump, pass the fit that was grown with the weights; the
-#' weights travel with the fit.
+#'   or without bootstrap intervals.
 #'
 #' @param fit A classification stump from [rpart::rpart()].
-#' @param extra Node labels, passed to `rpart.plot::rpart.plot()`. The
-#'   manuscript uses 102, and 100 for the weighted stump.
+#' @param extra Node labels, passed to `rpart.plot::rpart.plot()`.
 #' @param labels Readable names to draw in place of variable names, named by
 #'   the variables as they appear in the data, such as
 #'   `c(n.o = "Sample Size")`. A variable without an entry keeps its name. A
 #'   name that is not a predictor of `fit`, or not a variable in `importance`,
-#'   is an error. `NULL` (the default) draws the variable names.
-#'   `tutplot_importance()` also takes plotmath in a named list, such as
-#'   `list(p_value.o = quote(italic(p) ~ Value))`. `tutplot_cstump()` takes
-#'   plain text only, because `rpart.plot::rpart.plot()` draws strings.
+#'   is an error. `tutplot_importance()` also takes plotmath in a named list,
+#'   such as `list(p_value.o = quote(italic(p) ~ Value))`; `tutplot_cstump()`
+#'   takes plain text only.
 #' @param file A path to write a PDF to, or `NULL` to draw on the current
 #'   device.
 #' @param x_seq The class proportions at which to evaluate the Gini curve,
 #'   between 0 and 1.
 #' @param lwd The line width.
-#' @param alpha The model weights, one curve each. `NULL` (the default) draws
-#'   the three of Figure 7: 0.7, the model weight of the tutorial's first
-#'   stump on the training set of [altmext_splits], rounded to three digits,
-#'   and 0.3. For three decreasing weights whose middle one is that first
-#'   stump's, the legend reads `Larger alpha_t`, `alpha_1` and
-#'   `Smaller alpha_t`, drawn with Greek letters and without numbers. For any
-#'   other `alpha`, it shows the numbers.
+#' @param alpha The model weights, one curve each. `NULL` draws three: 0.7,
+#'   the model weight of a first boosting round on the training set of
+#'   [altmext_splits] (rounded to three digits), and 0.3.
 #' @param pch The plotting symbols for the end points, recycled over `alpha`.
-#'   Defaults to one filled dot for every curve, so color tells them apart.
-#' @param lty The line types, recycled over the curves. `tutplot_modelweight()`
-#'   draws every curve solid by default, so color tells them apart.
-#' @param ylim The vertical range. Defaults to the manuscript's.
+#' @param lty The line types. `tutplot_modelweight()` recycles them over the
+#'   curves.
+#' @param ylim The vertical range. For `tutplot_weightupdate()`, `NULL` runs
+#'   from 0 to 15 percent above the largest weight.
 #' @param eta The learning rates, one curve each.
-#' @param from Where performance starts. The default, 0.5, is chance.
-#' @param marked_perf A performance to mark on the figure, such as that of the
-#'   reader's own stump. Must be at least `from` and below 1. `NULL` (the
-#'   default) marks the tutorial's first stump, as Figure 6 does: its weighted
-#'   performance on the training set of [altmext_splits]. This default mark
-#'   is left out when it lies below `from`. `NA` draws no mark.
-#' @param marked_eta The curve the mark belongs to. Defaults to the first.
+#' @param from Where performance starts. 0.5 is chance.
+#' @param marked_perf A performance to mark on the figure. Must be at least
+#'   `from` and below 1. `NULL` marks the weighted performance of a first
+#'   boosting round on the training set of [altmext_splits], or nothing when
+#'   that lies below `from`. `NA` draws no mark.
+#' @param marked_eta The learning rate of the curve the mark belongs to.
 #' @param data The training data. Each point's observed class is read from
-#'   its `replicate` column, and the first boosting round runs on it when `d1`
-#'   or `d2` is `NULL`. Defaults to the training set of [altmext_splits], as
-#'   in Figure 8.
+#'   its `replicate` column. When `d1` or `d2` is `NULL`, the first boosting
+#'   round runs on its columns `power.o`, `effect_size.o`, `n.o` and
+#'   `p_value.o`.
 #' @param d1,d2 The observation weights before and after one round, one per
-#'   row of `data` and in its row order; other lengths are an error. `NULL`
-#'   computes them from `data`.
-#' @param n The number of data points to draw. 25 fits a column.
+#'   row of `data` and in its row order. `NULL` computes them from `data`.
+#' @param n The number of data points to draw.
 #' @param scaling The bubble size multiplier.
 #' @param importance A `gauge` object from [gauge()].
-#' @param top_n The largest number of predictors to draw. Defaults to 15.
-#' @param group One project label per row, as [logo_cv()] takes it.
-#' @param proportional Whether to size the rows by project. `TRUE` (the
-#'   default) shows the imbalance: of the six projects the tutorial
-#'   cross-validates, one holds 51 percent of the rows. `FALSE` draws the
-#'   equal blocks the manuscript prints.
+#' @param top_n The largest number of predictors to draw.
+#' @param group One project label per row, such as the values of the `group`
+#'   column in [logo_cv()].
+#' @param proportional Whether to size the rows by project. `FALSE` draws
+#'   equal blocks.
 #' @param levels The projects to show, in drawing order, top to bottom. A
-#'   project left out is dropped from the figure, and the rest share its
-#'   height. `NULL` shows every project, in a factor's level order or the
-#'   order of first appearance.
+#'   project left out is dropped from the figure. `NULL` shows every project,
+#'   in a factor's level order or the order of first appearance.
 #' @param min_height The smallest share of the height a project gets when
-#'   `proportional = TRUE`, so that a small project keeps its label. The rest
-#'   is shared by size. Defaults to 0.06; 0 gives exact proportions.
+#'   `proportional = TRUE`. 0 gives exact proportions.
 #' @param res A result of [logo_cv()].
-#' @param bootstrap Whether to draw bootstrap intervals. `FALSE` draws the
-#'   estimates only, without resampling. `TRUE` (the default) uses the
+#' @param bootstrap Whether to draw bootstrap intervals. `TRUE` uses the
 #'   intervals attached by [bootstrap()], or resamples when there are none;
-#'   set the seed first. These are percentile intervals within each project,
-#'   not standard errors.
+#'   set the seed first. These are percentile intervals within each project.
 #' @param n_resample The number of resamples per project, when `bootstrap`
-#'   has to resample. Defaults to 1000.
-#' @param metric The performance metric to draw. Defaults to `"auroc"`.
-#' @param bands The interval widths, widest last. Defaults to 0.50, 0.80 and
-#'   0.95.
+#'   has to resample.
+#' @param metric The metric to show, one of the names [assess()] returns.
+#' @param bands The levels of the bootstrap bands, such as 0.95.
 #' @param ylab The axis label. Defaults to a readable name for `metric`, such
-#'   as "AUROC" for `"auroc"` or "Balanced Accuracy" for `"bacc"`. A metric
-#'   without one is shown as typed.
+#'   as "AUROC" for `"auroc"`. A metric without one is shown as typed.
 #' @param width,height,pointsize Passed to [grDevices::pdf()]; ignored when
 #'   `file` is `NULL`.
 #'
-#' @return Invisibly, the facts the figure's caption states, so tests can
-#'   check them. `tutplot_cstump()` returns the fit, the split variable, the
-#'   cutpoint and the leaf sizes; `tutplot_gini()` the curve and its peak;
-#'   `tutplot_updatefactor()` the factors, the legend labels and the named
-#'   ticks; `tutplot_weightupdate()` the weights, the class and colors of each
-#'   point drawn, the legend labels and the named ticks. The ticks are `NULL`
-#'   when ordinary ticks were drawn instead. `tutplot_importance()` returns
-#'   the rows it drew, most important first;
-#'   `tutplot_logoscheme()` the project sizes, their count, the order and the
-#'   row heights; `tutplot_logocv()` one row per project with its estimate,
-#'   the widest interval, and the share of resamples its bootstrap rejected.
-#'   The variable and project names in these facts are the names in the data,
-#'   not the labels drawn.
+#' @return Invisibly, the values behind the figure. Variables and projects
+#'   keep their names in the data, not the labels drawn.
+#' * `tutplot_cstump()`: The fit, the split variable, the cutpoint and the
+#'   leaf sizes.
+#' * `tutplot_gini()`: The curve and its peak.
+#' * `tutplot_updatefactor()`: The factors, the legend labels and the named
+#'   ticks, `NULL` when ordinary ticks were drawn.
+#' * `tutplot_modelweight()`: The learning rates, the performance grid, the
+#'   model weights and the marked weight, `NULL` without a mark.
+#' * `tutplot_weightupdate()`: The weights, the class and colors of each
+#'   point drawn, the legend labels and the named ticks, `NULL` when ordinary
+#'   ticks were drawn.
+#' * `tutplot_importance()`: The rows it drew, most important first.
+#' * `tutplot_logoscheme()`: The project sizes, their count, the order and
+#'   the row heights.
+#' * `tutplot_logocv()`: One row per project with its estimate, the widest
+#'   interval, and the share of resamples its bootstrap rejected.
 #'
 #' @family tutorial plots
-#' @seealso [tutplot_boundary()] for Figures 3 and 9.
+#' @seealso [tutplot_boundary()] to draw a decision boundary.
 #'
 #' @examples
 #' data(altmext_splits)
 #' train <- altmext_splits$train
 #'
-#' # the stump behind Figure 2, on two reviewer metrics so Figure 3 can draw
-#' # its boundary in two dimensions
+#' # a stump on two predictors
 #' h <- rpart::rpart(
 #'   replicate ~ power.o + n.o,
 #'   data = train,
@@ -143,11 +113,11 @@
 #' facts$variable
 #' facts$leaves
 #'
-#' # Figure 4 needs no model: it is arithmetic
+#' # the Gini curve needs no model: it is arithmetic
 #' gini <- tutplot_gini()
 #' gini$peak
 #'
-#' # Figure 1: the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
+#' # the LOGO-CV scheme, drawn from the grouping itself. HOLZ is
 #' # kept back for the final test, so six projects take part
 #' data(altmext)
 #' df_noholz <- altmext[altmext$pid != "holz", ]
@@ -191,7 +161,6 @@ tutplot_cstump <- function(
     on.exit(grDevices::dev.off(), add = TRUE)
   }
 
-  # a copy with title-case class names, drawn in place of the fit
   drawn <- fit
   attr(drawn, "ylevels") <- tools::toTitleCase(attr(fit, "ylevels"))
 
@@ -209,8 +178,8 @@ tutplot_cstump <- function(
     nn.font = 1
   )
 
-  # what the caption claims, for tests, read off the fit as given rather than
-  # the drawn copy; a stump that never split has no `splits` matrix
+  # read off the fit as given rather than the drawn copy; a stump that never
+  # split has no `splits` matrix
   terminal <- fit$frame$var == "<leaf>"
   cutpoint <- if (is.null(fit$splits)) NULL else fit$splits[1, "index"]
 
@@ -224,7 +193,8 @@ tutplot_cstump <- function(
 
 #' Build a split.fun for rpart.plot() that swaps variable names for labels
 #'
-#' Returns `NULL` for no labels, which is rpart.plot()'s own default.
+#' @return A function, or `NULL` for no labels, which is rpart.plot()'s own
+#'   default.
 #' @noRd
 relabel_splits <- function(labels) {
   if (is.null(labels)) {
@@ -395,7 +365,6 @@ tutplot_updatefactor <- function(
     )
   }
 
-  # one alpha per curve, and its two end points read from that same alpha
   for (i in seq_along(alpha)) {
     # curve() evaluates its expression in `x`
     graphics::curve(
@@ -419,8 +388,7 @@ tutplot_updatefactor <- function(
   # a factor of one is break-even: below it a weight shrinks, above it grows
   graphics::abline(h = 1, lty = 2, lwd = 1.5, col = "gray30")
 
-  # built from `alpha`, so a label cannot outlive the curve it names. Line and
-  # dot merge into one key, and legend() then leaves 0.3 character widths
+  # line and dot merge into one key: legend() leaves 0.3 character widths
   # after a label but 0.7 (`x.intersp`) before it; 0.4 more evens the two
   draw_legend(
     legend_labels,
@@ -444,8 +412,7 @@ tutplot_updatefactor <- function(
 
 #' Label the curves of the update-factor figure
 #'
-#' Words for the tutorial's three curves, numbers for any other `alpha`.
-#' Returns an expression vector, one entry per curve.
+#' @return An expression vector, one entry per curve.
 #' @noRd
 label_alpha <- function(alpha) {
   decreasing <- length(alpha) == 3L && isTRUE(all(diff(alpha) < 0))
@@ -464,13 +431,14 @@ label_alpha <- function(alpha) {
 
 #' Plan named y ticks, or give way to ordinary ones
 #'
-#' Reads the current device, so call it after set_figure_par() and before
-#' plot(). Returns `NULL` when two labels would collide or no tick lies on
-#' the panel, or a list with the ticks on the panel, their labels, and
-#' `shift`: the lines by which the left margin and the axis title move out to
-#' make room for the labels.
+#' @return `NULL` when two labels would collide or no tick lies on the panel,
+#'   or a list with the ticks on the panel, their labels, and `shift`: the
+#'   lines by which the left margin and the axis title move out to make room
+#'   for the labels.
 #' @noRd
 plan_named_ticks <- function(at, labels, ylim, cex) {
+  # reads the current device: call after set_figure_par() and before plot()
+
   # plot() widens `ylim` by 4 percent at each end (yaxs = "r"), so a point
   # just past `ylim` is still drawn and still gets its tick
   panel <- range(ylim) + c(-1, 1) * 0.04 * diff(range(ylim))
@@ -480,11 +448,13 @@ plan_named_ticks <- function(at, labels, ylim, cex) {
   drawn <- order(at)
   at <- at[drawn]
   labels <- labels[drawn]
-  # a panel that holds no tick leaves nothing to name
   if (!length(at)) {
     return(NULL)
   }
 
+  # strheight() can read a closed device's cached height of "M"; measuring at
+  # another size first makes the next call measure on this device
+  graphics::strheight("M", units = "inches", cex = 2 * cex)
   label_height <- max(graphics::strheight(labels, units = "inches", cex = cex))
   # `mar[2]` does not change the panel's height, so it can be read before the
   # margin moves
@@ -501,11 +471,10 @@ plan_named_ticks <- function(at, labels, ylim, cex) {
 }
 
 #' Tell whether two tick labels would overlap
-#'
-#' A horizontal label reaches half its height above and below its tick, so
-#' two labels collide when their ticks sit less than one label height apart.
 #' @noRd
 has_collision <- function(at, min_gap) {
+  # a horizontal label reaches half its height above and below its tick, so
+  # two labels collide when their ticks sit less than one label height apart
   length(at) > 1L && any(diff(sort(at)) < min_gap)
 }
 
@@ -531,7 +500,7 @@ tutplot_modelweight <- function(
       marked_perf <- NA
     }
   }
-  # NA, not NULL, asks for no mark: NULL is the tutorial's stump
+  # NA, not NULL, asks for no mark: NULL is the first round's stump
   draw_mark <- !(length(marked_perf) == 1L && is.na(marked_perf))
   if (draw_mark) {
     check_numeric(marked_perf)
@@ -562,7 +531,6 @@ tutplot_modelweight <- function(
   colors <- viridisLite::viridis(length(eta), end = tutplot_opts$viridis_end)
   lty <- rep_len(lty, length(eta))
 
-  # a stump's model weight as a function of its performance
   weigh <- function(accuracy, eta) 1 / 2 * log(accuracy / (1 - accuracy)) * eta
 
   # stop short of the asymptote at 1: R drops the one infinite value
@@ -583,8 +551,8 @@ tutplot_modelweight <- function(
   )
   graphics::grid()
 
-  # the reader's own learner, drawn first so the curves stay on top; segments
-  # stop at the crosshair instead of crossing every curve
+  # drawn first so the curves stay on top; segments stop at the crosshair
+  # instead of crossing every curve
   marked_alpha <- NULL
   if (draw_mark) {
     marked_alpha <- weigh(marked_perf, marked_eta)
@@ -623,8 +591,6 @@ tutplot_modelweight <- function(
     )
   }
 
-  # legend in the top margin (`xpd = NA`), so it never covers a curve, built
-  # from `eta`; `text.width = NA` stops `horiz` padding entries to the widest
   draw_legend(
     as.expression(lapply(
       eta,
@@ -646,34 +612,32 @@ tutplot_modelweight <- function(
 
 #' Resolve what the bare figure calls draw
 #'
-#' Round one of the tutorial on the training set of `altmext_splits`: the
-#' model weights of Figure 7 (`alpha_int`) and the performance Figure 6 marks
-#' (`perf`).
+#' @return A list with the default `alpha` of tutplot_updatefactor() and
+#'   `marked_perf` of tutplot_modelweight(), from a first boosting round on
+#'   the training set of `altmext_splits`.
 #' @noRd
 resolve_figure_defaults <- function() {
   # `adatutor::` finds the data whether or not the package is attached
   round_one <- run_round_one(adatutor::altmext_splits$train)
   list(
-    # a heavier weight, the first stump's, a lighter one
     alpha = c(0.7, round(round_one$alpha, 3), 0.3),
     marked_perf = round_one$perf
   )
 }
 
-# one round of AdaBoost on `data`, repeating Listings 17--23, so the figures
-# need nothing from the reader's session
+# one round of AdaBoost on `data`, so the figures need nothing from the
+# reader's session
 run_round_one <- function(
   data,
   predictors = c("power.o", "effect_size.o", "n.o", "p_value.o")
 ) {
-  # reviewer metrics only: `eid` identifies every row, so it would give zero
+  # the predictors only: `eid` identifies every row, so it would give zero
   # error, infinite alpha and NaN weights
   data <- data[, c(predictors, "replicate")]
 
   y <- data[["replicate"]]
   m <- nrow(data)
 
-  # equal weights to begin with
   d1 <- rep(1, m) / m
 
   h1 <- rpart::rpart(
@@ -686,12 +650,10 @@ run_round_one <- function(
   )
   y_retro <- stats::predict(h1, newdata = data, type = "class")
 
-  # the learner's weighted performance, and the say it earns; in the order of
-  # Listings 21 and 22, so the results match the tutorial's to the last bit
+  # in this order, so the results stay the same to the last bit
   perf <- sum(d1 * (y_retro == y))
   alpha1 <- 0.5 * log(perf / (1 - perf))
 
-  # +1 where it was right, -1 where it was wrong
   chi1 <- (y_retro == y) * 1 + (y_retro != y) * -1
   d2_raw <- d1 * exp(-alpha1 * chi1)
 
@@ -761,9 +723,8 @@ tutplot_weightupdate <- function(
     ylim <- c(0, max(c(d1, d2)) * 1.15)
   }
 
-  # the classes as tutplot_boundary() names and fills them. Every point in full
-  # color: after a round that beats chance, the dots that moved up are the
-  # misclassified ones
+  # every point in full color: after a round that beats chance, the dots that
+  # moved up are the misclassified ones
   palette <- viridisLite::viridis(2)
   labels <- tools::toTitleCase(read_class_labels(data, "replicate"))
   look <- style_points(observed[shown], rep(FALSE, n), palette)
@@ -925,9 +886,7 @@ check_gauge <- function(importance) {
 
 #' Draw the lollipop chart of a gauge on the current device
 #'
-#' Shared by tutplot_importance() and plot.gauge(), so both draw one chart;
-#' each passes its own axis title. Sets and restores par() itself. Returns the
-#' rows drawn, most important first.
+#' @return The rows drawn, most important first.
 #' @noRd
 draw_importance <- function(importance, top_n, labels, xlab) {
   # top_n predictors only, so the chart stays readable; gauge() sorts them
@@ -987,7 +946,6 @@ draw_importance <- function(importance, top_n, labels, xlab) {
 
   graphics::axis(1)
   graphics::axis(2, at = rows, labels = axis_labels, las = 1, lwd = 0)
-  # no title: the caption carries it, as for every figure
   graphics::title(xlab = xlab)
 
   drawn
@@ -1012,10 +970,9 @@ label_variables <- function(variables, labels = NULL) {
 }
 
 #' Size the left margin, in lines, to the widest y-axis label
-#'
-#' Reads the current device and par(), so call it after set_figure_par().
 #' @noRd
 compute_left_margin <- function(labels) {
+  # reads the current device and par(), so call it after set_figure_par()
   label_width <- max(graphics::strwidth(
     labels,
     units = "inches",
@@ -1050,8 +1007,7 @@ tutplot_logocv <- function(
     res <- bootstrap.logo_cv(res, n_resample = n_resample)
   }
 
-  # before pdf() writes a file or par() opens a device; no keys: the caption
-  # names the dashed line and the intervals
+  # before pdf() writes a file or par() opens a device
   figure <- prepare_logo_cv(
     res,
     metric = metric,
@@ -1071,8 +1027,7 @@ tutplot_logocv <- function(
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
 
-  # no title: the caption names the figure; project names in capitals, as in
-  # tutplot_logoscheme()
+  # project names in capitals, as in tutplot_logoscheme()
   facts <- draw_logo_cv(
     figure,
     main = NULL,
@@ -1083,8 +1038,6 @@ tutplot_logocv <- function(
 }
 
 #' Label a metric for a figure axis
-#'
-#' Acronyms in capitals, words in title case; an unknown name as typed.
 #' @noRd
 label_metric <- function(metric) {
   metric <- as.character(metric)
@@ -1130,7 +1083,7 @@ tutplot_logoscheme <- function(
   if (length(group) < 1L) {
     stop("`group` must name the project each row belongs to.", call. = FALSE)
   }
-  # keep the caller's order: table() would reorder the manuscript's figure
+  # keep the caller's order: table() would reorder the figure
   if (is.null(levels)) {
     levels <- if (is.factor(group)) base::levels(group) else unique(group)
   }
@@ -1174,7 +1127,7 @@ tutplot_logoscheme <- function(
   # by name, so a project has the color tutplot_logocv() gives it
   colors <- unname(color_projects(names(sizes)))
 
-  # no bottom label: the caption and column headers say it
+  # no bottom label: the column headers say it
   old_par <- graphics::par(mar = c(0.4, 2.0, 1.3, 0.3))
   # run before the dev.off() above, so par() is restored on the right device
   on.exit(graphics::par(old_par), add = TRUE, after = FALSE)
@@ -1231,7 +1184,6 @@ tutplot_logoscheme <- function(
   for (j in seq_len(n_projects)) {
     for (i in seq_len(n_projects)) {
       held_out <- i == j
-      # color says which project, opacity whether it is held out
       fill <- if (held_out) {
         colors[i]
       } else {

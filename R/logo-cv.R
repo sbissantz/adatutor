@@ -1,99 +1,66 @@
 #' Leave-one-group-out cross-validation
 #'
-#' Holds out each level of `group` in turn, refits the model on the rest and
-#' scores the held-out rows, so the result is one performance estimate per
-#' group rather than a single number: leave-one-group-out cross-validation
-#' (LOGO-CV). In the tutorial the groups are the replication projects. Whole
-#' projects are held out because the study effects in a project share a design
-#' and a base rate.
-#'
-#' Pass a fitted model. `logo_cv()` reads the recipe off the fit and refits it
-#' once per group. The fit's own data are not used, because cross-validation
-#' evaluates the procedure, not one fitted model. To compare settings of a
-#' model, pass its fit and a grid to [tune_logo_cv()].
+#' Holds out each level of `group` in turn, refits the model on the other rows
+#' and scores the held-out rows. The result has one performance estimate per
+#' group. Each refit follows the recipe of `x` on the training rows, not the
+#' fit's own data. To compare settings of a model, use [tune_logo_cv()].
 #'
 #' @section What each method reads off the fit:
-#' * An [adaboost()] fit: the formula, the tree controls, the splitting rule,
-#'   `n_iter` and `eta`. Each refit grows the tree and boosts it, and is
-#'   scored on the margin.
+#' * A fit from [adaboost()]: the formula, the tree controls, the splitting
+#'   rule, `n_iter` and `eta`. Each refit is scored on its margin.
 #' * A classification tree from [rpart::rpart()], a binomial [stats::glm()],
 #'   or a classification forest from [randomForest::randomForest()] fitted
-#'   with a formula: the call that made the fit. The call runs again with
-#'   `data` replaced by the training rows, so settings such as `control`,
-#'   `parms`, `family`, `ntree` or `mtry` carry over. Each refit is scored on
-#'   its predicted probability of the second class.
+#'   with a formula: the call that made the fit, run again with `data`
+#'   replaced by the training rows. Each refit is scored on its predicted
+#'   probability of the second class.
 #' * An XGBoost fit from [xgboost::xgboost()], version 3.0 or later, made with
 #'   a data frame of predictors and a factor outcome: its stored parameters,
-#'   its number of rounds and the names of its predictors. Each refit runs
-#'   `xgboost()` afresh with those parameters on the training rows, takes the
-#'   outcome from the column named by `outcome`, and is scored on its
-#'   predicted probability of the second level. The stored parameters do not
-#'   keep `weights`, `base_margin`, `eval_set`, `early_stopping_rounds` or
-#'   `feature_weights`, so a fit made with any of them is an error. Fit it
-#'   with `nthreads = 1`: each refit runs on as many threads as the fit, and
-#'   [tune_logo_cv()] can run several refits at once.
+#'   its number of rounds and the names of its predictors. Each refit is
+#'   scored on its predicted probability of the second level. A fit made
+#'   with `weights`, `base_margin`, `eval_set`, `early_stopping_rounds` or
+#'   `feature_weights` is an error.
 #'
-#' Every model is scored on a continuous score, never on class labels.
+#' The metrics that need a threshold cut the margin at 0 and probabilities at
+#' 0.5.
 #'
-#' For a tree, a glm or a forest, the call runs where its formula was made,
-#' so any other object it names, such as `weights = w`, must still exist
-#' there. A variable named as a column of `data`, such as `weights = n.o`,
-#' travels with the rows. A random forest draws at random: set a seed to
-#' repeat a result.
-#'
-#' @section Holding out some groups only:
-#' `holdout` names the groups to hold out, in that order. The other groups
-#' are only ever trained on. One name gives a single split into training and
-#' test data: the final test on a project kept back from tuning, or one Monte
-#' Carlo draw whose test part is a level of a random column (see the
-#' examples).
-#'
-#' @section Reading the estimates:
-#' The estimates are returned per project and are not averaged. Describe their
-#' spread, but do not turn it into a standard error or a confidence interval.
-#' The folds differ in size (10 to 90 study effects in [altmext]), and they
-#' share most of their training data, so the usual standard error is too small
-#' (Bengio & Grandvalet, 2004).
+#' The call of a tree, a glm or a forest runs where its formula was made, so
+#' any other object it names, such as `parms = p` or `family = fam`, must
+#' still exist there. Weights must be a column of `data`, such as
+#' `weights = n.o`, so they travel with the rows.
 #'
 #' @param x A fitted model: a fit from [adaboost()], a classification tree
 #'   from [rpart::rpart()], a binomial [stats::glm()], a classification forest
 #'   from [randomForest::randomForest()] fitted with a formula, or an XGBoost
 #'   fit from [xgboost::xgboost()].
 #' @param data A data frame with the model's variables and the `group`
-#'   column, holding every group.
-#' @param group The name of the column that defines the folds, e.g. `"pid"`.
-#' @param holdout The levels of `group` to hold out, one fold each. Defaults
-#'   to `NULL`, which holds out every level once.
-#' @param verbose Whether to report progress on the console. Defaults to
-#'   `TRUE`, which prints a start line, a line per held-out group that ends
-#'   in "Done" when its refit is scored, and a closing line. `FALSE` prints
-#'   nothing, for loops, reports and scripts.
-#' @param outcome The name of the outcome column in `data`, e.g.
-#'   `"replicate"`, for an XGBoost fit, which needs it. Such a fit keeps no
-#'   formula, so its predictors are the columns named by its feature names.
-#' @param ... Must be empty. The settings belong to the fit, so an argument
-#'   such as `n_iter` or `grid` is an error.
+#'   column.
+#' @param group The name of the column that defines the folds, such as
+#'   `"pid"`.
+#' @param holdout The levels of `group` to hold out, one fold each, in that
+#'   order. The other levels are only trained on. `NULL` holds out every
+#'   level once.
+#' @param verbose Whether to report progress on the console.
+#' @param outcome The name of the outcome column in `data`, such as
+#'   `"replicate"`. An XGBoost fit needs it; its predictors are the columns
+#'   named by its feature names.
+#' @param ... Must be empty; any argument is an error.
 #'
-#' @return An object of class `logo_cv`.
-#'   * `estimates`: an array of setting x project x metric, e.g.
-#'     `res$estimates[, , "auroc"]`. `as.data.frame()` gives the same values
-#'     as one long table. An `NA` cell is an undefined metric, not a failed
-#'     fit.
-#'   * `grid`: the settings, one row per setting. `depth`, `n_iter` and `eta`
+#' @return An object of class `logo_cv`, a list with these elements:
+#'   * `estimates`: An array of estimates by setting, project (a level of
+#'     `group`) and metric, such as `res$estimates[, , "auroc"]`. `NA` marks
+#'     an undefined metric, not a failed fit.
+#'   * `grid`: The settings, one row per setting. `depth`, `n_iter` and `eta`
 #'     are `NA` where the learner has no such setting.
-#'   * `projects`: each fold's `n` and `base_rate`.
-#'   * `scores`: the held-out scores, one row per study and setting, which
-#'     [bootstrap()] resamples.
-#'   * `model`: the learner, `"adaboost"`, `"rpart"`, `"glm"`, `"rf"` or
+#'   * `projects`: Each fold's `n` and `base_rate`.
+#'   * `scores`: The held-out scores, one row per held-out row and setting,
+#'     which [bootstrap()] resamples.
+#'   * `model`: The learner: `"adaboost"`, `"rpart"`, `"glm"`, `"rf"` or
 #'     `"xgboost"`.
-#'   * `nested`, `metric`, `sort_by` and `selected`: set by [tune_logo_cv()]
+#'   * `nested`, `metric`, `sort_by` and `selected`: Set by [tune_logo_cv()]
 #'     when it nests the search.
 #'
 #' @family cross-validation
-#'
-#' @references Bengio, Y., & Grandvalet, Y. (2004). No unbiased estimator of the
-#'   variance of k-fold cross-validation. *Journal of Machine Learning Research,
-#'   5*, 1089-1105.
+#' @seealso [altmext], the data of the examples.
 #'
 #' @examples
 #' data(altmext)
@@ -324,8 +291,7 @@ logo_cv.default <- function(
   )
 }
 
-#' Group the grid rows that one fit scores: those that differ only in
-#' `n_iter`
+#' Group the grid rows that differ only in `n_iter`, which share one fit
 #' @noRd
 group_settings <- function(grid, model) {
   rows <- seq_len(nrow(grid))
@@ -341,9 +307,6 @@ group_settings <- function(grid, model) {
 }
 
 #' Write the start line of a search
-#'
-#' Names the fits when rows that differ only in `n_iter` share one, and the
-#' cores when there are several.
 #' @noRd
 describe_search <- function(n_settings, n_folds, n_fits, n_cores = 1L) {
   line <- paste0(
@@ -427,10 +390,9 @@ read_formula <- function(fit) {
 
 #' Score every setting on every fold, keeping the held-out scores
 #'
-#' `globals` is evaluated only if run_tasks() starts a socket cluster.
-#' `progress` sets what `verbose` prints: `"folds"` a line per fold, as for
-#' logo_cv(), which runs on one core; `"search"` a bar between a start and a
-#' closing line, as for tune_logo_cv(), on any number of cores.
+#' @param progress What `verbose` prints: `"folds"`, a line per fold, as for
+#'   logo_cv() on one core; `"search"`, a progress bar, as for tune_logo_cv().
+#' @param globals Evaluated only if run_tasks() starts a socket cluster.
 #' @noRd
 cross_validate <- function(
   fit,
@@ -536,7 +498,6 @@ cross_validate <- function(
   group_of <- rep(seq_along(groups), lengths(groups))[order(unlist(groups))]
   column_of <- sequence(lengths(groups))[order(unlist(groups))]
 
-  # allocate the setting x project x metric cube up front
   metric_names <- list_metrics()
   estimates <- array(
     NA_real_,

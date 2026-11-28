@@ -6,7 +6,8 @@
 \title{Social Sciences Replication Project, from its own results}
 \format{
 A data frame with 21 rows (study effects) and the 7 columns of
-\link{altmext}, \code{replicate} coded 0/1.
+\link{altmext}. \code{replicate} is coded 0/1 and holds the result pooled over both
+data collections.
 }
 \source{
 Camerer CF, Dreber A, Holzmeister F, et al. (2018) Evaluating the
@@ -14,34 +15,14 @@ replicability of social science experiments in Nature and Science
 between 2010 and 2015. Nature Human Behaviour 2: 637-644.
 \doi{10.1038/s41562-018-0399-z}
 
-Data: \url{https://osf.io/956xg/}, file \code{D3 - ReplicationResults.csv},
-downloaded in October 2026; the \code{ssrp.X} ids from Altmejd et al.'s
-codebook (\url{https://osf.io/7ad56/}).
+Data: \url{https://osf.io/956xg/}.
 }
 \usage{
 ssrp1026
 }
 \description{
-The 21 studies of the Social Sciences Replication Project (SSRP), rebuilt
-from the project's own results file, used to build \link{altmext}. It replaces
-\link{ssrp723}, Altmejd et al.'s copy, and keeps its \code{ssrp.X} ids.
-}
-\details{
-Differences from \link{ssrp723}:
-\itemize{
-\item \code{replicate}: the pooled result of both data collections, the SSRP's
-headline (13 of 21 replicated). \link{ssrp723} holds the first collection's
-result (12 of 21); ssrp.5, ssrp.8 and ssrp.18 differ.
-\item \code{effect_size.o}: ssrp.7 (.278 rather than .197) and ssrp.21 (.368
-rather than .437).
-\item \code{n.o}: the n of the focal test, which SSRP's r and p rest on (e.g. 51
-groups rather than 366 participants for ssrp.1); seven study effects
-differ.
-\item \code{p_value.o}: two-sided; the p-values of ssrp.7 and ssrp.21 differ with
-their effect sizes, and the p-value of ssrp.6 differs as well.
-\item \code{power.o}: computed from \code{effect_size.o} and \code{n.o}, as for every other
-project.
-}
+The 21 studies of the Social Sciences Replication Project (SSRP), from the
+project's own results file.
 }
 \section{License}{
 

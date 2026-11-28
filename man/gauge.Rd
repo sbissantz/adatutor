@@ -12,36 +12,24 @@ gauge(fit)
 \arguments{
 \item{fit}{A fit from \code{\link[=adaboost]{adaboost()}}.}
 
-\item{x}{A \code{gauge} object from \code{gauge()}.}
+\item{x}{A result of \code{gauge()}.}
 
-\item{top_n}{The largest number of predictors to plot. Defaults to 15.}
+\item{top_n}{The largest number of predictors to draw.}
 
 \item{...}{Ignored.}
 }
 \value{
 \code{gauge()} returns a data frame of class \code{gauge} with the columns
-\code{variable} and \code{importance} (a percentage), one row per predictor of the
-formula, sorted from most to least important; a predictor no tree split
-on has 0. \code{plot()} draws a lollipop chart, a line and a dot per
-predictor, and returns \code{NULL} invisibly. It is the chart
-\code{\link[=tutplot_importance]{tutplot_importance()}} draws, with the variable names as typed and the
-axis title in sentence case.
+\code{variable} and \code{importance} (in percent), one row per predictor of the
+formula, from most to least important. A predictor that no tree splits on
+gets 0. \code{plot()} draws a lollipop chart and returns \code{NULL} invisibly.
 }
 \description{
-Sums, for each predictor, the model weights of the trees that split on it,
-and scales the sums to 100. A stump gives its whole weight alpha_t to its one
-variable. A deeper tree splits its weight across its variables by the gain
-of its primary splits, rpart's improvement measure; surrogate splits earn
-nothing. A tree that never split adds nothing.
+Sums, for each predictor, the model weights \eqn{\alpha_t}{alpha_t} of the
+trees that split on it, and scales the sums to 100. A tree that splits on
+several predictors divides its weight among them by the gain of its primary
+splits.
 }
-\section{What it does not show}{
-
-The numbers are relative: they show how the ensemble divided its weight,
-not what a variable is worth on its own. They have no sign, correlated
-predictors share their weight, and the ranking changes with the
-hyperparameters and the training data.
-}
-
 \examples{
 data(altmext_splits)
 train <- altmext_splits$train
@@ -62,6 +50,8 @@ plot(imp)
 
 }
 \seealso{
+\code{\link[=tutplot_importance]{tutplot_importance()}} to draw the chart with custom labels.
+
 Other tutorial plots:
 \code{\link{tutplot}},
 \code{\link[=tutplot_boundary]{tutplot_boundary()}},

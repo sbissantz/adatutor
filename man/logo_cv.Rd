@@ -31,106 +31,71 @@ from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitte
 fit from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}.}
 
 \item{data}{A data frame with the model's variables and the \code{group}
-column, holding every group.}
+column.}
 
-\item{group}{The name of the column that defines the folds, e.g. \code{"pid"}.}
+\item{group}{The name of the column that defines the folds, such as
+\code{"pid"}.}
 
-\item{holdout}{The levels of \code{group} to hold out, one fold each. Defaults
-to \code{NULL}, which holds out every level once.}
+\item{holdout}{The levels of \code{group} to hold out, one fold each, in that
+order. The other levels are only trained on. \code{NULL} holds out every
+level once.}
 
-\item{verbose}{Whether to report progress on the console. Defaults to
-\code{TRUE}, which prints a start line, a line per held-out group that ends
-in "Done" when its refit is scored, and a closing line. \code{FALSE} prints
-nothing, for loops, reports and scripts.}
+\item{verbose}{Whether to report progress on the console.}
 
-\item{...}{Must be empty. The settings belong to the fit, so an argument
-such as \code{n_iter} or \code{grid} is an error.}
+\item{...}{Must be empty; any argument is an error.}
 
-\item{outcome}{The name of the outcome column in \code{data}, e.g.
-\code{"replicate"}, for an XGBoost fit, which needs it. Such a fit keeps no
-formula, so its predictors are the columns named by its feature names.}
+\item{outcome}{The name of the outcome column in \code{data}, such as
+\code{"replicate"}. An XGBoost fit needs it; its predictors are the columns
+named by its feature names.}
 }
 \value{
-An object of class \code{logo_cv}.
+An object of class \code{logo_cv}, a list with these elements:
 \itemize{
-\item \code{estimates}: an array of setting x project x metric, e.g.
-\code{res$estimates[, , "auroc"]}. \code{as.data.frame()} gives the same values
-as one long table. An \code{NA} cell is an undefined metric, not a failed
-fit.
-\item \code{grid}: the settings, one row per setting. \code{depth}, \code{n_iter} and \code{eta}
+\item \code{estimates}: An array of estimates by setting, project (a level of
+\code{group}) and metric, such as \code{res$estimates[, , "auroc"]}. \code{NA} marks
+an undefined metric, not a failed fit.
+\item \code{grid}: The settings, one row per setting. \code{depth}, \code{n_iter} and \code{eta}
 are \code{NA} where the learner has no such setting.
-\item \code{projects}: each fold's \code{n} and \code{base_rate}.
-\item \code{scores}: the held-out scores, one row per study and setting, which
-\code{\link[=bootstrap]{bootstrap()}} resamples.
-\item \code{model}: the learner, \code{"adaboost"}, \code{"rpart"}, \code{"glm"}, \code{"rf"} or
+\item \code{projects}: Each fold's \code{n} and \code{base_rate}.
+\item \code{scores}: The held-out scores, one row per held-out row and setting,
+which \code{\link[=bootstrap]{bootstrap()}} resamples.
+\item \code{model}: The learner: \code{"adaboost"}, \code{"rpart"}, \code{"glm"}, \code{"rf"} or
 \code{"xgboost"}.
-\item \code{nested}, \code{metric}, \code{sort_by} and \code{selected}: set by \code{\link[=tune_logo_cv]{tune_logo_cv()}}
+\item \code{nested}, \code{metric}, \code{sort_by} and \code{selected}: Set by \code{\link[=tune_logo_cv]{tune_logo_cv()}}
 when it nests the search.
 }
 }
 \description{
-Holds out each level of \code{group} in turn, refits the model on the rest and
-scores the held-out rows, so the result is one performance estimate per
-group rather than a single number: leave-one-group-out cross-validation
-(LOGO-CV). In the tutorial the groups are the replication projects. Whole
-projects are held out because the study effects in a project share a design
-and a base rate.
-}
-\details{
-Pass a fitted model. \code{logo_cv()} reads the recipe off the fit and refits it
-once per group. The fit's own data are not used, because cross-validation
-evaluates the procedure, not one fitted model. To compare settings of a
-model, pass its fit and a grid to \code{\link[=tune_logo_cv]{tune_logo_cv()}}.
+Holds out each level of \code{group} in turn, refits the model on the other rows
+and scores the held-out rows. The result has one performance estimate per
+group. Each refit follows the recipe of \code{x} on the training rows, not the
+fit's own data. To compare settings of a model, use \code{\link[=tune_logo_cv]{tune_logo_cv()}}.
 }
 \section{What each method reads off the fit}{
 
 \itemize{
-\item An \code{\link[=adaboost]{adaboost()}} fit: the formula, the tree controls, the splitting rule,
-\code{n_iter} and \code{eta}. Each refit grows the tree and boosts it, and is
-scored on the margin.
+\item A fit from \code{\link[=adaboost]{adaboost()}}: the formula, the tree controls, the splitting
+rule, \code{n_iter} and \code{eta}. Each refit is scored on its margin.
 \item A classification tree from \code{\link[rpart:rpart]{rpart::rpart()}}, a binomial \code{\link[stats:glm]{stats::glm()}},
 or a classification forest from \code{\link[randomForest:randomForest]{randomForest::randomForest()}} fitted
-with a formula: the call that made the fit. The call runs again with
-\code{data} replaced by the training rows, so settings such as \code{control},
-\code{parms}, \code{family}, \code{ntree} or \code{mtry} carry over. Each refit is scored on
-its predicted probability of the second class.
+with a formula: the call that made the fit, run again with \code{data}
+replaced by the training rows. Each refit is scored on its predicted
+probability of the second class.
 \item An XGBoost fit from \code{\link[xgboost:xgboost]{xgboost::xgboost()}}, version 3.0 or later, made with
 a data frame of predictors and a factor outcome: its stored parameters,
-its number of rounds and the names of its predictors. Each refit runs
-\code{xgboost()} afresh with those parameters on the training rows, takes the
-outcome from the column named by \code{outcome}, and is scored on its
-predicted probability of the second level. The stored parameters do not
-keep \code{weights}, \code{base_margin}, \code{eval_set}, \code{early_stopping_rounds} or
-\code{feature_weights}, so a fit made with any of them is an error. Fit it
-with \code{nthreads = 1}: each refit runs on as many threads as the fit, and
-\code{\link[=tune_logo_cv]{tune_logo_cv()}} can run several refits at once.
+its number of rounds and the names of its predictors. Each refit is
+scored on its predicted probability of the second level. A fit made
+with \code{weights}, \code{base_margin}, \code{eval_set}, \code{early_stopping_rounds} or
+\code{feature_weights} is an error.
 }
 
-Every model is scored on a continuous score, never on class labels.
+The metrics that need a threshold cut the margin at 0 and probabilities at
+0.5.
 
-For a tree, a glm or a forest, the call runs where its formula was made,
-so any other object it names, such as \code{weights = w}, must still exist
-there. A variable named as a column of \code{data}, such as \code{weights = n.o},
-travels with the rows. A random forest draws at random: set a seed to
-repeat a result.
-}
-
-\section{Holding out some groups only}{
-
-\code{holdout} names the groups to hold out, in that order. The other groups
-are only ever trained on. One name gives a single split into training and
-test data: the final test on a project kept back from tuning, or one Monte
-Carlo draw whose test part is a level of a random column (see the
-examples).
-}
-
-\section{Reading the estimates}{
-
-The estimates are returned per project and are not averaged. Describe their
-spread, but do not turn it into a standard error or a confidence interval.
-The folds differ in size (10 to 90 study effects in \link{altmext}), and they
-share most of their training data, so the usual standard error is too small
-(Bengio & Grandvalet, 2004).
+The call of a tree, a glm or a forest runs where its formula was made, so
+any other object it names, such as \code{parms = p} or \code{family = fam}, must
+still exist there. Weights must be a column of \code{data}, such as
+\code{weights = n.o}, so they travel with the rows.
 }
 
 \examples{
@@ -189,12 +154,9 @@ logo_cv(
 )
 
 }
-\references{
-Bengio, Y., & Grandvalet, Y. (2004). No unbiased estimator of the
-variance of k-fold cross-validation. \emph{Journal of Machine Learning Research,
-5}, 1089-1105.
-}
 \seealso{
+\link{altmext}, the data of the examples.
+
 Other cross-validation:
 \code{\link[=bootstrap]{bootstrap()}},
 \code{\link{logo_cv_methods}},

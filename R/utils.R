@@ -1,10 +1,6 @@
 #' Map outcome labels onto 0/1
-#'
-#' Accepts a two-level factor (the second level is positive), logical, 0/1,
-#' or -1/1, which is what `predict(type = "class")` returns. Anything else is
-#' an error: silent coercion would turn a 1/2 vector into a wrong answer.
-#'
-#' @param actual The labels.
+#' @param actual The true labels: a two-level factor (the second level is the
+#'   positive class), 0/1, -1/1, or logical.
 #' @return An integer vector of 0 and 1.
 #' @noRd
 as_binary <- function(actual) {
@@ -26,25 +22,20 @@ as_binary <- function(actual) {
     # predict(type = "class") returns -1/1
     return(as.integer((actual + 1) / 2))
   }
+  # no silent coercion: it would turn a 1/2 vector into a wrong answer
   stop(
     "`actual` must be a two-level factor, 0/1, -1/1, or logical.",
     call. = FALSE
   )
 }
 
-#' Console feedback while a fit runs
-#'
-#' Gray step lines, gray dots that end in "Done", and a gray progress bar.
-#' They write to stderr, so progress stays out of results. adaboost(),
-#' predict(), logo_cv() and tune_logo_cv() call them when `verbose = TRUE`.
-#'
+#' Report progress on the console
 #' @noRd
 NULL
+# stderr, so progress stays out of results
 
-# one place to re-theme the console: plain text informs, gray marks labels
-# and steps, teal marks "Done" only, and nothing is bold. Mid-viridis teal and
-# mid-gray are legible on light and dark terminals; a fixed gray, since
-# Positron ignores the faint code (2)
+# fixed colors, legible on light and dark terminals; not the faint code (2),
+# which Positron ignores
 ansi_gray <- "38;5;244"
 ansi_teal <- "38;5;30"
 
@@ -57,11 +48,9 @@ color_message <- function(text, color_code = ansi_gray, newline = FALSE) {
 }
 
 #' Print gray dots, then "Done" in `color_code`
-#'
-#' The dots stay gray so the eye follows the "Done" markers.
 #' @noRd
 mark_done <- function(n = 3, color_code = ansi_teal) {
-  # one message, printed at once
+  # one message, printed at once; gray dots, so the eye follows the "Done"
   message(
     "\033[",
     ansi_gray,
@@ -83,10 +72,9 @@ open_progress <- function(n_steps) {
 }
 
 #' Reset the progress style and close a half-finished line
-#'
-#' Runs from on.exit(), which unlike tryCatch() also runs on a user interrupt.
 #' @noRd
 close_progress <- function(progress, finished) {
+  # called from on.exit(), which unlike tryCatch() also runs on an interrupt
   if (!is.null(progress)) {
     cat("\033[0m", file = stderr())
   }
@@ -96,13 +84,10 @@ close_progress <- function(progress, finished) {
   }
 }
 
-#' Whether printed output may carry color
-#'
-#' Only in a live console: print() output also lands in knitr documents and
-#' captured output, where escape codes show as garbage. `NO_COLOR` turns it
-#' off.
+#' Decide whether printed output may carry color
 #' @noRd
 use_ansi <- function() {
+  # a live console only: knitr and captured output show escape codes as garbage
   interactive() &&
     !isTRUE(getOption("knitr.in.progress")) &&
     !nzchar(Sys.getenv("NO_COLOR"))

@@ -1,72 +1,68 @@
 #' Assess classification performance
 #'
 #' Computes performance metrics from true labels and continuous scores. Most
-#' metrics come from one confusion matrix, made by cutting the scores at
-#' `threshold`. The rest (`auroc`, `auprc` and the `patk` family) use the
-#' whole ranking of the scores, so a confusion matrix cannot give them.
-#'
-#' @section Use scores, not class labels:
-#' `score` must be continuous. Class labels have only two values, so the ROC
-#' curve shrinks to a single point and `auroc` quietly becomes balanced
-#' accuracy. With [predict.adaboost()], use `type = "margin"`.
+#' metrics come from one confusion matrix at `threshold`; `auroc`, `auprc` and
+#' the `patk` metrics use the ranking of the scores.
 #'
 #' @section Metrics:
-#' At the threshold, from the counts `tp`, `tn`, `fp` and `fn`:
-#' * `sens`: TP / (TP + FN). Also called true positive rate, recall or hit
-#'   rate.
-#' * `spec`: TN / (TN + FP). Also called true negative rate. 1 - `spec` is the
-#'   false positive rate, or false-alarm rate.
-#' * `ppv`: TP / (TP + FP). Also called precision.
-#' * `npv`: TN / (TN + FN).
-#' * `acc`: (TP + TN) / (TP + TN + FP + FN).
-#' * `bacc`: (`sens` + `spec`) / 2, the same as (J + 1) / 2 with Youden's J.
-#' * `f1`: 2TP / (2TP + FP + FN), the harmonic mean of `ppv` and `sens`. The
-#'   same formula as the Dice coefficient.
-#' * `mcc`: \eqn{(TP \cdot TN - FP \cdot FN) /
-#'   \sqrt{(TP + FP)(TP + FN)(TN + FP)(TN + FN)}}{(TP x TN - FP x FN) /
-#'   sqrt((TP + FP)(TP + FN)(TN + FP)(TN + FN))}. This is the phi coefficient,
-#'   the correlation between true and predicted labels (Chicco & Jurman, 2020).
+#' From the counts at `threshold`: true positives `tp`, true negatives `tn`,
+#' false positives `fp` and false negatives `fn`.
+#' * `sens` (sensitivity):
+#'   \eqn{\frac{\mathrm{tp}}{\mathrm{tp} + \mathrm{fn}}}{tp / (tp + fn)}.
+#' * `spec` (specificity):
+#'   \eqn{\frac{\mathrm{tn}}{\mathrm{tn} + \mathrm{fp}}}{tn / (tn + fp)}.
+#' * `ppv` (positive predictive value):
+#'   \eqn{\frac{\mathrm{tp}}{\mathrm{tp} + \mathrm{fp}}}{tp / (tp + fp)}.
+#' * `npv` (negative predictive value):
+#'   \eqn{\frac{\mathrm{tn}}{\mathrm{tn} + \mathrm{fn}}}{tn / (tn + fn)}.
+#' * `acc` (accuracy): \eqn{\frac{\mathrm{tp} + \mathrm{tn}}{\mathrm{tp} +
+#'   \mathrm{tn} + \mathrm{fp} + \mathrm{fn}}}{(tp + tn) / (tp + tn + fp +
+#'   fn)}.
+#' * `bacc` (balanced accuracy):
+#'   \eqn{\frac{\mathrm{sens} + \mathrm{spec}}{2}}{(sens + spec) / 2}.
+#' * `f1` (F1 score): \eqn{\frac{2 \cdot \mathrm{tp}}{2 \cdot \mathrm{tp} +
+#'   \mathrm{fp} + \mathrm{fn}}}{2 * tp / (2 * tp + fp + fn)}, the harmonic
+#'   mean of `ppv` and `sens`.
+#' * `mcc` (Matthews correlation coefficient; Chicco & Jurman, 2020):
+#'   \eqn{\frac{\mathrm{tp} \cdot \mathrm{tn} - \mathrm{fp} \cdot \mathrm{fn}}
+#'   {\sqrt{(\mathrm{tp} + \mathrm{fp})(\mathrm{tp} + \mathrm{fn})
+#'   (\mathrm{tn} + \mathrm{fp})(\mathrm{tn} + \mathrm{fn})}}}{(tp * tn -
+#'   fp * fn) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))}.
 #'
-#' Over the ranking:
-#' * `auroc`: the chance that a random positive scores higher than a random
-#'   negative, with ties counting half. Also called the c statistic, or
-#'   Vargha and Delaney's (2000) A.
-#' * `auprc`: the area under the precision-recall curve, estimated as in Davis
-#'   and Goadrich (2006). This is not the same as average precision.
-#' * `patk_3`, `patk_5`, `patk`: the share of positives among the top 3, the
-#'   top 5 and the top n+ scores, where n+ is the number of positives. See
+#' From the ranking of `score`:
+#' * `auroc` (area under the ROC curve): the chance that a random positive
+#'   scores higher than a random negative, with ties counting half.
+#' * `auprc` (area under the precision-recall curve): estimated as in Davis
+#'   and Goadrich (2006).
+#' * `patk_3`, `patk_5`, `patk` (precision at `k`): the share of positives among
+#'   the `k` highest scores, for `k` of 3, 5 and the number of positives. See
 #'   [patk()].
 #'
-#' The synonyms follow Fawcett (2006).
-#'
-#' @section Baselines:
-#' A random score gets an `auroc` of 0.5, but an `auprc` near the base rate,
-#' not 0.5. `auroc` and `bacc` ignore the base rate; `ppv` and `mcc` do not.
-#'
 #' @section Missing values:
-#' A metric is `NA` when the data cannot support it. That happens to `auroc`
-#' and `auprc` when only one class is present, to `ppv` when nothing is
-#' predicted positive, to `npv` when nothing is predicted negative, and to
-#' `patk` when `k` is larger than the number of positives. `f1` is 0 when
-#' nothing is predicted positive but positives exist. `mcc` is 0 when its
-#' denominator is 0.
+#' A metric is `NA` when the data cannot support it, such as `ppv` when
+#' nothing is predicted positive, `auroc` and `auprc` when only one class is
+#' present, and `patk` when `k` is larger than the number of positives. `mcc`
+#' is 0 when its denominator is 0, and `f1` is 0 when nothing is predicted
+#' positive but positives exist.
 #'
 #' @param x For the default method, the true labels: a two-level factor (the
 #'   second level is the positive class), 0/1, -1/1, or logical. For the
-#'   `confusion` method, the result of [confusion()].
+#'   `confusion` method, a result of [confusion()]. For `print()`, a result
+#'   of `assess()`.
 #' @param score Continuous scores, one per observation, such as an AdaBoost
-#'   margin or a predicted probability.
+#'   margin or a predicted probability. Class labels turn `auroc` into
+#'   balanced accuracy; with [predict.adaboost()], use `type = "margin"`.
 #' @param threshold The cutoff for `score`. Use 0 for margins (the default)
 #'   and 0.5 for probabilities.
-#' @param k The budgets for `patk`. By default 3, 5 and the number of
-#'   positives. Budgets passed are named by their value, e.g. `patk_10`.
+#' @param k The budgets for the `patk` metrics. Defaults to 3, 5 and the
+#'   number of positives. A budget given names its metric, such as `patk_10`.
 #' @param digits The number of decimals `print()` shows.
 #' @param ... Ignored.
 #'
-#' @return A named numeric vector of class `assessment`. By default it has 17
-#'   metrics, in the order listed above; the `confusion` method returns the
-#'   first 12. `print()` shows them grouped by cut and rounds only the
-#'   display.
+#' @return A named numeric vector of class `assessment`: the counts `tp`,
+#'   `tn`, `fp` and `fn`, then the metrics in the order of the Metrics
+#'   section, 17 values by default. The `confusion` method returns the first
+#'   12. `print()` rounds only what it shows.
 #'
 #' @family performance metrics
 #'
@@ -78,17 +74,6 @@
 #' Davis, J., & Goadrich, M. (2006). The relationship between precision-recall
 #' and ROC curves. *Proceedings of the 23rd International Conference on
 #' Machine Learning*, 233-240.
-#'
-#' Fawcett, T. (2006). An introduction to ROC analysis. *Pattern Recognition
-#' Letters*, 27(8), 861-874.
-#'
-#' Grau, J., Grosse, I., & Keilwagen, J. (2015). PRROC: computing and
-#' visualizing precision-recall and receiver operating characteristic curves in
-#' R. *Bioinformatics*, 31(15), 2595-2597.
-#'
-#' Vargha, A., & Delaney, H. D. (2000). A critique and improvement of the CL
-#' common language effect size statistics of McGraw and Wong. *Journal of
-#' Educational and Behavioral Statistics*, 25(2), 101-132.
 #'
 #' @examples
 #' data(altmext)
@@ -140,7 +125,6 @@ assess.default <- function(x, score, threshold = 0, k = NULL, ...) {
     )
   }
 
-  # cut once; the confusion method does every metric a matrix supports
   cm <- confusion(y, score, threshold)
 
   # two small fixed budgets, then R-precision, which keeps the name `patk`
@@ -218,7 +202,6 @@ print.assessment <- function(x, digits = 3, ...) {
     )
   }
 
-  # four cells per line; a continued block leaves its label blank
   rows <- list()
   for (block in blocks) {
     chunks <- split(block$values, ceiling(seq_along(block$values) / 4))
@@ -319,17 +302,18 @@ format_confusion <- function(cm, width) {
 
 #' Count a confusion matrix
 #'
-#' Cuts `score` at `threshold` and counts the four cells of the 2x2 table:
-#' true positives, true negatives, false positives and false negatives.
-#' [assess()] computes every threshold metric from these counts.
+#' Cuts `score` at `threshold` and counts true positives `tp`, true negatives
+#' `tn`, false positives `fp` and false negatives `fn`. [assess()] computes
+#' the metrics from these counts.
 #'
 #' @param actual The true labels: a two-level factor (the second level is the
 #'   positive class), 0/1, -1/1, or logical.
-#' @param score Continuous scores, one per observation.
+#' @param score Continuous scores, one per observation, such as an AdaBoost
+#'   margin or a predicted probability.
 #' @param threshold The cutoff for `score`. Use 0 for margins (the default)
-#'   and 0.5 for probabilities. Probabilities cut at 0 would all count as
-#'   positive, so this case gives a warning.
-#' @param x An object of class `confusion`.
+#'   and 0.5 for probabilities. With `threshold = 0`, scores that look like
+#'   probabilities give a warning.
+#' @param x A result of `confusion()`.
 #' @param ... Ignored.
 #'
 #' @return A named integer vector of class `confusion` with `tp`, `tn`, `fp`
@@ -388,23 +372,17 @@ print.confusion <- function(x, ...) {
 }
 
 #' Divide, returning NA for a zero denominator
-#'
-#' `NA`, not `NaN`: the metric has no value for this data, rather than a
-#' failed calculation. logo_cv() stores such cells as undefined.
-#'
 #' @noRd
 divide_safely <- function(numerator, denominator) {
+  # NA, not NaN: the metric is undefined for these data; nothing failed
   if (denominator == 0) NA_real_ else numerator / denominator
 }
 
 #' Area under the ROC curve
 #'
-#' Computes the area under the receiver operating characteristic curve with
-#' the PRROC package. It measures the ranking only, so it ignores the base
-#' rate and any monotone transformation of `score`.
-#'
-#' Use continuous scores. Class labels turn this into balanced accuracy,
-#' (`sens` + `spec`) / 2. With [predict.adaboost()], use `type = "margin"`.
+#' Computes the area under the receiver operating characteristic (ROC) curve
+#' with the PRROC package (Grau et al., 2015). Class labels turn it into
+#' balanced accuracy; with [predict.adaboost()], use `type = "margin"`.
 #'
 #' @inheritParams confusion
 #'
@@ -431,15 +409,13 @@ auroc <- function(actual, score) {
 
 #' Area under the precision-recall curve
 #'
-#' Computes the area under the precision-recall curve with the PRROC package,
-#' using the Davis and Goadrich (2006) estimator.
-#'
-#' A useless model scores about the base rate here, not 0.5 as for [auroc()].
-#' Compare each value with the base rate of its own data set.
+#' Computes the area under the precision-recall curve with the PRROC package
+#' (Grau et al., 2015), using the estimator of Davis and Goadrich (2006).
 #'
 #' @inheritParams confusion
 #'
-#' @return A number, or `NA` if `actual` has only one class.
+#' @return A number, or `NA` if `actual` has only one class. A random score
+#'   gets about the base rate, not 0.5.
 #'
 #' @family performance metrics
 #'
@@ -472,28 +448,15 @@ auprc <- function(actual, score) {
 
 #' Precision among the top-ranked cases
 #'
-#' Computes the share of positives among the `k` highest scores: precision
-#' under a budget, when only the top of the ranking is acted on.
-#'
-#' By default `k` is the number of positives (R-precision), which scales with
-#' each data set. A fixed `k` means something different in a set of 10 than in
-#' a set of 90.
-#'
-#' @section Rules:
-#' * `k` larger than the number of positives gives `NA`. There are fewer
-#'   positives than places, so even a perfect ranking could not reach 1.
-#' * When the cut falls inside a group of tied scores, the group counts by its
-#'   share of positives. The result is the expected precision under random
-#'   tie-breaking, so row order cannot change it.
-#' * Recall and F1 at `k` are not reported. With TP_k positives among the top
-#'   `k`, they are TP_k / n+ and 2 TP_k / (k + n+): rescalings of precision at
-#'   `k`. At the default `k` all three are equal.
+#' Computes the share of positives among the `k` highest scores. Scores tied
+#' at the cut count by their share of positives.
 #'
 #' @inheritParams confusion
 #' @param k One or more budgets. Defaults to the number of positives in
 #'   `actual`.
 #'
-#' @return A number for a single `k`. For several, a vector named by `k`.
+#' @return A number for a single `k`; for several, a vector named by `k`.
+#'   `NA` where `k` is larger than the number of positives.
 #'
 #' @family performance metrics
 #'
@@ -532,14 +495,10 @@ patk <- function(actual, score, k = NULL) {
   precision
 }
 
-#' Metrics from a confusion matrix
-#'
-#' Each takes the counts from confusion() and returns one number; the formulas
-#' are listed in ?assess. They take the table, not raw data, so every metric
-#' in a report shares one cutoff. Not exported: assess(cm) returns them all.
-#'
+#' Compute one metric from a confusion matrix
 #' @noRd
 NULL
+# the counts, not raw data, so every metric in a report shares one cutoff
 
 measure_sens <- function(cm) {
   check_confusion(cm)
