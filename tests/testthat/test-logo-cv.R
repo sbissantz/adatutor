@@ -2697,6 +2697,15 @@ test_that("on Windows, the vignette's tree and forest give what one core gives",
 
 test_that("on Windows, the session's plain values reach the workers", {
   local_mocked_bindings(read_os_type = function() "windows")
+  # covr sets this variable, and then no default package counts as attached
+  default_packages <- Sys.getenv("R_DEFAULT_PACKAGES", unset = NA)
+  Sys.unsetenv("R_DEFAULT_PACKAGES")
+  on.exit(
+    if (!is.na(default_packages)) {
+      Sys.setenv(R_DEFAULT_PACKAGES = default_packages)
+    },
+    add = TRUE
+  )
   # as typed at the top level: numbers `sd` and `var`, which the formula
   # reads while it calls stats' sd() and var(), a number it reads by a
   # string, and a one-row data frame and a list the call reads. A new R

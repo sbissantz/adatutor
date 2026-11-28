@@ -661,7 +661,6 @@ run_round_one <- function(
     d1 = d1,
     d2 = d2_raw / sum(d2_raw),
     chi = chi1,
-    fit = h1,
     alpha = alpha1,
     perf = perf
   )

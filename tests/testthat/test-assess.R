@@ -428,8 +428,6 @@ test_that("the threshold reaches every derived metric from one place", {
 
   expect_gt(measure_sens(low), measure_sens(high))
   expect_lt(measure_spec(low), measure_spec(high))
-  # the ranking metrics cannot move, having no cutoff to move
-  expect_equal(auroc(y, s), auroc(y, s))
   expect_false(isTRUE(all.equal(measure_bacc(low), measure_bacc(high))))
 })
 
